@@ -54,7 +54,9 @@ const ACTIVE_Y = 826, STORAGE_Y = 1016, SHOP_Y = 1172, SHOP_TOP = 1090;
 const SLOTS = 5, SHOP_N = 3;
 const CASTLE_MAX = 100, BREAK_TIME = 15, START_GOLD = 10, REROLL_BASE = 2;
 const CARD_W = 112, CARD_H = 136;
-const SELL_RECT = { x: 0, y: SHOP_TOP, w: 430, h: H - SHOP_TOP };
+// Sell box under the right side of the Reroll button. SELL_HIT is a little larger so drops are forgiving.
+const SELL_RECT = { x: 584, y: 1206, w: 116, h: 60 };
+const SELL_HIT = { x: SELL_RECT.x - 14, y: SELL_RECT.y - 14, w: SELL_RECT.w + 28, h: SELL_RECT.h + 22 };
 const INK = "#2a1a12", PARCH = "#f3e3c3", GOLD = "#f2c14e";
 const FONT = "Fredoka, system-ui, sans-serif";
 const DISPLAY = '"Cinzel Decorative", Georgia, serif';
@@ -791,7 +793,7 @@ function pointerUp(ev) {
   }
   const target = slotAt(p);
   if (d.from === "shop") { if (target && target[0] !== "shop") buy(d.index, target[0], target[1]); return; }
-  if (!target || target[0] === "shop") { if (inRect(p, SELL_RECT)) sell(d.from, d.index); return; }
+  if (!target || target[0] === "shop") { if (inRect(p, SELL_HIT)) sell(d.from, d.index); return; }
   moveCard(d.from, d.index, target[0], target[1]);
 }
 canvas.addEventListener("pointerup", pointerUp);
@@ -908,10 +910,7 @@ function drawWorld() {
 
   // Drag hints.
   if (drag) {
-    if (drag.from !== "shop" && inRect(pointer, SELL_RECT) && (!hover || hover[0] === "shop")) {
-      ctx.fillStyle = hexA(GOLD, 0.15); ctx.fillRect(SELL_RECT.x, SELL_RECT.y, SELL_RECT.w, SELL_RECT.h);
-      text(`Drop to sell  +${sellOf(drag.card.element, drag.card.rarity)} g`, SELL_RECT.w / 2, SHOP_TOP + 36, 22, GOLD, { outline: 5 });
-    } else if (hover && hover[0] !== "shop") {
+    if (hover && hover[0] !== "shop") {
       const hp = slotPos(hover[0], hover[1]), other = rows[hover[0]][hover[1]];
       const ok = !other || other === drag.card || !!merge(drag.card.element, drag.card.rarity, other.element, other.rarity);
       rrect(hp.x - CARD_W / 2 - 8, hp.y - CARD_H / 2 - 8, CARD_W + 16, CARD_H + 16, 16);
@@ -924,7 +923,6 @@ function drawWorld() {
   for (const r of ["active", "storage", "shop"]) for (const c of rows[r]) if (c && !c.dragging) c.draw();
   for (const p of projectiles) p.draw();
   for (const f of fxs) f.draw();
-  if (drag) drag.card.draw();
 }
 
 function drawHud() {
@@ -951,6 +949,7 @@ function drawHud() {
   btn.reroll.label = `Reroll\n${rerollCost} gold`;
   btn.start.label = breakTimer > 0 ? `Start Wave ${wave + 1}  (${Math.ceil(breakTimer)})` : `Start Wave ${wave + 1}`;
   drawBtn(btn.book); drawBtn(btn.pause); drawBtn(btn.reroll, gold < rerollCost);
+  drawSellBox();
   if (state === "break" && !drag && !paused) drawBtn(btn.start);
   if (info.t < 4.6) {
     ctx.globalAlpha = info.t < 4 ? 1 : 1 - (info.t - 4) / 0.6;
@@ -964,6 +963,21 @@ function drawHud() {
     text(banner.text, 0, 0, 44, banner.color, { weight: 700, outline: 10, baseline: "middle" });
     ctx.restore();
   }
+}
+function drawSellBox() {
+  const r = SELL_RECT, selling = drag && drag.from !== "shop";
+  const over = selling && inRect(pointer, SELL_HIT);
+  const pulse = 0.5 + 0.5 * Math.sin(time * 6);
+  if (selling) { rrect(r.x - 6, r.y - 6, r.w + 12, r.h + 12, 18); ctx.fillStyle = hexA(GOLD, over ? 0.45 : 0.15 + 0.15 * pulse); ctx.fill(); }
+  rrect(r.x, r.y + 3, r.w, r.h, 14); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
+  rrect(r.x, r.y, r.w, r.h, 14); ctx.fillStyle = over ? "#d9704f" : "#b4553a"; ctx.fill();
+  ctx.strokeStyle = selling ? GOLD : INK; ctx.lineWidth = selling ? 4 : 3; ctx.stroke();
+  // Coin bag icon.
+  const bx = r.x + 30, by = r.y + r.h / 2 + 4;
+  poly([[bx - 14, by + 12], [bx - 12, by - 4], [bx - 6, by - 10], [bx + 6, by - 10], [bx + 12, by - 4], [bx + 14, by + 12]], "#e9d3a6", INK, 2.5);
+  poly([[bx - 6, by - 10], [bx - 9, by - 17], [bx + 9, by - 17], [bx + 6, by - 10]], "#e9d3a6", INK, 2.5);
+  circle(bx, by + 2, 6, GOLD); ring(bx, by + 2, 6, INK, 2);
+  text("Sell", r.x + 80, r.y + r.h / 2 + 9, 24, PARCH, { weight: 700, outline: 5 });
 }
 function wrapText(s, x, y, maxW, size, lh) {
   ctx.font = `600 ${size}px ${FONT}`;
@@ -1082,7 +1096,13 @@ function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
   update(dt);
   ctx.clearRect(0, 0, W, H);
-  drawWorld(); drawHud(); drawOverlays(); drawFilm();
+  drawWorld(); drawHud();
+  if (drag) {
+    drag.card.draw();
+    if (drag.from !== "shop" && inRect(pointer, SELL_HIT))
+      text(`Sell for +${sellOf(drag.card.element, drag.card.rarity)} g`, clamp(drag.card.x, 120, W - 120), drag.card.y - CARD_H / 2 - 18, 26, GOLD, { weight: 700, outline: 6 });
+  }
+  drawOverlays(); drawFilm();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
