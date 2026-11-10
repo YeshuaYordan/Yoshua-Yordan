@@ -359,7 +359,8 @@ class Card {
     ctx.translate(this.x + Math.sin(t * 60) * 6 * this.shake, this.y - 8 * this.kick - (this.dragging ? 6 : 0));
     ctx.scale(this.scale, this.scale);
     const hw = CARD_W / 2, hh = CARD_H / 2;
-    if (d.tier === 3) this.drawEpicAura(hw, hh, t);
+    if (this.rarity >= MYTH) this.drawMythAura(hw, hh, t);
+    else if (d.tier === 3) this.drawEpicAura(hw, hh, t);
     // Card background for this rarity (falls back to a plain frame until the art has loaded).
     const art = CARD_ART[this.rarity], k = CARD_W / ART_W;
     rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 9); ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fill();
@@ -427,6 +428,58 @@ class Card {
       else { d -= CARD_W; x = -hw - 6; y = hh - d; }
       const s = 2 + 1.5 * Math.sin(t * 6 + i);
       circle(x, y, s + 3, hexA(P, 0.35)); circle(x, y, s, "#f1e4ff");
+    }
+  }
+  // Myth cards: soft fire licking every side of the card, a hot glow and embers floating up.
+  drawMythAura(hw, hh, t) {
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 4; i >= 0; i--) {
+      const g = 4 + i * 6 + pulse * 4;
+      rrect(-hw - g, -hh - g, CARD_W + g * 2, CARD_H + g * 2, 12 + g);
+      ctx.fillStyle = hexA(i > 2 ? "#ff3d1f" : "#ff8a2a", 0.07 + (4 - i) * 0.025); ctx.fill();
+    }
+    // Flame tongues all around the edge, leaning upward like real fire.
+    const per = 2 * (CARD_W + CARD_H), N = 40;
+    const edge = d => {
+      if (d < CARD_W) return [-hw + d, -hh, 0, -1];
+      if ((d -= CARD_W) < CARD_H) return [hw, -hh + d, 1, 0];
+      if ((d -= CARD_H) < CARD_W) return [hw - d, hh, 0, 1];
+      d -= CARD_W; return [-hw, hh - d, -1, 0];
+    };
+    for (let layer = 0; layer < 3; layer++) {
+      const col = ["#ff3d1f", "#ff9a2e", "#ffe27a"][layer], k = [1, 0.66, 0.38][layer], a = [0.55, 0.6, 0.7][layer];
+      ctx.fillStyle = hexA(col, a);
+      for (let i = 0; i < N; i++) {
+        const [x, y, nx, ny] = edge((i + 0.5) * per / N);
+        const flick = 0.6 + 0.4 * Math.sin(t * 9 + i * 1.7) * Math.sin(t * 5.3 + i * 2.9);
+        const h = (14 + 9 * flick) * k;
+        let dx = nx * 0.8, dy = ny * 0.8 - 0.75; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+        const bw = 7 * k + 2, px = -dy, py = dx;
+        const tipX = x + dx * h + Math.sin(t * 7 + i) * 2, tipY = y + dy * h;
+        ctx.beginPath();
+        ctx.moveTo(x + px * bw, y + py * bw);
+        ctx.quadraticCurveTo(x + px * bw * 0.6 + dx * h * 0.6, y + py * bw * 0.6 + dy * h * 0.6, tipX, tipY);
+        ctx.quadraticCurveTo(x - px * bw * 0.6 + dx * h * 0.6, y - py * bw * 0.6 + dy * h * 0.6, x - px * bw, y - py * bw);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.restore();
+    // Hot glowing border.
+    ctx.save();
+    ctx.shadowColor = "#ff6a2a"; ctx.shadowBlur = 18 + pulse * 12;
+    rrect(-hw - 2, -hh - 2, CARD_W + 4, CARD_H + 4, 11);
+    ctx.strokeStyle = hexA("#ffd27a", 0.95); ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+    // Embers drifting upward.
+    for (let i = 0; i < 12; i++) {
+      const life = ((t * 0.6 + i * 0.37) % 1 + 1) % 1;
+      const ex = -hw + ((i * 37) % 100) / 100 * CARD_W + Math.sin(t * 3 + i) * 6;
+      const ey = hh - life * (CARD_H + 50);
+      const s = 2.4 * (1 - life) + 0.8;
+      circle(ex, ey, s + 2.5, `rgba(255,120,40,${0.35 * (1 - life)})`);
+      circle(ex, ey, s, `rgba(255,230,150,${0.9 * (1 - life)})`);
     }
   }
   accents(cx, cy, r, d) {
