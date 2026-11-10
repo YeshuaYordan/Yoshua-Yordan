@@ -592,7 +592,9 @@ class Fx {
 const rows = { active: Array(SLOTS).fill(null), storage: Array(SLOTS).fill(null), shop: Array(SHOP_N).fill(null) };
 let enemies = [], projectiles = [], zones = [], fxs = [];
 let gold = 0, castleHp = CASTLE_MAX, wave = 0, state = "title", breakTimer = -1;
-let toSpawn = 0, spawnTimer = 0, bossPending = false, rerollCost = REROLL_BASE, freeCard = true;
+// Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
+const CALL_COOLDOWN = 5;
+let spawners = [], callCd = 0, wavesCleared = 0, rerollCost = REROLL_BASE, freeCard = true;
 let time = 0, wallFlash = 0, paused = false, bookOpen = false, bookScroll = 0;
 let drag = null; // { card, from, index, ox, oy, px, py, moved }
 let hover = null;
@@ -625,34 +627,42 @@ function showInfo(t) { info = { text: t, t: 0 }; }
 
 function clearBoard() {
   for (const r in rows) rows[r].fill(null);
-  enemies = []; projectiles = []; zones = []; fxs = []; drag = null;
+  enemies = []; projectiles = []; zones = []; fxs = []; drag = null; spawners = []; callCd = 0;
 }
 function startRun() {
   clearBoard();
-  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
-  showInfo("Tap or drag a shop card onto a slot. Only the top row of slots attacks.");
+  showInfo("Buy a card, then tap Next Wave (top left). You can call new waves before the last one ends.");
 }
-function beginWave() {
-  wave++; state = "wave"; breakTimer = -1;
-  toSpawn = Math.min(6 + wave * 2, 70); spawnTimer = 0.6; bossPending = wave % 10 === 0; rerollCost = REROLL_BASE;
-  showBanner(bossPending ? `Wave ${wave}: BOSS!` : `Wave ${wave}`, bossPending ? "#e0533f" : PARCH);
+// Calls the next wave. It joins any waves still in progress. fromTimer skips the button cooldown.
+function beginWave(fromTimer = false) {
+  if (state !== "break" && state !== "wave") return;
+  if (callCd > 0 && !fromTimer) { showInfo(`Next wave ready in ${Math.ceil(callCd)}s.`); return; }
+  wave++; state = "wave"; breakTimer = -1; callCd = CALL_COOLDOWN; rerollCost = REROLL_BASE;
+  const total = Math.min(6 + wave * 2, 70);
+  spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % 10 === 0 });
+  const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
+  showBanner(wave % 10 === 0 ? `Wave ${wave}: BOSS!${stacked}` : `Wave ${wave}${stacked}`, wave % 10 === 0 ? "#e0533f" : PARCH);
 }
-function endWave() {
-  state = "break"; const bonus = 4 + wave; gold += bonus; breakTimer = BREAK_TIME;
-  if (wave > save.best) { save.best = wave; writeSave(); }
+function waveCleared(w) {
+  const bonus = 4 + w; gold += bonus; wavesCleared++;
+  if (wavesCleared > save.best) { save.best = wavesCleared; writeSave(); }
+  showBanner(`Wave ${w} cleared!  +${bonus} gold`, GOLD);
+}
+function toBreak() {
+  state = "break"; breakTimer = BREAK_TIME;
   refreshShop();
-  showBanner(`Wave ${wave} cleared!  +${bonus} gold`, GOLD);
 }
 function gameOver() {
   state = "gameover"; cancelDrag();
-  if (wave - 1 > save.best) save.best = wave - 1;
+  if (wavesCleared > save.best) save.best = wavesCleared;
   writeSave();
 }
 
-function pickKind() {
+function pickKind(wave) {
   const pool = [["grunt", 10]];
   if (wave >= 2) pool.push(["runner", 4 + wave * 0.5]);
   if (wave >= 4) pool.push(["tank", 2 + wave * 0.3]);
@@ -661,10 +671,11 @@ function pickKind() {
   for (const p of pool) { pick -= p[1]; if (pick <= 0) return p[0]; }
   return "grunt";
 }
-function spawnEnemy(kind) {
+function spawnEnemy(kind, wave) {
   let res = "";
   if (kind !== "boss" && wave >= 8 && Math.random() < Math.min(0.5, (wave - 7) * 0.05)) res = randomBase();
-  enemies.push(new Enemy(kind, wave, res, rand(50, W - 50), HUD_H + 20));
+  const e = new Enemy(kind, wave, res, rand(50, W - 50), HUD_H + 20);
+  e.wave = wave; enemies.push(e);
 }
 function damageCastle(a) {
   if (state !== "wave") return;
@@ -795,7 +806,7 @@ function makeBtn(label, x, y, w, h, onTap, size = 26) { return { label, x, y, w,
 const btn = {
   book: makeBtn("Book", 466, 9, 120, 54, () => openBook()),
   pause: makeBtn("II", 600, 9, 106, 54, () => { cancelDrag(); paused = true; }),
-  start: makeBtn("Start Wave", 160, 430, 400, 86, () => beginWave(), 32),
+  next: makeBtn("Next Wave", 14, HUD_H + 14, 230, 60, () => beginWave(), 24),
   reroll: makeBtn("Reroll", 450, 1100, 250, 96, () => reroll(), 28),
   play: makeBtn("Play", 180, 560, 360, 90, () => startRun(), 38),
   titleBook: makeBtn("Spellbook", 180, 670, 360, 76, () => openBook()),
@@ -813,7 +824,7 @@ function visibleButtons() {
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.quit];
   const list = [btn.book, btn.pause, btn.reroll];
-  if (state === "break" && !drag) list.push(btn.start);
+  if (!drag) list.push(btn.next);
   return list;
 }
 function drawBtn(b, disabled = false) {
@@ -890,12 +901,14 @@ function update(dt) {
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (paused || bookOpen || state === "title" || state === "gameover") return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
+  callCd = Math.max(0, callCd - dt);
   if (state === "wave") {
-    spawnTimer -= dt;
-    if (spawnTimer <= 0) {
-      spawnTimer = Math.max(0.28, 1.2 - wave * 0.035);
-      if (bossPending && toSpawn <= Math.min(6 + wave * 2, 70) / 2) { bossPending = false; spawnEnemy("boss"); }
-      else if (toSpawn > 0) { toSpawn--; spawnEnemy(pickKind()); }
+    for (const sp of spawners) {
+      sp.timer -= dt;
+      if (sp.timer > 0) continue;
+      sp.timer = Math.max(0.28, 1.2 - sp.wave * 0.035);
+      if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; spawnEnemy("boss", sp.wave); }
+      else if (sp.left > 0) { sp.left--; spawnEnemy(pickKind(sp.wave), sp.wave); }
     }
     for (const c of rows.active) {
       if (!c || (drag && drag.card === c)) continue;
@@ -903,14 +916,19 @@ function update(dt) {
       if (c.cooldown <= 0 && enemies.length) { fireCard(c); c.cooldown = 1 / rateOf(c.element, c.rarity); }
     }
   } else if (state === "break" && breakTimer > 0) {
-    breakTimer -= dt; if (breakTimer <= 0) beginWave();
+    breakTimer -= dt; if (breakTimer <= 0) beginWave(true);
   }
   for (const e of enemies.slice()) e.update(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
   for (const f of fxs) f.update(dt);
   projectiles = projectiles.filter(p => !p.dead); zones = zones.filter(z => !z.dead); fxs = fxs.filter(f => !f.dead);
-  if (state === "wave" && toSpawn <= 0 && !bossPending && enemies.length === 0) endWave();
+  if (state === "wave") {
+    for (const sp of spawners.slice()) {
+      if (sp.left <= 0 && !sp.boss && !enemies.some(e => e.wave === sp.wave)) { spawners.splice(spawners.indexOf(sp), 1); waveCleared(sp.wave); }
+    }
+    if (spawners.length === 0 && enemies.length === 0) toBreak();
+  }
   for (const c of rows.shop) if (c) { c.isFree = freeCard; c.affordable = freeCard || gold >= c.price; }
 }
 
@@ -1027,10 +1045,16 @@ function drawHud() {
   text(String(gold), gx + 24, gy + 11, 30, GOLD, { align: "left", outline: 8 });
   if (state === "gameover") return;
   btn.reroll.label = `Reroll\n${rerollCost} gold`;
-  btn.start.label = breakTimer > 0 ? `Start Wave ${wave + 1}  (${Math.ceil(breakTimer)})` : `Start Wave ${wave + 1}`;
+  btn.next.label = callCd > 0 ? `Next Wave  ${Math.ceil(callCd)}s` : (state === "break" && breakTimer > 0 ? `Next Wave (${Math.ceil(breakTimer)})` : "Next Wave");
   drawBtn(btn.book); drawBtn(btn.pause); drawBtn(btn.reroll, gold < rerollCost);
   drawSellBox();
-  if (state === "break" && !drag && !paused) drawBtn(btn.start);
+  if (!drag && !paused) {
+    drawBtn(btn.next, callCd > 0);
+    // Cooldown bar along the bottom of the button.
+    if (callCd > 0) {
+      const b = btn.next; rrect(b.x + 10, b.y + b.h - 12, (b.w - 20) * (1 - callCd / CALL_COOLDOWN), 6, 3); ctx.fillStyle = GOLD; ctx.fill();
+    }
+  }
   if (info.t < 4.6) {
     ctx.globalAlpha = info.t < 4 ? 1 : 1 - (info.t - 4) / 0.6;
     wrapText(info.text, W / 2, 640, 680, 20, 24);
@@ -1095,8 +1119,8 @@ function drawOverlays() {
     dim(0.7);
     text("The Castle", W / 2, 470, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
     text("Has Fallen!", W / 2, 540, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
-    const n = wave - 1;
-    text(`You held out for ${n} wave${n === 1 ? "" : "s"}.`, W / 2, 610, 30, PARCH, { outline: 8 });
+    const n = wavesCleared;
+    text(`You cleared ${n} wave${n === 1 ? "" : "s"}.`, W / 2, 610, 30, PARCH, { outline: 8 });
     text(`Best: ${save.best}`, W / 2, 660, 26, GOLD, { outline: 8 });
     drawBtn(btn.again); drawBtn(btn.title);
   } else if (paused && !bookOpen) {
