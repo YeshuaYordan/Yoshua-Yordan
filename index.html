@@ -49,7 +49,8 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .brand{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand b{color:var(--accent)}
 .money{font-family:var(--font-display);font-weight:700;font-size:26px;line-height:1.1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-.gems{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--gem);font-variant-numeric:tabular-nums}
+.ratingpill{margin-left:auto}
+.gems{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-display);font-weight:700;font-size:15px;color:var(--gem);font-variant-numeric:tabular-nums}
 .gem{width:16px;height:16px;flex:0 0 auto}
 .sub{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums;margin-top:2px}
 .sub .rate{color:var(--money);font-weight:700}
@@ -81,6 +82,15 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .brew:active{transform:scale(.985)}
 @keyframes pulse{50%{box-shadow:0 0 0 6px var(--accent-soft)}}
 
+.actrow{display:flex;gap:8px;align-items:stretch}
+.actrow .brew{flex:1;min-width:0}
+.phonebtn{position:relative;width:58px;flex:0 0 58px;border-radius:18px;border:1px solid var(--line);background:var(--glass);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  display:grid;place-items:center;cursor:pointer;color:var(--ink)}
+.phonebtn svg{width:26px;height:26px}
+.phonebtn .count{position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--warn);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;border:2px solid var(--surface)}
+.stars{color:#D49B1F;letter-spacing:1px;white-space:nowrap}
+.stars .off{color:var(--line)}
+.ratingpill{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-display);font-weight:700;font-size:15px;color:#C08A14;font-variant-numeric:tabular-nums}
 .dock{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:5px;border-radius:20px;background:var(--glass);
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid var(--line)}
 .dock button{position:relative;height:58px;border:0;border-radius:15px;background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
@@ -139,6 +149,36 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn.danger{color:var(--warn)}
 .toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:12px;background:var(--surface-2)}
 .ad{place-items:center;background:#0E110E;color:#EDEFEA}
+.phonewrap{place-items:center}
+.phone{width:100%;max-width:370px;height:min(720px,calc(100vh - 40px));height:min(720px,calc(100dvh - 40px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)));min-height:0;background:#151815;border-radius:42px;padding:10px;box-shadow:0 20px 60px rgba(0,0,0,.4);display:flex}
+.screen{flex:1;min-width:0;min-height:0;background:var(--surface);border-radius:33px;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{display:flex;justify-content:space-between;align-items:center;padding:12px 22px 4px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.notch{width:90px;height:22px;border-radius:12px;background:#151815}
+.appbar{display:flex;align-items:center;gap:10px;padding:8px 16px 10px;border-bottom:1px solid var(--line)}
+.appicon{width:34px;height:34px;border-radius:10px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink);font-family:var(--font-display);font-weight:700}
+.appbar h2{margin:0;font-family:var(--font-display);font-size:16px;flex:1;line-height:1.2}
+.appbar h2 small{display:block;font-family:var(--font-body);font-weight:500;font-size:12px;color:var(--muted)}
+.appscroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:14px 16px 20px;display:flex;flex-direction:column;gap:12px}
+.summary{display:grid;grid-template-columns:auto minmax(0,1fr);gap:16px;align-items:center;padding:14px;border-radius:16px;background:var(--surface-2)}
+.bignum{font-family:var(--font-display);font-weight:700;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.summary .stars{font-size:15px;display:block;margin-top:4px}
+.summary small{color:var(--muted);font-size:12px}
+.dist{display:flex;flex-direction:column;gap:4px}
+.dist div{display:grid;grid-template-columns:12px minmax(0,1fr) 28px;gap:6px;align-items:center;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dist i{display:block;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.dist i b{display:block;height:100%;background:#D49B1F}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.filters button{height:30px;padding:0 12px;border-radius:15px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:transparent}
+.review{padding:12px;border-radius:14px;border:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.rhead{display:flex;align-items:center;gap:10px}
+.avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:0 0 auto}
+.rname{font-weight:700;font-size:13.5px;flex:1;min-width:0}
+.rname small{display:block;font-weight:500;color:var(--muted);font-size:11.5px}
+.review p{margin:0;font-size:13.5px;line-height:1.45}
+.empty{text-align:center;color:var(--muted);padding:24px 8px;line-height:1.5}
+.homebar{height:22px;display:grid;place-items:center}
+.homebar button{width:120px;height:5px;border-radius:3px;border:0;background:var(--ink);opacity:.35;cursor:pointer;padding:0}
 .ad .box{width:100%;max-width:380px;display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center}
 .ad .tag{font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
 .ad .title{font-family:var(--font-display);font-size:22px;font-weight:700}
@@ -159,6 +199,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       <div class="wallet">
         <div class="line1">
           <span class="brand"><b>Beanery</b> · <span id="stageName">Coffee Stand</span></span>
+          <span class="ratingpill" title="Café rating">★ <span id="ratingNum">–</span></span>
           <span class="gems" title="Gems"><svg class="gem" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h8l3 4-7 8-7-8z" fill="currentColor"/><path d="M1 6h14M5.5 6 8 14l2.5-8M4 2l1.5 4M12 2l-1.5 4" stroke="#fff" stroke-opacity=".55" fill="none"/></svg><span id="gems">0</span></span>
         </div>
         <div class="money" id="money">$0</div>
@@ -179,7 +220,13 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       <div class="subtabs" id="subtabs" role="tablist"></div>
       <div class="panel" id="panel"></div>
     </section>
-    <button class="brew" id="brew"><span class="fill" id="brewFill"></span><span class="label" id="brewLabel">Brew</span><span class="hint" id="brewHint">Tap to make the next order</span></button>
+    <div class="actrow" id="actrow">
+      <button class="brew" id="brew"><span class="fill" id="brewFill"></span><span class="label" id="brewLabel">Brew</span><span class="hint" id="brewHint">Tap to make the next order</span></button>
+      <button class="phonebtn" id="phoneBtn" aria-label="Café reviews">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M10.5 18.5h3"/><path d="m12 7 1.1 2.2 2.4.3-1.7 1.7.4 2.4-2.2-1.2-2.2 1.2.4-2.4-1.7-1.7 2.4-.3z" fill="currentColor" stroke-width="1"/></svg>
+        <span class="count" id="unread" hidden>0</span>
+      </button>
+    </div>
     <nav class="dock" id="dock">
       <button data-sec="upgrade" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16V8M8.5 11.5 12 8l3.5 3.5"/></svg>Upgrade<i class="badge" data-badge="upgrade" hidden></i></button>
       <button data-sec="decor" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14h10l-1.5 7h-7z"/><path d="M12 14V9"/><path d="M12 9c0-3 2-5 5-5 0 3-2 5-5 5zM12 11c0-2.5-1.8-4.2-4.5-4.2 0 2.5 1.8 4.2 4.5 4.2z"/></svg>Decoration<i class="badge" data-badge="decor" hidden></i></button>
@@ -189,6 +236,17 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   </div>
 </div>
 
+<div class="overlay phonewrap" id="phone" hidden>
+  <div class="phone" role="dialog" aria-label="Beanery reviews">
+    <div class="screen">
+      <div class="statusbar"><span id="pTime">9:41</span><span class="notch"></span><span>100%</span></div>
+      <div class="appbar"><div class="appicon">B</div><h2>Beanery Reviews<small id="pSub">Coffee Stand</small></h2>
+        <button class="dclose" id="pClose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="appscroll" id="pBody"></div>
+      <div class="homebar"><button id="pHome" aria-label="Close phone"></button></div>
+    </div>
+  </div>
+</div>
 <div class="overlay" id="modal" hidden><div class="sheet" id="sheet"></div></div>
 <div class="overlay ad" id="ad" hidden>
   <div class="box">
@@ -209,10 +267,10 @@ const canvas = $('#scene'), ctx = canvas.getContext('2d');
 
 /* ---------------- Data ---------------- */
 const STAGES = [
-  { name:'Coffee Stand', size:6, cost:0,      rent:5,   maxTables:1, maxBaristas:1, queue:4 },
-  { name:'Cozy Café',    size:7, cost:1000,   rent:40,  maxTables:3, maxBaristas:2, queue:5 },
-  { name:'Corner Café',  size:8, cost:15000,  rent:200, maxTables:5, maxBaristas:3, queue:6 },
-  { name:'Grand Café',   size:9, cost:180000, rent:900, maxTables:8, maxBaristas:4, queue:7 },
+  { name:'Coffee Stand', size:9,  cost:0,      rent:5,   maxSeats:4,  maxBaristas:1, queue:4 },
+  { name:'Cozy Café',    size:10, cost:1000,   rent:40,  maxSeats:8,  maxBaristas:2, queue:5 },
+  { name:'Corner Café',  size:11, cost:15000,  rent:200, maxSeats:12, maxBaristas:3, queue:6 },
+  { name:'Grand Café',   size:12, cost:180000, rent:900, maxSeats:18, maxBaristas:4, queue:7 },
 ];
 const ITEMS = [
   { id:'espresso',   name:'Espresso',        price:3,  time:2.0, unlock:0,     stage:0, color:'#5B3A26', kind:'cup' },
@@ -251,6 +309,51 @@ const BODY = ['#6C8EA4','#C47A5A','#8A9A5B','#B48EAD','#D2B48C','#5E6E8C','#7F6A
 const SKIN = ['#F1D3B8','#E0B38F','#C68B62','#8D5A3B','#F5DCC8'];
 const HAIR = ['#2B2522','#5A3A24','#A0703C','#D9C08C','#3C3C46','#8C8C8C'];
 const pick = a => a[Math.floor(Math.random() * a.length)];
+const SEAT_WAIT = 15, DINE_IN_CHANCE = .45;
+const NAMES = ['Ayu','Budi','Citra','Dimas','Eka','Fajar','Gita','Hana','Indra','Joko','Kirana','Lina','Maya','Nadia','Omar','Putri',
+  'Raka','Sari','Tono','Umi','Vina','Wulan','Yusuf','Zahra','Alex','Sam','Mia','Leo','Nina','Theo','Ravi','Kenji','Lucas','Elena','Grace','Hugo'];
+const COMMENTS = {
+  good:[
+    'The {item} was perfect. I will be back tomorrow!',
+    'Fast service and a really cozy place.',
+    'Best {item} in town, no question.',
+    'Friendly barista and great coffee.',
+    'Love the vibe here. Clean and calm.',
+    'Got my {item} in no time. Five stars!',
+    'Such a pretty café. Perfect spot to relax.',
+    'My new favorite coffee place.',
+    'Great value for the price.',
+    'The {item} tasted amazing. Thank you!',
+    'Quick, tasty and the staff smiled. What more do you need?',
+  ],
+  okay:[
+    'The {item} was okay. Nothing special.',
+    'A bit of a wait, but the coffee was fine.',
+    'Decent place. Prices are fair.',
+    'Average {item}. Nice staff though.',
+    'It was fine. Might come back.',
+    'Good coffee, but the line was slow.',
+    'Nice enough. Could be a little faster.',
+  ],
+  plain:[
+    'The café looks a little empty. Some decoration would help.',
+    'Good drinks, but the room feels bare.',
+  ],
+  bad:[
+    'Waited forever and nobody took my order.',
+    'Way too slow. I left before getting my {item}.',
+    'The line did not move at all. Never again.',
+    'Took too long. My {item} was nearly cold.',
+    'Disappointing service today.',
+  ],
+  noseat:[
+    'I wanted to sit down but there were no chairs. I left.',
+    'No free seats anywhere. Very disappointing.',
+    'Bought a {item} to drink here, but had to leave. No chairs!',
+    'Please get more chairs. I stood around for ages.',
+  ],
+};
+const AVATAR = ['#6C8EA4','#C47A5A','#8A9A5B','#B48EAD','#5E6E8C','#7F6A93','#4F8A8B','#C46A7A','#B0883E'];
 const GEM = `<svg class="gem" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h8l3 4-7 8-7-8z" fill="currentColor"/><path d="M1 6h14M5.5 6 8 14l2.5-8M4 2l1.5 4M12 2l-1.5 4" stroke="#fff" stroke-opacity=".55" fill="none"/></svg>`;
 
 /* ---------------- State ---------------- */
@@ -258,7 +361,8 @@ function freshBoosts(){ return Object.fromEntries(POWER.map(p => [p.id, { until:
 function freshState(){
   return { v:2, money:20, gems:10, total:0, day:1, dayT:0, stage:0,
     items:Object.fromEntries(ITEMS.map(it => [it.id, { owned:it.unlock === 0, lvl:0 }])),
-    machine:0, tables:0, deco:{}, baristas:[], cashier:0, supporter:false, boosts:freshBoosts(),
+    machine:0, seats:2, deco:{}, baristas:[], cashier:0, supporter:false, boosts:freshBoosts(),
+    rt:[], reviews:[], unread:0, reviewsSeen:0,
     sound:true, dayEarn:0, dayMissed:0, lastSeen:Date.now() };
 }
 let S = freshState();
@@ -276,6 +380,11 @@ function migrate(d){
   if (!s.deco || typeof s.deco !== 'object') s.deco = {};
   if (typeof d.decor === 'number'){ DECOR.slice(0, d.decor).forEach(x => { s.deco[x.id] = true; }); delete s.decor; }
   if (typeof s.gems !== 'number') s.gems = 10;
+  if (typeof d.seats !== 'number') s.seats = Math.max(2, (d.tables || 0) * 2);
+  delete s.tables;
+  s.seats = Math.min(s.seats, STAGES[s.stage]?.maxSeats ?? s.seats);
+  if (!Array.isArray(s.rt)) s.rt = [];
+  if (!Array.isArray(s.reviews)) s.reviews = [];
   return s;
 }
 function load(){
@@ -300,7 +409,10 @@ const prepTime = it => it.time * Math.pow(0.9, S.machine);
 const baristaSpeed = l => 1 + 0.15 * l;
 const workMult = () => active('speed') ? 2 : 1;
 const tipMult = () => 1 + 0.1 * S.cashier;
-const appeal = () => 1 + 0.12 * decoCount() + 0.08 * S.tables + 0.35 * S.stage;
+const avgRating = () => S.rt.length ? S.rt.reduce((a, b) => a + b, 0) / S.rt.length : null;
+const ratingMult = () => .7 + .06 * (avgRating() ?? 4);
+const appeal = () => (1 + 0.12 * decoCount() + 0.04 * S.seats + 0.35 * S.stage) * ratingMult();
+const maxSeats = () => STAGES[S.stage].maxSeats;
 const wages = () => S.baristas.reduce((a, l) => a + 15 * (1 + 0.15 * l), 0) + (S.cashier ? 25 * (1 + 0.15 * (S.cashier - 1)) : 0);
 const rent = () => STAGES[S.stage].rent;
 const online = () => navigator.onLine !== false;
@@ -308,7 +420,7 @@ const adsAvailable = () => S.supporter || online();
 const cost = {
   item: it => Math.round(Math.max(12, it.unlock * 0.6) * Math.pow(1.55, S.items[it.id].lvl)),
   machine: () => Math.round(40 * Math.pow(1.7, S.machine)),
-  table: () => Math.round(60 * Math.pow(1.65, S.tables)),
+  seat: () => Math.round(40 * Math.pow(1.38, Math.max(0, S.seats - 2))),
   hire: () => [150, 1500, 12000, 90000][S.baristas.length],
   train: i => Math.round(100 * Math.pow(1.8, S.baristas[i])),
   cashier: () => S.cashier === 0 ? 300 : Math.round(200 * Math.pow(1.8, S.cashier)),
@@ -373,30 +485,45 @@ const sfx = {
 };
 
 /* ---------------- Room layout ---------------- */
+// Room plan: counter along the back-right wall with the register at its right end.
+// The line forms in front of the register. One door on the left wall. Tables fill the right side.
 function layout(){
-  const N = STAGES[S.stage].size, spots = [];
+  const N = STAGES[S.stage].size, cl = 4 + S.stage, regX = cl + .5, spots = [];
   for (let ty = 3.0; ty <= N - 1.0 + 1e-6; ty += 1.9)
-    for (let tx = N - 1.3; tx >= 3.4; tx -= 1.9) spots.push({ x:tx, y:ty });
-  L = { N, cl:3 + S.stage, spots, chairs:[] };
+    for (let tx = N - 1.3; tx >= regX + 1.3 - 1e-6; tx -= 1.9) spots.push({ x:tx, y:ty });
+  const dy = N - 1.6;
+  L = { N, cl, regX, laneQ:regX - .75, dy, door:[.6, dy], outside:[-1.4, dy], spots, chairs:[] };
   rebuildChairs();
 }
 function rebuildChairs(){
   const keep = L.chairs; L.chairs = [];
-  const n = Math.min(S.tables, L.spots.length);
-  for (let i = 0; i < n; i++){
-    const s = L.spots[i];
-    L.chairs.push({ x:s.x - .62, y:s.y, lane:s.x - .95, c:keep[2 * i]?.c || null },
-                  { x:s.x + .62, y:s.y, lane:s.x + .95, c:keep[2 * i + 1]?.c || null });
+  const n = Math.min(S.seats, L.spots.length * 2);
+  for (let j = 0; j < n; j++){
+    const s = L.spots[j >> 1], left = j % 2 === 0;
+    L.chairs.push({ x:s.x + (left ? -.62 : .62), y:s.y, lane:s.x + (left ? -.95 : .95), table:j >> 1, c:keep[j]?.c || null });
   }
 }
+function waitSpot(k){ return [L.regX - 1.9 - (k % 2) * .7, 3.3 + Math.floor(k / 2) * .7]; }
 function resetFloor(){
   customers = []; queue = []; preps = []; floaters = [];
   spawnT = 1; layout(); camX = camY = 0;
 }
 
 /* ---------------- Customers ---------------- */
-const slot = i => [1.8, 2.7 + i * .8];
-function reflowQueue(){ queue.forEach((c, i) => { c.path = [slot(i)]; }); }
+const slot = i => [L.regX, 2.5 + i * .8];
+function queuePath(c, i){
+  const [sx, sy] = slot(i);
+  if (c.x >= L.regX - .01) return [[sx, sy]];
+  if (c.x >= L.laneQ - .01) return [[L.laneQ, sy], [sx, sy]];
+  const p = c.x < L.door[0] ? [L.door] : [];
+  return [...p, [L.laneQ, L.dy], [L.laneQ, sy], [sx, sy]];
+}
+function reflowQueue(){ queue.forEach((c, i) => { c.path = queuePath(c, i); }); }
+function exitPath(c){
+  // back to the one door, then outside
+  if (c.x < L.laneQ - .01 && Math.abs(c.y - L.dy) < .05) return [L.door, L.outside];
+  return [[L.laneQ, c.y], [L.laneQ, L.dy], L.door, L.outside];
+}
 function spawn(vip){
   const st = STAGES[S.stage];
   if (queue.length >= st.queue){ S.dayMissed++; return; }
@@ -404,41 +531,73 @@ function spawn(vip){
   const weights = owned.map((_, i) => 1 + i * .35), sum = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * sum, item = owned[0];
   for (let i = 0; i < owned.length; i++){ r -= weights[i]; if (r <= 0){ item = owned[i]; break; } }
-  const N = L.N, pat = vip ? 60 : 45;
-  const c = { id:nextId++, x:1.8, y:N + 1, state:'enter', item, vip, patience:pat, maxP:pat,
-    body: vip ? '#C99A2E' : pick(BODY), skin:pick(SKIN), hair:pick(HAIR), phase:Math.random() * 6,
-    path:[], claimed:false, seat:null, sitT:0 };
+  const pat = vip ? 60 : 45;
+  const c = { id:nextId++, x:L.outside[0], y:L.outside[1], state:'enter', item, vip, patience:pat, maxP:pat,
+    dine:Math.random() < DINE_IN_CHANCE, body: vip ? '#C99A2E' : pick(BODY), skin:pick(SKIN), hair:pick(HAIR), phase:Math.random() * 6,
+    path:[], claimed:false, seat:null, sitT:0, waitT:0, waitedSeat:false, wait:0 };
   queue.push(c); customers.push(c); reflowQueue();
 }
 function claimNext(){ return queue.find(c => !c.claimed && c.state === 'queue'); }
+function claim(c){ c.claimed = true; c.wait = c.maxP - c.patience; }
 function removeFromQueue(c){
   const i = queue.indexOf(c);
   if (i >= 0){ queue.splice(i, 1); reflowQueue(); }
 }
 function serve(c){
   removeFromQueue(c);
-  const seat = L.chairs.find(ch => !ch.c);
-  const pay = price(c.item) * tipMult() * (seat ? 1.2 : 1) * (c.vip ? 3 : 1) * (active('rush') ? 2 : 1);
+  const pay = price(c.item) * tipMult() * (c.dine ? 1.2 : 1) * (c.vip ? 3 : 1) * (active('rush') ? 2 : 1);
   earn(pay);
   floater(c.x, c.y, '+' + fmtPrice(pay), c.vip);
   sfx.coin();
   c.claimed = false;
-  if (seat){
-    seat.c = c; c.seat = seat; c.state = 'toSeat';
-    c.path = [[c.x, 2.2], [seat.lane, 2.2], [seat.lane, seat.y], [seat.x, seat.y]];
+  if (c.dine){
+    const seat = L.chairs.find(ch => !ch.c);
+    if (seat) goSit(c, seat);
+    else {
+      const k = customers.filter(o => o.state === 'wait').length;
+      c.state = 'wait'; c.waitT = SEAT_WAIT; c.waitedSeat = true; c.path = [waitSpot(k)];
+    }
   } else {
-    c.state = 'leave'; c.path = [[c.x, 2.2], [L.N + 1.2, 2.2]];
+    rate(c, serviceStars(c));
+    c.state = 'leave'; c.path = exitPath(c);
   }
   if (c.vip){ S.gems += 1; offerVipTip(pay); }
 }
+function goSit(c, seat){
+  seat.c = c; c.seat = seat; c.state = 'toSeat';
+  c.path = [[c.x, 2.2], [seat.lane, 2.2], [seat.lane, seat.y], [seat.x, seat.y]];
+}
 function giveUp(c){
   removeFromQueue(c);
-  c.state = 'leave'; c.path = [[c.x, L.N + 1.2]];
+  c.state = 'leave'; c.path = exitPath(c);
   S.dayMissed++;
   floater(c.x, c.y, 'Left', false, true);
+  rate(c, Math.random() < .7 ? 1 : 2, 'bad');
+}
+
+/* ---------------- Ratings ---------------- */
+function serviceStars(c){
+  const f = c.wait / c.maxP;
+  let s = f < .2 ? 5 : f < .45 ? 4 : f < .7 ? 3 : 2;
+  if (s < 5 && decoCount() >= 4 && Math.random() < .3) s++;
+  if (c.waitedSeat) s--;
+  return Math.max(1, Math.min(5, s));
+}
+function rate(c, stars, kind){
+  S.rt.push(stars); if (S.rt.length > 100) S.rt.shift();
+  const pool = kind || (stars >= 4 ? 'good' : stars === 3 ? (decoCount() < 3 && Math.random() < .5 ? 'plain' : 'okay') : 'bad');
+  if (stars <= 2 || Math.random() < .55){
+    const text = pick(COMMENTS[pool]).replace('{item}', c.item.name.toLowerCase());
+    S.reviews.unshift({ n:pick(NAMES), s:stars, t:text, d:S.day, a:Math.floor(Math.random() * AVATAR.length), at:Date.now() });
+    if (S.reviews.length > 40) S.reviews.pop();
+    S.unread = Math.min(99, (S.unread || 0) + 1);
+    if (!$('#phone').hidden) renderPhone();
+  }
+  floaters.push({ x:c.x, y:c.y, text:'★'.repeat(stars), star:stars, t:-1.1 });
 }
 function arrive(c){
-  if (c.state === 'enter') c.state = 'queue';
+  if (c.state === 'enter'){ c.state = 'queue'; }
+  else if (c.state === 'queue' || c.state === 'wait'){ /* standing in place */ }
   else if (c.state === 'toSeat'){ c.state = 'sit'; c.sitT = 8 + Math.random() * 7; }
   else if (c.state === 'leave') c.gone = true;
 }
@@ -455,11 +614,27 @@ function updateCustomers(dt){
       c.patience -= dt;
       if (c.patience <= 0) giveUp(c);
     }
+    if (c.state === 'wait'){
+      const seat = L.chairs.find(ch => !ch.c);
+      if (seat) goSit(c, seat);
+      else {
+        c.waitT -= dt;
+        if (c.waitT <= 0){
+          c.state = 'leave'; c.path = [L.door, L.outside];
+          S.dayMissed++;
+          floater(c.x, c.y, 'No chair', false, true);
+          rate(c, 1, 'noseat');
+          customers.filter(o => o.state === 'wait').forEach((o, k) => { o.path = [waitSpot(k)]; });
+        }
+      }
+    }
     if (c.state === 'sit'){
       c.sitT -= dt;
       if (c.sitT <= 0){
         const s = c.seat; s.c = null; c.seat = null; c.state = 'leave';
-        c.path = [[s.lane, s.y], [s.lane, s.y + .95], [L.N + 1.2, s.y + .95]];
+        rate(c, serviceStars(c));
+        const ey = L.N - .55;
+        c.path = [[s.lane, s.y], [s.lane, ey], [1.0, ey], L.door, L.outside];
       }
     }
   }
@@ -471,7 +646,7 @@ function updatePreps(dt){
   S.baristas.forEach((lvl, i) => {
     if (preps.some(p => p.who === i)) return;
     const c = claimNext();
-    if (c){ c.claimed = true; preps.push({ who:i, c, t:0, need:prepTime(c.item) }); }
+    if (c){ claim(c); preps.push({ who:i, c, t:0, need:prepTime(c.item) }); }
   });
   const wm = workMult();
   for (const p of preps){
@@ -488,7 +663,7 @@ function brewTap(){
   if (mine){ mine.t += mine.need * .22; sfx.tap(); return; }
   const c = claimNext();
   if (c){
-    c.claimed = true;
+    claim(c);
     const need = prepTime(c.item);
     preps.push({ who:'p', c, t:need * .22, need });
     sfx.tap(); return;
@@ -611,7 +786,7 @@ function settings(){
       ? `<p>This deletes your café and all progress on this device. It cannot be undone.</p>
          <div class="actions"><button class="btn danger" data-m="wipe">Yes, start over</button><button class="btn" data-m="back">Keep my café</button></div>`
       : `<div class="actions"><button class="btn danger" data-m="reset">Reset progress</button><button class="btn primary" data-m="close">Done</button></div>`}
-    <p style="font-size:12.5px">Beanery v0.2 test build. Drag the café to look around, pinch to zoom. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
+    <p style="font-size:12.5px">Beanery v0.3 test build. Drag the café to look around, pinch to zoom. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
     sound(){ S.sound = !S.sound; if (S.sound) unlockAudio(); save(); draw(false); },
     reset(){ draw(true); },
     back(){ draw(false); },
@@ -690,10 +865,10 @@ const VIEWS = {
     const mMax = S.machine >= MAX_MACHINE;
     out.push(row(ICON.machine, 'Espresso machine', `Lv ${S.machine + 1}`, `Every order is made 10% faster per level. Speed now ×${(1 / Math.pow(.9, S.machine)).toFixed(2)}.`,
       mMax ? btn('', 'Top level', 'Max', true) : btn('machine', 'Upgrade', fmt(cost.machine()), !can(cost.machine()))));
-    const tMax = S.tables >= st.maxTables;
-    out.push(row(ICON.table, 'Tables', `${S.tables}/${st.maxTables}`, tMax ? 'No space for more tables. Expand the café to add more.' : 'Seated guests pay 20% more. Seats also bring more customers.',
-      tMax ? btn('', 'Full', '—', true) : btn('table', 'Add table', fmt(cost.table()), !can(cost.table()))));
-    out.push(`<p class="note">Customers now: about ${(appeal() / 3.6 * 60).toFixed(0)} per minute. Decorations, tables and a bigger café bring more.</p>`);
+    const tMax = S.seats >= st.maxSeats;
+    out.push(row(ICON.table, 'Chairs', `${S.seats}/${st.maxSeats}`, tMax ? 'No space for more chairs. Expand the café to add more.' : `Dine-in guests need a free chair. Without one they wait ${SEAT_WAIT} seconds, then leave a 1-star review. A table comes with every 2 chairs.`,
+      tMax ? btn('', 'Full', '—', true) : btn('seat', 'Add chair', fmt(cost.seat()), !can(cost.seat()))));
+    out.push(`<p class="note">Customers now: about ${(appeal() / 3.6 * 60).toFixed(0)} per minute. Decorations, chairs, a good rating and a bigger café bring more.</p>`);
     return out.join('');
   },
   staff(){
@@ -726,7 +901,7 @@ const VIEWS = {
     if (nx){
       const newItems = ITEMS.filter(it => it.stage === S.stage + 1).map(it => it.name).join(' and ');
       h += `<div class="card"><h3>Next: ${nx.name}</h3>
-        <p class="note" style="padding:0">Bigger room, up to ${nx.maxTables} tables, ${nx.maxBaristas} baristas and ${nx.queue} people in line. Unlocks ${newItems}. Rent rises to ${fmt(nx.rent)}/day. +5 gems.</p>
+        <p class="note" style="padding:0">Bigger room, up to ${nx.maxSeats} chairs, ${nx.maxBaristas} baristas and ${nx.queue} people in line. Unlocks ${newItems}. Rent rises to ${fmt(nx.rent)}/day. +5 gems.</p>
         <button class="buy" data-act="expand" ${can(nx.cost) ? '' : 'disabled'}><span>Expand for</span><b>${fmt(nx.cost)}</b></button></div>`;
     } else {
       h += `<p class="note">You run the Grand Café. More café levels are coming in a future update.</p>`;
@@ -796,11 +971,11 @@ function openDrawer(sec){
     st.innerHTML = def.tabs.map(([k, n]) => `<button role="tab" data-sub="${k}" aria-selected="${sub[sec] === k}">${n}</button>`).join('');
   } else st.hidden = true;
   document.querySelectorAll('#dock [data-sec]').forEach(b => b.setAttribute('aria-pressed', b.dataset.sec === sec ? 'true' : 'false'));
-  $('#drawer').hidden = false; $('#brew').hidden = true;
+  $('#drawer').hidden = false; $('#actrow').hidden = true;
   $('#panel').scrollTop = 0; renderPanel(true); measure();
 }
 function closeDrawer(){
-  section = null; $('#drawer').hidden = true; $('#brew').hidden = false;
+  section = null; $('#drawer').hidden = true; $('#actrow').hidden = false;
   document.querySelectorAll('#dock [data-sec]').forEach(b => b.setAttribute('aria-pressed', 'false'));
   measure();
 }
@@ -831,14 +1006,14 @@ function act(a){
       break;
     }
     case 'machine': if (S.machine < MAX_MACHINE && pay(cost.machine())) S.machine++; break;
-    case 'table': if (S.tables < st.maxTables && pay(cost.table())){ S.tables++; rebuildChairs(); } break;
+    case 'seat': if (S.seats < st.maxSeats && pay(cost.seat())){ S.seats++; rebuildChairs(); } break;
     case 'deco': { const d = DECOR.find(x => x.id === arg); if (d && !has(d.id) && pay(d.cost)){ S.deco[d.id] = true; toast(`${d.name} added to your café.`); } break; }
     case 'hire': if (S.baristas.length < st.maxBaristas && pay(cost.hire())){ S.baristas.push(0); toast('New barista hired. They will make orders on their own.'); } break;
     case 'train': { const i = +arg; if (S.baristas[i] < MAX_BARISTA_LVL && pay(cost.train(i))) S.baristas[i]++; break; }
     case 'cashier': if (S.cashier < MAX_CASHIER && pay(cost.cashier())) S.cashier++; break;
     case 'expand': {
       const nx = STAGES[S.stage + 1];
-      if (nx && pay(nx.cost)){ S.stage++; S.gems += 5; resetFloor(); sfx.big(); toast(`Welcome to your ${nx.name}! +5 gems.`); }
+      if (nx && pay(nx.cost)){ const oldN = L.N; S.stage++; S.gems += 5; resetFloor(); zoom = clampZoom(zoom * L.N / oldN); sfx.big(); toast(`Welcome to your ${nx.name}! +5 gems.`); }
       break;
     }
     case 'pow': usePower(arg, how); return;
@@ -859,7 +1034,7 @@ function badges(){
   const st = STAGES[S.stage];
   if (!up && S.baristas.length < st.maxBaristas && can(cost.hire())) up = true;
   if (!up && STAGES[S.stage + 1] && can(STAGES[S.stage + 1].cost)) up = true;
-  if (!up && S.tables < st.maxTables && can(cost.table())) up = true;
+  if (!up && S.seats < st.maxSeats && can(cost.seat())) up = true;
   const dec = DECOR.some(d => !has(d.id) && can(d.cost));
   const pw = adsAvailable() && POWER.some(p => !(p.dur && active(p.id)) && Date.now() >= S.boosts[p.id].adAt);
   $('[data-badge="upgrade"]').hidden = !up || section === 'upgrade';
@@ -867,9 +1042,46 @@ function badges(){
   $('[data-badge="power"]').hidden = !pw || section === 'power';
 }
 
+/* ---------------- Phone: reviews ---------------- */
+let phoneFilter = 'all';
+const starStr = n => `<span class="stars" aria-label="${n} out of 5 stars">${'★'.repeat(n)}<span class="off">${'★'.repeat(5 - n)}</span></span>`;
+const esc = t => String(t).replace(/[&<>"]/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[ch]));
+function renderPhone(){
+  const avg = avgRating(), n = S.rt.length;
+  const d = new Date(); $('#pTime').textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  $('#pSub').textContent = `${STAGES[S.stage].name} · Day ${S.day}`;
+  const counts = [5, 4, 3, 2, 1].map(k => S.rt.filter(x => x === k).length);
+  let h = `<div class="summary"><div><div class="bignum">${avg ? avg.toFixed(1) : '–'}</div>${starStr(Math.round(avg || 0))}<small>${n ? `${n} recent customer${n > 1 ? 's' : ''}` : 'No ratings yet'}</small></div>
+    <div class="dist">${[5, 4, 3, 2, 1].map((k, i) => `<div><span>${k}</span><i><b style="width:${n ? counts[i] / n * 100 : 0}%"></b></i><span>${counts[i]}</span></div>`).join('')}</div></div>
+    <p class="note">Every customer rates their visit. Quick service, free chairs and a nice café earn more stars. A better rating brings more customers.</p>
+    <div class="filters" id="pFilters">${[['all','All'],['good','Satisfied'],['okay','Neutral'],['bad','Bad']].map(([k, l]) => `<button data-f="${k}" aria-pressed="${phoneFilter === k}">${l}</button>`).join('')}</div>`;
+  const list = S.reviews.filter(r => phoneFilter === 'all' || (phoneFilter === 'good' ? r.s >= 4 : phoneFilter === 'okay' ? r.s === 3 : r.s <= 2));
+  h += list.length ? list.map(r => `<article class="review"><div class="rhead"><span class="avatar" style="background:${AVATAR[r.a % AVATAR.length]}">${esc(r.n[0])}</span>
+      <span class="rname">${esc(r.n)}<small>Day ${r.d}</small></span>${starStr(r.s)}</div><p>${esc(r.t)}</p></article>`).join('')
+    : `<div class="empty">${S.reviews.length ? 'No reviews in this group yet.' : 'No reviews yet.<br>Serve customers and they will start writing about Beanery.'}</div>`;
+  $('#pBody').innerHTML = h;
+}
+function openPhone(){ S.unread = 0; renderPhone(); $('#phone').hidden = false; $('#pClose').focus(); }
+function closePhone(){ $('#phone').hidden = true; }
+$('#phoneBtn').addEventListener('click', () => { unlockAudio(); openPhone(); });
+$('#pClose').addEventListener('click', closePhone);
+$('#pHome').addEventListener('click', closePhone);
+$('#phone').addEventListener('click', e => { if (e.target === $('#phone')) closePhone(); });
+$('#pBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-f]'); if (!b) return;
+  phoneFilter = b.dataset.f; renderPhone();
+});
+
 /* ---------------- Camera ---------------- */
-let zoom = 1.45, camX = 0, camY = 0, velX = 0, velY = 0, topH = 110, botH = 150;
-const ZMIN = .8, ZMAX = 2.8;
+let zoom = 0, camX = 0, camY = 0, velX = 0, velY = 0, topH = 110, botH = 150;
+const ZMIN = .8;
+function fitPx(){
+  const cw = canvas.clientWidth || innerWidth, ch = canvas.clientHeight || innerHeight;
+  const availH = Math.max(160, ch - topH - botH);
+  return Math.min(cw * .92 / (2 * L.N), availH / (L.N + WALL + .3));
+}
+const zmax = () => Math.max(2.8, 95 / fitPx());
+const clampZoom = z => Math.min(zmax(), Math.max(ZMIN, z));
 function measure(){
   topH = $('#top').getBoundingClientRect().height;
   const b = $('#bottom').getBoundingClientRect();
@@ -893,7 +1105,7 @@ canvas.addEventListener('pointermove', e => {
   pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
   if (pinch && pointers.size >= 2){
     const [a, b] = [...pointers.values()];
-    zoom = Math.min(ZMAX, Math.max(ZMIN, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d));
+    zoom = clampZoom(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d);
     return;
   }
   if (!drag) return;
@@ -918,7 +1130,7 @@ function endPointer(e){
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
-canvas.addEventListener('wheel', e => { e.preventDefault(); zoom = Math.min(ZMAX, Math.max(ZMIN, zoom * Math.exp(-e.deltaY * .0015))); }, { passive:false });
+canvas.addEventListener('wheel', e => { e.preventDefault(); zoom = clampZoom(zoom * Math.exp(-e.deltaY * .0015)); }, { passive:false });
 
 /* ---------------- Drawing ---------------- */
 let dpr = 1, hw = 0, hh = 0, ox = 0, oy = 0;
@@ -959,8 +1171,6 @@ function drawFloor(){
   }
   poly([P(0, N), P(N, N), P(N, N, -.28), P(0, N, -.28)], tiled ? '#D3CDC2' : '#D2C3AB');
   poly([P(N, 0), P(N, N), P(N, N, -.28), P(N, 0, -.28)], tiled ? '#C4BDB1' : '#C2B197');
-  // door mat at the entrance
-  poly([P(1.3, N - .45, .004), P(2.3, N - .45, .004), P(2.3, N, .004), P(1.3, N, .004)], '#B9AE9A');
 }
 function wallRectL(y0, y1, z0, z1, fill, stroke){ poly([P(.01, y0, z0), P(.01, y1, z0), P(.01, y1, z1), P(.01, y0, z1)], fill, stroke, 1.5); }
 function wallRectR(x0, x1, z0, z1, fill, stroke){ poly([P(x0, .01, z0), P(x1, .01, z0), P(x1, .01, z1), P(x0, .01, z1)], fill, stroke, 1.5); }
@@ -978,7 +1188,8 @@ function drawWalls(){
   ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]);
   ctx.strokeStyle = '#CFC8BC'; ctx.lineWidth = Math.max(2, hw * .08); ctx.stroke();
   if (S.stage >= 1) windowL(1.1, 2.6);
-  if (S.stage >= 3) windowL(N - 2.6, N - 1.1);
+  if (S.stage >= 3) windowL(3.2, 4.7);
+  drawDoor();
   if (S.stage >= 2) windowR(N - 2.4, N - .9);
   if (has('board')){
     wallRectR(1.3, 3.1, 1.2, 1.95, '#2E3430');
@@ -986,15 +1197,28 @@ function drawWalls(){
   }
   if (has('neon')) neon(3.95, 1.5);
   if (has('shelf')){
-    const y0 = N - 3.4, y1 = N - 1.9;
+    const y0 = 5.0, y1 = 6.4;
     box(0, y0, .32, y1 - y0, 1.35, .06, '#C49A6C', '#A97F52', '#B38A5E');
     for (let y = y0 + .15; y < y1 - .1; y += .3) box(.08, y, .16, .16, 1.41, .18, '#FFFFFF', '#E3E0DA', '#EEEBE6');
   }
   if (has('art')){
-    wallRectL(N - 1.5, N - .4, .95, 1.85, '#F7F5F0', '#2E3430');
-    poly([P(.02, N - 1.3, 1.1), P(.02, N - .9, 1.1), P(.02, N - .9, 1.6), P(.02, N - 1.3, 1.6)], '#7CA88B');
-    poly([P(.02, N - .95, 1.1), P(.02, N - .6, 1.1), P(.02, N - .6, 1.35), P(.02, N - .95, 1.35)], '#D9A441');
+    wallRectR(6.3, 7.3, 1.0, 1.9, '#F7F5F0', '#2E3430');
+    poly([P(6.45, .02, 1.15), P(6.85, .02, 1.15), P(6.85, .02, 1.7), P(6.45, .02, 1.7)], '#7CA88B');
+    poly([P(6.8, .02, 1.15), P(7.15, .02, 1.15), P(7.15, .02, 1.42), P(6.8, .02, 1.42)], '#D9A441');
   }
+}
+function drawDoor(){
+  const y0 = L.dy - .6, y1 = L.dy + .6, h = 1.6;
+  wallRectL(y0 - .1, y1 + .1, 0, h + .1, '#2E3430');
+  wallRectL(y0, y1, 0, h, '#CFE1E5');
+  poly([P(.02, y0, 0), P(.02, y1, 0), P(.02, y1, .25), P(.02, y0, .25)], 'rgba(150,175,160,.35)');
+  line(P(.02, L.dy, 0), P(.02, L.dy, h), '#2E3430', Math.max(1.5, hw * .05));
+  line(P(.02, L.dy - .12, .7), P(.02, L.dy - .12, .95), '#B9BDB8', Math.max(2, hw * .06));
+  line(P(.02, L.dy + .12, .7), P(.02, L.dy + .12, .95), '#B9BDB8', Math.max(2, hw * .06));
+  // small hanging sign
+  wallRectL(L.dy - .35, L.dy + .35, h + .2, h + .48, '#2F6B55');
+  // door mat inside
+  poly([P(0, y0 + .1, .004), P(.9, y0 + .1, .004), P(.9, y1 - .1, .004), P(0, y1 - .1, .004)], '#B9AE9A');
 }
 function windowL(y0, y1){
   wallRectL(y0, y1, .85, 1.85, '#D5E6EA', '#C9C2B6');
@@ -1053,7 +1277,7 @@ function drawPendants(){
   }
 }
 function drawRug(){
-  const s = L.spots.slice(0, Math.max(1, S.tables)), N = L.N;
+  const s = L.spots.slice(0, Math.max(1, Math.ceil(L.chairs.length / 2))), N = L.N;
   const xs = s.map(p => p.x), ys = s.map(p => p.y);
   const x0 = Math.max(2.4, Math.min(...xs) - 1.1), x1 = Math.min(N - .2, Math.max(...xs) + 1.1);
   const y0 = Math.max(2.3, Math.min(...ys) - .8), y1 = Math.min(N - .2, Math.max(...ys) + .8);
@@ -1112,6 +1336,19 @@ function ring(cx, cy, r, k){
   ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, k));
   ctx.strokeStyle = '#2F6B55'; ctx.lineWidth = Math.max(2.5, r * .2); ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
 }
+function drawChairIcon(cx, cy, r, color = '#2E3430'){
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = Math.max(1.5, r * .22); ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - r * .45, cy - r * .9); ctx.lineTo(cx - r * .45, cy + r * .9);
+  ctx.moveTo(cx - r * .45, cy + r * .05); ctx.lineTo(cx + r * .5, cy + r * .05); ctx.lineTo(cx + r * .5, cy + r * .9);
+  ctx.stroke(); ctx.restore();
+}
+function drawBagIcon(cx, cy, r){
+  ctx.save();
+  rrect(cx - r * .6, cy - r * .45, r * 1.2, r * 1.3, r * .15); ctx.fillStyle = '#C9A27A'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy - r * .45, r * .32, Math.PI, 0); ctx.strokeStyle = '#7A5A3C'; ctx.lineWidth = Math.max(1.2, r * .16); ctx.stroke();
+  ctx.restore();
+}
 function floater(x, y, text, gold, sad){ floaters.push({ x, y, text, gold, sad, t:0 }); }
 
 const STAFF = { body:'#F4F2ED', apron:'#2F6B55', skin:'#E0B38F', hair:'#2B2522', cap:'#2F6B55' };
@@ -1131,7 +1368,8 @@ function draw(){
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cw, ch);
   const N = L.N, availH = Math.max(160, ch - topH - botH);
-  const fit = Math.min(cw * .92 / (2 * N), availH / (N + WALL + .3));
+  const fit = fitPx();
+  if (!zoom) zoom = clampZoom(38 / fit);
   const target = fit * zoom;
   hw = hw ? hw + (target - hw) * .15 : target; hh = hw / 2;
   // keep the room reachable: you can pan until its edge meets the middle of the view
@@ -1142,7 +1380,7 @@ function draw(){
   oy = topH + availH / 2 - roomH / 2 + WALL * hw + camY;
 
   drawGround(); drawFloor(); drawWalls();
-  if (has('rug') && S.tables) drawRug();
+  if (has('rug') && L.chairs.length) drawRug();
 
   const staffPos = [];
   const sp = drawPerson(1.65, .45, { ...STAFF, scale:1.05 });
@@ -1154,15 +1392,14 @@ function draw(){
   drawCounter();
 
   const objs = [];
-  const tables = L.spots.slice(0, Math.min(S.tables, L.spots.length));
+  const tables = L.spots.slice(0, Math.ceil(L.chairs.length / 2));
   tables.forEach(t => objs.push({ k:t.x + t.y, f:() => drawTable(t) }));
   L.chairs.forEach(c => objs.push({ k:c.x + c.y - .01, f:() => drawChair(c) }));
   if (has('plant')) objs.push({ k:N, f:() => drawPlant(.55, N - .55) });
   if (has('plant2')) objs.push({ k:N, f:() => drawPlant(N - .55, .55, 1.1) });
   if (has('tree')) objs.push({ k:2 * N - 1.2, f:() => drawTree(N - .6, N - .6) });
   for (const c of customers){
-    const out = Math.max(0, c.x - N, c.y - N);
-    const alpha = Math.max(0, 1 - out / .9);
+    const alpha = Math.max(0, Math.min(1, (c.x + .25) / .7)); // fades in and out through the door
     objs.push({ k:c.x + c.y + (c.state === 'sit' ? .02 : 0), f:() => {
       const h = drawPerson(c.x, c.y, { body:c.body, skin:c.skin, hair:c.hair, sit:c.state === 'sit', moving:c.moving, phase:c.phase, alpha });
       c.hx = h[0]; c.hy = h[1]; c.alpha = alpha;
@@ -1173,15 +1410,24 @@ function draw(){
 
   const u = Math.max(14, hw * .5);
   for (const c of queue){
-    if (c.alpha === 0 || c.hx === undefined) continue;
-    const w = u * 1.25, h = u * 1.2, [bx, by] = bubble(c.hx, c.hy - 6, w, h);
-    drawItem(c.hx, by + h * .44, u * .42, c.item);
+    if (c.alpha < .5 || c.hx === undefined) continue;
+    const w = u * 1.9, h = u * 1.2, [bx, by] = bubble(c.hx, c.hy - 6, w, h);
+    drawItem(c.hx - w * .2, by + h * .44, u * .42, c.item);
+    (c.dine ? drawChairIcon : drawBagIcon)(c.hx + w * .24, by + h * .44, u * .34);
     if (!c.claimed){
       const k = Math.max(0, c.patience / c.maxP);
       ctx.fillStyle = '#E6E2DA'; ctx.fillRect(bx + w * .15, by + h - 5, w * .7, 2.5);
       ctx.fillStyle = k > .4 ? '#2F6B55' : k > .2 ? '#C99A2E' : '#B4532A'; ctx.fillRect(bx + w * .15, by + h - 5, w * .7 * k, 2.5);
     }
     if (c.vip){ ctx.font = `700 ${Math.round(u * .42)}px Sora, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#94661C'; ctx.fillText('VIP', c.hx, by - 4); }
+  }
+  for (const c of customers){
+    if (c.state !== 'wait' || c.hx === undefined) continue;
+    const w = u * 1.25, h = u * 1.2, [bx, by] = bubble(c.hx, c.hy - 6, w, h);
+    drawChairIcon(c.hx, by + h * .44, u * .4, '#B4532A');
+    const k = Math.max(0, c.waitT / SEAT_WAIT);
+    ctx.fillStyle = '#E6E2DA'; ctx.fillRect(bx + w * .15, by + h - 5, w * .7, 2.5);
+    ctx.fillStyle = '#B4532A'; ctx.fillRect(bx + w * .15, by + h - 5, w * .7 * k, 2.5);
   }
   for (const p of preps){
     const s = staffPos.find(q => q.who === p.who); if (!s) continue;
@@ -1190,11 +1436,13 @@ function draw(){
   }
   ctx.textAlign = 'center';
   for (const f of floaters){
+    if (f.t < 0) continue;
     const [sx, sy] = P(f.x, f.y, 0), a = Math.max(0, 1 - f.t / 1.3);
-    ctx.globalAlpha = a; ctx.font = `700 ${Math.round(Math.max(13, hw * .38))}px Sora, sans-serif`;
-    const y = sy - hw * 1.25 - f.t * 30;
+    ctx.globalAlpha = a; ctx.font = `700 ${Math.round(Math.max(f.star ? 11 : 13, hw * (f.star ? .3 : .38)))}px Sora, sans-serif`;
+    const y = sy - hw * 1.25 - f.t * 30 - (f.star ? hw * .4 : 0);
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.strokeText(f.text, sx, y);
-    ctx.fillStyle = f.sad ? '#8A8F87' : f.gold ? '#B07A12' : '#2F6B55'; ctx.fillText(f.text, sx, y);
+    ctx.fillStyle = f.star ? (f.star >= 4 ? '#D49B1F' : f.star === 3 ? '#9A8F70' : '#B4532A') : f.sad ? '#8A8F87' : f.gold ? '#B07A12' : '#2F6B55';
+    ctx.fillText(f.text, sx, y);
     ctx.globalAlpha = 1;
   }
 }
@@ -1204,6 +1452,8 @@ let hudT = 0, slowT = 0, chipKey = '';
 function hud(now){
   $('#money').textContent = fmt(S.money);
   $('#gems').textContent = S.gems.toLocaleString('en-US');
+  const avg = avgRating(); $('#ratingNum').textContent = avg ? avg.toFixed(1) : '–';
+  const un = $('#unread'); un.hidden = !S.unread; un.textContent = S.unread;
   const cut = now - 60000; while (earnLog.length && earnLog[0][0] < cut) earnLog.shift();
   $('#rate').textContent = fmt(perMinute()) + '/min';
   $('#dayLabel').textContent = 'Day ' + S.day;
@@ -1262,6 +1512,7 @@ $('#brew').addEventListener('pointerdown', e => { e.preventDefault(); brewTap();
 $('#brew').addEventListener('click', e => { if (e.detail === 0) brewTap(); });
 document.addEventListener('keydown', e => {
   if (!$('#modal').hidden || !$('#ad').hidden) return;
+  if (e.key === 'Escape' && !$('#phone').hidden){ closePhone(); return; }
   if (e.key === 'Escape' && section){ closeDrawer(); return; }
   if ((e.code === 'Space' && e.target === document.body) || e.key === 'b'){ e.preventDefault(); brewTap(); }
 });

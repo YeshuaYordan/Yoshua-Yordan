@@ -40,25 +40,40 @@ who run it for you.
   or bought in Top-ups.
 
 ## Game loop
-1. Customers walk in, join the line and order something from your menu.
-2. Tap **Brew** (or tap the café) to make the order. More taps make it faster.
-3. Serving earns money. Customers who find a free seat pay 20% more.
-4. Spend money on upgrades. Bigger upgrades unlock as you earn more.
-5. Every in-game day (2 minutes) you pay rent and staff wages.
+1. Customers come in through the **one door** (left wall) and line up **in front of the cash register**.
+2. Each customer is **dine-in** (chair icon) or **takeaway** (bag icon).
+3. Tap **Brew** (or tap the café) to make the order. More taps make it faster.
+4. Takeaway customers leave through the same door. Dine-in customers (pay 20% more) look for a free chair.
+   - No free chair: they stand in the middle of the café for **15 seconds**. If a chair frees up they sit,
+     otherwise they walk out and give **1 star**.
+5. Spend money on upgrades. Bigger upgrades unlock as you earn more.
+6. Every in-game day (2 minutes) you pay rent and staff wages.
+
+## Ratings and reviews
+- Every customer rates their visit from 1 to 5 stars. The café rating is the **average of the last 100 customers**.
+- Stars come from how long they waited (fast = 5), decorations (small bonus chance), waiting for a chair (−1),
+  giving up in line (1–2 stars) and finding no chair (1 star).
+- Many customers also write a comment, picked at random from **satisfied, neutral and bad** comment lists that
+  match their stars.
+- The **phone button** (bottom right) opens the Beanery Reviews app: average rating, star breakdown, comments
+  with filters, and a badge for new reviews.
+- Rating matters: a 5-star café gets about 30% more customers than a 1-star café.
 
 ## What you can improve
 | Area | What it does |
 | --- | --- |
 | Menu | Add new items (espresso → cold brew tonic) and raise their price with upgrades |
 | Espresso machine | Every order is made 10% faster per level |
-| Tables | Seated guests pay 20% more, and more seats bring more customers |
+| Chairs | Bought one by one (a table comes with every 2 chairs). Dine-in guests need a free chair |
 | Decoration | 12 pieces bought one by one (plants, lights, neon sign...). Each is visible and brings 12% more customers |
 | Baristas | Make orders automatically. Train them to work faster. They earn wages |
 | Cashier | +10% tips per level |
 | Power-ups | Rush hour (2x money), Quick hands (2x work speed), Busy street (2x customers), Tip jar (instant cash) |
 | Expansion | Coffee Stand → Cozy Café → Corner Café → Grand Café. Bigger room, more staff and tables, new menu items, higher rent |
 
-## Current status (v0.2, test build)
+Room sizes: Coffee Stand 9×9, Cozy Café 10×10, Corner Café 11×11, Grand Café 12×12 tiles.
+
+## Current status (v0.3, test build)
 - Single file: `index.html` (HTML, CSS, JavaScript, no downloads needed).
 - Progress saves on the device automatically.
 - Ads and purchases are **simulated** so the game can be tested. Real Google AdMob and Google Play
