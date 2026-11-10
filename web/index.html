@@ -1620,6 +1620,14 @@ function bookLines() {
     "Epic cards have one form (no V1-V3).", "Fuse 3-5 Epic cards in the Chamber for", "a chance at a Myth card (fail = cards lost)."])
     L.push({ segs: [[s, INK, 22]] });
   L.push({ segs: RARITY_NAMES.flatMap((n, i) => [[n, shade(RARITY_COLORS[i], -0.3), 22, FONT, 700], [i < 5 ? " > " : "", INK, 22]]) });
+  // Main elements are always known: they are what the shop sells.
+  L.push({ gap: 16 });
+  L.push({ segs: [["Main Elements", INK, 28, DISPLAY, 900]] });
+  L.push({ segs: [["Sold in the shop. Same + same: V1 > V2 > V3.", "#6b5a48", 18, FONT, 500]] });
+  for (const el of BASE) {
+    L.push({ segs: [[EL[el].name, shade(EL[el].color, -0.35), 30, FONT, 700]] });
+    L.push({ indent: 20, segs: [[EL[el].desc, "#6b5a48", 18, FONT, 500]] });
+  }
   let lastTier = 0;
   for (const r of RECIPE_LIST) {
     const tier = EL[r[2]].tier;
