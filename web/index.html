@@ -1205,6 +1205,7 @@ const canGoOnAltar = c => c && EL[c.element].tier === 3 && (c.rarity === EPIC ||
 const chamberCount = () => rows.chamber.filter(Boolean).length;
 function openChamber() {
   cancelDrag(); chamberOpen = true;
+  for (const f of fxs) f.underChamber = true;   // battle effects already on screen belong under the panel
   showInfo("Drag Epic cards onto the altars. 3 or more are needed.");
 }
 // Returns every card on the altars to the first free board slots.
@@ -1515,10 +1516,15 @@ function drawWorld() {
 
   for (const z of zones) z.draw();
   for (const e of enemies) e.draw();
-  if (chamberOpen) drawChamber();
+  if (chamberOpen) {
+    // Frozen battle shots and effects stay underneath the Chamber panel.
+    for (const p of projectiles) p.draw();
+    for (const f of fxs) if (f.underChamber) f.draw();
+    drawChamber();
+  }
   for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging) c.draw();
-  for (const p of projectiles) p.draw();
-  for (const f of fxs) f.draw();
+  if (!chamberOpen) for (const p of projectiles) p.draw();
+  for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
 }
 
