@@ -1,0 +1,5 @@
+# Godot 4 generated files
+.godot/
+/android/
+*.tmp
+export_presets.cfg.bak
