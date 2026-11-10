@@ -83,13 +83,15 @@
     const legD = shade(legC, .82);
 
     /* walk cycle offsets */
+    // The art faces right, so "forward" is +x.
     // frame 0: front leg forward, back leg behind (wide stride)
-    // frame 1: front leg swinging through, lifted with a bent knee
+    // frame 1: back leg swings forward through the middle, lifted with a bent knee
     // frame 2: back leg forward, front leg behind
-    // frame 3: back leg swinging through, lifted
+    // frame 3: front leg swings forward through the middle, lifted
     const dxF = walk ? [2, 0, -2, 0][f] : 0, dxB = walk ? [-1, 1, 3, 1][f] : 0;
-    const liftF = walk && f === 1, liftB = walk && f === 3;
-    const armF = walk ? [-2, 0, 2, 0][f] : 0, armB = walk ? [2, 0, -2, 0][f] : 0; // arms swing opposite to the legs
+    const liftF = walk && f === 3, liftB = walk && f === 1;
+    // arms swing opposite to the legs: front arm back while the front leg is forward
+    const armF = walk ? [-2, -1, 2, 1][f] : 0, armB = walk ? [2, 1, -2, -1][f] : 0;
 
     /* ---------------- layers ---------------- */
     // 1. hair / hijab behind the body
@@ -101,13 +103,17 @@
 
     // 2. back arm (front view: behind the torso)
     const armTop = oy + 14;
-    const drawArm = (x, dark, handY) => {
+    // Arm with the shoulder fixed at the torso. swing moves the hand forward (+) or back (-) by up to 2 pixels;
+    // the elbow takes half of that, so the arm always stays one connected piece.
+    const drawArm = (x, dark, swing = 0) => {
       const sc = dark ? shade(sleeve, .82) : sleeve, hc = dark ? skinD : skin;
-      R(x, armTop, 2, handY - armTop, sc);
-      R(x, handY, 2, 2, hc);
+      const mid = Math.sign(swing) * Math.min(1, Math.abs(swing)), raise = swing > 0 ? 1 : 0;
+      R(x, armTop, 2, 2, sc);                               // shoulder
+      R(x + mid, armTop + 2, 2, 3 - raise, sc);             // elbow / forearm
+      R(x + swing, armTop + 5 - raise, 2, 2, hc);           // hand
     };
-    if (!sit) drawArm(4 + armB, true, oy + 19 - (armB > 0 ? 1 : 0));
-    else if (front) drawArm(4, true, oy + 19);
+    if (!sit) drawArm(4, true, armB);
+    else if (front) drawArm(4, true, 0);
 
     // 3. legs (standing) or thighs (seated)
     if (!sit) {
@@ -115,8 +121,8 @@
       const leg = (x, lifted, dark) => {
         const lc = dark ? legD : legC, sc = dark ? shoeD : shoe;
         if (lifted){
-          // knee bends: thigh forward, shin tucked back, foot off the ground
-          R(x, legTop, 2, 2, lc); R(x + 1, legTop + 2, 2, 2, lc); R(x, legTop + 4, 2, 1, lc);
+          // passing leg: thigh swings forward (knee ahead), shin hangs back, foot lifted off the ground
+          R(x, legTop, 2, 2, lc); R(x + 1, legTop + 2, 2, 1, lc); R(x, legTop + 3, 2, 2, lc);
           R(x - 1, legTop + 5, 3, 2, sc);
         } else {
           R(x, legTop, 2, 26 - legTop + 1, lc);
@@ -252,7 +258,7 @@
       else { R(x, y, 3, 2, it.color); P1(x + 1, y, shade(it.color, 1.3)); }
     };
     if (!sit) {
-      drawArm(13 + armF, false, oy + 19 - (armF > 0 ? 1 : 0));
+      drawArm(13, false, armF);
       if (bag && bag.style === 'handbag' && front) { R(14 + armF, oy + 20, 3, 3, bag.c); P1(15 + armF, oy + 19, shade(bag.c, .7)); }
     } else if (front) {
       // seated, facing the camera: the arm brings the food or cup up to the mouth
