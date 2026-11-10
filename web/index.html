@@ -378,7 +378,7 @@ class Card {
     ctx.translate(this.x + Math.sin(t * 60) * 6 * this.shake, this.y - 8 * this.kick - (this.dragging ? 6 : 0));
     ctx.scale(this.scale, this.scale);
     const hw = CARD_W / 2, hh = CARD_H / 2;
-    if (this.rarity >= MYTH) this.drawMythAura(hw, hh, t);
+    if (this.rarity >= MYTH) this.drawMythAura(hw, hh, t, this.rarity === LEGEND);
     else if (d.tier === 3) this.drawEpicAura(hw, hh, t);
     // Card background for this rarity (falls back to a plain frame until the art has loaded).
     const art = CARD_ART[this.rarity], k = CARD_W / ART_W;
@@ -462,14 +462,14 @@ class Card {
     }
   }
   // Myth cards: soft fire licking every side of the card, a hot glow and embers floating up.
-  drawMythAura(hw, hh, t) {
+  drawMythAura(hw, hh, t, gold = false) {
     const pulse = 0.5 + 0.5 * Math.sin(t * 4);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (let i = 4; i >= 0; i--) {
       const g = 4 + i * 6 + pulse * 4;
       rrect(-hw - g, -hh - g, CARD_W + g * 2, CARD_H + g * 2, 12 + g);
-      ctx.fillStyle = hexA(i > 2 ? "#ff3d1f" : "#ff8a2a", 0.07 + (4 - i) * 0.025); ctx.fill();
+      ctx.fillStyle = hexA(gold ? (i > 2 ? "#ffb21f" : "#ffe27a") : (i > 2 ? "#ff3d1f" : "#ff8a2a"), 0.07 + (4 - i) * 0.025); ctx.fill();
     }
     // Flame tongues all around the edge, leaning upward like real fire.
     const per = 2 * (CARD_W + CARD_H), N = 40;
@@ -480,7 +480,7 @@ class Card {
       d -= CARD_W; return [-hw, hh - d, -1, 0];
     };
     for (let layer = 0; layer < 3; layer++) {
-      const col = ["#ff3d1f", "#ff9a2e", "#ffe27a"][layer], k = [1, 0.66, 0.38][layer], a = [0.55, 0.6, 0.7][layer];
+      const col = (gold ? ["#ff9a1f", "#ffd84a", "#fff6c8"] : ["#ff3d1f", "#ff9a2e", "#ffe27a"])[layer], k = [1, 0.66, 0.38][layer], a = [0.55, 0.6, 0.7][layer];
       ctx.fillStyle = hexA(col, a);
       for (let i = 0; i < N; i++) {
         const [x, y, nx, ny] = edge((i + 0.5) * per / N);
@@ -824,6 +824,17 @@ class Fx {
 const rows = { active: Array(SLOTS).fill(null), storage: Array(SLOTS).fill(null), shop: Array(SHOP_N).fill(null), chamber: Array(5).fill(null) };
 // Fusion Chamber: 3-5 Epic cards on the altars, a chance to become one Myth card. On failure every card is lost.
 const CHAMBER_CHANCE = { 3: 35, 4: 60, 5: 85 };
+// Legend Chamber: active as soon as a Myth card is on an altar. Myth cards are the base of a Legend; Epic cards only
+// add a little. Even five Myth cards give at most 30%.
+const LEGEND = 5, LEGEND_PER_MYTH = 6, LEGEND_PER_EPIC = 2, LEGEND_MAX = 30;
+const isLegendChamber = () => rows.chamber.some(c => c && c.rarity === MYTH);
+function chamberChance() {
+  const cards = rows.chamber.filter(Boolean);
+  if (cards.length < 3) return 0;
+  if (!cards.some(c => c.rarity === MYTH)) return CHAMBER_CHANCE[cards.length];
+  const myth = cards.filter(c => c.rarity === MYTH).length, epic = cards.length - myth;
+  return Math.min(LEGEND_MAX, myth * LEGEND_PER_MYTH + epic * LEGEND_PER_EPIC);
+}
 const CHAMBER_Y = 340;
 let chamberOpen = false;
 let restartArmed = 0; // seconds left to confirm Restart in the pause menu
@@ -1048,8 +1059,10 @@ let fusion = null;
 function fuseChamber() {
   if (fusion) return;
   const cards = rows.chamber.filter(Boolean), n = cards.length;
-  if (n < 3) { showInfo("Put at least 3 Epic cards on the altars to fuse."); return; }
-  const chance = CHAMBER_CHANCE[n], success = Math.random() * 100 < chance;
+  if (n < 3) { showInfo("Put at least 3 cards on the altars to fuse."); return; }
+  const legend = isLegendChamber(), chance = chamberChance(), success = Math.random() * 100 < chance;
+  // The result takes the element of one fused card (a Myth card's, in the Legend Chamber).
+  const pool = legend ? cards.filter(c => c.rarity === MYTH) : cards;
   const center = slotPos("chamber", 2);
   const parts = [];
   for (const c of cards) {
@@ -1063,7 +1076,7 @@ function fuseChamber() {
   fusion = {
     t: 0, n, chance, success, center, parts, dust: [], done: false,
     cards: cards.map(c => ({ card: c, x: c.x, y: c.y })),
-    el: cards[Math.floor(Math.random() * n)].element,   // the Myth card takes one fused card's element
+    el: pool[Math.floor(Math.random() * pool.length)].element, legend, rarity: legend ? LEGEND : MYTH,
   };
   rows.chamber.fill(null);
   showInfo("");
@@ -1080,18 +1093,19 @@ function updateFusion(dt) {
   if (prev < FUSE.reveal && f.t >= FUSE.reveal) {
     const c = f.center;
     if (f.success) {
-      const m = new Card(f.el, MYTH); m.setHome(c.x, c.y, true); m.scale = 1.7; m.evolveAt = 0; rows.chamber[2] = m;
-      fxs.push(new Fx("burst", { x: c.x, y: c.y, color: RARITY_COLORS[MYTH], radius: 180, duration: 0.8 }));
-      fxs.push(new Fx("burst", { x: c.x, y: c.y, color: GOLD, radius: 120, duration: 0.7 }));
-      showBanner(`MYTH ${EL[f.el].name.toUpperCase()} CREATED!`, RARITY_COLORS[MYTH]);
-      showInfo(`Success (${f.chance}% chance)! Close the Chamber to put your Myth card on the board.`);
+      const m = new Card(f.el, f.rarity); m.setHome(c.x, c.y, true); m.scale = 1.7; m.evolveAt = 0; rows.chamber[2] = m;
+      const word = f.legend ? "LEGEND" : "MYTH";
+      fxs.push(new Fx("burst", { x: c.x, y: c.y, color: RARITY_COLORS[f.rarity], radius: 180, duration: 0.8 }));
+      fxs.push(new Fx("burst", { x: c.x, y: c.y, color: f.legend ? "#ff6a3c" : GOLD, radius: 120, duration: 0.7 }));
+      showBanner(`${word} ${EL[f.el].name.toUpperCase()} CREATED!`, RARITY_COLORS[f.rarity]);
+      showInfo(`Success (${f.chance}% chance)! Close the Chamber to put your ${f.legend ? "Legend" : "Myth"} card on the board.`);
     } else {
       for (let i = 0; i < 160; i++) f.dust.push({
         x: c.x + rand(-CARD_W / 2, CARD_W / 2), y: c.y + rand(-CARD_H / 2, CARD_H / 2),
         vx: rand(-70, 70), vy: rand(-90, 10), size: rand(1.5, 4), col: ["#8d8278", "#6f655d", "#b2a698", "#5a524c"][i % 4],
       });
       showBanner("Fusion failed...", "#a89878");
-      showInfo(`The ${f.n} Epic cards crumbled to dust (${f.chance}% chance).`);
+      showInfo(`The ${f.n} cards crumbled to dust (${f.chance}% chance).`);
     }
   }
   for (const d of f.dust) { d.vy += 140 * dt; d.vx *= 0.98; d.x += d.vx * dt; d.y += d.vy * dt; }
@@ -1187,6 +1201,7 @@ const btn = {
 };
 function openBook() { cancelDrag(); bookOpen = true; bookScroll = 0; }
 const isEpic = c => c && EL[c.element].tier === 3 && c.rarity === EPIC;
+const canGoOnAltar = c => c && EL[c.element].tier === 3 && (c.rarity === EPIC || c.rarity === MYTH);
 const chamberCount = () => rows.chamber.filter(Boolean).length;
 function openChamber() {
   cancelDrag(); chamberOpen = true;
@@ -1207,8 +1222,8 @@ function chamberDrop(d, p) {
   const target = slotAt(p);
   if (!target || (target[0] === d.from && target[1] === d.index)) return;
   const card = d.card, other = rows[target[0]][target[1]];
-  if (target[0] === "chamber" && !isEpic(card) && d.from !== "chamber") { showInfo("Only Epic cards can go on the altars."); card.shake = 1; return; }
-  if (d.from === "chamber" && other && !isEpic(other) && target[0] !== "chamber") { showInfo("Drop it on an empty slot."); return; }
+  if (target[0] === "chamber" && !canGoOnAltar(card) && d.from !== "chamber") { showInfo("Only Epic and Myth cards can go on the altars."); card.shake = 1; return; }
+  if (d.from === "chamber" && other && !canGoOnAltar(other) && target[0] !== "chamber") { showInfo("Drop it on an empty slot."); return; }
   rows[d.from][d.index] = other; rows[target[0]][target[1]] = card;
   const a = slotPos(target[0], target[1]); card.setHome(a.x, a.y);
   if (other) { const b = slotPos(d.from, d.index); other.setHome(b.x, b.y); }
@@ -1560,27 +1575,37 @@ function drawChamber() {
   // Covers the battlefield (the game is paused) and the shop while the Chamber is open.
   ctx.fillStyle = "rgba(10,4,20,0.6)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
   ctx.fillStyle = "rgba(10,4,20,0.75)"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
-  rrect(20, 96, W - 40, 620, 26); ctx.fillStyle = "#2a1640"; ctx.fill();
-  ctx.strokeStyle = "#b36bff"; ctx.lineWidth = 4; ctx.stroke();
+  // Turns into the golden-red Legend Chamber while a Myth card is on an altar (or a Legend fusion is running).
+  const legend = fusion ? fusion.legend : isLegendChamber();
+  const TH = legend
+    ? { top: "#5a2a0c", bot: "#3a0f0a", edge: "#f2c14e", title: "#ffd27a", ring: "#ffb347", ring2: "#ff6a3c" }
+    : { top: "#2a1640", bot: "#2a1640", edge: "#b36bff", title: "#e3c9ff", ring: "#d9b8ff", ring2: "#b36bff" };
+  const pg = ctx.createLinearGradient(0, 96, 0, 716); pg.addColorStop(0, TH.top); pg.addColorStop(1, TH.bot);
+  rrect(20, 96, W - 40, 620, 26); ctx.fillStyle = pg; ctx.fill();
+  ctx.strokeStyle = TH.edge; ctx.lineWidth = 4; ctx.stroke();
+  if (legend) { ctx.save(); ctx.shadowColor = "#ff8a2a"; ctx.shadowBlur = 24; ctx.strokeStyle = hexA("#ffd27a", 0.7); ctx.lineWidth = 2; rrect(30, 106, W - 60, 600, 20); ctx.stroke(); ctx.restore(); }
   const pulse = 0.5 + 0.5 * Math.sin(time * 2);
-  text("Fusion Chamber", W / 2, 158, 40, "#e3c9ff", { font: DISPLAY, weight: 900, outline: 8 });
-  text("Place 3 to 5 Epic cards on the altars", W / 2, 198, 22, PARCH, { outline: 5 });
+  text(legend ? "Legend Chamber" : "Fusion Chamber", W / 2, 158, 40, TH.title, { font: DISPLAY, weight: 900, outline: 8 });
+  text(legend ? "Myth cards forge a Legend. Epic cards add a little." : "Place 3 to 5 Epic or Myth cards on the altars", W / 2, 198, 22, PARCH, { outline: 5 });
   for (let i = 0; i < rows.chamber.length; i++) {
     const p = slotPos("chamber", i);
     ctx.save(); ctx.translate(p.x, p.y + 58); ctx.scale(1, 0.32);
-    circle(0, 0, 64, hexA("#b36bff", 0.15 + 0.12 * pulse));
-    ring(0, 0, 60, hexA("#d9b8ff", 0.7), 4); ring(0, 0, 44, hexA("#b36bff", 0.6), 3, -time, -time + Math.PI * 1.5);
+    circle(0, 0, 64, hexA(TH.ring2, 0.15 + 0.12 * pulse));
+    ring(0, 0, 60, hexA(TH.ring, 0.7), 4); ring(0, 0, 44, hexA(TH.ring2, 0.6), 3, -time, -time + Math.PI * 1.5);
     ctx.restore();
-    slotFrame(p.x, p.y, hexA("#d9b8ff", 0.45));
+    slotFrame(p.x, p.y, hexA(TH.ring, 0.45));
   }
   const n = chamberCount();
   if (fusion) { text(fusion.t < FUSE.reveal ? "Fusing..." : "", W / 2, 470, 30, "#e3c9ff", { weight: 700, outline: 8 }); return; }
   if (n >= 3) {
-    text(`Success chance: ${CHAMBER_CHANCE[n]}%`, W / 2, 462, 34, GOLD, { weight: 700, outline: 8 });
+    text(`Success chance: ${chamberChance()}%${legend ? "  (max 30%)" : ""}`, W / 2, 462, 34, GOLD, { weight: 700, outline: 8 });
     text("If it fails, every card on the altars is lost!", W / 2, 498, 20, "#ff9a8a", { outline: 5 });
+  } else if (legend) {
+    text(`Myth +${LEGEND_PER_MYTH}% each   Epic +${LEGEND_PER_EPIC}% each   (max ${LEGEND_MAX}%)`, W / 2, 462, 22, PARCH, { outline: 6 });
+    text("Needs 3+ cards. Success creates one Legend card.", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
   } else {
     text("3 cards: 35%   4 cards: 60%   5 cards: 85%", W / 2, 462, 24, PARCH, { outline: 6 });
-    text("Success creates one Myth card.", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
+    text("Success creates one Myth card. Add a Myth for a Legend!", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
   }
 }
 function drawSellBox() {
@@ -1658,7 +1683,8 @@ function bookLines() {
   for (const s of ["Main elements: same + same = next level.", "V1 (Common) > V2 (Uncommon) > V3 (Rare, max).",
     "Next elements: two different main elements", "of the same level (V2 Fire + V2 Earth = V2 Lava).",
     "They level up to V3 too.", "Epic elements: two different V3 next elements.",
-    "Epic cards have one form (no V1-V3).", "Fuse 3-5 Epic cards in the Chamber for", "a chance at a Myth card (fail = cards lost)."])
+    "Epic cards have one form (no V1-V3).", "Fuse 3-5 Epic cards in the Chamber for", "a chance at a Myth card (fail = cards lost).",
+    "Add Myth cards to make it a Legend Chamber:", "Myth +6%, Epic +2% each, max 30% Legend."])
     L.push({ segs: [[s, INK, 22]] });
   L.push({ segs: RARITY_NAMES.flatMap((n, i) => [[n, shade(RARITY_COLORS[i], -0.3), 22, FONT, 700], [i < 5 ? " > " : "", INK, 22]]) });
   // Main elements are always known: they are what the shop sells.
