@@ -33,6 +33,15 @@ Enemies: Grunt, Runner (fast), Tank (tough), Flyer (weak to Wind, resists Earth)
 2. Open Godot, click **Import**, and choose the `project.godot` file in this folder.
 3. Press **F5** (or the ▶ Play button at the top right).
 
+## Playing it on an Android phone
+1. Download the test APK (`ArcaneFusion-0.1.0-test.apk`) onto the phone.
+2. Tap it. If Android says installing from unknown sources is blocked, allow it for your browser or file manager.
+3. Tap **Install**, then open **Arcane Fusion**.
+
+This needs Android 7.0 or newer. It's a debug test build, not the Play Store version.
+
+To build the APK yourself, use the **Android** preset in `export_presets.cfg` (Godot → Project → Export). You'll need Godot's Android export templates, a JDK and the Android SDK set up under Editor Settings → Export → Android.
+
 ## Project layout
 | Path | What it is |
 |---|---|

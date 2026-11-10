@@ -3,3 +3,4 @@
 /android/
 *.tmp
 export_presets.cfg.bak
+build/

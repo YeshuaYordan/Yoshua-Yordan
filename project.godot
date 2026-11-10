@@ -35,3 +35,4 @@ window/handheld/orientation=1
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 environment/defaults/default_clear_color=Color(0.1, 0.07, 0.14, 1)
+textures/vram_compression/import_etc2_astc=true
