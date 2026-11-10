@@ -79,7 +79,7 @@ const EL = {
   wind:      { name: "Wind", tier: 1, color: "#bfe6e0", shape: "swirl", parts: ["wind"], desc: "Fast gusts pierce foes.", dmg: 6, rate: 2.0, speed: 980, pierce: 2 },
   steam:     { name: "Steam", tier: 2, color: "#d8d4e8", shape: "cloud", parts: ["fire", "water"], desc: "Scalding cloud hurts all inside.", dmg: 8, rate: 0.8, speed: 600, cloud: 80, cloud_dps: 12 },
   lava:      { name: "Lava", tier: 2, color: "#e8452c", shape: "rock", parts: ["fire", "earth"], desc: "Leaves burning magma pools.", dmg: 16, rate: 0.9, speed: 560, puddle: 55, puddle_dps: 10, burn: 4 },
-  blaze:     { name: "Blaze", tier: 2, color: "#ffb52e", shape: "spiky", parts: ["fire", "wind"], desc: "Wind-fed fire bolt chains 3 foes.", dmg: 14, rate: 1.0, chain: 3 },
+  lightning: { name: "Lightning", tier: 2, color: "#ffe34a", shape: "spiky", parts: ["fire", "wind"], desc: "Thunderbird bolt chains 3 foes.", dmg: 14, rate: 1.0, chain: 3 },
   plant:     { name: "Plant", tier: 2, color: "#5cc36a", shape: "leaf", parts: ["water", "earth"], desc: "Dryad vines root enemies.", dmg: 12, rate: 0.9, speed: 620, root: 1.0 },
   ice:       { name: "Ice", tier: 2, color: "#9fdcff", shape: "crystal", parts: ["water", "wind"], desc: "Frost wolf bite slows foes.", dmg: 11, rate: 1.1, speed: 700, slow: 0.5 },
   dust:      { name: "Dust", tier: 2, color: "#d9b77a", shape: "blob", parts: ["earth", "wind"], desc: "Dust storm blast pushes foes back.", dmg: 10, rate: 1.0, speed: 640, knock: 55, splash: 40 },
@@ -97,10 +97,10 @@ const EL = {
 //   Epic elements (tier 3): only two different V3 next elements make one, and it starts at Epic.
 //     Same + same levels up Epic > Myth > Legend.
 const RECIPE_LIST = [
-  ["fire", "earth", "lava"], ["fire", "water", "steam"], ["fire", "wind", "blaze"],
+  ["fire", "earth", "lava"], ["fire", "water", "steam"], ["fire", "wind", "lightning"],
   ["earth", "water", "plant"], ["earth", "wind", "dust"], ["water", "wind", "ice"],
-  ["steam", "blaze", "storm"], ["ice", "dust", "blizzard"], ["lava", "ice", "obsidian"],
-  ["plant", "steam", "grove"], ["plant", "blaze", "wildfire"], ["dust", "blaze", "crystal"],
+  ["steam", "lightning", "storm"], ["ice", "dust", "blizzard"], ["lava", "ice", "obsidian"],
+  ["plant", "steam", "grove"], ["plant", "lightning", "wildfire"], ["dust", "lightning", "crystal"],
 ];
 const RECIPES = {};
 const rkey = (a, b) => [a, b].sort().join("+");
