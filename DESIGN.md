@@ -91,7 +91,21 @@ who run it for you.
 
 Room sizes: Coffee Stand 9×9, Cozy Café 10×10, Corner Café 11×11, Grand Café 12×12 tiles.
 
-## Current status (v0.5, test build)
+## Characters
+- Art: the owner's pixel-art sheet (`assets/characters/girl-source.png`): 4 poses x 4 frames
+  (walk, standing, eating while sitting, drinking while sitting). It faces right and is flipped for the other direction.
+- `tools/slice_sprites.py` cuts it into equal frames with a transparent background, on one feet line.
+  The game uses a 72%-size, 128-colour version: `assets/characters/girl-sheet.png` (embedded in `index.html`).
+- Use in the game:
+  - Walking → walk frames. In line and in the waiting area → standing frames.
+  - Seated → eating frames for food, drinking frames for drinks. The art includes its own chair,
+    so the café chair is hidden while someone sits on it (empty chairs are wooden to match).
+- Variety: customers get one of 6 hair colours (dark, brown, blonde, auburn, black, ash).
+  Baristas get a green café apron painted over the chest. The shirt is not recoloured, because its
+  near-white, skin-like shading makes a colour swap look patchy.
+- To add a new character: send a sheet with the same 4-row layout and run the slicer on it.
+
+## Current status (v0.6, test build)
 - Menu prices doubled in v0.4 because customers now arrive less often.
 - Single file: `index.html` (HTML, CSS, JavaScript, no downloads needed).
 - Progress saves on the device automatically.
