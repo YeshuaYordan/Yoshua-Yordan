@@ -414,21 +414,44 @@ class Card {
   }
 }
 
+// ------------------------------------------------------------ Stages & enemies
+// Every 10 waves is a stage with its own background and enemies; wave 10 of each stage is a boss.
+// After stage 3 the stages repeat (stage 4 = Grass Field again) with stronger enemies.
+// Pool entries: [kind, weight, first wave of the stage it appears on].
+const STAGES = [
+  { name: "Grass Field", bg: "grass", boss: "kingGoblin", pool: [["slime", 10, 1], ["boar", 6, 3], ["goblin", 5, 5]] },
+  { name: "Desert Sands", bg: "sand", boss: "kingOrc", pool: [["goblin", 10, 1], ["mummy", 5, 3], ["orc", 6, 5]] },
+  { name: "Crystal Cave", bg: "cave", boss: "kingSlime", pool: [["darkSlime", 10, 1], ["redSlime", 6, 2], ["blueSlime", 6, 3], ["purpleSlime", 5, 5]] },
+];
+const stageNum = w => Math.floor((Math.max(1, w) - 1) / 10) + 1;
+const stageOf = w => STAGES[(stageNum(w) - 1) % STAGES.length];
+const waveInStage = w => ((Math.max(1, w) - 1) % 10) + 1;
+const waveLabel = w => `${stageNum(w)}-${waveInStage(w)}`;
+
+// look: how the enemy is drawn. resist: element it shrugs off (and its counter hits it harder).
 const KINDS = {
-  grunt:  { hp: 30, speed: 42, size: 22, gold: 1, dps: 5, color: "#6b4f8a" },
-  runner: { hp: 16, speed: 85, size: 16, gold: 1, dps: 3, color: "#c4493e" },
-  tank:   { hp: 130, speed: 22, size: 31, gold: 3, dps: 12, color: "#7c8594" },
-  flyer:  { hp: 22, speed: 58, size: 18, gold: 2, dps: 4, color: "#4a5a8c", flying: true },
-  boss:   { hp: 1000, speed: 16, size: 52, gold: 30, dps: 30, color: "#3d2050" },
+  slime:       { name: "Slime", look: "slime", hp: 26, speed: 40, size: 20, gold: 1, dps: 4, color: "#7ed957" },
+  boar:        { name: "Boar", look: "boar", hp: 18, speed: 92, size: 19, gold: 1, dps: 4, color: "#8a5a3b" },
+  goblin:      { name: "Goblin", look: "goblin", hp: 40, speed: 50, size: 20, gold: 2, dps: 6, color: "#6fbf4a" },
+  kingGoblin:  { name: "King Goblin", look: "goblin", king: true, boss: true, hp: 900, speed: 17, size: 50, gold: 30, dps: 30, color: "#5aa83a" },
+  mummy:       { name: "Mummy", look: "mummy", heavy: true, hp: 120, speed: 22, size: 26, gold: 3, dps: 10, color: "#e8dcc0" },
+  orc:         { name: "Orc", look: "orc", hp: 70, speed: 40, size: 26, gold: 2, dps: 10, color: "#7d9a5c" },
+  kingOrc:     { name: "King Orc", look: "orc", king: true, boss: true, hp: 1200, speed: 15, size: 54, gold: 40, dps: 40, color: "#6a8a4a" },
+  darkSlime:   { name: "Dark Slime", look: "slime", hp: 60, speed: 38, size: 22, gold: 2, dps: 8, color: "#5a4382" },
+  redSlime:    { name: "Glowy Red Slime", look: "slime", glow: true, resist: "fire", hp: 45, speed: 72, size: 20, gold: 2, dps: 7, color: "#ff4f5e" },
+  blueSlime:   { name: "Glowy Blue Slime", look: "slime", glow: true, resist: "water", hp: 60, speed: 46, size: 22, gold: 2, dps: 8, color: "#4fb8ff" },
+  purpleSlime: { name: "Glowy Purple Slime", look: "slime", glow: true, heavy: true, resist: "wind", hp: 100, speed: 30, size: 27, gold: 3, dps: 11, color: "#b36bff" },
+  kingSlime:   { name: "King Slime", look: "slime", king: true, boss: true, hp: 1500, speed: 14, size: 58, gold: 50, dps: 50, color: "#8a4fe0" },
 };
 class Enemy {
-  constructor(kind, wave, resist, x, y) {
+  constructor(kind, wave, x, y) {
     const d = KINDS[kind], w = wave - 1;
-    this.kind = kind; this.x = x; this.y = y; this.baseX = x;
-    this.hp = d.hp * (1 + 0.2 * w) * Math.pow(1.05, w) * (resist ? 1.3 : 1); this.maxHp = this.hp;
+    this.kind = kind; this.look = d.look; this.x = x; this.y = y;
+    this.isBoss = !!d.boss; this.king = !!d.king; this.glow = !!d.glow; this.heavy = !!d.heavy;
+    this.hp = d.hp * (1 + 0.2 * w) * Math.pow(1.05, w); this.maxHp = this.hp;
     this.speed = d.speed * (1 + Math.min(0.5, wave * 0.012)); this.size = d.size;
     this.gold = d.gold + Math.floor(wave / 8); this.dps = d.dps * (1 + wave * 0.05);
-    this.flying = !!d.flying; this.color = d.color; this.resist = resist;
+    this.flying = false; this.color = d.color; this.resist = d.resist || "";
     this.dead = false; this.t = Math.random() * 10; this.flash = 0;
     this.burnDps = 0; this.burnT = 0; this.slowMult = 1; this.slowT = 0; this.rootT = 0; this.attacking = false;
   }
@@ -442,7 +465,6 @@ class Enemy {
     if (this.y < limit) {
       this.attacking = false;
       if (this.rootT <= 0) this.y += this.speed * this.slowMult * dt;
-      if (this.flying) this.x = clamp(this.baseX + Math.sin(this.t * 2.5) * 30, 30, 690);
     } else {
       this.attacking = true; this.y = limit; damageCastle(this.dps * dt);
     }
@@ -452,53 +474,24 @@ class Enemy {
     this.hp -= a; if (a >= 1) this.flash = 1;
     if (this.hp <= 0) { this.dead = true; onEnemyKilled(this); }
   }
-  slow(mult, dur) { if (this.kind === "boss") mult = lerp(mult, 1, 0.5); this.slowMult = Math.min(this.slowMult, mult); this.slowT = Math.max(this.slowT, dur); }
-  root(dur) { if (this.kind === "boss") dur *= 0.3; this.rootT = Math.max(this.rootT, dur); }
+  slow(mult, dur) { if (this.isBoss) mult = lerp(mult, 1, 0.5); this.slowMult = Math.min(this.slowMult, mult); this.slowT = Math.max(this.slowT, dur); }
+  root(dur) { if (this.isBoss) dur *= 0.3; this.rootT = Math.max(this.rootT, dur); }
   burn(dps, dur) { this.burnDps = Math.max(this.burnT > 0 ? this.burnDps : 0, dps); this.burnT = Math.max(this.burnT, dur); }
-  knock(px) { if (this.kind === "boss") px *= 0.15; else if (this.kind === "tank") px *= 0.5; this.y = Math.max(90, this.y - px); }
+  knock(px) { if (this.isBoss) px *= 0.15; else if (this.heavy) px *= 0.5; this.y = Math.max(90, this.y - px); }
   draw() {
     const s = this.size, t = this.t;
-    let walk = -Math.abs(Math.sin(t * (this.attacking ? 5 : 8))) * s * 0.15;
-    if (this.flying) walk = Math.sin(t * 4) * 5 - 10;
     ctx.save(); ctx.translate(this.x, this.y);
-    ellipse(0, s * 0.85, s * 0.9, s * 0.28, "rgba(0,0,0,0.35)");
-    const cy = walk;
+    ellipse(0, s * 0.85, s * 0.95, s * 0.28, "rgba(0,0,0,0.32)");
+    const step = this.attacking ? 5 : 8;
+    const cy = this.look === "slime" ? 0 : -Math.abs(Math.sin(t * step)) * s * 0.12;
     const body = this.slowT > 0 ? mixHex(this.color, "#9fdcff", 0.45) : this.color;
-    if (this.resist) {
-      const rc = EL[this.resist].color;
-      circle(0, cy, s * 1.25, hexA(rc, 0.15)); ring(0, cy, s * 1.3, hexA(rc, 0.75), 3);
-    }
-    if (this.kind === "flyer") {
-      const flap = Math.sin(t * 14) * 0.5;
-      for (const sd of [-1, 1]) poly([[sd * s * 0.6, cy - s * 0.2], [sd * s * 2, cy - s * (0.9 + flap)], [sd * s * 1.6, cy + s * 0.1], [sd * s * 1.1, cy - s * 0.05]], shade(this.color, -0.25), INK, 2);
-    } else if (this.kind === "grunt" || this.kind === "boss") {
-      for (const sd of [-1, 1]) poly([[sd * s * 0.35, cy - s * 0.8], [sd * s * 0.75, cy - s * 1.45], [sd * s * 0.75, cy - s * 0.6]], "#e9d3a6", INK, 2);
-    } else if (this.kind === "runner") {
-      for (const sd of [-1, 1]) poly([[sd * s * 0.4, cy - s * 0.7], [sd * s * 1.2, cy - s * 1.1], [sd * s * 0.85, cy - s * 0.3]], shade(this.color, -0.2), INK, 2);
-    }
-    if (this.kind === "tank") {
-      poly([[-s, cy - s * 0.9], [s, cy - s * 0.9], [s * 0.9, cy + s * 0.9], [-s * 0.9, cy + s * 0.9]], body, INK, 3);
-      ctx.fillStyle = INK; ctx.fillRect(-s * 0.75, cy - s * 0.35, s * 1.5, s * 0.45);
-      circle(-s * 0.32, cy - s * 0.12, s * 0.12, "#ffcf4a"); circle(s * 0.32, cy - s * 0.12, s * 0.12, "#ffcf4a");
-      ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, cy - s * 0.9); ctx.lineTo(0, cy - s * 1.3); ctx.stroke();
-      circle(0, cy - s * 1.35, s * 0.15, "#c4493e");
-    } else {
-      poly(radialPoly(0, cy, s, "blob", t, 1), body, INK, s > 20 ? 3 : 2.5);
-      circle(-s * 0.4, cy - s * 0.45, s * 0.16, "rgba(255,255,255,0.3)");
-      if (this.kind === "boss") {
-        pieEye(-s * 0.32, cy - s * 0.12, s * 0.22, 0, 0.6, false, "#ffcf4a");
-        pieEye(s * 0.32, cy - s * 0.12, s * 0.22, 0, 0.6, false, "#ffcf4a");
-        poly([[-s * 0.55, cy - s * 0.75], [-s * 0.5, cy - s * 1.25], [-s * 0.2, cy - s * 0.95], [0, cy - s * 1.4], [s * 0.2, cy - s * 0.95], [s * 0.5, cy - s * 1.25], [s * 0.55, cy - s * 0.75]], GOLD, INK, 3);
-      } else {
-        pieEye(-s * 0.33, cy - s * 0.1, s * 0.27, 0, 0.6);
-        pieEye(s * 0.33, cy - s * 0.1, s * 0.27, 0, 0.6);
-      }
-      ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath();
-      ctx.moveTo(-s * 0.6, cy - s * 0.5); ctx.lineTo(-s * 0.12, cy - s * 0.32);
-      ctx.moveTo(s * 0.6, cy - s * 0.5); ctx.lineTo(s * 0.12, cy - s * 0.32); ctx.stroke();
-      ring(0, cy + s * 0.25, s * 0.35, INK, 2.5, 0.3, Math.PI - 0.3);
-      poly([[-s * 0.18, cy + s * 0.5], [-s * 0.08, cy + s * 0.72], [0, cy + s * 0.53]], "#fffaf0", null);
-    }
+    if (this.look === "slime") this.drawSlime(s, t, body);
+    else if (this.look === "boar") this.drawBoar(s, t, cy, body);
+    else if (this.look === "goblin") this.drawGoblin(s, t, cy, body);
+    else if (this.look === "mummy") this.drawMummy(s, t, cy, body);
+    else if (this.look === "orc") this.drawOrc(s, t, cy, body);
+    if (this.king) this.drawCrown(s, cy - s * (this.look === "slime" ? 0.95 : 1.0));
+    // Status effects.
     if (this.burnT > 0) for (let i = 0; i < 3; i++) {
       const fx = (i - 1) * s * 0.5, fy = cy - s * 0.9 - ((t * 40 + i * 13) % (s * 0.6));
       circle(fx, fy, 3.5, "#ff7a2f"); circle(fx, fy, 1.8, "#ffe34a");
@@ -506,11 +499,106 @@ class Enemy {
     if (this.rootT > 0) for (let i = 0; i < 4; i++) ring((i - 1.5) * s * 0.5, s * 0.75, s * 0.25, "#3e9b48", 3, Math.PI, Math.PI * 2);
     if (this.flash > 0) circle(0, cy, s * 1.05, `rgba(255,255,255,${this.flash * 0.45})`);
     if (this.hp < this.maxHp) {
-      const bw = Math.max(34, s * 2), by = cy - s * 1.55 - (this.kind === "boss" ? 10 : 0);
+      const bw = Math.max(34, s * 2), by = cy - s * 1.55 - (this.king ? 18 : 0);
       ctx.fillStyle = INK; ctx.fillRect(-bw / 2 - 2, by - 2, bw + 4, 9);
       ctx.fillStyle = "#e0533f"; ctx.fillRect(-bw / 2, by, bw * clamp(this.hp / this.maxHp, 0, 1), 5);
     }
     ctx.restore();
+  }
+  face(x, y, r, look = 0.6, white = "#fffaf0", angry = true) {
+    pieEye(x - r * 1.25, y, r, 0, look, false, white);
+    pieEye(x + r * 1.25, y, r, 0, look, false, white);
+    if (angry) {
+      ctx.strokeStyle = INK; ctx.lineWidth = Math.max(2, r * 0.4); ctx.lineCap = "round"; ctx.beginPath();
+      ctx.moveTo(x - r * 2.3, y - r * 1.5); ctx.lineTo(x - r * 0.4, y - r * 0.9);
+      ctx.moveTo(x + r * 2.3, y - r * 1.5); ctx.lineTo(x + r * 0.4, y - r * 0.9); ctx.stroke();
+    }
+  }
+  drawCrown(s, y) {
+    const w = s * 0.55;
+    poly([[-w, y + s * 0.12], [-w * 0.95, y - s * 0.38], [-w * 0.45, y - s * 0.12], [0, y - s * 0.5], [w * 0.45, y - s * 0.12], [w * 0.95, y - s * 0.38], [w, y + s * 0.12]], GOLD, INK, 3);
+    circle(0, y - s * 0.02, s * 0.07, "#e0533f");
+  }
+  drawSlime(s, t, body) {
+    const sq = Math.sin(t * (this.attacking ? 9 : 6));
+    const sx = 1 + 0.1 * sq, sy = 1 - 0.1 * sq;
+    if (this.glow) {
+      const pulse = 0.5 + 0.5 * Math.sin(t * 4);
+      circle(0, -s * 0.1, s * (1.55 + 0.1 * pulse), hexA(this.color, 0.16));
+      circle(0, -s * 0.1, s * 1.25, hexA(this.color, 0.22));
+    }
+    ctx.save(); ctx.translate(0, s * 0.6); ctx.scale(sx, sy); ctx.translate(0, -s * 0.6);
+    ctx.beginPath(); ctx.moveTo(-s * 1.05, s * 0.6);
+    ctx.quadraticCurveTo(-s * 1.1, -s * 0.95, 0, -s * 0.95);
+    ctx.quadraticCurveTo(s * 1.1, -s * 0.95, s * 1.05, s * 0.6);
+    ctx.quadraticCurveTo(0, s * 0.85, -s * 1.05, s * 0.6); ctx.closePath();
+    ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = s > 30 ? 4 : 3; ctx.lineJoin = "round"; ctx.stroke();
+    if (this.glow) { ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.beginPath(); ctx.ellipse(0, -s * 0.1, s * 0.6, s * 0.45, 0, 0, Math.PI * 2); ctx.fill(); }
+    ellipse(-s * 0.45, -s * 0.5, s * 0.2, s * 0.12, "rgba(255,255,255,0.55)");
+    const dark = this.kind === "darkSlime";
+    this.face(0, -s * 0.1, s * 0.2, 0.6, dark ? "#ff6b6b" : "#fffaf0", this.kind !== "slime");
+    ring(0, s * 0.15, s * 0.22, INK, 2.5, 0.3, Math.PI - 0.3);
+    ctx.restore();
+  }
+  drawBoar(s, t, cy, body) {
+    // Legs.
+    const lg = Math.sin(t * 16) * s * 0.12;
+    ctx.fillStyle = shade(body, -0.35);
+    for (const [lx, o] of [[-0.7, lg], [-0.3, -lg], [0.3, lg], [0.7, -lg]]) ctx.fillRect(lx * s - 3, cy + s * 0.45 + o, 6, s * 0.35);
+    ellipse(0, cy + s * 0.15, s * 1.15, s * 0.62, shade(body, -0.15));
+    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(0, cy + s * 0.15, s * 1.15, s * 0.62, 0, 0, Math.PI * 2); ctx.stroke();
+    for (const sd of [-1, 1]) poly([[sd * s * 0.45, cy - s * 0.55], [sd * s * 0.8, cy - s * 1.0], [sd * s * 0.85, cy - s * 0.4]], shade(body, -0.25), INK, 2);
+    circle(0, cy - s * 0.15, s * 0.68, body); ring(0, cy - s * 0.15, s * 0.68, INK, 3);
+    this.face(0, cy - s * 0.38, s * 0.15);
+    ellipse(0, cy + s * 0.12, s * 0.36, s * 0.24, "#e8a0a0");
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(0, cy + s * 0.12, s * 0.36, s * 0.24, 0, 0, Math.PI * 2); ctx.stroke();
+    circle(-s * 0.12, cy + s * 0.12, s * 0.06, INK); circle(s * 0.12, cy + s * 0.12, s * 0.06, INK);
+    for (const sd of [-1, 1]) poly([[sd * s * 0.3, cy + s * 0.28], [sd * s * 0.55, cy - s * 0.05], [sd * s * 0.42, cy + s * 0.32]], "#fffaf0", INK, 1.5);
+  }
+  drawGoblin(s, t, cy, body) {
+    if (this.king) poly([[-s * 0.8, cy - s * 0.2], [s * 0.8, cy - s * 0.2], [s * 1.0, cy + s * 0.95], [-s * 1.0, cy + s * 0.95]], "#b8333a", INK, 3);
+    poly([[-s * 0.55, cy + s * 0.25], [s * 0.55, cy + s * 0.25], [s * 0.65, cy + s * 0.85], [-s * 0.65, cy + s * 0.85]], "#8a5a3b", INK, 2.5);
+    for (const sd of [-1, 1]) poly([[sd * s * 0.45, cy - s * 0.4], [sd * s * 1.35, cy - s * 0.75], [sd * s * 0.55, cy - s * 0.05]], shade(body, -0.1), INK, 2.5);
+    circle(0, cy - s * 0.3, s * 0.62, body); ring(0, cy - s * 0.3, s * 0.62, INK, 3);
+    this.face(0, cy - s * 0.42, s * 0.15, 0.6, "#fff6a8");
+    poly([[-s * 0.08, cy - s * 0.3], [0, cy - s * 0.05], [s * 0.12, cy - s * 0.28]], shade(body, -0.2), INK, 1.5);
+    ring(0, cy - s * 0.1, s * 0.24, INK, 2.5, 0.35, Math.PI - 0.35);
+    poly([[-s * 0.1, cy + s * 0.12], [-s * 0.04, cy + s * 0.02], [0, cy + s * 0.13]], "#fffaf0", null);
+  }
+  drawMummy(s, t, cy, body) {
+    for (const sd of [-1, 1]) {
+      const reach = Math.sin(t * 3 + sd) * s * 0.06;
+      poly([[sd * s * 0.6, cy - s * 0.05], [sd * s * 0.95, cy + s * 0.25 + reach], [sd * s * 0.85, cy + s * 0.45 + reach], [sd * s * 0.55, cy + s * 0.3]], shade(body, -0.08), INK, 2);
+    }
+    rrect(-s * 0.65, cy - s * 0.95, s * 1.3, s * 1.75, s * 0.5);
+    ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    ctx.save(); rrect(-s * 0.65, cy - s * 0.95, s * 1.3, s * 1.75, s * 0.5); ctx.clip();
+    ctx.strokeStyle = hexA(INK, 0.35); ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = 0; i < 7; i++) { const y = cy - s * 0.8 + i * s * 0.26; ctx.moveTo(-s, y + (i % 2 ? 4 : -2)); ctx.lineTo(s, y + (i % 2 ? -3 : 4)); }
+    ctx.stroke(); ctx.restore();
+    ctx.fillStyle = INK; ctx.fillRect(-s * 0.5, cy - s * 0.5, s * 1.0, s * 0.22);
+    circle(-s * 0.2, cy - s * 0.39, s * 0.08, "#ffcf4a"); circle(s * 0.2, cy - s * 0.39, s * 0.05, "#ffcf4a");
+    const tail = Math.sin(t * 4) * 5;
+    ctx.strokeStyle = body; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(s * 0.5, cy + s * 0.1); ctx.lineTo(s * 0.9 + tail, cy + s * 0.5); ctx.stroke();
+  }
+  drawOrc(s, t, cy, body) {
+    if (this.king) {
+      ctx.strokeStyle = "#6b4a2e"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(s * 0.9, cy + s * 0.9); ctx.lineTo(s * 1.15, cy - s * 0.7); ctx.stroke();
+      poly([[s * 1.15, cy - s * 0.7], [s * 1.6, cy - s * 0.95], [s * 1.55, cy - s * 0.3], [s * 1.1, cy - s * 0.35]], "#c9ccd6", INK, 2.5);
+    }
+    poly([[-s * 0.85, cy + s * 0.1], [s * 0.85, cy + s * 0.1], [s * 0.7, cy + s * 0.9], [-s * 0.7, cy + s * 0.9]], "#6b4a2e", INK, 3);
+    for (const sd of [-1, 1]) {
+      circle(sd * s * 0.8, cy + s * 0.15, s * 0.3, "#9aa0ad"); ring(sd * s * 0.8, cy + s * 0.15, s * 0.3, INK, 2.5);
+      if (this.king) poly([[sd * s * 0.75, cy - s * 0.1], [sd * s * 0.95, cy - s * 0.45], [sd * s * 1.0, cy - s * 0.05]], "#e9e4d6", INK, 2);
+    }
+    rrect(-s * 0.62, cy - s * 0.85, s * 1.24, s * 1.05, s * 0.4);
+    ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    // Iron helmet.
+    ctx.beginPath(); ctx.moveTo(-s * 0.66, cy - s * 0.45); ctx.quadraticCurveTo(0, cy - s * 1.25, s * 0.66, cy - s * 0.45); ctx.closePath();
+    ctx.fillStyle = "#8f95a3"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    this.face(0, cy - s * 0.3, s * 0.13, 0.6, "#ffcf4a");
+    ring(0, cy, s * 0.26, INK, 3, Math.PI + 0.4, Math.PI * 2 - 0.4);
+    for (const sd of [-1, 1]) poly([[sd * s * 0.22, cy + s * 0.08], [sd * s * 0.3, cy - s * 0.22], [sd * s * 0.12, cy + s * 0.06]], "#fffaf0", INK, 1.5);
   }
 }
 
@@ -630,8 +718,6 @@ let banner = { text: "", color: PARCH, t: 99 };
 let info = { text: "", t: 99 };
 let pointer = { x: 0, y: 0 };
 
-const stars = Array.from({ length: 60 }, () => [Math.random() * W, HUD_H + Math.random() * 240, Math.random()]);
-const tufts = Array.from({ length: 40 }, () => [Math.random() * W, 360 + Math.random() * (FRONT_Y - 380)]);
 // Top-down paving stones on the rampart walkway.
 const paving = [];
 for (let y = FRONT_Y + 2, r = 0; y < WALL_Y; y += 38, r++)
@@ -673,12 +759,15 @@ function beginWave(fromTimer = false) {
   const total = Math.min(6 + wave * 2, 70);
   spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % 10 === 0 });
   const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
-  showBanner(wave % 10 === 0 ? `Wave ${wave}: BOSS!${stacked}` : `Wave ${wave}${stacked}`, wave % 10 === 0 ? "#e0533f" : PARCH);
+  const st = stageOf(wave);
+  if (wave % 10 === 0) showBanner(`Wave ${waveLabel(wave)}: ${KINDS[st.boss].name.toUpperCase()}!${stacked}`, "#e0533f");
+  else if (waveInStage(wave) === 1) showBanner(`Stage ${stageNum(wave)}: ${st.name}${stacked}`, GOLD);
+  else showBanner(`Wave ${waveLabel(wave)}${stacked}`, PARCH);
 }
 function waveCleared(w) {
   const bonus = 4 + w; gold += bonus; wavesCleared++;
   if (wavesCleared > save.best) { save.best = wavesCleared; writeSave(); }
-  showBanner(`Wave ${w} cleared!  +${bonus} gold`, GOLD);
+  showBanner(`Wave ${waveLabel(w)} cleared!  +${bonus} gold`, GOLD);
 }
 function toBreak() {
   state = "break"; breakTimer = BREAK_TIME;
@@ -691,18 +780,13 @@ function gameOver() {
 }
 
 function pickKind(wave) {
-  const pool = [["grunt", 10]];
-  if (wave >= 2) pool.push(["runner", 4 + wave * 0.5]);
-  if (wave >= 4) pool.push(["tank", 2 + wave * 0.3]);
-  if (wave >= 6) pool.push(["flyer", 3 + wave * 0.3]);
+  const ws = waveInStage(wave), pool = stageOf(wave).pool.filter(p => ws >= p[2]);
   let pick = Math.random() * pool.reduce((a, p) => a + p[1], 0);
   for (const p of pool) { pick -= p[1]; if (pick <= 0) return p[0]; }
-  return "grunt";
+  return pool[0][0];
 }
 function spawnEnemy(kind, wave) {
-  let res = "";
-  if (kind !== "boss" && wave >= 8 && Math.random() < Math.min(0.5, (wave - 7) * 0.05)) res = randomBase();
-  const e = new Enemy(kind, wave, res, rand(50, W - 50), HUD_H + 20);
+  const e = new Enemy(kind, wave, rand(50, W - 50), HUD_H + 20);
   e.wave = wave; enemies.push(e);
 }
 function damageCastle(a) {
@@ -938,7 +1022,7 @@ function update(dt) {
       sp.timer -= dt;
       if (sp.timer > 0) continue;
       sp.timer = Math.max(0.28, 1.2 - sp.wave * 0.035);
-      if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; spawnEnemy("boss", sp.wave); }
+      if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; spawnEnemy(stageOf(sp.wave).boss, sp.wave); }
       else if (sp.left > 0) { sp.left--; spawnEnemy(pickKind(sp.wave), sp.wave); }
     }
     for (const c of rows.active) {
@@ -968,24 +1052,91 @@ function slotFrame(x, y, col) {
   rrect(x - CARD_W / 2, y - CARD_H / 2, CARD_W, CARD_H, 12);
   ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
 }
-function drawWorld() {
-  // Twilight sky.
-  const sky = ctx.createLinearGradient(0, HUD_H, 0, HUD_H + 300);
-  sky.addColorStop(0, "#231736"); sky.addColorStop(1, "#6b3f62");
-  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, 380);
-  for (const s of stars) { const tw = 0.5 + 0.5 * Math.sin(time * 2 + s[2] * 20); circle(s[0], s[1], 1 + s[2] * 1.2, `rgba(255,242,204,${0.3 + 0.5 * tw * s[2]})`); }
-  circle(600, 150, 46, "rgba(246,228,189,0.15)"); circle(600, 150, 34, "#f6e4bd");
-  circle(588, 140, 7, "#e3cc9c"); circle(612, 162, 5, "#e3cc9c");
-  const mtn = [[0, 372]];
-  for (let i = 0; i < 13; i++) mtn.push([i * 60, 300 + (i % 2 === 0 ? 40 : -10) + Math.sin(i * 1.7) * 18]);
-  mtn.push([W, 300], [W, 372]);
-  poly(mtn, "#3a2546", null);
-  const ground = ctx.createLinearGradient(0, 370, 0, FRONT_Y);
-  ground.addColorStop(0, "#2c3a3a"); ground.addColorStop(1, "#3d4a36");
-  ctx.fillStyle = ground; ctx.fillRect(0, 370, W, FRONT_Y - 370);
-  ctx.strokeStyle = "#55684a"; ctx.lineWidth = 2; ctx.beginPath();
-  for (const t of tufts) { ctx.moveTo(t[0], t[1]); ctx.lineTo(t[0] - 4, t[1] - 9); ctx.moveTo(t[0], t[1]); ctx.lineTo(t[0] + 3, t[1] - 11); }
+// ------------------------------------------------------------ Stage backgrounds
+const seeded = n => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
+const DECOR = { flowers: seeded(46), clouds: seeded(5), pebbles: seeded(30), cacti: [[0.12, 0.62], [0.84, 0.75], [0.6, 0.9]], crystals: seeded(14), spores: seeded(30), stal: seeded(14) };
+const FLOWER_COLORS = ["#ffffff", "#ffd35a", "#ff8ac2", "#b9a3ff"];
+const CRYSTAL_COLORS = ["#6ff3ff", "#b77bff", "#ff7ad9"];
+function gradRect(y0, y1, c0, c1) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, c0); g.addColorStop(1, c1);
+  ctx.fillStyle = g; ctx.fillRect(0, y0, W, y1 - y0);
+}
+function hills(base, amp, step, phase, color) {
+  const pts = [[0, FRONT_Y]];
+  for (let x = 0; x <= W + step; x += step) pts.push([x, base + Math.sin(x / step * 1.3 + phase) * amp]);
+  pts.push([W, FRONT_Y]); poly(pts, color, null);
+}
+function drawBgGrass() {
+  gradRect(0, 400, "#7ec8ef", "#d6f0ff");
+  circle(600, 150, 60, "rgba(255,236,150,0.35)"); circle(600, 150, 40, "#ffe680"); ring(600, 150, 40, INK, 3);
+  for (const c of DECOR.clouds) {
+    const x = ((c[0] * W + time * (8 + c[2] * 10)) % (W + 200)) - 100, y = HUD_H + 40 + c[1] * 180, k = 0.6 + c[2] * 0.6;
+    ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+    poly([[-40, 10], [-44, -8], [-26, -10], [-22, -28], [-2, -24], [8, -38], [24, -26], [44, -26], [42, -6], [54, 4], [40, 14]], "#ffffff", INK, 3);
+    ctx.restore();
+  }
+  hills(330, 22, 120, 0.5, "#8fd07a");
+  hills(372, 14, 90, 2.1, "#6fbf5a");
+  gradRect(390, FRONT_Y, "#64b552", "#4f9e44");
+  for (const f of DECOR.flowers) {
+    const x = f[0] * W, y = 400 + f[1] * (FRONT_Y - 420);
+    ctx.strokeStyle = "#3f8a37"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 3, y - 8); ctx.moveTo(x, y); ctx.lineTo(x + 3, y - 9); ctx.stroke();
+    if (f[2] > 0.55) { const c = FLOWER_COLORS[Math.floor(f[2] * 10) % 4]; for (let i = 0; i < 5; i++) circle(x + Math.cos(i * 1.256) * 4, y - 12 + Math.sin(i * 1.256) * 4, 3, c); circle(x, y - 12, 2.5, "#ffb52e"); }
+  }
+}
+function drawBgSand() {
+  gradRect(0, 400, "#f6a35c", "#ffe0a6");
+  circle(560, 170, 80, "rgba(255,240,200,0.4)"); circle(560, 170, 52, "#fff1c4"); ring(560, 170, 52, INK, 3);
+  // Pyramids on the horizon.
+  poly([[380, 340], [470, 250], [560, 340]], "#d99a55", INK, 3); poly([[470, 250], [560, 340], [500, 340]], "#c58444", null);
+  poly([[520, 345], [590, 280], [660, 345]], "#e0a862", INK, 3); poly([[590, 280], [660, 345], [610, 345]], "#c98a48", null);
+  hills(338, 16, 140, 1.2, "#efc27a");
+  hills(378, 18, 110, 3.0, "#e6b265");
+  gradRect(395, FRONT_Y, "#e8bb72", "#d9a35a");
+  ctx.strokeStyle = "rgba(160,100,40,0.35)"; ctx.lineWidth = 2; ctx.beginPath();
+  for (let y = 430; y < FRONT_Y; y += 46) for (let x = -40; x < W; x += 160) { const o = (y / 46) % 2 ? 80 : 0; ctx.moveTo(x + o, y); ctx.quadraticCurveTo(x + o + 40, y - 8, x + o + 80, y); }
   ctx.stroke();
+  for (const p of DECOR.pebbles) circle(p[0] * W, 410 + p[1] * (FRONT_Y - 420), 2 + p[2] * 3, "#b98547");
+  for (const [cx, cyr] of DECOR.cacti) {
+    const x = cx * W, y = 400 + cyr * (FRONT_Y - 420) * 0.6;
+    rrect(x - 8, y - 46, 16, 50, 8); ctx.fillStyle = "#5aa45a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    rrect(x - 24, y - 34, 10, 22, 5); ctx.fill(); ctx.stroke(); rrect(x + 14, y - 40, 10, 20, 5); ctx.fill(); ctx.stroke();
+  }
+}
+function drawBgCave() {
+  gradRect(0, FRONT_Y, "#120b1e", "#2a1d3d");
+  // Cave walls and back rock.
+  poly([[0, HUD_H], [0, FRONT_Y], [70, FRONT_Y], [50, 520], [90, 380], [40, 240], [80, HUD_H]], "#1e1430", INK, 3);
+  poly([[W, HUD_H], [W, FRONT_Y], [W - 70, FRONT_Y], [W - 40, 540], [W - 95, 400], [W - 45, 250], [W - 85, HUD_H]], "#1e1430", INK, 3);
+  hills(350, 26, 110, 0.8, "#241838");
+  gradRect(400, FRONT_Y, "#2b1f40", "#33264a");
+  // Stalactites.
+  for (const k of DECOR.stal) { const x = k[0] * W, h = 30 + k[1] * 70; poly([[x - 12 - k[2] * 10, HUD_H], [x, HUD_H + h], [x + 12 + k[2] * 10, HUD_H]], "#2a1d3d", INK, 2.5); }
+  // Glowing crystals.
+  DECOR.crystals.forEach((c, i) => {
+    const x = c[0] * W, y = 260 + c[1] * (FRONT_Y - 300), col = CRYSTAL_COLORS[i % 3], h = 18 + c[2] * 26;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 2 + i * 1.7);
+    circle(x, y - h * 0.4, h * 1.3, hexA(col, 0.10 + 0.08 * pulse));
+    for (const [dx, sc, rot] of [[-8, 0.7, -0.35], [0, 1, 0], [9, 0.6, 0.4]]) {
+      ctx.save(); ctx.translate(x + dx, y); ctx.rotate(rot);
+      poly([[-5 * sc, 0], [-5 * sc, -h * sc * 0.75], [0, -h * sc], [5 * sc, -h * sc * 0.75], [5 * sc, 0]], col, INK, 2);
+      poly([[-2 * sc, -2], [-2 * sc, -h * sc * 0.7], [0, -h * sc * 0.85], [0, -2]], "rgba(255,255,255,0.45)", null);
+      ctx.restore();
+    }
+  });
+  for (const sp of DECOR.spores) {
+    const x = sp[0] * W + Math.sin(time * 0.8 + sp[2] * 10) * 12, y = HUD_H + 40 + ((sp[1] * 600 - time * (6 + sp[2] * 8)) % 600 + 600) % 600;
+    circle(x, y, 1.5 + sp[2] * 1.5, hexA(CRYSTAL_COLORS[Math.floor(sp[2] * 3) % 3], 0.6));
+  }
+}
+function drawBackground() {
+  const w = state === "title" ? 1 : (state === "break" ? wave + 1 : wave);
+  const bg = stageOf(w).bg;
+  if (bg === "sand") drawBgSand(); else if (bg === "cave") drawBgCave(); else drawBgGrass();
+}
+
+function drawWorld() {
+  drawBackground();
 
   // Rampart walkway (seen from above) where the battle cards stand.
   ctx.fillStyle = "#4e4446"; ctx.fillRect(0, FRONT_Y, W, WALL_Y - FRONT_Y);
@@ -1058,7 +1209,7 @@ function drawHud() {
   ctx.fillStyle = "rgba(26,16,34,0.92)"; ctx.fillRect(0, 0, W, HUD_H);
   ctx.strokeStyle = shade(GOLD, -0.3); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, HUD_H); ctx.lineTo(W, HUD_H); ctx.stroke();
   if (state === "title") return;
-  text(`Wave ${state === "break" ? wave + 1 : Math.max(1, wave)}`, 18, 48, 30, PARCH, { align: "left", outline: 8 });
+  text(`Wave ${waveLabel(state === "break" ? wave + 1 : wave)}`, 16, 47, 26, PARCH, { align: "left", outline: 8 });
   // Castle HP beside the wave counter.
   const hb = { x: 186, y: 22, w: 258, h: 28 };
   const tx = 164, ty = 36;
