@@ -810,6 +810,7 @@ const rows = { active: Array(SLOTS).fill(null), storage: Array(SLOTS).fill(null)
 const CHAMBER_CHANCE = { 3: 35, 4: 60, 5: 85 };
 const CHAMBER_Y = 340;
 let chamberOpen = false;
+let restartArmed = 0; // seconds left to confirm Restart in the pause menu
 let enemies = [], projectiles = [], zones = [], fxs = [];
 let gold = 0, castleHp = CASTLE_MAX, wave = 0, state = "title", breakTimer = -1;
 // Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
@@ -1158,7 +1159,12 @@ const btn = {
   titleBook: makeBtn("Spellbook", 180, 670, 360, 76, () => openBook()),
   resume: makeBtn("Resume", 180, 560, 360, 80, () => { paused = false; }),
   pauseBook: makeBtn("Spellbook", 180, 660, 360, 80, () => openBook()),
-  quit: makeBtn("Quit to Title", 180, 760, 360, 80, () => { paused = false; state = "title"; clearBoard(); }),
+  // Restart asks for a second tap within 3 seconds, so a run is never thrown away by accident.
+  restart: makeBtn("Restart", 180, 760, 360, 80, () => {
+    if (restartArmed > 0) { restartArmed = 0; startRun(); }
+    else restartArmed = 3;
+  }),
+  quit: makeBtn("Quit to Title", 180, 860, 360, 80, () => { paused = false; state = "title"; clearBoard(); }),
   again: makeBtn("Play Again", 180, 700, 360, 86, () => startRun()),
   title: makeBtn("Title", 180, 806, 360, 76, () => { state = "title"; clearBoard(); }),
   closeBook: makeBtn("Close", 240, 1078, 240, 70, () => { bookOpen = false; }),
@@ -1196,7 +1202,7 @@ function visibleButtons() {
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") return [btn.play, btn.titleBook];
   if (state === "gameover") return [btn.again, btn.title];
-  if (paused) return [btn.resume, btn.pauseBook, btn.quit];
+  if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit];
   const list = [btn.chamber, btn.pause, btn.reroll];
   if (!drag) list.push(btn.next);
   return list;
@@ -1274,6 +1280,7 @@ document.addEventListener("keydown", ev => {
 function update(dt) {
   time += dt;
   banner.t += dt; info.t += dt;
+  restartArmed = Math.max(0, restartArmed - dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
   if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover") return;
@@ -1520,12 +1527,12 @@ function drawHud() {
       const b = btn.next; rrect(b.x + 10, b.y + b.h - 12, (b.w - 20) * (1 - callCd / CALL_COOLDOWN), 6, 3); ctx.fillStyle = GOLD; ctx.fill();
     }
   }
-  if (info.t < 4.6) {
+  if (!paused && info.t < 4.6) {
     ctx.globalAlpha = info.t < 4 ? 1 : 1 - (info.t - 4) / 0.6;
     wrapText(info.text, W / 2, 640, 680, 20, 24);
     ctx.globalAlpha = 1;
   }
-  if (banner.t < 2.2) {
+  if (!paused && banner.t < 2.2) {
     const k = Math.min(1, banner.t / 0.3), s = 0.6 + 0.4 * (1 - Math.pow(1 - k, 3)) + (k < 1 ? 0.08 * Math.sin(k * Math.PI) : 0);
     ctx.save(); ctx.globalAlpha = banner.t < 1.7 ? 1 : 1 - (banner.t - 1.7) / 0.5;
     ctx.translate(W / 2, chamberOpen ? 244 : 340); ctx.scale(s, s);
@@ -1618,7 +1625,9 @@ function drawOverlays() {
   } else if (paused && !bookOpen) {
     dim(0.6);
     text("Paused", W / 2, 480, 60, PARCH, { font: DISPLAY, weight: 900, outline: 12 });
-    drawBtn(btn.resume); drawBtn(btn.pauseBook); drawBtn(btn.quit);
+    btn.restart.label = restartArmed > 0 ? "Tap again to restart" : "Restart";
+    drawBtn(btn.resume); drawBtn(btn.pauseBook); drawBtn(btn.restart); drawBtn(btn.quit);
+    if (restartArmed > 0) text("Your current run will be lost.", W / 2, 965, 22, "#ff9a8a", { outline: 6 });
   }
   if (bookOpen) drawBook();
 }
