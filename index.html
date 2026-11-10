@@ -299,7 +299,6 @@ const DECOR = [
 ];
 const POWER = [
   { id:'rush',   name:'Rush hour',   gems:5,  dur:120, cd:300, desc:'Every sale pays double for 2 minutes.' },
-  { id:'speed',  name:'Quick hands', gems:5,  dur:120, cd:300, desc:'You and your baristas work twice as fast for 2 minutes.' },
   { id:'magnet', name:'Busy street', gems:5,  dur:120, cd:300, desc:'Twice as many customers walk in for 2 minutes.' },
   { id:'cash',   name:'Tip jar',     gems:10, dur:0,   cd:600, desc:'' },
 ];
@@ -406,14 +405,15 @@ const has = id => !!S.deco[id];
 const decoCount = () => DECOR.reduce((a, d) => a + (S.deco[d.id] ? 1 : 0), 0);
 const active = id => Date.now() < S.boosts[id].until;
 const price = it => it.price * (1 + 0.2 * S.items[it.id].lvl);
-const prepTime = it => it.time * Math.pow(0.9, S.machine);
-const baristaSpeed = l => 1 + 0.15 * l;
-const workMult = () => active('speed') ? 2 : 1;
+// Making an order always takes the item's own time: there are no speed upgrades, only your taps speed it up.
+const prepTime = it => it.time;
+const baristaSpeed = () => 1;
+const workMult = () => 1;
 const tipMult = () => 1 + 0.1 * S.cashier;
 const avgRating = () => S.rt.length ? S.rt.reduce((a, b) => a + b, 0) / S.rt.length : null;
 // Customer flow. Upgrades set the café's base flow: 1 customer every 15s at the start.
 // The rating then scales it: 5★ = 100%, 2.5★ = 50%, 1★ = 20% (rating ÷ 5). No ratings yet counts as 5★.
-const BASE_GAP = 15;
+const BASE_GAP = 5; // 1 customer every 5s at the start (3x the old 15s), so there is usually a line
 const ratingMult = () => { const a = avgRating(); return a == null ? 1 : a / 5; };
 const menuCount = () => ITEMS.reduce((a, it) => a + (S.items[it.id].owned ? 1 : 0), 0);
 const baseAppeal = () => 1 + 0.15 * decoCount() + 0.05 * Math.max(0, S.seats - 2) + 0.5 * S.stage + 0.1 * Math.max(0, menuCount() - 1);
@@ -421,17 +421,15 @@ const appeal = () => baseAppeal() * ratingMult();
 const gapText = perSec => { const g = 1 / perSec; return g >= 60 ? `1 every ${(g / 60).toFixed(1)} min` : `1 every ${g.toFixed(g < 10 ? 1 : 0)}s`; };
 const maxSeats = () => STAGES[S.stage].maxSeats;
 const WAGE_BARISTA = 225, WAGE_CASHIER = 375;
-const baristaWage = l => WAGE_BARISTA * (1 + 0.15 * l), cashierWage = () => S.cashier ? WAGE_CASHIER * (1 + 0.15 * (S.cashier - 1)) : 0;
+const baristaWage = () => WAGE_BARISTA, cashierWage = () => S.cashier ? WAGE_CASHIER * (1 + 0.15 * (S.cashier - 1)) : 0;
 const wages = () => S.baristas.reduce((a, l) => a + baristaWage(l), 0) + cashierWage();
 const rent = () => STAGES[S.stage].rent;
 const online = () => navigator.onLine !== false;
 const adsAvailable = () => S.supporter || online();
 const cost = {
   item: it => Math.round(Math.max(12, it.unlock * 0.6) * Math.pow(1.55, S.items[it.id].lvl)),
-  machine: () => Math.round(40 * Math.pow(1.7, S.machine)),
   seat: () => Math.round(40 * Math.pow(1.38, Math.max(0, S.seats - 2))),
   hire: () => [150, 1500, 12000, 90000][S.baristas.length],
-  train: i => Math.round(100 * Math.pow(1.8, S.baristas[i])),
   cashier: () => S.cashier === 0 ? 300 : Math.round(200 * Math.pow(1.8, S.cashier)),
 };
 function autoRatePerSec(){
@@ -568,6 +566,7 @@ function exitPath(c){
   if (c.x < L.laneQ - .01 && Math.abs(c.y - L.dy) < .05) return [L.door, L.outside];
   return [[L.laneQ, c.y], [L.laneQ, L.dy], L.door, L.outside];
 }
+const THIEF_CHANCE = .05, STEAL_MIN = .1, STEAL_MAX = .7, CATCH_HOLD = 1.0;
 function spawn(vip){
   const st = STAGES[S.stage];
   if (queue.length >= st.queue){ S.dayMissed++; return; }
@@ -579,10 +578,33 @@ function spawn(vip){
   const c = { id:nextId++, x:L.outside[0], y:L.outside[1], state:'enter', item, vip, patience:pat, maxP:pat,
     dine:Math.random() < DINE_IN_CHANCE, body: vip ? '#C99A2E' : pick(BODY), skin:pick(SKIN), hair:pick(HAIR), phase:Math.random() * 6,
     who: BC ? pickCustomer() : null, anim:Math.random() * 3, sdx:1, sdy:1,
-    path:[], claimed:false, seat:null, sitT:0, waitT:0, waitedSeat:false, wait:0 };
+    path:[], claimed:false, seat:null, sitT:0, waitT:0, waitedSeat:false, wait:0,
+    // a thief looks like any other customer, except for a red scarf, and never orders for real
+    thief: !vip && Math.random() < THIEF_CHANCE };
+  if (c.thief){ c.dine = false; if (!S.hintThief){ S.hintThief = true; toast('Watch out: a thief in a red scarf is in line. Press and hold them for 1 second to chase them out.', 6500); } }
   queue.push(c); customers.push(c); reflowQueue();
 }
-function claimNext(){ return queue.find(c => !c.claimed && c.state === 'queue'); }
+// The thief reached the register: takes 10-70% of the money and runs.
+function steal(c){
+  const share = STEAL_MIN + Math.random() * (STEAL_MAX - STEAL_MIN), amt = Math.floor(S.money * share);
+  S.money -= amt; S.stolen = (S.stolen || 0) + amt;
+  removeFromQueue(c);
+  c.state = 'flee'; c.path = exitPath(c);
+  floater(c.x, c.y, amt > 0 ? `-${fmt(amt)}` : 'Stole nothing', false, 'red');
+  tone(220, .18, 'sawtooth', .05); tone(160, .25, 'sawtooth', .05, .12);
+  toast(amt > 0 ? `A thief stole ${fmt(amt)} (${Math.round(share * 100)}% of your money)! Watch for the red scarf.` : 'A thief reached the register, but there was nothing to steal.', 5000);
+  save();
+}
+// The player held the thief long enough: they run out empty-handed.
+function chaseOut(c){
+  removeFromQueue(c);
+  c.state = 'flee'; c.path = exitPath(c);
+  S.thievesCaught = (S.thievesCaught || 0) + 1;
+  floater(c.x, c.y, 'Caught!', true);
+  sfx.big(); toast('You chased the thief out!');
+  save();
+}
+function claimNext(){ return queue.find(c => !c.claimed && !c.thief && c.state === 'queue'); }
 function claim(c){ c.claimed = true; c.wait = c.maxP - c.patience; }
 function removeFromQueue(c){
   const i = queue.indexOf(c);
@@ -646,19 +668,20 @@ function arrive(c){
   if (c.state === 'enter'){ c.state = 'queue'; }
   else if (c.state === 'queue' || c.state === 'wait'){ /* standing in place */ }
   else if (c.state === 'toSeat'){ c.state = 'sit'; c.sitT = 8 + Math.random() * 7; }
-  else if (c.state === 'leave') c.gone = true;
+  else if (c.state === 'leave' || c.state === 'flee') c.gone = true;
 }
 function updateCustomers(dt){
   for (const c of customers){
     c.phase += dt * 9; c.anim += dt;
     if (c.path.length){
-      const [tx, ty] = c.path[0], dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy), step = 1.8 * dt;
+      const [tx, ty] = c.path[0], dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy), step = (c.state === 'flee' ? 4.5 : 1.8) * dt;
       if (d > .001){ c.sdx = dx - dy; c.sdy = dx + dy; } // direction on screen, for which way the guest faces
       if (d <= step){ c.x = tx; c.y = ty; c.path.shift(); if (!c.path.length) arrive(c); }
       else { c.x += dx / d * step; c.y += dy / d * step; }
       c.moving = c.path.length > 0;
     } else c.moving = false;
-    if ((c.state === 'queue' || c.state === 'enter') && !c.claimed){
+    if (c.thief && c.state === 'queue' && !c.path.length && queue[0] === c) steal(c);
+    if ((c.state === 'queue' || c.state === 'enter') && !c.claimed && !c.thief){
       c.patience -= dt;
       if (c.patience <= 0) giveUp(c);
     }
@@ -839,7 +862,7 @@ function settings(){
       ? `<p>This deletes your café and all progress on this device. It cannot be undone.</p>
          <div class="actions"><button class="btn danger" data-m="wipe">Yes, start over</button><button class="btn" data-m="back">Keep my café</button></div>`
       : `<div class="actions"><button class="btn danger" data-m="reset">Reset progress</button><button class="btn primary" data-m="close">Done</button></div>`}
-    <p style="font-size:12.5px">Beanery v0.7 test build. Drag the café to look around, pinch to zoom. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
+    <p style="font-size:12.5px">Beanery v0.8 test build. Drag the café to look around, pinch to zoom. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
     sound(){ S.sound = !S.sound; if (S.sound) unlockAudio(); save(); draw(false); },
     reset(){ draw(true); },
     back(){ draw(false); },
@@ -915,9 +938,6 @@ const VIEWS = {
   },
   equip(){
     const st = STAGES[S.stage], out = [];
-    const mMax = S.machine >= MAX_MACHINE;
-    out.push(row(ICON.machine, 'Espresso machine', `Lv ${S.machine + 1}`, `Every order is made 10% faster per level. Speed now ×${(1 / Math.pow(.9, S.machine)).toFixed(2)}.`,
-      mMax ? btn('', 'Top level', 'Max', true) : btn('machine', 'Upgrade', fmt(cost.machine()), !can(cost.machine()))));
     const tMax = S.seats >= st.maxSeats;
     out.push(row(ICON.table, 'Chairs', `${S.seats}/${st.maxSeats}`, tMax ? 'No space for more chairs. Expand the café to add more.' : `Dine-in guests need a free, clean chair. Without one they stand in the waiting area for ${SEAT_WAIT} seconds, then leave a 1-star review. Guests leave their dishes, so tap a table to clean it. A table comes with every 2 chairs.`,
       tMax ? btn('', 'Full', '—', true) : btn('seat', 'Add chair', fmt(cost.seat()), !can(cost.seat()))));
@@ -928,9 +948,8 @@ const VIEWS = {
   staff(){
     const st = STAGES[S.stage], out = [];
     S.baristas.forEach((l, i) => {
-      const max = l >= MAX_BARISTA_LVL, c = cost.train(i);
-      out.push(row(ICON.person('#6C8EA4'), `Barista ${i + 1}`, `Lv ${l + 1}`, `Makes orders on their own at ×${baristaSpeed(l).toFixed(2)} speed. Wage ${fmt(baristaWage(l))}/day.`,
-        max ? btn('', 'Top level', 'Max', true) : btn(`train:${i}`, 'Train', fmt(c), !can(c))));
+      out.push(row(ICON.person('#6C8EA4'), `Barista ${i + 1}`, '', `Makes orders on their own, one at a time. Wage ${fmt(baristaWage())}/day.`,
+        btn('', 'Working', '✓', true)));
     });
     if (S.baristas.length < st.maxBaristas){
       const c = cost.hire();
@@ -1059,11 +1078,9 @@ function act(a){
       else if (s.lvl < MAX_ITEM_LVL && pay(cost.item(it))) s.lvl++;
       break;
     }
-    case 'machine': if (S.machine < MAX_MACHINE && pay(cost.machine())) S.machine++; break;
     case 'seat': if (S.seats < st.maxSeats && pay(cost.seat())){ S.seats++; rebuildChairs(); } break;
     case 'deco': { const d = DECOR.find(x => x.id === arg); if (d && !has(d.id) && pay(d.cost)){ S.deco[d.id] = true; toast(`${d.name} added to your café.`); } break; }
     case 'hire': if (S.baristas.length < st.maxBaristas && pay(cost.hire())){ S.baristas.push(0); toast('New barista hired. They will make orders on their own.'); } break;
-    case 'train': { const i = +arg; if (S.baristas[i] < MAX_BARISTA_LVL && pay(cost.train(i))) S.baristas[i]++; break; }
     case 'cashier': if (S.cashier < MAX_CASHIER && pay(cost.cashier())) S.cashier++; break;
     case 'expand': {
       const nx = STAGES[S.stage + 1];
@@ -1143,15 +1160,43 @@ function measure(){
 }
 window.addEventListener('resize', measure);
 const pointers = new Map();
-let drag = null, pinch = null;
+let drag = null, pinch = null, hold = null;
+// Which guest is under a screen point (front-most first). Uses the positions from the last drawn frame.
+function updateHold(){
+  if (!hold || hold.done || !drag || drag.moved) return;
+  const c = hold.c;
+  if (c.gone || c.state === 'flee' || !customers.includes(c)){ hold = null; return; }
+  if ((performance.now() - hold.t0) / 1000 >= CATCH_HOLD){
+    hold.done = true; unlockAudio();
+    if (c.thief) chaseOut(c);
+    else { floater(c.x, c.y, 'Just a customer', false, true); sfx.no(); }
+  }
+}
+function guestAt(px, py){
+  let best = null, bk = -Infinity;
+  for (const c of customers){
+    if (c.hx === undefined || c.fy === undefined || c.alpha < .5) continue;
+    if (!['enter', 'queue', 'wait', 'toSeat', 'leave'].includes(c.state)) continue;
+    const w = hw * .42 * (c.who?.scale || 1);
+    if (px > c.hx - w && px < c.hx + w && py > c.hy - 4 && py < c.fy + 4){
+      const k = c.x + c.y; if (k > bk){ bk = k; best = c; }
+    }
+  }
+  return best;
+}
 canvas.addEventListener('pointerdown', e => {
   try { canvas.setPointerCapture(e.pointerId); } catch {}
   pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
-  if (pointers.size === 1){ drag = { x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, moved:false, t:performance.now() }; velX = velY = 0; }
+  if (pointers.size === 1){
+    drag = { x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, moved:false, t:performance.now() }; velX = velY = 0;
+    const r = canvas.getBoundingClientRect(), g = section ? null : guestAt(e.clientX - r.left, e.clientY - r.top);
+    hold = g ? { c:g, t0:performance.now(), done:false } : null;
+  }
   else if (pointers.size === 2){
     const [a, b] = [...pointers.values()];
     pinch = { d:Math.hypot(a.x - b.x, a.y - b.y) || 1, z:zoom };
     if (drag) drag.moved = true;
+    hold = null;
   }
 });
 canvas.addEventListener('pointermove', e => {
@@ -1164,7 +1209,8 @@ canvas.addEventListener('pointermove', e => {
   }
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y, now = performance.now();
-  if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 8){ drag.moved = true; canvas.classList.add('dragging'); }
+  // holding a guest allows a little finger wobble before it counts as a drag
+  if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > (hold ? 16 : 8)){ drag.moved = true; hold = null; canvas.classList.add('dragging'); }
   if (drag.moved){
     camX += dx; camY += dy;
     const dtm = Math.max(1, now - drag.t);
@@ -1177,7 +1223,8 @@ function endPointer(e){
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = null;
   if (pointers.size === 0 && drag){
-    if (!drag.moved && e.type === 'pointerup'){
+    const held = hold && hold.done; hold = null;
+    if (!drag.moved && !held && e.type === 'pointerup'){
       if (section) closeDrawer();
       else {
         const r = canvas.getBoundingClientRect(), t = tableAt(e.clientX - r.left, e.clientY - r.top);
@@ -1436,14 +1483,15 @@ function drawGuest(c, alpha){
   ctx.save(); ctx.globalAlpha = alpha;
   ctx.beginPath(); ctx.ellipse(sx, sy, hw * .26, hw * .11, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(30,25,20,.13)'; ctx.fill(); ctx.restore();
   let view, mirror, pose, f;
-  if (c.moving){ ({ view, mirror } = BC.facing(c.sdx, c.sdy)); pose = 'walk'; f = Math.floor(c.anim / .14) % 4; }
+  if (c.moving){ ({ view, mirror } = BC.facing(c.sdx, c.sdy)); pose = 'walk'; f = Math.floor(c.anim / (c.state === 'flee' ? .08 : .14)) % 4; }
   else {
     // in line: facing the register (away from the camera); in the waiting area: looking toward the line
     if (c.state === 'queue' || c.state === 'enter'){ view = 'back'; mirror = false; }
     else { view = 'front'; mirror = false; }
     pose = 'idle'; f = (Math.floor(c.anim / .2 + c.id * 7) % 22 === 0) ? 1 : 0;
   }
-  return [sx, BC.draw(ctx, c.who, view, pose, f, sx, sy, px, mirror, alpha)];
+  c.fy = sy;
+  return [sx, BC.draw(ctx, c.who, view, pose, f, sx, sy, px, mirror, alpha, null, c.thief ? { scarf:true } : null)];
 }
 function drawStaffChar(x, y, i, t){
   const [sx, sy] = P(x, y, 0);
@@ -1606,6 +1654,15 @@ function draw(){
     ctx.fillStyle = '#E6E2DA'; ctx.fillRect(bx + w * .15, by + h - 5, w * .7, 2.5);
     ctx.fillStyle = '#B4532A'; ctx.fillRect(bx + w * .15, by + h - 5, w * .7 * k, 2.5);
   }
+  if (hold && !hold.done && hold.c.hx !== undefined){
+    const k = Math.min(1, (performance.now() - hold.t0) / 1000 / CATCH_HOLD), c = hold.c, r = Math.max(14, hw * .32);
+    const cx = c.hx, cy = c.hy - r - 8;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k);
+    ctx.strokeStyle = '#B4532A'; ctx.lineWidth = Math.max(3, r * .24); ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+    ctx.font = `700 ${Math.round(r * .8)}px Sora, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#B4532A'; ctx.fillText('!', cx, cy + 1); ctx.textBaseline = 'alphabetic';
+  }
   for (const p of preps){
     const s = staffPos.find(q => q.who === p.who); if (!s) continue;
     const r = Math.max(11, hw * .26), cy = s.y - r - 6;
@@ -1618,7 +1675,7 @@ function draw(){
     ctx.globalAlpha = a; ctx.font = `700 ${Math.round(Math.max(f.star ? 11 : 13, hw * (f.star ? .3 : .38)))}px Sora, sans-serif`;
     const y = sy - hw * 1.25 - f.t * 30 - (f.star ? hw * .4 : 0);
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.strokeText(f.text, sx, y);
-    ctx.fillStyle = f.star ? (f.star >= 4 ? '#D49B1F' : f.star === 3 ? '#9A8F70' : '#B4532A') : f.sad ? '#8A8F87' : f.gold ? '#B07A12' : '#2F6B55';
+    ctx.fillStyle = f.star ? (f.star >= 4 ? '#D49B1F' : f.star === 3 ? '#9A8F70' : '#B4532A') : f.sad === 'red' ? '#C0392B' : f.sad ? '#8A8F87' : f.gold ? '#B07A12' : '#2F6B55';
     ctx.fillText(f.text, sx, y);
     ctx.globalAlpha = 1;
   }
@@ -1651,7 +1708,7 @@ function hud(now){
   const t = Date.now();
   const chips = POWER.filter(p => p.dur && active(p.id)).map(p => {
     const left = mmss((S.boosts[p.id].until - t) / 1000);
-    const label = p.id === 'rush' ? 'Rush hour 2×' : p.id === 'speed' ? 'Quick hands 2×' : 'Busy street 2×';
+    const label = p.id === 'rush' ? 'Rush hour 2×' : 'Busy street 2×';
     return `<span class="chip"><span class="dot"></span>${label} · ${left}</span>`;
   }).join('');
   if (chips !== chipKey){ $('#boostChips').innerHTML = chips; chipKey = chips; }
@@ -1681,6 +1738,7 @@ function frame(now){
     S.dayT += dt; if (S.dayT >= DAY_LEN){ S.dayT -= DAY_LEN; endDay(); }
     saveT += dt; if (saveT > 5){ saveT = 0; save(); }
   }
+  if (!paused) updateHold();
   if (!drag && (Math.abs(velX) > .05 || Math.abs(velY) > .05)){ camX += velX; camY += velY; velX *= .9; velY *= .9; }
   draw();
   hudT -= dt; if (hudT <= 0){ hudT = .1; hud(now); }

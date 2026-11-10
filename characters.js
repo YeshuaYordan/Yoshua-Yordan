@@ -63,7 +63,8 @@
   const OUTLINE = '#2B2430';
 
   /* ---------- Frame builder ---------- */
-  function build(ch, view, pose, f, item) {
+  function build(ch, view, pose, f, item, opts) {
+    opts = opts || {};
     const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH;
     const g = cv.getContext('2d');
     g.translate(0, TOP_PAD); // headroom for buns, berets and bobbing
@@ -250,6 +251,14 @@
       if (hat.style === 'headband') R(5, hy + 2, 10, 1, hat.c);
     }
 
+    // 8b. red scarf (the thief's tell): a band around the neck with a tail
+    if (opts.scarf) {
+      const red = '#D3242C', redD = '#9E1B22';
+      R(6, ty - 1, 8, 2, red); R(6, ty, 8, 1, redD);
+      if (front) { R(11, ty + 1, 2, 4, red); P1(12, ty + 4, redD); P1(11, ty + 2, redD); }
+      else { R(7, ty + 1, 2, 5, red); P1(7, ty + 5, redD); }
+    }
+
     // 9. front arm (and what the hand is holding)
     const hold = (x, y) => {
       const it = item || { kind: pose === 'eat' ? 'pastry' : 'cup', color: pose === 'eat' ? '#D9A441' : '#6B4A33' };
@@ -287,10 +296,10 @@
   }
 
   const cache = new Map();
-  function frame(ch, view, pose, f, item) {
-    const key = ch.id + view + pose + f + (item ? item.kind + item.color : '');
+  function frame(ch, view, pose, f, item, opts) {
+    const key = ch.id + view + pose + f + (item ? item.kind + item.color : '') + (opts && opts.scarf ? 'S' : '');
     let cv = cache.get(key);
-    if (!cv) { cv = build(ch, view, pose, f, item); cache.set(key, cv); }
+    if (!cv) { cv = build(ch, view, pose, f, item, opts); cache.set(key, cv); }
     return cv;
   }
 
@@ -302,8 +311,9 @@
     return { view: front ? 'front' : 'back', mirror };
   }
   // Draw a frame with its anchor at (sx, sy) on ctx. px = screen pixels per art pixel.
-  function draw(ctx, ch, view, pose, f, sx, sy, px, mirror, alpha, item) {
-    const cv = frame(ch, view, pose, f, item), sit = pose === 'eat' || pose === 'drink';
+  // opts.scarf = true draws the red scarf.
+  function draw(ctx, ch, view, pose, f, sx, sy, px, mirror, alpha, item, opts) {
+    const cv = frame(ch, view, pose, f, item, opts), sit = pose === 'eat' || pose === 'drink';
     const ay = sit ? HIP_Y : FOOT_Y, s = px * (ch.scale || 1);
     ctx.save();
     ctx.imageSmoothingEnabled = false;

@@ -13,7 +13,7 @@ who run it for you.
 - Ad offers never appear in the middle of the action as a pop-up.
 - When there is no internet connection, ad buttons are hidden and the game still works.
 - Current rewarded ad offers:
-  - **Power-ups** (Rush hour, Quick hands, Busy street, Tip jar): each can be started by watching an ad
+  - **Power-ups** (Rush hour, Busy street, Tip jar): each can be started by watching an ad
     (with a cooldown) or by spending gems. The player picks.
   - **Offline earnings:** collect 2x on the welcome-back screen.
   - **VIP tip:** after serving a VIP guest, an optional chip offers a bonus tip.
@@ -61,15 +61,25 @@ who run it for you.
    (Rent and wages were scaled up 15x when days went from 2 to 30 minutes, so the cost per minute is unchanged.)
 
 ## Customer flow
-- Upgrades set the café's **pull**: 1 customer every **15 seconds** at the start.
+- Upgrades set the café's **pull**: 1 customer every **5 seconds** at the start (tripled in v0.8 so there is
+  usually a line, which gives the player time to spot a thief).
   Each decoration +15%, each extra chair +5%, each extra menu item +10%, each café level +50%.
 - The rating then scales that pull: **flow = pull × (rating ÷ 5)**.
-  - 5★ = 100% (pull of 1/15s stays 1/15s)
+  - 5★ = 100% (pull of 1/5s stays 1/5s)
   - 4★ = 80% · 3★ = 60%
-  - 2.5★ = 50% (1/30s becomes 1/60s)
+  - 2.5★ = 50% (1/5s becomes 1/10s)
   - 2★ = 40% · 1★ = 20%
   - No ratings yet counts as 5★.
 - Upgrade → Equipment shows the current pull, the rating's share and the result.
+
+## Thief
+- **5%** of new customers are thieves. A thief looks exactly like one of the normal customers, with an order
+  bubble too, but wears a **red scarf**. Spotting it is the challenge.
+- Thieves never get served. If a thief reaches the **front of the line at the register**, they steal a random
+  **10–70% of the player's current money** and run out of the door.
+- To stop a thief: **press and hold** them for **1 second** (a ring fills above their head). They run out empty-handed.
+  Holding a normal customer does nothing ("Just a customer"). A quick tap still brews or cleans.
+- The first thief of a save shows a one-time tip.
 
 ## Ratings and reviews
 - Only **50% of customers** leave a rating (the same chance for happy and unhappy customers).
@@ -85,12 +95,11 @@ who run it for you.
 | Area | What it does |
 | --- | --- |
 | Menu | Add new items (espresso → cold brew tonic) and raise their price with upgrades |
-| Espresso machine | Every order is made 10% faster per level |
 | Chairs | Bought one by one (a table comes with every 2 chairs). Dine-in guests need a free chair |
 | Decoration | 12 pieces bought one by one (plants, lights, neon sign...). Each is visible and brings 12% more customers |
-| Baristas | Make orders automatically. Train them to work faster. They earn wages |
+| Baristas | Make orders automatically, one at a time. They earn wages |
 | Cashier | +10% tips per level |
-| Power-ups | Rush hour (2x money), Quick hands (2x work speed), Busy street (2x customers), Tip jar (instant cash) |
+| Power-ups | Rush hour (2x money), Busy street (2x customers), Tip jar (instant cash) |
 | Expansion | Coffee Stand → Cozy Café → Corner Café → Grand Café. Bigger room, more staff and tables, new menu items, higher rent |
 
 Room sizes: Coffee Stand 9×9, Cozy Café 10×10, Corner Café 11×11, Grand Café 12×12 tiles.
@@ -112,7 +121,9 @@ Room sizes: Coffee Stand 9×9, Cozy Café 10×10, Corner Café 11×11, Grand Caf
 - The owner's earlier pixel-art sheet is kept in `assets/characters/girl-source.png`, with `tools/slice_sprites.py`
   for cutting future sheets, but the game no longer uses it.
 
-## Current status (v0.7, test build)
+## Current status (v0.8, test build)
+- v0.8 removed every speed upgrade (espresso machine, barista training, Quick hands power-up).
+  Orders take the item's own time; only the player's taps speed them up.
 - Menu prices doubled in v0.4 because customers now arrive less often.
 - `index.html` (game) + `characters.js` (character art). No other downloads needed.
 - Progress saves on the device automatically.
