@@ -61,6 +61,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;max-width:520px;width:100%;margin:0 auto;pointer-events:none}
 .chip{pointer-events:auto;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:15px;border:1px solid transparent;
   background:var(--money);color:#fff;font-size:12px;font-weight:700;white-space:nowrap}
+.chip.seatchip{background:var(--surface);color:var(--warn);border-color:var(--warn);cursor:pointer}
 .chip.vip{background:var(--surface);color:var(--money);border-color:var(--money);cursor:pointer}
 .chip .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
 
@@ -209,7 +210,7 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
       </button>
     </div>
-    <div class="chips"><span id="boostChips" style="display:contents"></span><button class="chip vip" id="vipBtn" hidden></button></div>
+    <div class="chips"><span id="boostChips" style="display:contents"></span><button class="chip vip" id="vipBtn" hidden></button><button class="chip seatchip" id="seatChip" hidden></button></div>
   </div>
 
   <div class="bottom" id="bottom">
@@ -267,20 +268,20 @@ const canvas = $('#scene'), ctx = canvas.getContext('2d');
 
 /* ---------------- Data ---------------- */
 const STAGES = [
-  { name:'Coffee Stand', size:9,  cost:0,      rent:5,   maxSeats:4,  maxBaristas:1, queue:4 },
-  { name:'Cozy Café',    size:10, cost:1000,   rent:40,  maxSeats:8,  maxBaristas:2, queue:5 },
-  { name:'Corner Café',  size:11, cost:15000,  rent:200, maxSeats:12, maxBaristas:3, queue:6 },
-  { name:'Grand Café',   size:12, cost:180000, rent:900, maxSeats:18, maxBaristas:4, queue:7 },
+  { name:'Coffee Stand', size:9,  cost:0,      rent:75,    maxSeats:4,  maxBaristas:1, queue:4 },
+  { name:'Cozy Café',    size:10, cost:1000,   rent:600,   maxSeats:8,  maxBaristas:2, queue:5 },
+  { name:'Corner Café',  size:11, cost:15000,  rent:3000,  maxSeats:12, maxBaristas:3, queue:6 },
+  { name:'Grand Café',   size:12, cost:180000, rent:13500, maxSeats:18, maxBaristas:4, queue:7 },
 ];
 const ITEMS = [
-  { id:'espresso',   name:'Espresso',        price:3,  time:2.0, unlock:0,     stage:0, color:'#5B3A26', kind:'cup' },
-  { id:'americano',  name:'Americano',       price:4,  time:2.2, unlock:25,    stage:0, color:'#7A4E31', kind:'cup' },
-  { id:'latte',      name:'Latte',           price:7,  time:3.0, unlock:120,   stage:0, color:'#C9A27A', kind:'glass' },
-  { id:'croissant',  name:'Croissant',       price:6,  time:1.6, unlock:450,   stage:1, color:'#D9A441', kind:'pastry' },
-  { id:'cappuccino', name:'Cappuccino',      price:10, time:3.2, unlock:1000,  stage:1, color:'#B8865B', kind:'cup' },
-  { id:'matcha',     name:'Matcha Latte',    price:16, time:3.6, unlock:4000,  stage:2, color:'#8DB36B', kind:'glass' },
-  { id:'cheesecake', name:'Cheesecake',      price:22, time:2.0, unlock:10000, stage:2, color:'#E6CF9E', kind:'pastry' },
-  { id:'coldbrew',   name:'Cold Brew Tonic', price:32, time:3.0, unlock:40000, stage:3, color:'#3E5F73', kind:'glass' },
+  { id:'espresso',   name:'Espresso',        price:6,  time:2.0, unlock:0,     stage:0, color:'#5B3A26', kind:'cup' },
+  { id:'americano',  name:'Americano',       price:8,  time:2.2, unlock:25,    stage:0, color:'#7A4E31', kind:'cup' },
+  { id:'latte',      name:'Latte',           price:14, time:3.0, unlock:120,   stage:0, color:'#C9A27A', kind:'glass' },
+  { id:'croissant',  name:'Croissant',       price:12, time:1.6, unlock:450,   stage:1, color:'#D9A441', kind:'pastry' },
+  { id:'cappuccino', name:'Cappuccino',      price:20, time:3.2, unlock:1000,  stage:1, color:'#B8865B', kind:'cup' },
+  { id:'matcha',     name:'Matcha Latte',    price:32, time:3.6, unlock:4000,  stage:2, color:'#8DB36B', kind:'glass' },
+  { id:'cheesecake', name:'Cheesecake',      price:44, time:2.0, unlock:10000, stage:2, color:'#E6CF9E', kind:'pastry' },
+  { id:'coldbrew',   name:'Cold Brew Tonic', price:64, time:3.0, unlock:40000, stage:3, color:'#3E5F73', kind:'glass' },
 ];
 const DECOR = [
   { id:'plant',  name:'Potted plant',   cost:60,     desc:'A leafy plant by the door.' },
@@ -303,13 +304,13 @@ const POWER = [
   { id:'cash',   name:'Tip jar',     gems:10, dur:0,   cd:600, desc:'' },
 ];
 const MAX_ITEM_LVL = 10, MAX_MACHINE = 15, MAX_BARISTA_LVL = 10, MAX_CASHIER = 10;
-const DAY_LEN = 120, AD_LEN = 5, OFFLINE_CAP = 4 * 3600;
+const DAY_LEN = 1800, AD_LEN = 5, OFFLINE_CAP = 4 * 3600;
 const SAVE_KEY = 'beanery.save.v1';
 const BODY = ['#6C8EA4','#C47A5A','#8A9A5B','#B48EAD','#D2B48C','#5E6E8C','#7F6A93','#4F8A8B','#C46A7A'];
 const SKIN = ['#F1D3B8','#E0B38F','#C68B62','#8D5A3B','#F5DCC8'];
 const HAIR = ['#2B2522','#5A3A24','#A0703C','#D9C08C','#3C3C46','#8C8C8C'];
 const pick = a => a[Math.floor(Math.random() * a.length)];
-const SEAT_WAIT = 15, DINE_IN_CHANCE = .45;
+const RATE_CHANCE = .5, COMMENT_CHANCE = .6, SEAT_WAIT = 15, DINE_IN_CHANCE = .4;
 const NAMES = ['Ayu','Budi','Citra','Dimas','Eka','Fajar','Gita','Hana','Indra','Joko','Kirana','Lina','Maya','Nadia','Omar','Putri',
   'Raka','Sari','Tono','Umi','Vina','Wulan','Yusuf','Zahra','Alex','Sam','Mia','Leo','Nina','Theo','Ravi','Kenji','Lucas','Elena','Grace','Hugo'];
 const COMMENTS = {
@@ -410,10 +411,18 @@ const baristaSpeed = l => 1 + 0.15 * l;
 const workMult = () => active('speed') ? 2 : 1;
 const tipMult = () => 1 + 0.1 * S.cashier;
 const avgRating = () => S.rt.length ? S.rt.reduce((a, b) => a + b, 0) / S.rt.length : null;
-const ratingMult = () => .7 + .06 * (avgRating() ?? 4);
-const appeal = () => (1 + 0.12 * decoCount() + 0.04 * S.seats + 0.35 * S.stage) * ratingMult();
+// Customer flow. Upgrades set the café's base flow: 1 customer every 15s at the start.
+// The rating then scales it: 5★ = 100%, 2.5★ = 50%, 1★ = 20% (rating ÷ 5). No ratings yet counts as 5★.
+const BASE_GAP = 15;
+const ratingMult = () => { const a = avgRating(); return a == null ? 1 : a / 5; };
+const menuCount = () => ITEMS.reduce((a, it) => a + (S.items[it.id].owned ? 1 : 0), 0);
+const baseAppeal = () => 1 + 0.15 * decoCount() + 0.05 * Math.max(0, S.seats - 2) + 0.5 * S.stage + 0.1 * Math.max(0, menuCount() - 1);
+const appeal = () => baseAppeal() * ratingMult();
+const gapText = perSec => { const g = 1 / perSec; return g >= 60 ? `1 every ${(g / 60).toFixed(1)} min` : `1 every ${g.toFixed(g < 10 ? 1 : 0)}s`; };
 const maxSeats = () => STAGES[S.stage].maxSeats;
-const wages = () => S.baristas.reduce((a, l) => a + 15 * (1 + 0.15 * l), 0) + (S.cashier ? 25 * (1 + 0.15 * (S.cashier - 1)) : 0);
+const WAGE_BARISTA = 225, WAGE_CASHIER = 375;
+const baristaWage = l => WAGE_BARISTA * (1 + 0.15 * l), cashierWage = () => S.cashier ? WAGE_CASHIER * (1 + 0.15 * (S.cashier - 1)) : 0;
+const wages = () => S.baristas.reduce((a, l) => a + baristaWage(l), 0) + cashierWage();
 const rent = () => STAGES[S.stage].rent;
 const online = () => navigator.onLine !== false;
 const adsAvailable = () => S.supporter || online();
@@ -431,7 +440,7 @@ function autoRatePerSec(){
   const avg = f => owned.reduce((a, it) => a + f(it), 0) / owned.length;
   const avgPrice = avg(price) * tipMult(), avgTime = avg(prepTime);
   const capacity = S.baristas.reduce((a, l) => a + baristaSpeed(l) / avgTime, 0);
-  const served = Math.min(capacity, appeal() / 3.6);
+  const served = Math.min(capacity, appeal() / BASE_GAP);
   return served * avgPrice * 0.6 - (rent() + wages()) / DAY_LEN;
 }
 function perMinute(){
@@ -503,7 +512,20 @@ function rebuildChairs(){
     L.chairs.push({ x:s.x + (left ? -.62 : .62), y:s.y, lane:s.x + (left ? -.95 : .95), table:j >> 1, c:keep[j]?.c || null });
   }
 }
-function waitSpot(k){ return [L.regX - 1.9 - (k % 2) * .7, 3.3 + Math.floor(k / 2) * .7]; }
+// Waiting area for dine-in guests with no free chair: a marked zone left of the line, 3 x 4 fixed spots.
+const WAIT_COLS = 3, WAIT_ROWS = 4;
+function waitSpots(){
+  const out = [];
+  for (let r = 0; r < WAIT_ROWS; r++) for (let k = 0; k < WAIT_COLS; k++) out.push([L.regX - 1.55 - k * .78, 3.35 + r * .78]);
+  return out;
+}
+function waitZone(){ return { x0:L.regX - 1.55 - (WAIT_COLS - 1) * .78 - .5, x1:L.regX - 1.05, y0:2.85, y1:3.35 + (WAIT_ROWS - 1) * .78 + .5 }; }
+function freeWaitSpot(){
+  const taken = new Set(customers.filter(o => o.state === 'wait' || (o.state === 'toWait')).map(o => o.wspot));
+  for (let i = 0; i < WAIT_COLS * WAIT_ROWS; i++) if (!taken.has(i)) return i;
+  return -1;
+}
+const waitingCount = () => customers.filter(o => o.state === 'wait').length;
 function resetFloor(){
   customers = []; queue = []; preps = []; floaters = [];
   spawnT = 1; layout(); camX = camY = 0;
@@ -554,8 +576,9 @@ function serve(c){
     const seat = L.chairs.find(ch => !ch.c);
     if (seat) goSit(c, seat);
     else {
-      const k = customers.filter(o => o.state === 'wait').length;
-      c.state = 'wait'; c.waitT = SEAT_WAIT; c.waitedSeat = true; c.path = [waitSpot(k)];
+      const k = freeWaitSpot();
+      if (k < 0){ c.state = 'leave'; c.path = exitPath(c); S.dayMissed++; floater(c.x, c.y, 'No chair', false, true); rate(c, 1, 'noseat'); }
+      else { c.state = 'wait'; c.wspot = k; c.waitT = SEAT_WAIT; c.waitedSeat = true; c.path = [[L.laneQ, c.y], waitSpots()[k]]; }
     }
   } else {
     rate(c, serviceStars(c));
@@ -564,7 +587,7 @@ function serve(c){
   if (c.vip){ S.gems += 1; offerVipTip(pay); }
 }
 function goSit(c, seat){
-  seat.c = c; c.seat = seat; c.state = 'toSeat';
+  seat.c = c; c.seat = seat; c.state = 'toSeat'; c.wspot = -1;
   c.path = [[c.x, 2.2], [seat.lane, 2.2], [seat.lane, seat.y], [seat.x, seat.y]];
 }
 function giveUp(c){
@@ -584,9 +607,10 @@ function serviceStars(c){
   return Math.max(1, Math.min(5, s));
 }
 function rate(c, stars, kind){
+  if (Math.random() >= RATE_CHANCE) return; // half of customers never rate, good or bad
   S.rt.push(stars); if (S.rt.length > 100) S.rt.shift();
   const pool = kind || (stars >= 4 ? 'good' : stars === 3 ? (decoCount() < 3 && Math.random() < .5 ? 'plain' : 'okay') : 'bad');
-  if (stars <= 2 || Math.random() < .55){
+  if (Math.random() < COMMENT_CHANCE){
     const text = pick(COMMENTS[pool]).replace('{item}', c.item.name.toLowerCase());
     S.reviews.unshift({ n:pick(NAMES), s:stars, t:text, d:S.day, a:Math.floor(Math.random() * AVATAR.length), at:Date.now() });
     if (S.reviews.length > 40) S.reviews.pop();
@@ -620,11 +644,10 @@ function updateCustomers(dt){
       else {
         c.waitT -= dt;
         if (c.waitT <= 0){
-          c.state = 'leave'; c.path = [L.door, L.outside];
+          c.state = 'leave'; c.wspot = -1; c.path = [[c.x, L.dy], L.door, L.outside];
           S.dayMissed++;
           floater(c.x, c.y, 'No chair', false, true);
           rate(c, 1, 'noseat');
-          customers.filter(o => o.state === 'wait').forEach((o, k) => { o.path = [waitSpot(k)]; });
         }
       }
     }
@@ -688,8 +711,8 @@ function payGems(n){
 }
 function endDay(){
   const costs = rent() + wages(), paid = Math.min(costs, S.money);
-  S.money -= paid; S.gems += 1;
-  let msg = `Day ${S.day} closed. Earned ${fmt(S.dayEarn)}, paid ${fmt(costs)} rent and wages. +1 gem.`;
+  S.money -= paid; S.gems += 3;
+  let msg = `Day ${S.day} closed. Earned ${fmt(S.dayEarn)}, paid ${fmt(costs)} rent and wages. +3 gems.`;
   if (paid < costs) msg += ' You could not cover all costs.';
   if (S.dayMissed) msg += ` ${S.dayMissed} customer${S.dayMissed > 1 ? 's' : ''} left without buying.`;
   toast(msg, 5200);
@@ -741,6 +764,7 @@ function offerVipTip(paid){
   if (!adsAvailable()) return;
   vipOffer = { amount:Math.round(paid * 5), until:performance.now() + 20000 };
 }
+$('#seatChip').addEventListener('click', () => { sub.upgrade = 'equip'; openDrawer('upgrade'); });
 $('#vipBtn').addEventListener('click', () => {
   if (!vipOffer) return;
   const amt = vipOffer.amount; vipOffer = null;
@@ -786,7 +810,7 @@ function settings(){
       ? `<p>This deletes your café and all progress on this device. It cannot be undone.</p>
          <div class="actions"><button class="btn danger" data-m="wipe">Yes, start over</button><button class="btn" data-m="back">Keep my café</button></div>`
       : `<div class="actions"><button class="btn danger" data-m="reset">Reset progress</button><button class="btn primary" data-m="close">Done</button></div>`}
-    <p style="font-size:12.5px">Beanery v0.3 test build. Drag the café to look around, pinch to zoom. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
+    <p style="font-size:12.5px">Beanery v0.4 test build. Drag the café to look around, pinch to zoom. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
     sound(){ S.sound = !S.sound; if (S.sound) unlockAudio(); save(); draw(false); },
     reset(){ draw(true); },
     back(){ draw(false); },
@@ -866,26 +890,27 @@ const VIEWS = {
     out.push(row(ICON.machine, 'Espresso machine', `Lv ${S.machine + 1}`, `Every order is made 10% faster per level. Speed now ×${(1 / Math.pow(.9, S.machine)).toFixed(2)}.`,
       mMax ? btn('', 'Top level', 'Max', true) : btn('machine', 'Upgrade', fmt(cost.machine()), !can(cost.machine()))));
     const tMax = S.seats >= st.maxSeats;
-    out.push(row(ICON.table, 'Chairs', `${S.seats}/${st.maxSeats}`, tMax ? 'No space for more chairs. Expand the café to add more.' : `Dine-in guests need a free chair. Without one they wait ${SEAT_WAIT} seconds, then leave a 1-star review. A table comes with every 2 chairs.`,
+    out.push(row(ICON.table, 'Chairs', `${S.seats}/${st.maxSeats}`, tMax ? 'No space for more chairs. Expand the café to add more.' : `Dine-in guests need a free chair. Without one they stand in the waiting area for ${SEAT_WAIT} seconds, then leave a 1-star review. A table comes with every 2 chairs.`,
       tMax ? btn('', 'Full', '—', true) : btn('seat', 'Add chair', fmt(cost.seat()), !can(cost.seat()))));
-    out.push(`<p class="note">Customers now: about ${(appeal() / 3.6 * 60).toFixed(0)} per minute. Decorations, chairs, a good rating and a bigger café bring more.</p>`);
+    const avg = avgRating();
+    out.push(`<p class="note">Customers: your café pulls ${gapText(baseAppeal() / BASE_GAP)}. Rating ${avg ? '★' + avg.toFixed(1) : '(none yet, counts as ★5)'} keeps ${Math.round(ratingMult() * 100)}% of that, so ${gapText(appeal() / BASE_GAP)}. Decorations, chairs, menu items and a bigger café raise the pull.</p>`);
     return out.join('');
   },
   staff(){
     const st = STAGES[S.stage], out = [];
     S.baristas.forEach((l, i) => {
       const max = l >= MAX_BARISTA_LVL, c = cost.train(i);
-      out.push(row(ICON.person('#6C8EA4'), `Barista ${i + 1}`, `Lv ${l + 1}`, `Makes orders on their own at ×${baristaSpeed(l).toFixed(2)} speed. Wage ${fmt(15 * (1 + .15 * l))}/day.`,
+      out.push(row(ICON.person('#6C8EA4'), `Barista ${i + 1}`, `Lv ${l + 1}`, `Makes orders on their own at ×${baristaSpeed(l).toFixed(2)} speed. Wage ${fmt(baristaWage(l))}/day.`,
         max ? btn('', 'Top level', 'Max', true) : btn(`train:${i}`, 'Train', fmt(c), !can(c))));
     });
     if (S.baristas.length < st.maxBaristas){
       const c = cost.hire();
-      out.push(row(ICON.person('#B9BDB8'), 'Hire a barista', '', `Makes orders for you, even while the game is closed. Wage ${fmt(15)}/day.`, btn('hire', 'Hire', fmt(c), !can(c))));
+      out.push(row(ICON.person('#B9BDB8'), 'Hire a barista', '', `Makes orders for you, even while the game is closed. Wage ${fmt(WAGE_BARISTA)}/day.`, btn('hire', 'Hire', fmt(c), !can(c))));
     } else if (S.stage < STAGES.length - 1){
       out.push(`<p class="note">All barista spots are filled. Expand the café to hire more.</p>`);
     }
     const cMax = S.cashier >= MAX_CASHIER, cc = cost.cashier();
-    out.push(row(ICON.cashier, 'Cashier', S.cashier ? `Lv ${S.cashier}` : '', S.cashier ? `Tips +${S.cashier * 10}%. Wage ${fmt(25 * (1 + .15 * (S.cashier - 1)))}/day.` : 'Adds +10% tips to every sale. Wage $25/day.',
+    out.push(row(ICON.cashier, 'Cashier', S.cashier ? `Lv ${S.cashier}` : '', S.cashier ? `Tips +${S.cashier * 10}%. Wage ${fmt(cashierWage())}/day.` : `Adds +10% tips to every sale. Wage ${fmt(WAGE_CASHIER)}/day.`,
       cMax ? btn('', 'Top level', 'Max', true) : btn('cashier', S.cashier ? 'Train' : 'Hire', fmt(cc), !can(cc))));
     out.push(`<p class="note">Daily costs: rent ${fmt(rent())} + wages ${fmt(wages())}. Paid at the end of each day.</p>`);
     return out.join('');
@@ -1051,9 +1076,9 @@ function renderPhone(){
   const d = new Date(); $('#pTime').textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
   $('#pSub').textContent = `${STAGES[S.stage].name} · Day ${S.day}`;
   const counts = [5, 4, 3, 2, 1].map(k => S.rt.filter(x => x === k).length);
-  let h = `<div class="summary"><div><div class="bignum">${avg ? avg.toFixed(1) : '–'}</div>${starStr(Math.round(avg || 0))}<small>${n ? `${n} recent customer${n > 1 ? 's' : ''}` : 'No ratings yet'}</small></div>
+  let h = `<div class="summary"><div><div class="bignum">${avg ? avg.toFixed(1) : '–'}</div>${starStr(Math.round(avg || 0))}<small>${n ? `${n} recent rating${n > 1 ? 's' : ''}` : 'No ratings yet'}</small></div>
     <div class="dist">${[5, 4, 3, 2, 1].map((k, i) => `<div><span>${k}</span><i><b style="width:${n ? counts[i] / n * 100 : 0}%"></b></i><span>${counts[i]}</span></div>`).join('')}</div></div>
-    <p class="note">Every customer rates their visit. Quick service, free chairs and a nice café earn more stars. A better rating brings more customers.</p>
+    <p class="note">About half of your customers rate their visit. Quick service, free chairs and a nice café earn more stars. Your rating sets how many customers come: ★5 = 100%, ★2.5 = 50%, ★1 = 20%.</p>
     <div class="filters" id="pFilters">${[['all','All'],['good','Satisfied'],['okay','Neutral'],['bad','Bad']].map(([k, l]) => `<button data-f="${k}" aria-pressed="${phoneFilter === k}">${l}</button>`).join('')}</div>`;
   const list = S.reviews.filter(r => phoneFilter === 'all' || (phoneFilter === 'good' ? r.s >= 4 : phoneFilter === 'okay' ? r.s === 3 : r.s <= 2));
   h += list.length ? list.map(r => `<article class="review"><div class="rhead"><span class="avatar" style="background:${AVATAR[r.a % AVATAR.length]}">${esc(r.n[0])}</span>
@@ -1276,6 +1301,31 @@ function drawPendants(){
     ctx.fillStyle = '#2E3430'; ctx.fill();
   }
 }
+function drawWaitZone(){
+  const z = waitZone();
+  poly([P(z.x0, z.y0, .004), P(z.x1, z.y0, .004), P(z.x1, z.y1, .004), P(z.x0, z.y1, .004)], 'rgba(212,155,31,.10)');
+  ctx.save(); ctx.setLineDash([6, 4]);
+  poly([P(z.x0, z.y0, .005), P(z.x1, z.y0, .005), P(z.x1, z.y1, .005), P(z.x0, z.y1, .005)], null, 'rgba(176,122,18,.65)', 1.6);
+  ctx.restore();
+  const spots = waitSpots();
+  spots.forEach(([x, y], i) => {
+    const [sx, sy] = P(x, y, .006);
+    ctx.beginPath(); ctx.ellipse(sx, sy, hw * .26, hw * .13, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(176,122,18,.55)'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.font = `700 ${Math.max(8, Math.round(hw * .17))}px Sora, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(176,122,18,.7)'; ctx.fillText(String(i + 1), sx, sy);
+  });
+  // floor label along the front edge of the zone
+  const o = P(z.x0 + .15, z.y1 + .08, .006);
+  ctx.save();
+  ctx.setTransform(dpr * hw, dpr * hh, -dpr * hw, dpr * hh, dpr * o[0], dpr * o[1]);
+  ctx.font = '700 0.26px Sora, ui-sans-serif, sans-serif'; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  const maxW = z.x1 - z.x0 - .3, tw = ctx.measureText('WAITING FOR A SEAT').width;
+  if (tw > maxW) ctx.font = `700 ${(.26 * maxW / tw).toFixed(3)}px Sora, ui-sans-serif, sans-serif`;
+  ctx.fillStyle = 'rgba(176,122,18,.85)'; ctx.fillText('WAITING FOR A SEAT', 0, 0);
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+}
 function drawRug(){
   const s = L.spots.slice(0, Math.max(1, Math.ceil(L.chairs.length / 2))), N = L.N;
   const xs = s.map(p => p.x), ys = s.map(p => p.y);
@@ -1381,6 +1431,7 @@ function draw(){
 
   drawGround(); drawFloor(); drawWalls();
   if (has('rug') && L.chairs.length) drawRug();
+  drawWaitZone();
 
   const staffPos = [];
   const sp = drawPerson(1.65, .45, { ...STAFF, scale:1.05 });
@@ -1479,6 +1530,8 @@ function hud(now){
   }).join('');
   if (chips !== chipKey){ $('#boostChips').innerHTML = chips; chipKey = chips; }
 
+  const wc = waitingCount(), sc = $('#seatChip');
+  sc.hidden = !wc; if (wc) sc.textContent = `${wc} guest${wc > 1 ? 's' : ''} waiting for a chair · Add chairs`;
   const v = $('#vipBtn');
   if (vipOffer && now < vipOffer.until && adsAvailable()){
     v.hidden = false; v.textContent = `VIP tip ${fmt(vipOffer.amount)} · ${S.supporter ? 'Claim' : 'Watch ad'} (${Math.ceil((vipOffer.until - now) / 1000)}s)`;
@@ -1494,7 +1547,7 @@ function frame(now){
   const dt = Math.min(.1, (now - lastT) / 1000); lastT = now;
   if (!paused){
     spawnT -= dt * (active('magnet') ? 2 : 1);
-    if (spawnT <= 0){ spawn(false); spawnT = (3.6 / appeal()) * (.6 + Math.random() * .8); }
+    if (spawnT <= 0){ spawn(false); spawnT = (BASE_GAP / appeal()) * (.6 + Math.random() * .8); }
     vipT -= dt; if (vipT <= 0){ spawn(true); vipT = 150 + Math.random() * 150; }
     updateCustomers(dt); updatePreps(dt);
     for (const f of floaters) f.t += dt; floaters = floaters.filter(f => f.t < 1.3);

@@ -41,23 +41,36 @@ who run it for you.
 
 ## Game loop
 1. Customers come in through the **one door** (left wall) and line up **in front of the cash register**.
-2. Each customer is **dine-in** (chair icon) or **takeaway** (bag icon).
+2. Each customer is **dine-in** (chair icon, 40%) or **takeaway** (bag icon, 60%).
 3. Tap **Brew** (or tap the café) to make the order. More taps make it faster.
 4. Takeaway customers leave through the same door. Dine-in customers (pay 20% more) look for a free chair.
-   - No free chair: they stand in the middle of the café for **15 seconds**. If a chair frees up they sit,
-     otherwise they walk out and give **1 star**.
+   - No free chair: they go to the marked **"Waiting for a seat" area** (12 numbered spots, one guest per spot,
+     left of the line) for **15 seconds**. If a chair frees up they sit, otherwise they walk out and give **1 star**.
+   - A chip at the top shows how many guests are waiting for a chair. Tapping it opens the Chairs upgrade.
 5. Spend money on upgrades. Bigger upgrades unlock as you earn more.
-6. Every in-game day (2 minutes) you pay rent and staff wages.
+6. One in-game day lasts **30 real minutes**. At the end of the day you pay rent and staff wages and get +3 gems.
+   (Rent and wages were scaled up 15x when days went from 2 to 30 minutes, so the cost per minute is unchanged.)
+
+## Customer flow
+- Upgrades set the café's **pull**: 1 customer every **15 seconds** at the start.
+  Each decoration +15%, each extra chair +5%, each extra menu item +10%, each café level +50%.
+- The rating then scales that pull: **flow = pull × (rating ÷ 5)**.
+  - 5★ = 100% (pull of 1/15s stays 1/15s)
+  - 4★ = 80% · 3★ = 60%
+  - 2.5★ = 50% (1/30s becomes 1/60s)
+  - 2★ = 40% · 1★ = 20%
+  - No ratings yet counts as 5★.
+- Upgrade → Equipment shows the current pull, the rating's share and the result.
 
 ## Ratings and reviews
-- Every customer rates their visit from 1 to 5 stars. The café rating is the **average of the last 100 customers**.
+- Only **50% of customers** leave a rating (the same chance for happy and unhappy customers).
+  The café rating is the **average of the last 100 ratings**. 60% of raters also write a comment.
 - Stars come from how long they waited (fast = 5), decorations (small bonus chance), waiting for a chair (−1),
   giving up in line (1–2 stars) and finding no chair (1 star).
-- Many customers also write a comment, picked at random from **satisfied, neutral and bad** comment lists that
-  match their stars.
+- Comments are picked at random from **satisfied, neutral and bad** comment lists that match their stars.
 - The **phone button** (bottom right) opens the Beanery Reviews app: average rating, star breakdown, comments
   with filters, and a badge for new reviews.
-- Rating matters: a 5-star café gets about 30% more customers than a 1-star café.
+- Rating matters: see Customer flow above.
 
 ## What you can improve
 | Area | What it does |
@@ -73,7 +86,8 @@ who run it for you.
 
 Room sizes: Coffee Stand 9×9, Cozy Café 10×10, Corner Café 11×11, Grand Café 12×12 tiles.
 
-## Current status (v0.3, test build)
+## Current status (v0.4, test build)
+- Menu prices doubled in v0.4 because customers now arrive less often.
 - Single file: `index.html` (HTML, CSS, JavaScript, no downloads needed).
 - Progress saves on the device automatically.
 - Ads and purchases are **simulated** so the game can be tested. Real Google AdMob and Google Play
