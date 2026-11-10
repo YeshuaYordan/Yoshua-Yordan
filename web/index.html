@@ -48,8 +48,9 @@ canvas {
 "use strict";
 // ============================================================ Arcane Fusion: Merge & Defend
 const W = 720, H = 1280;
-const HUD_H = 72, WALL_Y = 690, WALL_H = 62;
-const ACTIVE_Y = 836, STORAGE_Y = 1000, SHOP_Y = 1160, SHOP_TOP = 1080;
+// FRONT_Y: where enemies reach the castle (top edge of the battle row). WALL_Y: top-down wall below the battle row.
+const HUD_H = 72, FRONT_Y = 752, WALL_Y = 902, WALL_H = 44;
+const ACTIVE_Y = 826, STORAGE_Y = 1016, SHOP_Y = 1172, SHOP_TOP = 1090;
 const SLOTS = 5, SHOP_N = 3;
 const CASTLE_MAX = 100, BREAK_TIME = 15, START_GOLD = 10, REROLL_BASE = 2;
 const CARD_W = 112, CARD_H = 136;
@@ -327,7 +328,7 @@ class Enemy {
     if (this.burnT > 0) { this.burnT -= dt; this.takeDamage(this.burnDps * dt); if (this.dead) return; }
     if (this.slowT > 0) this.slowT -= dt; else this.slowMult = 1;
     if (this.rootT > 0) this.rootT -= dt;
-    const limit = WALL_Y - this.size * 0.6;
+    const limit = FRONT_Y - this.size * 0.9;
     if (this.y < limit) {
       this.attacking = false;
       if (this.rootT <= 0) this.y += this.speed * this.slowMult * dt;
@@ -518,7 +519,12 @@ let info = { text: "", t: 99 };
 let pointer = { x: 0, y: 0 };
 
 const stars = Array.from({ length: 60 }, () => [Math.random() * W, HUD_H + Math.random() * 240, Math.random()]);
-const tufts = Array.from({ length: 40 }, () => [Math.random() * W, 360 + Math.random() * (WALL_Y - 380)]);
+const tufts = Array.from({ length: 40 }, () => [Math.random() * W, 360 + Math.random() * (FRONT_Y - 380)]);
+// Top-down paving stones on the rampart walkway.
+const paving = [];
+for (let y = FRONT_Y + 2, r = 0; y < WALL_Y; y += 38, r++)
+  for (let x = (r % 2) * -28; x < W; x += 56)
+    paving.push([x + 2, y + 2, 52, 34, ["#6f6361", "#75696a", "#6a5d58", "#7a6e69"][Math.floor(Math.random() * 4)]]);
 
 function slotPos(row, i) {
   if (row === "active") return { x: 72 + i * 144, y: ACTIVE_Y };
@@ -591,9 +597,13 @@ function onEnemyKilled(e) {
 }
 
 // ------------------------------------------------------------ Combat
-function closest(n) { return enemies.filter(e => !e.dead).sort((a, b) => b.y - a.y).slice(0, n); }
+// Nearest living enemies to a point (the attacking card).
+function closestTo(x, y, n) {
+  const d = e => (e.x - x) ** 2 + (e.y - y) ** 2;
+  return enemies.filter(e => !e.dead).sort((a, b) => d(a) - d(b)).slice(0, n);
+}
 function fireCard(c) {
-  const d = EL[c.element], shots = d.multishot || 1, targets = closest(shots);
+  const d = EL[c.element], shots = d.multishot || 1, targets = closestTo(c.x, c.y - 60, shots);
   if (!targets.length) return;
   c.kick = 1;
   const ox = c.x, oy = c.y - 60;
@@ -704,7 +714,7 @@ const btn = {
   book: makeBtn("Book", 466, 9, 120, 54, () => openBook()),
   pause: makeBtn("II", 600, 9, 106, 54, () => { cancelDrag(); paused = true; }),
   start: makeBtn("Start Wave", 160, 430, 400, 86, () => beginWave(), 32),
-  reroll: makeBtn("Reroll", 450, 1104, 250, 112, () => reroll(), 28),
+  reroll: makeBtn("Reroll", 450, 1100, 250, 96, () => reroll(), 28),
   play: makeBtn("Play", 180, 560, 360, 90, () => startRun(), 38),
   titleBook: makeBtn("Spellbook", 180, 670, 360, 76, () => openBook()),
   resume: makeBtn("Resume", 180, 560, 360, 80, () => { paused = false; }),
@@ -839,43 +849,47 @@ function drawWorld() {
   for (let i = 0; i < 13; i++) mtn.push([i * 60, 300 + (i % 2 === 0 ? 40 : -10) + Math.sin(i * 1.7) * 18]);
   mtn.push([W, 300], [W, 372]);
   poly(mtn, "#3a2546", null);
-  const ground = ctx.createLinearGradient(0, 370, 0, WALL_Y);
+  const ground = ctx.createLinearGradient(0, 370, 0, FRONT_Y);
   ground.addColorStop(0, "#2c3a3a"); ground.addColorStop(1, "#3d4a36");
-  ctx.fillStyle = ground; ctx.fillRect(0, 370, W, WALL_Y - 370);
+  ctx.fillStyle = ground; ctx.fillRect(0, 370, W, FRONT_Y - 370);
   ctx.strokeStyle = "#55684a"; ctx.lineWidth = 2; ctx.beginPath();
   for (const t of tufts) { ctx.moveTo(t[0], t[1]); ctx.lineTo(t[0] - 4, t[1] - 9); ctx.moveTo(t[0], t[1]); ctx.lineTo(t[0] + 3, t[1] - 11); }
   ctx.stroke();
 
-  // Courtyard.
-  ctx.fillStyle = "#3b2f3a"; ctx.fillRect(0, WALL_Y, W, SHOP_TOP - WALL_Y);
+  // Rampart walkway (seen from above) where the battle cards stand.
+  ctx.fillStyle = "#4e4446"; ctx.fillRect(0, FRONT_Y, W, WALL_Y - FRONT_Y);
+  for (const t of paving) { ctx.fillStyle = t[4]; ctx.fillRect(t[0], t[1], t[2], Math.min(t[3], WALL_Y - t[1])); }
+  // Outer lip of the rampart, facing the enemies.
+  const lip = mixHex("#8f8279", "#c4493e", wallFlash * 0.5);
+  ctx.fillStyle = lip; ctx.fillRect(0, FRONT_Y - 8, W, 10);
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath();
+  ctx.moveTo(0, FRONT_Y - 8); ctx.lineTo(W, FRONT_Y - 8); ctx.moveTo(0, FRONT_Y + 2); ctx.lineTo(W, FRONT_Y + 2); ctx.stroke();
+  // Inner courtyard (storage).
+  ctx.fillStyle = "#3b2f3a"; ctx.fillRect(0, WALL_Y + WALL_H, W, SHOP_TOP - WALL_Y - WALL_H);
   ctx.strokeStyle = "rgba(0,0,0,0.12)"; ctx.lineWidth = 2; ctx.beginPath();
-  for (let y = WALL_Y + WALL_H + 20; y < SHOP_TOP; y += 44) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  for (let y = WALL_Y + WALL_H + 30; y < SHOP_TOP; y += 44) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
   ctx.stroke();
-  // Wall & battlements.
-  const wallCol = mixHex("#7d6f66", "#c4493e", wallFlash * 0.5);
-  for (let i = 0; i < 10; i++) { const mx = i * 76 + 6; ctx.fillStyle = wallCol; ctx.fillRect(mx, WALL_Y - 20, 48, 24); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeRect(mx, WALL_Y - 20, 48, 24); }
+  // Castle wall seen from above: stone top with raised merlons.
+  const wallCol = mixHex("#8a7c72", "#c4493e", wallFlash * 0.5);
   ctx.fillStyle = wallCol; ctx.fillRect(0, WALL_Y, W, WALL_H);
-  ctx.strokeStyle = hexA(INK, 0.5); ctx.lineWidth = 2; ctx.beginPath();
-  for (let r = 0; r < 3; r++) {
-    const y = WALL_Y + r * WALL_H / 3; ctx.moveTo(0, y); ctx.lineTo(W, y);
-    const sh = r % 2 ? 30 : 0;
-    for (let x = 0; x < W + 60; x += 60) { ctx.moveTo(x + sh, y); ctx.lineTo(x + sh, y + WALL_H / 3); }
-  }
+  ctx.strokeStyle = hexA(INK, 0.3); ctx.lineWidth = 2; ctx.beginPath();
+  ctx.moveTo(0, WALL_Y + WALL_H / 2); ctx.lineTo(W, WALL_Y + WALL_H / 2);
+  for (let x = 18; x < W; x += 36) { const o = (Math.floor(x / 36) % 2) * WALL_H / 2; ctx.moveTo(x, WALL_Y + o); ctx.lineTo(x, WALL_Y + o + WALL_H / 2); }
   ctx.stroke();
+  for (let x = 10; x < W; x += 72) {
+    ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(x + 4, WALL_Y + 9, 44, 30);
+    ctx.fillStyle = mixHex("#a59588", "#e07a6a", wallFlash * 0.5); ctx.fillRect(x, WALL_Y + 5, 44, 30);
+    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeRect(x, WALL_Y + 5, 44, 30);
+    ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 4, WALL_Y + 10); ctx.lineTo(x + 40, WALL_Y + 10); ctx.stroke();
+  }
   ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath();
   ctx.moveTo(0, WALL_Y); ctx.lineTo(W, WALL_Y); ctx.moveTo(0, WALL_Y + WALL_H); ctx.lineTo(W, WALL_Y + WALL_H); ctx.stroke();
-  // Castle HP.
-  const hb = { x: 160, y: WALL_Y + 16, w: 400, h: 30 };
-  ctx.fillStyle = INK; ctx.fillRect(hb.x - 3, hb.y - 3, hb.w + 6, hb.h + 6);
-  ctx.fillStyle = "#4a2a2a"; ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
-  ctx.fillStyle = mixHex("#e0533f", "#6cc56a", castleHp / CASTLE_MAX); ctx.fillRect(hb.x, hb.y, hb.w * castleHp / CASTLE_MAX, hb.h);
-  text(`Castle  ${Math.ceil(castleHp)} / ${CASTLE_MAX}`, W / 2, hb.y + 23, 20, PARCH, { outline: 5 });
 
   // Rune circles under battle slots.
   for (let i = 0; i < SLOTS; i++) {
     const p = slotPos("active", i), c = rows.active[i];
     const col = c ? EL[c.element].color : GOLD, pulse = 0.5 + 0.5 * Math.sin(time * 2.5 + i);
-    ctx.save(); ctx.translate(p.x, p.y + 58); ctx.scale(1, 0.32);
+    ctx.save(); ctx.translate(p.x, p.y + 52); ctx.scale(1, 0.3);
     circle(0, 0, 66, hexA(col, 0.12 + 0.1 * pulse));
     ring(0, 0, 62, hexA(col, 0.55 + 0.3 * pulse), 4);
     ring(0, 0, 48, hexA(col, 0.4), 3, time, time + Math.PI * 1.6);
@@ -918,8 +932,21 @@ function drawHud() {
   ctx.strokeStyle = shade(GOLD, -0.3); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, HUD_H); ctx.lineTo(W, HUD_H); ctx.stroke();
   if (state === "title") return;
   text(`Wave ${state === "break" ? wave + 1 : Math.max(1, wave)}`, 18, 48, 30, PARCH, { align: "left", outline: 8 });
-  circle(262, 36, 15, GOLD); ring(262, 36, 15, INK, 3); ring(262, 36, 9, hexA(INK, 0.5), 2);
-  text(String(gold), 286, 48, 30, GOLD, { align: "left", outline: 8 });
+  // Castle HP beside the wave counter.
+  const hb = { x: 186, y: 22, w: 258, h: 28 };
+  const tx = 164, ty = 36;
+  ctx.fillStyle = "#a59588"; ctx.fillRect(tx - 11, ty - 8, 22, 20);
+  for (const mx of [-11, -3, 5]) ctx.fillRect(tx + mx, ty - 14, 6, 7);
+  ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeRect(tx - 11, ty - 8, 22, 20);
+  ctx.fillStyle = INK; ctx.fillRect(tx - 3, ty + 3, 6, 9);
+  ctx.fillStyle = wallFlash > 0 ? mixHex("#2a1a12", "#e0533f", wallFlash) : INK; ctx.fillRect(hb.x - 3, hb.y - 3, hb.w + 6, hb.h + 6);
+  ctx.fillStyle = "#4a2a2a"; ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
+  ctx.fillStyle = mixHex("#e0533f", "#6cc56a", castleHp / CASTLE_MAX); ctx.fillRect(hb.x, hb.y, hb.w * castleHp / CASTLE_MAX, hb.h);
+  text(`${Math.ceil(castleHp)} / ${CASTLE_MAX}`, hb.x + hb.w / 2, hb.y + 21, 19, PARCH, { outline: 5 });
+  // Gold, under the left edge of the Reroll button.
+  const gx = btn.reroll.x + 16, gy = btn.reroll.y + btn.reroll.h + 34;
+  circle(gx, gy, 15, GOLD); ring(gx, gy, 15, INK, 3); ring(gx, gy, 9, hexA(INK, 0.5), 2);
+  text(String(gold), gx + 24, gy + 11, 30, GOLD, { align: "left", outline: 8 });
   if (state === "gameover") return;
   btn.reroll.label = `Reroll\n${rerollCost} gold`;
   btn.start.label = breakTimer > 0 ? `Start Wave ${wave + 1}  (${Math.ceil(breakTimer)})` : `Start Wave ${wave + 1}`;
