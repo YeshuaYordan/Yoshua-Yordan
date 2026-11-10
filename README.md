@@ -1,6 +1,6 @@
 # Arcane Fusion: Merge & Defend
 
-A portrait mobile game for Android, built with **Godot 4.3**. You merge elemental spirit cards to defend your castle against endless waves of shadow creatures.
+A portrait mobile game for Android. **The main version is the HTML game in `web/index.html`.** It will be wrapped with Capacitor for the Play Store. The Godot 4.3 project in this folder was the first prototype and is no longer updated. You merge elemental spirit cards to defend your castle against endless waves of shadow creatures.
 
 > **Status: Step 1, playable prototype.** All art is drawn by code as placeholders. Ads and in-app purchases come in step 3.
 
