@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beanery</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Sora:wght@500;600;700&display=swap">
+<style>
+/* Layout: one-screen portrait app. Money header, angled café diorama, a big Brew button, tabbed management panel. */
+:root{
+  --bg:#EDEFEA; --surface:#FFFFFF; --surface-2:#F5F6F2; --ink:#1C201C; --muted:#687066; --line:#D9DED5;
+  --accent:#2F6B55; --accent-ink:#FFFFFF; --accent-soft:#DCEAE3; --money:#94661C; --warn:#B4532A; --scrim:rgba(18,22,18,.55);
+  --font-display:"Sora",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-body:"DM Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131613; --surface:#1C201C; --surface-2:#20251F; --ink:#E8ECE5; --muted:#9AA296; --line:#30372F;
+    --accent:#7CC3A4; --accent-ink:#0E1A14; --accent-soft:#22362D; --money:#E3B566; --warn:#E78C64; --scrim:rgba(0,0,0,.62);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131613; --surface:#1C201C; --surface-2:#20251F; --ink:#E8ECE5; --muted:#9AA296; --line:#30372F;
+  --accent:#7CC3A4; --accent-ink:#0E1A14; --accent-soft:#22362D; --money:#E3B566; --warn:#E78C64; --scrim:rgba(0,0,0,.62);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{height:100%;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;overflow:hidden;
+  -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+#app{height:100%;max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
+
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;align-items:start}
+.brand{font-family:var(--font-display);font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.brand b{color:var(--accent);font-weight:700}
+.money{font-family:var(--font-display);font-weight:700;font-size:34px;line-height:1.1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.sub{grid-column:1/-1;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;margin-top:2px}
+.sub .rate{color:var(--money);font-weight:700}
+.daybar{flex:1;height:4px;border-radius:2px;background:var(--line);overflow:hidden;min-width:40px}
+.daybar i{display:block;height:100%;width:0;background:var(--accent)}
+.iconbtn{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;cursor:pointer;grid-row:1/3;grid-column:2}
+.iconbtn svg{width:20px;height:20px}
+
+.stage{position:relative;flex:1 1 auto;min-height:170px;border-radius:20px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
+.chips{position:absolute;top:10px;left:10px;right:10px;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none}
+.chip{pointer-events:auto;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;border:1px solid var(--line);
+  background:var(--surface);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.chip[disabled]{cursor:default;color:var(--muted);font-weight:500}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--money)}
+.chip.live{background:var(--money);color:#fff;border-color:transparent}
+.chip.live .dot{background:#fff}
+.chip.vip{border-color:var(--money);color:var(--money)}
+.toast{position:absolute;left:10px;right:10px;bottom:10px;padding:10px 12px;border-radius:12px;background:var(--ink);color:var(--bg);
+  font-size:13px;line-height:1.35;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+
+.brew{position:relative;overflow:hidden;height:66px;border:0;border-radius:18px;background:var(--accent);color:var(--accent-ink);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex:0 0 auto;touch-action:manipulation}
+.brew .fill{position:absolute;inset:0 auto 0 0;width:0;background:rgba(255,255,255,.18)}
+.brew .label{position:relative;font-family:var(--font-display);font-weight:700;font-size:18px}
+.brew .hint{position:relative;font-size:12.5px;opacity:.85}
+.brew.idle{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
+.brew.pulse{animation:pulse 1.4s ease-in-out infinite}
+.brew:active{transform:scale(.985)}
+@keyframes pulse{50%{box-shadow:0 0 0 6px var(--accent-soft)}}
+
+.tabs{display:flex;gap:4px;padding:4px;border-radius:14px;background:var(--surface);border:1px solid var(--line);flex:0 0 auto}
+.tab{flex:1;min-width:0;height:36px;border:0;border-radius:10px;background:transparent;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.tab .badge{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--money);margin-left:4px;vertical-align:middle}
+
+.panel{flex:0 0 auto;height:clamp(170px,31vh,300px);overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:8px;padding-bottom:2px}
+.row{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 10px 10px 12px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.row.locked{opacity:.6}
+.ico{width:40px;height:40px;border-radius:10px;background:var(--surface-2);display:grid;place-items:center}
+.ico svg{width:26px;height:26px}
+.info{min-width:0}
+.name{font-weight:700;font-size:14.5px;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.lvl{font-size:11.5px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.desc{color:var(--muted);font-size:12.5px;line-height:1.35;margin-top:2px}
+.buy{min-width:92px;height:44px;padding:0 10px;border-radius:12px;border:0;background:var(--accent);color:var(--accent-ink);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15}
+.buy span{font-size:11.5px;font-weight:500;opacity:.9}
+.buy b{font-size:14px;font-variant-numeric:tabular-nums}
+.buy[disabled]{background:var(--surface-2);color:var(--muted);cursor:default;border:1px solid var(--line)}
+.note{color:var(--muted);font-size:12.5px;line-height:1.4;padding:2px 4px}
+.card{padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.card h3{margin:0;font-family:var(--font-display);font-size:16px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{background:var(--surface-2);border-radius:10px;padding:8px}
+.stat small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.stat b{font-variant-numeric:tabular-nums;font-size:14px}
+.card .buy{align-self:stretch;flex-direction:row;gap:8px;height:46px}
+.card .buy span{font-size:14px;font-weight:700;opacity:1}
+
+.overlay{position:fixed;inset:0;background:var(--scrim);display:grid;place-items:end center;z-index:20;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.sheet{width:100%;max-width:440px;background:var(--surface);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px}
+.sheet h2{margin:0;font-family:var(--font-display);font-size:20px;text-wrap:balance}
+.sheet p{margin:0;color:var(--muted);line-height:1.45}
+.sheet .big{font-family:var(--font-display);font-size:34px;font-weight:700;color:var(--money);font-variant-numeric:tabular-nums}
+.actions{display:flex;flex-direction:column;gap:8px}
+.btn{height:48px;border-radius:14px;border:1px solid var(--line);background:var(--surface-2);font-weight:700;cursor:pointer}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.danger{color:var(--warn)}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border-radius:12px;background:var(--surface-2)}
+.ad{place-items:center;background:#0E110E;color:#EDEFEA}
+.ad .box{width:100%;max-width:380px;display:flex;flex-direction:column;gap:16px;align-items:center;text-align:center}
+.ad .tag{font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
+.ad .title{font-family:var(--font-display);font-size:22px;font-weight:700}
+.ad .bar{width:100%;height:6px;border-radius:3px;background:#2A302A;overflow:hidden}
+.ad .bar i{display:block;height:100%;width:0;background:#7CC3A4}
+.ad .btn{width:100%;background:#1E241E;color:#EDEFEA;border-color:#2F372F}
+.ad .btn.primary{background:#7CC3A4;color:#0E1A14}
+@media (prefers-reduced-motion: reduce){.brew.pulse{animation:none}.toast{transition:none}}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="top">
+    <div class="brand"><b>Beanery</b> · <span id="stageName">Coffee Stand</span></div>
+    <button class="iconbtn" id="gear" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+    </button>
+    <div class="money" id="money">$0</div>
+    <div class="sub"><span class="rate" id="rate">$0/min</span><span id="dayLabel">Day 1</span><div class="daybar" aria-hidden="true"><i id="dayFill"></i></div></div>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="scene" aria-label="Your café"></canvas>
+    <div class="chips">
+      <button class="chip" id="rushBtn" hidden></button>
+      <button class="chip vip" id="vipBtn" hidden></button>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <button class="brew" id="brew"><span class="fill" id="brewFill"></span><span class="label" id="brewLabel">Brew</span><span class="hint" id="brewHint">Tap to make the next order</span></button>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button class="tab" role="tab" data-tab="menu" aria-selected="true">Menu</button>
+    <button class="tab" role="tab" data-tab="upgrades" aria-selected="false">Upgrades</button>
+    <button class="tab" role="tab" data-tab="staff" aria-selected="false">Staff</button>
+    <button class="tab" role="tab" data-tab="cafe" aria-selected="false">Café</button>
+    <button class="tab" role="tab" data-tab="shop" aria-selected="false">Shop</button>
+  </nav>
+  <section class="panel" id="panel" role="tabpanel"></section>
+</div>
+
+<div class="overlay" id="modal" hidden><div class="sheet" id="sheet"></div></div>
+<div class="overlay ad" id="ad" hidden>
+  <div class="box">
+    <div class="tag">Test ad</div>
+    <div class="title" id="adTitle">Your reward is on its way</div>
+    <p style="margin:0;opacity:.7;line-height:1.45">This is a pretend ad for testing. Real ads are added when the game goes on Google Play.</p>
+    <div class="bar"><i id="adBar"></i></div>
+    <button class="btn primary" id="adClaim" hidden>Collect reward</button>
+    <button class="btn" id="adClose">Close (no reward)</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const canvas = $('#scene'), ctx = canvas.getContext('2d');
+
+/* ---------------- Data ---------------- */
+const STAGES = [
+  { name:'Coffee Stand', size:6, cost:0,      rent:5,   maxTables:1, maxBaristas:1, queue:4 },
+  { name:'Cozy Café',    size:7, cost:1000,   rent:40,  maxTables:3, maxBaristas:2, queue:5 },
+  { name:'Corner Café',  size:8, cost:15000,  rent:200, maxTables:5, maxBaristas:3, queue:6 },
+  { name:'Grand Café',   size:9, cost:180000, rent:900, maxTables:8, maxBaristas:4, queue:7 },
+];
+const ITEMS = [
+  { id:'espresso',   name:'Espresso',        price:3,  time:2.0, unlock:0,     stage:0, color:'#5B3A26', kind:'cup' },
+  { id:'americano',  name:'Americano',       price:4,  time:2.2, unlock:25,    stage:0, color:'#7A4E31', kind:'cup' },
+  { id:'latte',      name:'Latte',           price:7,  time:3.0, unlock:120,   stage:0, color:'#C9A27A', kind:'glass' },
+  { id:'croissant',  name:'Croissant',       price:6,  time:1.6, unlock:450,   stage:1, color:'#D9A441', kind:'pastry' },
+  { id:'cappuccino', name:'Cappuccino',      price:10, time:3.2, unlock:1000,  stage:1, color:'#B8865B', kind:'cup' },
+  { id:'matcha',     name:'Matcha Latte',    price:16, time:3.6, unlock:4000,  stage:2, color:'#8DB36B', kind:'glass' },
+  { id:'cheesecake', name:'Cheesecake',      price:22, time:2.0, unlock:10000, stage:2, color:'#E6CF9E', kind:'pastry' },
+  { id:'coldbrew',   name:'Cold Brew Tonic', price:32, time:3.0, unlock:40000, stage:3, color:'#3E5F73', kind:'glass' },
+];
+const DECOR = ['Potted plant','Menu board','Pendant lights','Soft rug','Corner plant','Cup shelf','Neon sign','Wall art','Counter plant','Tiled floor','Wood paneling','Olive tree'];
+const MAX_ITEM_LVL = 10, MAX_MACHINE = 15, MAX_BARISTA_LVL = 10, MAX_CASHIER = 10;
+const DAY_LEN = 120, RUSH_LEN = 120, RUSH_CD = 300, AD_LEN = 5, OFFLINE_CAP = 4 * 3600;
+const SAVE_KEY = 'beanery.save.v1';
+const BODY = ['#6C8EA4','#C47A5A','#8A9A5B','#B48EAD','#D2B48C','#5E6E8C','#7F6A93','#4F8A8B','#C46A7A'];
+const SKIN = ['#F1D3B8','#E0B38F','#C68B62','#8D5A3B','#F5DCC8'];
+const HAIR = ['#2B2522','#5A3A24','#A0703C','#D9C08C','#3C3C46','#8C8C8C'];
+const pick = a => a[Math.floor(Math.random() * a.length)];
+
+/* ---------------- State ---------------- */
+function freshState(){
+  return { v:1, money:20, total:0, day:1, dayT:0, stage:0,
+    items:Object.fromEntries(ITEMS.map(it => [it.id, { owned:it.unlock === 0, lvl:0 }])),
+    machine:0, tables:0, decor:0, baristas:[], cashier:0, supporter:false,
+    rushUntil:0, rushReadyAt:0, sound:true, hinted:false, dayEarn:0, dayMissed:0, lastSeen:Date.now() };
+}
+let S = freshState();
+let customers = [], queue = [], preps = [], floaters = [], earnLog = [];
+let spawnT = 1.2, vipT = 90, nextId = 1, paused = false, vipOffer = null, L = null;
+
+function load(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw), f = freshState();
+    const items = f.items;
+    S = Object.assign(f, d);
+    for (const id in items) if (d.items && d.items[id]) items[id] = Object.assign(items[id], d.items[id]);
+    S.items = items;
+    if (!Array.isArray(S.baristas)) S.baristas = [];
+    return true;
+  } catch { return false; }
+}
+function save(){
+  S.lastSeen = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch {}
+}
+
+/* ---------------- Rules ---------------- */
+const price = it => it.price * (1 + 0.2 * S.items[it.id].lvl);
+const prepTime = it => it.time * Math.pow(0.9, S.machine);
+const baristaSpeed = l => 1 + 0.15 * l;
+const tipMult = () => 1 + 0.1 * S.cashier;
+const appeal = () => 1 + 0.12 * S.decor + 0.08 * S.tables + 0.35 * S.stage;
+const rushOn = () => Date.now() < S.rushUntil;
+const wages = () => S.baristas.reduce((a, l) => a + 15 * (1 + 0.15 * l), 0) + (S.cashier ? 25 * (1 + 0.15 * (S.cashier - 1)) : 0);
+const rent = () => STAGES[S.stage].rent;
+const online = () => navigator.onLine !== false;
+const adsAvailable = () => S.supporter || online();
+const cost = {
+  item: it => Math.round(Math.max(12, it.unlock * 0.6) * Math.pow(1.55, S.items[it.id].lvl)),
+  machine: () => Math.round(40 * Math.pow(1.7, S.machine)),
+  table: () => Math.round(60 * Math.pow(1.65, S.tables)),
+  decor: () => Math.round(80 * Math.pow(1.75, S.decor)),
+  hire: () => [150, 1500, 12000, 90000][S.baristas.length],
+  train: i => Math.round(100 * Math.pow(1.8, S.baristas[i])),
+  cashier: () => S.cashier === 0 ? 300 : Math.round(200 * Math.pow(1.8, S.cashier)),
+};
+function autoRatePerSec(){
+  if (!S.baristas.length) return 0;
+  const owned = ITEMS.filter(it => S.items[it.id].owned);
+  const avg = f => owned.reduce((a, it) => a + f(it), 0) / owned.length;
+  const avgPrice = avg(price) * tipMult(), avgTime = avg(prepTime);
+  const capacity = S.baristas.reduce((a, l) => a + baristaSpeed(l) / avgTime, 0);
+  const served = Math.min(capacity, appeal() / 3.6);
+  return served * avgPrice * 0.6 - (rent() + wages()) / DAY_LEN;
+}
+
+/* ---------------- Formatting ---------------- */
+function fmt(n){
+  const neg = n < 0; let a = Math.floor(Math.abs(n));
+  if (a < 1000) return (neg ? '-$' : '$') + a.toLocaleString('en-US');
+  const u = ['K','M','B','T','Qa']; let i = -1, v = a;
+  while (v >= 1000 && i < u.length - 1){ v /= 1000; i++; }
+  return (neg ? '-$' : '$') + (v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : v.toFixed(0)) + u[i];
+}
+const fmtPrice = n => n < 100 ? '$' + n.toFixed(2) : fmt(n);
+function dur(s){
+  s = Math.floor(s);
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m ${s % 60}s`;
+  return `${s}s`;
+}
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+/* ---------------- Sound ---------------- */
+let actx = null;
+function unlockAudio(){
+  if (actx || !S.sound) return;
+  try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+}
+function tone(freq, d = .08, type = 'sine', vol = .05, delay = 0){
+  if (!S.sound || !actx) return;
+  const t = actx.currentTime + delay, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t + d + .02);
+}
+const sfx = {
+  coin(){ tone(988, .07, 'triangle', .05); tone(1480, .12, 'triangle', .05, .06); },
+  tap(){ tone(520, .04, 'sine', .04); },
+  buy(){ tone(660, .07, 'sine', .05); tone(990, .12, 'sine', .05, .07); },
+  no(){ tone(180, .12, 'triangle', .04); },
+  big(){ [523, 659, 784, 1047].forEach((f, i) => tone(f, .16, 'triangle', .05, i * .09)); },
+};
+
+/* ---------------- Room layout ---------------- */
+function layout(){
+  const N = STAGES[S.stage].size, spots = [];
+  for (let ty = 3.0; ty <= N - 1.0 + 1e-6; ty += 1.9)
+    for (let tx = N - 1.3; tx >= 3.4; tx -= 1.9) spots.push({ x:tx, y:ty });
+  L = { N, cl:3 + S.stage, spots, chairs:[] };
+  rebuildChairs();
+}
+function rebuildChairs(){
+  const keep = L.chairs; L.chairs = [];
+  const n = Math.min(S.tables, L.spots.length);
+  for (let i = 0; i < n; i++){
+    const s = L.spots[i];
+    L.chairs.push({ x:s.x - .62, y:s.y, lane:s.x - .95, c:keep[2 * i]?.c || null },
+                  { x:s.x + .62, y:s.y, lane:s.x + .95, c:keep[2 * i + 1]?.c || null });
+  }
+}
+function resetFloor(){
+  customers = []; queue = []; preps = []; floaters = [];
+  spawnT = 1; layout();
+}
+
+/* ---------------- Customers ---------------- */
+const slot = i => [1.8, 2.7 + i * .8];
+function reflowQueue(){
+  queue.forEach((c, i) => { c.path = [slot(i)]; });
+}
+function spawn(vip){
+  const st = STAGES[S.stage];
+  if (queue.length >= st.queue){ S.dayMissed++; return; }
+  const owned = ITEMS.filter(it => S.items[it.id].owned);
+  // newer menu items are ordered a little more often
+  const weights = owned.map((_, i) => 1 + i * .35), sum = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * sum, item = owned[0];
+  for (let i = 0; i < owned.length; i++){ r -= weights[i]; if (r <= 0){ item = owned[i]; break; } }
+  const N = L.N, pat = vip ? 60 : 45;
+  const c = { id:nextId++, x:1.8, y:N + 1, state:'enter', item, vip, patience:pat, maxP:pat,
+    body: vip ? '#C99A2E' : pick(BODY), skin:pick(SKIN), hair:pick(HAIR), phase:Math.random() * 6,
+    path:[], claimed:false, seat:null, sitT:0, sad:false };
+  queue.push(c); customers.push(c); reflowQueue();
+}
+function claimNext(){ return queue.find(c => !c.claimed && c.state === 'queue'); }
+function removeFromQueue(c){
+  const i = queue.indexOf(c);
+  if (i >= 0){ queue.splice(i, 1); reflowQueue(); }
+}
+function serve(c){
+  removeFromQueue(c);
+  const seat = L.chairs.find(ch => !ch.c);
+  const pay = price(c.item) * tipMult() * (seat ? 1.2 : 1) * (c.vip ? 3 : 1) * (rushOn() ? 2 : 1);
+  earn(pay);
+  floater(c.x, c.y, '+' + fmtPrice(pay), c.vip);
+  sfx.coin();
+  c.claimed = false;
+  if (seat){
+    seat.c = c; c.seat = seat; c.state = 'toSeat';
+    c.path = [[c.x, 2.2], [seat.lane, 2.2], [seat.lane, seat.y], [seat.x, seat.y]];
+  } else {
+    c.state = 'leave'; c.path = [[c.x, 2.2], [L.N + 1.2, 2.2]];
+  }
+  if (c.vip) offerVipTip(pay);
+}
+function giveUp(c){
+  removeFromQueue(c);
+  c.state = 'leave'; c.sad = true; c.path = [[c.x, L.N + 1.2]];
+  S.dayMissed++;
+  floater(c.x, c.y, 'Left', false, true);
+}
+function arrive(c){
+  if (c.state === 'enter') c.state = 'queue';
+  else if (c.state === 'toSeat'){ c.state = 'sit'; c.sitT = 8 + Math.random() * 7; }
+  else if (c.state === 'leave') c.gone = true;
+}
+function updateCustomers(dt){
+  for (const c of customers){
+    c.phase += dt * 9;
+    if (c.path.length){
+      const [tx, ty] = c.path[0], dx = tx - c.x, dy = ty - c.y, d = Math.hypot(dx, dy), step = 1.8 * dt;
+      if (d <= step){ c.x = tx; c.y = ty; c.path.shift(); if (!c.path.length) arrive(c); }
+      else { c.x += dx / d * step; c.y += dy / d * step; }
+      c.moving = c.path.length > 0;
+    } else c.moving = false;
+    if ((c.state === 'queue' || c.state === 'enter') && !c.claimed){
+      c.patience -= dt;
+      if (c.patience <= 0) giveUp(c);
+    }
+    if (c.state === 'sit'){
+      c.sitT -= dt;
+      if (c.sitT <= 0){
+        const s = c.seat; s.c = null; c.seat = null; c.state = 'leave';
+        c.path = [[s.lane, s.y], [s.lane, s.y + .95], [L.N + 1.2, s.y + .95]];
+      }
+    }
+  }
+  customers = customers.filter(c => !c.gone);
+}
+
+/* ---------------- Making orders ---------------- */
+function updatePreps(dt){
+  S.baristas.forEach((lvl, i) => {
+    if (preps.some(p => p.who === i)) return;
+    const c = claimNext();
+    if (c){ c.claimed = true; preps.push({ who:i, c, t:0, need:prepTime(c.item) }); }
+  });
+  for (const p of preps){
+    const sp = p.who === 'p' ? 1 : baristaSpeed(S.baristas[p.who] || 0);
+    p.t += dt * sp;
+    if (p.t >= p.need){ p.done = true; serve(p.c); }
+  }
+  preps = preps.filter(p => !p.done);
+}
+let brewKick = 0;
+function brewTap(){
+  unlockAudio();
+  if (paused) return;
+  brewKick = 1;
+  const mine = preps.find(p => p.who === 'p');
+  if (mine){ mine.t += mine.need * .22; sfx.tap(); return; }
+  const c = claimNext();
+  if (c){
+    c.claimed = true;
+    const need = prepTime(c.item);
+    preps.push({ who:'p', c, t:need * .22, need });
+    sfx.tap();
+    if (!S.hinted){ S.hinted = true; }
+    return;
+  }
+  const help = preps.find(p => p.who !== 'p');
+  if (help){ help.t += help.need * .12; sfx.tap(); return; }
+  sfx.no();
+}
+
+/* ---------------- Money ---------------- */
+function earn(n){
+  S.money += n; S.total += n; S.dayEarn += n;
+  earnLog.push([performance.now(), n]);
+}
+function pay(n){
+  if (S.money + 1e-9 < n){ sfx.no(); toast(`You need ${fmt(n - S.money)} more.`); return false; }
+  S.money -= n; sfx.buy(); return true;
+}
+function endDay(){
+  const costs = rent() + wages(), paid = Math.min(costs, S.money);
+  S.money -= paid;
+  let msg = `Day ${S.day} closed. Earned ${fmt(S.dayEarn)}, paid ${fmt(costs)} rent and wages.`;
+  if (paid < costs) msg += ' You could not cover all costs.';
+  if (S.dayMissed) msg += ` ${S.dayMissed} customer${S.dayMissed > 1 ? 's' : ''} left without buying.`;
+  toast(msg, 5200);
+  S.day++; S.dayEarn = 0; S.dayMissed = 0;
+  save();
+}
+
+/* ---------------- Rewarded ads (simulated) ---------------- */
+let adTimer = null, adReward = null;
+function rewardAd(title, onReward){
+  if (S.supporter){ onReward(); toast('Supporter reward claimed. Thank you!'); return; }
+  if (!online()){ toast('Ads need an internet connection. Try again when you are online.'); return; }
+  adReward = onReward; paused = true;
+  $('#adTitle').textContent = title;
+  $('#adClaim').hidden = true; $('#adClose').hidden = false;
+  $('#ad').hidden = false;
+  const start = performance.now();
+  clearInterval(adTimer);
+  adTimer = setInterval(() => {
+    const k = Math.min(1, (performance.now() - start) / (AD_LEN * 1000));
+    $('#adBar').style.width = (k * 100) + '%';
+    if (k >= 1){ clearInterval(adTimer); $('#adClaim').hidden = false; $('#adClose').hidden = true; $('#adClaim').focus(); }
+  }, 50);
+}
+function closeAd(rewarded){
+  clearInterval(adTimer); $('#ad').hidden = true; paused = false; lastT = performance.now();
+  const r = adReward; adReward = null;
+  if (rewarded && r) r(); else toast('Ad closed early, so no reward this time.');
+}
+$('#adClaim').addEventListener('click', () => closeAd(true));
+$('#adClose').addEventListener('click', () => closeAd(false));
+
+function startRush(){
+  S.rushUntil = Date.now() + RUSH_LEN * 1000;
+  S.rushReadyAt = S.rushUntil + RUSH_CD * 1000;
+  sfx.big(); toast('Rush hour! Every sale pays double for 2 minutes.'); save();
+}
+$('#rushBtn').addEventListener('click', () => {
+  if (rushOn() || Date.now() < S.rushReadyAt) return;
+  rewardAd('Rush hour: 2× money', startRush);
+});
+function offerVipTip(paid){
+  if (!adsAvailable()) return;
+  vipOffer = { amount:Math.round(paid * 5), until:performance.now() + 20000 };
+}
+$('#vipBtn').addEventListener('click', () => {
+  if (!vipOffer) return;
+  const amt = vipOffer.amount; vipOffer = null;
+  rewardAd(`VIP tip: ${fmt(amt)}`, () => { earn(amt); sfx.big(); toast(`The VIP left a ${fmt(amt)} tip.`); save(); });
+});
+
+/* ---------------- Modal ---------------- */
+let modalHandlers = {};
+function modal(html, handlers){
+  $('#sheet').innerHTML = html; modalHandlers = handlers || {};
+  $('#modal').hidden = false; paused = true;
+  const f = $('#sheet').querySelector('.btn.primary') || $('#sheet').querySelector('.btn');
+  if (f) f.focus();
+}
+function closeModal(){ $('#modal').hidden = true; paused = false; lastT = performance.now(); }
+$('#sheet').addEventListener('click', e => {
+  const b = e.target.closest('[data-m]'); if (!b) return;
+  const h = modalHandlers[b.dataset.m]; if (h) h(); else closeModal();
+});
+
+function welcomeBack(awaySec){
+  if (awaySec < 60) return;
+  const secs = Math.min(awaySec, OFFLINE_CAP), rate = autoRatePerSec(), amt = Math.max(0, rate) * secs;
+  if (amt < 1){
+    if (awaySec > 300 && !S.baristas.length) toast('Welcome back! Hire a barista so Beanery keeps earning while you are away.', 5000);
+    return;
+  }
+  const capped = awaySec > OFFLINE_CAP ? ' (up to 4 hours count)' : '';
+  modal(`<h2>Welcome back</h2>
+    <p>You were away for ${dur(awaySec)}${capped}. Your baristas kept Beanery open.</p>
+    <div class="big">${fmt(amt)}</div>
+    <div class="actions">
+      ${adsAvailable() ? `<button class="btn primary" data-m="double">${S.supporter ? 'Collect 2× (Supporter)' : 'Watch ad and collect 2×'}</button>` : ''}
+      <button class="btn" data-m="collect">Collect ${fmt(amt)}</button>
+    </div>`, {
+    collect(){ earn(amt); closeModal(); sfx.coin(); save(); },
+    double(){ closeModal(); rewardAd(`Collect ${fmt(amt * 2)}`, () => { earn(amt * 2); sfx.big(); save(); }); },
+  });
+}
+function settings(){
+  const draw = confirmReset => modal(`<h2>Settings</h2>
+    <div class="toggle"><span>Sound</span><button class="btn" data-m="sound" style="height:38px;padding:0 16px">${S.sound ? 'On' : 'Off'}</button></div>
+    ${confirmReset
+      ? `<p>This deletes your café and all progress on this device. It cannot be undone.</p>
+         <div class="actions"><button class="btn danger" data-m="wipe">Yes, start over</button><button class="btn" data-m="back">Keep my café</button></div>`
+      : `<div class="actions"><button class="btn danger" data-m="reset">Reset progress</button><button class="btn primary" data-m="close">Done</button></div>`}
+    <p style="font-size:12.5px">Beanery v0.1 test build. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
+    sound(){ S.sound = !S.sound; if (S.sound) unlockAudio(); save(); draw(false); },
+    reset(){ draw(true); },
+    back(){ draw(false); },
+    wipe(){ S = freshState(); resetFloor(); save(); closeModal(); renderPanel(true); toast('Fresh start. Welcome to your coffee stand!'); },
+    close(){ closeModal(); },
+  });
+  draw(false);
+}
+$('#gear').addEventListener('click', settings);
+
+/* ---------------- Toast ---------------- */
+let toastTimer = null;
+function toast(msg, ms = 3200){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ---------------- Panel ---------------- */
+const ICON = {
+  machine:`<svg viewBox="0 0 40 40"><rect x="8" y="7" width="24" height="26" rx="3" fill="#B9BDB8"/><rect x="11" y="10" width="18" height="6" rx="1.5" fill="#2E3430"/><rect x="18" y="16" width="4" height="5" fill="#2E3430"/><rect x="14" y="24" width="12" height="7" rx="1.5" fill="#fff" stroke="#2E3430" stroke-width="1.5"/></svg>`,
+  table:`<svg viewBox="0 0 40 40"><ellipse cx="20" cy="16" rx="13" ry="5" fill="#C49A6C"/><rect x="18.5" y="18" width="3" height="13" fill="#2E3430"/><rect x="12" y="30" width="16" height="3" rx="1.5" fill="#2E3430"/></svg>`,
+  decor:`<svg viewBox="0 0 40 40"><path d="M13 25h14l-2 9H15z" fill="#E2DCD0" stroke="#B9B1A3"/><circle cx="16" cy="17" r="6" fill="#5E8C61"/><circle cx="24" cy="15" r="7" fill="#7BA77A"/><circle cx="20" cy="10" r="5" fill="#6A9A6C"/></svg>`,
+  person:c => `<svg viewBox="0 0 40 40"><circle cx="20" cy="12" r="6" fill="#E0B38F"/><path d="M14 9a6 6 0 0 1 12 0z" fill="#3C3C46"/><rect x="11" y="19" width="18" height="16" rx="7" fill="${c}"/><rect x="15" y="24" width="10" height="11" rx="2" fill="#2F6B55"/></svg>`,
+  cashier:`<svg viewBox="0 0 40 40"><rect x="8" y="18" width="24" height="14" rx="2" fill="#3A413C"/><rect x="12" y="9" width="16" height="9" rx="1.5" fill="#B9BDB8"/><rect x="14" y="11" width="12" height="4" fill="#7CC3A4"/><rect x="13" y="22" width="14" height="2" fill="#fff" opacity=".5"/></svg>`,
+  store:`<svg viewBox="0 0 40 40"><rect x="8" y="16" width="24" height="17" fill="#F3F1EC" stroke="#2E3430" stroke-width="1.5"/><path d="M6 16l4-8h20l4 8z" fill="#2F6B55"/><rect x="17" y="23" width="6" height="10" fill="#2E3430"/></svg>`,
+  heart:`<svg viewBox="0 0 40 40"><path d="M20 33S7 25 7 15.5A6.5 6.5 0 0 1 20 12a6.5 6.5 0 0 1 13 3.5C33 25 20 33 20 33z" fill="#C99A2E"/></svg>`,
+  coins:n => `<svg viewBox="0 0 40 40">${Array.from({length:n}, (_, i) => `<ellipse cx="${20 + (i - (n - 1) / 2) * 5}" cy="${27 - i * 4}" rx="10" ry="4" fill="#E3B566" stroke="#94661C" stroke-width="1.5"/>`).join('')}</svg>`,
+};
+function itemSvg(it){
+  const c = it.color;
+  if (it.kind === 'cup') return `<svg viewBox="0 0 40 40"><path d="M9 15h19l-2.2 14.5a3 3 0 0 1-3 2.5h-8.6a3 3 0 0 1-3-2.5z" fill="#fff" stroke="#2E3430" stroke-width="1.8"/><path d="M28 18h2.5a3.5 3.5 0 0 1 0 7H27" fill="none" stroke="#2E3430" stroke-width="1.8"/><ellipse cx="18.5" cy="15" rx="9.5" ry="2.6" fill="${c}"/></svg>`;
+  if (it.kind === 'glass') return `<svg viewBox="0 0 40 40"><rect x="12" y="7" width="16" height="26" rx="2.5" fill="#fff" stroke="#2E3430" stroke-width="1.8"/><rect x="13" y="13" width="14" height="19" rx="1.5" fill="${c}"/><rect x="13" y="10" width="14" height="3" fill="#F4EFE6"/></svg>`;
+  return `<svg viewBox="0 0 40 40"><path d="M6 25c3-11 25-11 28 0-6 5-22 5-28 0z" fill="${c}" stroke="#94661C" stroke-width="1.5"/><path d="M14 18l3 10M20 17v11M26 18l-3 10" stroke="#94661C" stroke-width="1.2" opacity=".6"/></svg>`;
+}
+function btn(act, label, price, disabled){
+  return `<button class="buy" data-act="${act}" ${disabled ? 'disabled' : ''}><span>${label}</span><b>${price}</b></button>`;
+}
+function row(icon, name, lvl, desc, button, locked){
+  return `<div class="row${locked ? ' locked' : ''}"><div class="ico">${icon}</div><div class="info"><div class="name">${name}${lvl ? `<span class="lvl">${lvl}</span>` : ''}</div><div class="desc">${desc}</div></div>${button}</div>`;
+}
+const can = n => S.money + 1e-9 >= n;
+const TABS = {
+  menu(){
+    return ITEMS.map(it => {
+      const st = S.items[it.id];
+      if (S.stage < it.stage) return row(itemSvg(it), it.name, '', `Unlocks with the ${STAGES[it.stage].name}`, btn('', 'Locked', '—', true), true);
+      if (!st.owned) return row(itemSvg(it), it.name, '', `Sells for ${fmtPrice(it.price)} · ${prepTime(it).toFixed(1)}s to make`, btn(`item:${it.id}`, 'Add to menu', fmt(it.unlock), !can(it.unlock)));
+      const max = st.lvl >= MAX_ITEM_LVL, c = cost.item(it);
+      return row(itemSvg(it), it.name, `Lv ${st.lvl + 1}`, `Sells for ${fmtPrice(price(it))} · ${prepTime(it).toFixed(1)}s to make${max ? '' : ` · next ${fmtPrice(it.price * (1 + .2 * (st.lvl + 1)))}`}`,
+        max ? btn('', 'Top level', 'Max', true) : btn(`item:${it.id}`, 'Raise price', fmt(c), !can(c)));
+    }).join('');
+  },
+  upgrades(){
+    const st = STAGES[S.stage], out = [];
+    const mMax = S.machine >= MAX_MACHINE;
+    out.push(row(ICON.machine, 'Espresso machine', `Lv ${S.machine + 1}`, `Every order is made 10% faster per level. Speed now ×${(1 / Math.pow(.9, S.machine)).toFixed(2)}`,
+      mMax ? btn('', 'Top level', 'Max', true) : btn('machine', 'Upgrade', fmt(cost.machine()), !can(cost.machine()))));
+    const tMax = S.tables >= st.maxTables;
+    out.push(row(ICON.table, 'Tables', `${S.tables}/${st.maxTables}`, tMax ? 'No space for more tables. Expand the café to add more.' : 'Seated guests pay 20% more. Seats also bring more customers.',
+      tMax ? btn('', 'Full', '—', true) : btn('table', 'Add table', fmt(cost.table()), !can(cost.table()))));
+    const dMax = S.decor >= DECOR.length;
+    out.push(row(ICON.decor, 'Decor', `${S.decor}/${DECOR.length}`, dMax ? 'Your café is fully decorated.' : `Next: ${DECOR[S.decor]}. Each piece brings 12% more customers.`,
+      dMax ? btn('', 'Complete', '—', true) : btn('decor', 'Add', fmt(cost.decor()), !can(cost.decor()))));
+    out.push(`<p class="note">Customers now: about ${(appeal() / 3.6 * 60).toFixed(0)} per minute. Decor, tables and a bigger café bring more.</p>`);
+    return out.join('');
+  },
+  staff(){
+    const st = STAGES[S.stage], out = [];
+    S.baristas.forEach((l, i) => {
+      const max = l >= MAX_BARISTA_LVL, c = cost.train(i);
+      out.push(row(ICON.person('#6C8EA4'), `Barista ${i + 1}`, `Lv ${l + 1}`, `Makes orders on their own at ×${baristaSpeed(l).toFixed(2)} speed. Wage ${fmt(15 * (1 + .15 * l))}/day.`,
+        max ? btn('', 'Top level', 'Max', true) : btn(`train:${i}`, 'Train', fmt(c), !can(c))));
+    });
+    if (S.baristas.length < st.maxBaristas){
+      const c = cost.hire();
+      out.push(row(ICON.person('#B9BDB8'), 'Hire a barista', '', `Makes orders for you, even while the game is closed. Wage ${fmt(15)}/day.`, btn('hire', 'Hire', fmt(c), !can(c))));
+    } else if (S.stage < STAGES.length - 1){
+      out.push(`<p class="note">All barista spots are filled. Expand the café to hire more.</p>`);
+    }
+    const cMax = S.cashier >= MAX_CASHIER, cc = cost.cashier();
+    out.push(row(ICON.cashier, 'Cashier', S.cashier ? `Lv ${S.cashier}` : '', S.cashier ? `Tips +${S.cashier * 10}%. Wage ${fmt(25 * (1 + .15 * (S.cashier - 1)))}/day.` : 'Adds +10% tips to every sale. Wage $25/day.',
+      cMax ? btn('', 'Top level', 'Max', true) : btn('cashier', S.cashier ? 'Train' : 'Hire', fmt(cc), !can(cc))));
+    out.push(`<p class="note">Daily costs: rent ${fmt(rent())} + wages ${fmt(wages())}. Paid at the end of each day.</p>`);
+    return out.join('');
+  },
+  cafe(){
+    const st = STAGES[S.stage], nx = STAGES[S.stage + 1];
+    let h = `<div class="card"><h3>${st.name}</h3>
+      <div class="stats">
+        <div class="stat"><small>Day</small><b>${S.day}</b></div>
+        <div class="stat"><small>Earned</small><b>${fmt(S.total)}</b></div>
+        <div class="stat"><small>Rent/day</small><b>${fmt(st.rent)}</b></div>
+      </div></div>`;
+    if (nx){
+      const newItems = ITEMS.filter(it => it.stage === S.stage + 1).map(it => it.name).join(' and ');
+      h += `<div class="card"><h3>Next: ${nx.name}</h3>
+        <p class="note" style="padding:0">Bigger room, up to ${nx.maxTables} tables, ${nx.maxBaristas} baristas and ${nx.queue} people in line. Unlocks ${newItems}. Rent rises to ${fmt(nx.rent)}/day.</p>
+        <button class="buy" data-act="expand" ${can(nx.cost) ? '' : 'disabled'}><span>Expand for</span><b>${fmt(nx.cost)}</b></button></div>`;
+    } else {
+      h += `<p class="note">You run the Grand Café. More café levels are coming in a future update.</p>`;
+    }
+    return h;
+  },
+  shop(){
+    const base = [500, 5000, 50000, 500000][S.stage];
+    const packs = [['s', 1, '$0.99'], ['m', 3, '$2.99'], ['l', 8, '$6.99']];
+    let h = `<p class="note">Test mode: nothing is charged. Real purchases come with the Google Play version.</p>`;
+    h += row(ICON.heart, 'Supporter pack', S.supporter ? 'Owned' : '', 'Get every ad reward without watching ads, and support Beanery. Thank you!',
+      S.supporter ? btn('', 'Thank you', 'Owned', true) : btn('buy:supporter', 'Test buy', '$4.99', false));
+    packs.forEach(([id, k, p], i) => {
+      h += row(ICON.coins(i + 2), `${fmt(base * k)} coins`, '', 'Added to your money right away.', btn(`buy:${id}`, 'Test buy', p, false));
+    });
+    h += `<button class="btn" data-act="restore" style="width:100%">Restore purchases</button>`;
+    return h;
+  },
+};
+let tab = 'menu', lastPanel = '';
+function renderPanel(force){
+  const html = TABS[tab]();
+  if (force || html !== lastPanel){ $('#panel').innerHTML = html; lastPanel = html; }
+}
+$('#tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]'); if (!b) return;
+  tab = b.dataset.tab;
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t === b ? 'true' : 'false'));
+  $('#panel').scrollTop = 0; renderPanel(true);
+});
+$('#panel').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || b.disabled || !b.dataset.act) return;
+  unlockAudio(); act(b.dataset.act);
+});
+function act(a){
+  const [k, arg] = a.split(':'), st = STAGES[S.stage];
+  switch (k){
+    case 'item': {
+      const it = ITEMS.find(i => i.id === arg), s = S.items[arg];
+      if (S.stage < it.stage) break;
+      if (!s.owned){ if (pay(it.unlock)){ s.owned = true; toast(`${it.name} is on the menu.`); } }
+      else if (s.lvl < MAX_ITEM_LVL && pay(cost.item(it))) s.lvl++;
+      break;
+    }
+    case 'machine': if (S.machine < MAX_MACHINE && pay(cost.machine())) S.machine++; break;
+    case 'table': if (S.tables < st.maxTables && pay(cost.table())){ S.tables++; rebuildChairs(); } break;
+    case 'decor': if (S.decor < DECOR.length && pay(cost.decor())){ S.decor++; toast(`Added: ${DECOR[S.decor - 1]}.`); } break;
+    case 'hire': if (S.baristas.length < st.maxBaristas && pay(cost.hire())){ S.baristas.push(0); toast('New barista hired. They will make orders on their own.'); } break;
+    case 'train': { const i = +arg; if (S.baristas[i] < MAX_BARISTA_LVL && pay(cost.train(i))) S.baristas[i]++; break; }
+    case 'cashier': if (S.cashier < MAX_CASHIER && pay(cost.cashier())) S.cashier++; break;
+    case 'expand': {
+      const nx = STAGES[S.stage + 1];
+      if (nx && pay(nx.cost)){ S.stage++; resetFloor(); sfx.big(); toast(`Welcome to your ${nx.name}!`); }
+      break;
+    }
+    case 'buy': {
+      const base = [500, 5000, 50000, 500000][S.stage];
+      if (arg === 'supporter'){ S.supporter = true; sfx.big(); toast('Supporter pack unlocked (test). Rewards no longer need ads.'); }
+      else { const k2 = { s:1, m:3, l:8 }[arg]; earn(base * k2); sfx.coin(); toast(`${fmt(base * k2)} added (test purchase).`); }
+      break;
+    }
+    case 'restore': toast('Purchases restored (test mode).'); break;
+  }
+  renderPanel(true); save();
+}
+
+/* ---------------- Drawing ---------------- */
+let dpr = 1, hw = 0, hh = 0, ox = 0, oy = 0;
+const WALL = 2.2;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const P = (x, y, z = 0) => [ox + (x - y) * hw, oy + (x + y) * hh - z * hw];
+function poly(pts, fill, stroke, lw){
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
+  if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); }
+}
+function box(x, y, w, d, z, h, top, left, right){
+  poly([P(x, y + d, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x, y + d, z + h)], left);
+  poly([P(x + w, y, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x + w, y, z + h)], right);
+  poly([P(x, y, z + h), P(x + w, y, z + h), P(x + w, y + d, z + h), P(x, y + d, z + h)], top);
+}
+function rrect(x, y, w, h, r){
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function line(a, b, color, lw){ ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.stroke(); }
+
+function drawFloor(){
+  const N = L.N, tiled = S.decor >= 10;
+  poly([P(0, 0), P(N, 0), P(N, N), P(0, N)], tiled ? '#EEEBE5' : '#E8DDCA');
+  if (tiled){
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++)
+      if ((i + j) % 2) poly([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)], '#DCD6CB');
+  } else {
+    for (let y = .5; y < N; y += .5) line(P(0, y), P(N, y), 'rgba(140,105,60,.13)', 1);
+  }
+  poly([P(0, N), P(N, N), P(N, N, -.28), P(0, N, -.28)], tiled ? '#D3CDC2' : '#D2C3AB');
+  poly([P(N, 0), P(N, N), P(N, N, -.28), P(N, 0, -.28)], tiled ? '#C4BDB1' : '#C2B197');
+}
+function wallRectL(y0, y1, z0, z1, fill, stroke){ poly([P(.01, y0, z0), P(.01, y1, z0), P(.01, y1, z1), P(.01, y0, z1)], fill, stroke, 1.5); }
+function wallRectR(x0, x1, z0, z1, fill, stroke){ poly([P(x0, .01, z0), P(x1, .01, z0), P(x1, .01, z1), P(x0, .01, z1)], fill, stroke, 1.5); }
+function drawWalls(){
+  const N = L.N, H = WALL;
+  poly([P(0, 0, 0), P(0, N, 0), P(0, N, H), P(0, 0, H)], '#F4F2ED');
+  poly([P(0, 0, 0), P(N, 0, 0), P(N, 0, H), P(0, 0, H)], '#E6E2DA');
+  if (S.decor >= 11){
+    wallRectL(0, N, 0, .9, '#CDB18B'); wallRectR(0, N, 0, .9, '#BFA27B');
+    line(P(.01, 0, .9), P(.01, N, .9), '#B3956D', 2); line(P(0, .01, .9), P(N, .01, .9), '#A88A62', 2);
+  }
+  wallRectL(0, N, 0, .1, '#D9D3C8'); wallRectR(0, N, 0, .1, '#CBC4B8');
+  ctx.lineJoin = 'round';
+  ctx.beginPath(); const a = P(0, N, H), b = P(0, 0, H), c = P(N, 0, H);
+  ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]);
+  ctx.strokeStyle = '#CFC8BC'; ctx.lineWidth = Math.max(2, hw * .08); ctx.stroke();
+  // windows
+  if (S.stage >= 1) windowL(1.1, 2.6);
+  if (S.stage >= 3) windowL(N - 2.6, N - 1.1);
+  if (S.stage >= 2) windowR(N - 2.4, N - .9);
+  // wall decor
+  if (S.decor >= 2){
+    wallRectR(1.3, 3.1, 1.2, 1.95, '#2E3430');
+    for (let i = 0; i < 4; i++) line(P(1.5, .02, 1.78 - i * .15), P(1.5 + (i % 2 ? 1.0 : 1.35), .02, 1.78 - i * .15), 'rgba(255,255,255,.55)', Math.max(1, hw * .03));
+  }
+  if (S.decor >= 7) neon(3.95, 1.5);
+  if (S.decor >= 6){
+    const y0 = N - 3.4, y1 = N - 1.9;
+    box(0, y0, .32, y1 - y0, 1.35, .06, '#C49A6C', '#A97F52', '#B38A5E');
+    for (let y = y0 + .15; y < y1 - .1; y += .3) box(.08, y, .16, .16, 1.41, .18, '#FFFFFF', '#E3E0DA', '#EEEBE6');
+  }
+  if (S.decor >= 8){
+    wallRectL(N - 1.5, N - .4, .95, 1.85, '#F7F5F0', '#2E3430');
+    poly([P(.02, N - 1.3, 1.1), P(.02, N - .9, 1.1), P(.02, N - .9, 1.6), P(.02, N - 1.3, 1.6)], '#7CA88B');
+    poly([P(.02, N - .95, 1.1), P(.02, N - .6, 1.1), P(.02, N - .6, 1.35), P(.02, N - .95, 1.35)], '#D9A441');
+  }
+}
+function windowL(y0, y1){
+  wallRectL(y0, y1, .85, 1.85, '#D5E6EA', '#C9C2B6');
+  const m = (y0 + y1) / 2; line(P(.02, m, .85), P(.02, m, 1.85), '#C9C2B6', 1.5); line(P(.02, y0, 1.35), P(.02, y1, 1.35), '#C9C2B6', 1.5);
+}
+function windowR(x0, x1){
+  wallRectR(x0, x1, .85, 1.85, '#C9DDE2', '#BDB5A8');
+  const m = (x0 + x1) / 2; line(P(m, .02, .85), P(m, .02, 1.85), '#BDB5A8', 1.5); line(P(x0, .02, 1.35), P(x1, .02, 1.35), '#BDB5A8', 1.5);
+}
+function neon(x, z){
+  const o = P(x, .02, z);
+  ctx.save();
+  ctx.setTransform(dpr * hw, dpr * hh, 0, dpr * hw, dpr * o[0], dpr * o[1]);
+  ctx.font = '700 0.42px Sora, ui-sans-serif, sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(124,195,164,.9)'; ctx.shadowBlur = 8 * dpr;
+  ctx.fillStyle = '#2F8A68'; ctx.fillText('beanery', 0, 0);
+  ctx.restore();
+}
+function drawPlant(x, y, s = 1){
+  const r = .18 * s;
+  box(x - r, y - r, r * 2, r * 2, 0, .34 * s, '#EDEAE3', '#D7D0C4', '#E2DCD1');
+  const [sx, sy] = P(x, y, .34 * s), u = hw * s;
+  [['#5E8C61', -.14, -.18, .2], ['#7BA77A', .14, -.22, .22], ['#6A9A6C', 0, -.42, .2], ['#86B184', -.05, -.28, .16]]
+    .forEach(([c, dx, dy, rr]) => { ctx.beginPath(); ctx.arc(sx + dx * u, sy + dy * u, rr * u, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); });
+}
+function drawTree(x, y){
+  box(x - .26, y - .26, .52, .52, 0, .4, '#EDEAE3', '#D7D0C4', '#E2DCD1');
+  const [sx, sy] = P(x, y, .4);
+  line([sx, sy], [sx, sy - hw * .9], '#7A5A3C', Math.max(2, hw * .07));
+  [['#7E9A6A', -.25, -1.0, .3], ['#93AE7D', .22, -1.1, .3], ['#6E8C5C', 0, -1.35, .32], ['#A3BB8C', -.1, -1.15, .2]]
+    .forEach(([c, dx, dy, rr]) => { ctx.beginPath(); ctx.arc(sx + dx * hw, sy + dy * hw, rr * hw, 0, Math.PI * 2); ctx.fillStyle = c; ctx.fill(); });
+}
+function drawCounter(){
+  const x0 = 1, cl = L.cl;
+  box(x0, 1.0, cl, .8, 0, .85, '#F7F6F2', '#2F3531', '#3E4541');
+  line(P(x0, 1.8, .85), P(x0 + cl, 1.8, .85), 'rgba(0,0,0,.12)', 1);
+  box(1.12, 1.05, .62, .5, .85, .55, '#D2D5D0', '#8E938E', '#AAAEA9');
+  box(1.2, 1.08, .46, .3, 1.4, .06, '#2E3430', '#1F2421', '#262B28');
+  box(1.36, 1.5, .14, .12, .85, .1, '#FFFFFF', '#E5E1DA', '#EEEBE5');
+  box(x0 + cl - .75, 1.15, .5, .4, .85, .26, '#3A413C', '#262B28', '#30362F');
+  box(x0 + cl - .7, 1.2, .4, .1, 1.11, .14, '#7CC3A4', '#4E8A70', '#5F9C82');
+  if (S.items.croissant.owned) box(x0 + cl - 1.75, 1.1, .8, .6, .85, .34, 'rgba(225,238,240,.75)', 'rgba(200,220,224,.65)', 'rgba(210,228,232,.7)');
+  if (S.decor >= 9) drawPlant(x0 + 2.05, 1.35, .55);
+}
+function drawPendants(){
+  const n = Math.min(4, L.cl - 2);
+  for (let i = 0; i < n; i++){
+    const x = 2.2 + i * 1.05, top = P(x, 1.4, WALL), lamp = P(x, 1.4, 1.75);
+    line(top, lamp, '#2E3430', 1);
+    ctx.beginPath(); ctx.arc(lamp[0], lamp[1] + hw * .08, hw * .32, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,214,150,.18)'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(lamp[0] - hw * .12, lamp[1] + hw * .1); ctx.lineTo(lamp[0] + hw * .12, lamp[1] + hw * .1);
+    ctx.lineTo(lamp[0] + hw * .05, lamp[1]); ctx.lineTo(lamp[0] - hw * .05, lamp[1]); ctx.closePath();
+    ctx.fillStyle = '#2E3430'; ctx.fill();
+  }
+}
+function drawRug(){
+  const s = L.spots.slice(0, Math.max(1, S.tables)), N = L.N;
+  const xs = s.map(p => p.x), ys = s.map(p => p.y);
+  const x0 = Math.max(2.4, Math.min(...xs) - 1.1), x1 = Math.min(N - .2, Math.max(...xs) + 1.1);
+  const y0 = Math.max(2.3, Math.min(...ys) - .8), y1 = Math.min(N - .2, Math.max(...ys) + .8);
+  poly([P(x0, y0, .005), P(x1, y0, .005), P(x1, y1, .005), P(x0, y1, .005)], '#C9D8CF');
+  poly([P(x0 + .15, y0 + .15, .006), P(x1 - .15, y0 + .15, .006), P(x1 - .15, y1 - .15, .006), P(x0 + .15, y1 - .15, .006)], null, 'rgba(47,107,85,.35)', 1.5);
+}
+function drawTable(t){
+  box(t.x - .07, t.y - .07, .14, .14, 0, .55, '#2E3430', '#2E3430', '#3E4541');
+  box(t.x - .4, t.y - .4, .8, .8, .55, .07, '#D2AA7C', '#B48A5C', '#BF956A');
+}
+function drawChair(ch){
+  box(ch.x - .17, ch.y - .17, .34, .34, 0, .32, '#3E4541', '#2E3430', '#353C37');
+  const bx = ch.lane < ch.x ? ch.x - .17 : ch.x + .12; // backrest on the side away from the table
+  box(bx, ch.y - .17, .05, .34, .32, .38, '#3E4541', '#2E3430', '#353C37');
+}
+function drawPerson(x, y, o){
+  const sit = !!o.sit, [sx, sy] = P(x, y, sit ? .34 : 0), s = hw * 1.45 * (o.scale || 1);
+  const bob = (!reduceMotion && o.moving) ? Math.abs(Math.sin(o.phase)) * s * .05 : 0;
+  ctx.save(); ctx.globalAlpha = o.alpha ?? 1;
+  if (!sit){ ctx.beginPath(); ctx.ellipse(sx, sy, .22 * s, .1 * s, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(30,25,20,.13)'; ctx.fill(); }
+  const bh = (sit ? .4 : .62) * s, bw = .36 * s, by = sy - bh - bob;
+  rrect(sx - bw / 2, by, bw, bh, bw * .42); ctx.fillStyle = o.body; ctx.fill();
+  if (o.apron){ rrect(sx - bw * .32, by + bh * .3, bw * .64, bh * .7, bw * .12); ctx.fillStyle = o.apron; ctx.fill(); }
+  const hr = .16 * s, hy = by - hr * .9;
+  ctx.beginPath(); ctx.arc(sx, hy, hr, 0, Math.PI * 2); ctx.fillStyle = o.skin; ctx.fill();
+  ctx.beginPath(); ctx.arc(sx, hy - hr * .1, hr * 1.02, Math.PI * 1.05, Math.PI * 1.95); ctx.fillStyle = o.hair; ctx.fill();
+  if (o.cap){ rrect(sx - hr, hy - hr * 1.15, hr * 2, hr * .55, hr * .25); ctx.fillStyle = o.cap; ctx.fill(); }
+  ctx.restore();
+  return [sx, hy - hr];
+}
+function drawItem(cx, cy, r, it){
+  ctx.save(); ctx.lineWidth = Math.max(1, r * .13); ctx.strokeStyle = '#2E3430';
+  if (it.kind === 'cup'){
+    ctx.beginPath(); ctx.moveTo(cx - r * .68, cy - r * .42); ctx.lineTo(cx + r * .68, cy - r * .42); ctx.lineTo(cx + r * .5, cy + r * .62); ctx.lineTo(cx - r * .5, cy + r * .62); ctx.closePath();
+    ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx + r * .72, cy + r * .05, r * .26, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, cy - r * .42, r * .62, r * .16, 0, 0, Math.PI * 2); ctx.fillStyle = it.color; ctx.fill();
+  } else if (it.kind === 'glass'){
+    rrect(cx - r * .42, cy - r * .7, r * .84, r * 1.4, r * .12); ctx.fillStyle = '#fff'; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = it.color; ctx.fillRect(cx - r * .34, cy - r * .3, r * .68, r * .92);
+  } else {
+    ctx.beginPath(); ctx.ellipse(cx, cy + r * .1, r * .85, r * .48, 0, Math.PI, 0); ctx.closePath();
+    ctx.fillStyle = it.color; ctx.fill(); ctx.strokeStyle = '#94661C'; ctx.stroke();
+  }
+  ctx.restore();
+}
+function bubble(cx, bottom, w, h){
+  const x = cx - w / 2, y = bottom - h;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.12)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1;
+  rrect(x, y, w, h, Math.min(8, h * .35)); ctx.fillStyle = '#FFFFFF'; ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.moveTo(cx - 4, bottom - .5); ctx.lineTo(cx + 4, bottom - .5); ctx.lineTo(cx, bottom + 5); ctx.closePath(); ctx.fillStyle = '#FFFFFF'; ctx.fill();
+  return [x, y];
+}
+function ring(cx, cy, r, k){
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fillStyle = '#FFFFFF'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, k));
+  ctx.strokeStyle = '#2F6B55'; ctx.lineWidth = Math.max(2.5, r * .2); ctx.lineCap = 'round'; ctx.stroke(); ctx.lineCap = 'butt';
+}
+function floater(x, y, text, gold, sad){ floaters.push({ x, y, text, gold, sad, t:0 }); }
+
+const STAFF = [{ body:'#F4F2ED', apron:'#2F6B55', skin:'#E0B38F', hair:'#2B2522', cap:'#2F6B55' }];
+const BARISTA_LOOK = [
+  { body:'#F4F2ED', apron:'#3F7F68', skin:'#C68B62', hair:'#2B2522' },
+  { body:'#F4F2ED', apron:'#3F7F68', skin:'#F1D3B8', hair:'#A0703C' },
+  { body:'#F4F2ED', apron:'#3F7F68', skin:'#8D5A3B', hair:'#3C3C46' },
+  { body:'#F4F2ED', apron:'#3F7F68', skin:'#F5DCC8', hair:'#D9C08C' },
+];
+
+function draw(now){
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  if (canvas.width !== Math.round(cw * dpr) || canvas.height !== Math.round(ch * dpr)){
+    canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+  const N = L.N, topPad = 40;
+  const target = Math.min(cw * .92 / (2 * N), (ch - topPad - 14) / (N + WALL + .3));
+  hw = hw ? hw + (target - hw) * .12 : target; hh = hw / 2;
+  ox = cw / 2; oy = topPad + (ch - topPad - (N + WALL) * hw) / 2 + WALL * hw;
+
+  drawFloor(); drawWalls();
+  if (S.decor >= 4 && S.tables) drawRug();
+
+  // staff behind the counter
+  const staffPos = [];
+  const sp = drawPerson(1.65, .45, { ...STAFF[0], scale:1.05, phase:0 });
+  staffPos.push({ who:'p', x:sp[0], y:sp[1] });
+  S.baristas.forEach((_, i) => {
+    const p = drawPerson(2.75 + i * 1.05, .45, { ...BARISTA_LOOK[i % 4], scale:1.05, phase:0 });
+    staffPos.push({ who:i, x:p[0], y:p[1] });
+  });
+  drawCounter();
+
+  // depth-sorted floor objects
+  const objs = [];
+  const tables = L.spots.slice(0, Math.min(S.tables, L.spots.length));
+  tables.forEach(t => objs.push({ k:t.x + t.y, f:() => drawTable(t) }));
+  L.chairs.forEach(c => objs.push({ k:c.x + c.y - .01, f:() => drawChair(c) }));
+  if (S.decor >= 1) objs.push({ k:.55 + N - .55, f:() => drawPlant(.55, N - .55) });
+  if (S.decor >= 5) objs.push({ k:N - .55 + .55, f:() => drawPlant(N - .55, .55, 1.1) });
+  if (S.decor >= 12) objs.push({ k:2 * N - 1.2, f:() => drawTree(N - .6, N - .6) });
+  for (const c of customers){
+    const out = Math.max(0, c.x - N, c.y - N);
+    const alpha = Math.max(0, 1 - out / .9);
+    objs.push({ k:c.x + c.y + (c.state === 'sit' ? .02 : 0), f:() => {
+      const h = drawPerson(c.x, c.y, { body:c.body, skin:c.skin, hair:c.hair, sit:c.state === 'sit', moving:c.moving, phase:c.phase, alpha });
+      c.hx = h[0]; c.hy = h[1]; c.alpha = alpha;
+    }});
+  }
+  objs.sort((a, b) => a.k - b.k).forEach(o => o.f());
+  if (S.decor >= 3) drawPendants();
+
+  // order bubbles
+  const u = Math.max(14, hw * .5);
+  for (const c of queue){
+    if (c.alpha === 0 || c.hx === undefined) continue;
+    const w = u * 1.25, h = u * 1.2, [bx, by] = bubble(c.hx, c.hy - 6, w, h);
+    drawItem(c.hx, by + h * .44, u * .42, c.item);
+    if (!c.claimed){
+      const k = Math.max(0, c.patience / c.maxP);
+      ctx.fillStyle = '#E6E2DA'; ctx.fillRect(bx + w * .15, by + h - 5, w * .7, 2.5);
+      ctx.fillStyle = k > .4 ? '#2F6B55' : k > .2 ? '#C99A2E' : '#B4532A'; ctx.fillRect(bx + w * .15, by + h - 5, w * .7 * k, 2.5);
+    }
+    if (c.vip){ ctx.font = `700 ${Math.round(u * .42)}px Sora, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#94661C'; ctx.fillText('VIP', c.hx, by - 4); }
+  }
+  // preparation rings above staff
+  for (const p of preps){
+    const s = staffPos.find(q => q.who === p.who); if (!s) continue;
+    const r = Math.max(11, hw * .26), cy = s.y - r - 6;
+    ring(s.x, cy, r, p.t / p.need); drawItem(s.x, cy, r * .55, p.c.item);
+  }
+  // floating money
+  ctx.textAlign = 'center';
+  for (const f of floaters){
+    const [sx, sy] = P(f.x, f.y, 0), a = Math.max(0, 1 - f.t / 1.3);
+    ctx.globalAlpha = a; ctx.font = `700 ${Math.round(Math.max(13, hw * .38))}px Sora, sans-serif`;
+    const y = sy - hw * 1.25 - f.t * 30;
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.strokeText(f.text, sx, y);
+    ctx.fillStyle = f.sad ? '#8A8F87' : f.gold ? '#B07A12' : '#2F6B55'; ctx.fillText(f.text, sx, y);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------------- HUD ---------------- */
+let hudT = 0;
+function hud(now){
+  $('#money').textContent = fmt(S.money);
+  const cut = now - 60000; while (earnLog.length && earnLog[0][0] < cut) earnLog.shift();
+  $('#rate').textContent = fmt(earnLog.reduce((a, e) => a + e[1], 0)) + '/min';
+  $('#dayLabel').textContent = 'Day ' + S.day;
+  $('#dayFill').style.width = (S.dayT / DAY_LEN * 100) + '%';
+  $('#stageName').textContent = STAGES[S.stage].name;
+
+  const b = $('#brew'), mine = preps.find(p => p.who === 'p'), next = claimNext(), helping = preps.find(p => p.who !== 'p');
+  let label, hint, k = 0, idle = false;
+  if (mine){ label = `Making ${mine.c.item.name}`; hint = 'Tap to go faster'; k = mine.t / mine.need; }
+  else if (next){ label = `Brew ${next.item.name}`; hint = 'A customer is waiting'; }
+  else if (helping){ label = 'Help your team'; hint = 'Tap to speed up your baristas'; }
+  else { label = 'Waiting for customers'; hint = 'New customers arrive soon'; idle = true; }
+  $('#brewLabel').textContent = label; $('#brewHint').textContent = hint;
+  $('#brewFill').style.width = (k * 100) + '%';
+  b.classList.toggle('idle', idle);
+  b.classList.toggle('pulse', !!next && !mine && !S.baristas.length);
+
+  const r = $('#rushBtn'), t = Date.now();
+  if (rushOn()){ r.hidden = false; r.disabled = true; r.className = 'chip live'; r.innerHTML = `<span class="dot"></span>Rush hour 2× · ${mmss((S.rushUntil - t) / 1000)}`; }
+  else if (t < S.rushReadyAt){ r.hidden = false; r.disabled = true; r.className = 'chip'; r.textContent = `Rush hour ready in ${mmss((S.rushReadyAt - t) / 1000)}`; }
+  else if (adsAvailable()){ r.hidden = false; r.disabled = false; r.className = 'chip'; r.innerHTML = `<span class="dot"></span>Rush hour 2× · ${S.supporter ? 'Start' : 'Watch ad'}`; }
+  else r.hidden = true;
+
+  const v = $('#vipBtn');
+  if (vipOffer && now < vipOffer.until && adsAvailable()){
+    v.hidden = false; v.textContent = `VIP tip ${fmt(vipOffer.amount)} · ${S.supporter ? 'Claim' : 'Watch ad'} (${Math.ceil((vipOffer.until - now) / 1000)}s)`;
+  } else { v.hidden = true; if (vipOffer && now >= vipOffer.until) vipOffer = null; }
+
+  renderPanel(false);
+}
+
+/* ---------------- Loop ---------------- */
+let lastT = performance.now(), saveT = 0;
+function frame(now){
+  const dt = Math.min(.1, (now - lastT) / 1000); lastT = now;
+  if (!paused){
+    spawnT -= dt * (rushOn() ? 1.3 : 1);
+    if (spawnT <= 0){ spawn(false); spawnT = (3.6 / appeal()) * (.6 + Math.random() * .8); }
+    vipT -= dt; if (vipT <= 0){ spawn(true); vipT = 150 + Math.random() * 150; }
+    updateCustomers(dt); updatePreps(dt);
+    for (const f of floaters) f.t += dt; floaters = floaters.filter(f => f.t < 1.3);
+    S.dayT += dt; if (S.dayT >= DAY_LEN){ S.dayT -= DAY_LEN; endDay(); }
+    saveT += dt; if (saveT > 5){ saveT = 0; save(); }
+  }
+  draw(now);
+  hudT -= dt; if (hudT <= 0){ hudT = .1; hud(now); }
+  requestAnimationFrame(frame);
+}
+
+/* ---------------- Input ---------------- */
+$('#brew').addEventListener('pointerdown', e => { e.preventDefault(); brewTap(); });
+$('#brew').addEventListener('click', e => { if (e.detail === 0) brewTap(); });
+canvas.addEventListener('pointerdown', e => { e.preventDefault(); brewTap(); });
+document.addEventListener('keydown', e => {
+  if (!$('#modal').hidden || !$('#ad').hidden) return;
+  if ((e.code === 'Space' && e.target === document.body) || e.key === 'b'){ e.preventDefault(); brewTap(); }
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){ save(); }
+  else {
+    const away = (Date.now() - S.lastSeen) / 1000;
+    lastT = performance.now();
+    if ($('#modal').hidden && $('#ad').hidden) welcomeBack(away);
+    S.lastSeen = Date.now();
+  }
+});
+window.addEventListener('pagehide', save);
+window.addEventListener('online', () => renderPanel(true));
+window.addEventListener('offline', () => renderPanel(true));
+
+/* ---------------- Boot ---------------- */
+function boot(data){
+  let fromHot = false;
+  if (data && data.S){ S = Object.assign(freshState(), data.S); fromHot = true; }
+  const had = fromHot || load();
+  layout(); renderPanel(true);
+  try { window.claude?.hot?.snapshot?.(() => ({ S })); } catch {}
+  if (!fromHot){
+    const away = (Date.now() - S.lastSeen) / 1000;
+    if (had) welcomeBack(away);
+    else toast('Welcome to Beanery! Tap Brew (or the café) to make each order.', 5000);
+  }
+  S.lastSeen = Date.now();
+  lastT = performance.now();
+  requestAnimationFrame(frame);
+}
+try {
+  if (window.claude?.hot?.ready) window.claude.hot.ready(boot);
+  else boot(window.claude?.hot?.data ?? {});
+} catch { boot({}); }
+})();
+</script>
+</body>
+</html>
