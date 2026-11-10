@@ -1036,38 +1036,17 @@ function drawBook() {
   drawBtn(btn.closeBook);
 }
 
-// ------------------------------------------------------------ Vintage film overlay
-const grainFrames = [];
-for (let f = 0; f < 6; f++) {
-  const g = document.createElement("canvas"); g.width = 360; g.height = 640;
-  const gc = g.getContext("2d"), img = gc.createImageData(360, 640);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const n = Math.random();
-    const v = n > 0.5 ? 255 : 30;
-    img.data[i] = v; img.data[i + 1] = v * 0.94; img.data[i + 2] = v * 0.84;
-    img.data[i + 3] = Math.abs(n - 0.5) * 2 > 0.7 ? 26 : 0;
-  }
-  gc.putImageData(img, 0, 0); grainFrames.push(g);
-}
+// ------------------------------------------------------------ Soft edge vignette
 const vignette = (() => {
   const v = document.createElement("canvas"); v.width = W; v.height = H;
   const vc = v.getContext("2d"), g = vc.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.72);
-  g.addColorStop(0, "rgba(20,10,15,0)"); g.addColorStop(1, "rgba(20,10,15,0.55)");
+  g.addColorStop(0, "rgba(20,10,15,0)"); g.addColorStop(1, "rgba(20,10,15,0.22)");
   vc.fillStyle = g; vc.fillRect(0, 0, W, H);
-  vc.fillStyle = "rgba(140,97,46,0.05)"; vc.fillRect(0, 0, W, H);
   return v;
 })();
-const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 function drawFilm() {
+  // Only a soft, static darkening at the edges. No grain, flicker or scratches.
   ctx.drawImage(vignette, 0, 0);
-  if (reduceMotion) return;
-  const f = Math.floor(time * 14) % grainFrames.length;
-  ctx.drawImage(grainFrames[f], 0, 0, W, H);
-  const fr = Math.floor(time * 14);
-  if ((Math.sin(fr * 12.9898) * 43758.5453 % 1 + 1) % 1 > 0.93) {
-    const sx = ((Math.sin(fr * 78.233) * 12345.678 % 1) + 1) % 1 * W;
-    ctx.fillStyle = "rgba(255,247,230,0.3)"; ctx.fillRect(sx, 0, 1.5, H);
-  }
 }
 
 // ------------------------------------------------------------ Loop
