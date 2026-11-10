@@ -33,6 +33,9 @@ Enemies: Grunt, Runner (fast), Tank (tough), Flyer (weak to Wind, resists Earth)
 2. Open Godot, click **Import**, and choose the `project.godot` file in this folder.
 3. Press **F5** (or the ▶ Play button at the top right).
 
+## Playing it in a browser
+`web/index.html` is a single-file HTML version of the same game. Open it in any browser on a phone or computer. Progress (discovered recipes, best wave) is saved in that browser.
+
 ## Playing it on an Android phone
 1. Download the test APK (`ArcaneFusion-0.1.0-test.apk`) onto the phone.
 2. Tap it. If Android says installing from unknown sources is blocked, allow it for your browser or file manager.
