@@ -115,7 +115,9 @@ for (const r of RECIPE_LIST) RECIPES[rkey(r[0], r[1])] = r[2];
 
 const V3 = 2, EPIC = 3;
 // Main and next elements max out at V3 (Rare). Epic elements go up to Legend.
-const maxRarity = el => EL[el].tier === 3 ? MAX_RARITY : V3;
+// Epic elements have a single form (no V1-V3) and do not merge. Myth cards only come from the Fusion Chamber.
+const MYTH = 4;
+const maxRarity = el => EL[el].tier === 3 ? EPIC : V3;
 function merge(aEl, aR, bEl, bR) {
   if (aEl === bEl) return (aR === bR && aR < maxRarity(aEl)) ? { element: aEl, rarity: aR + 1 } : null;
   const res = RECIPES[rkey(aEl, bEl)];
@@ -127,6 +129,7 @@ function merge(aEl, aR, bEl, bR) {
 function mergeHint(a, b) {
   if (a.element === b.element) {
     if (a.rarity !== b.rarity) return `Both ${EL[a.element].name} cards must be the same level to level up.`;
+    if (EL[a.element].tier === 3) return "Epic cards have a single form. Fuse 3 or more in the Chamber for a chance at a Myth card!";
     if (a.rarity >= maxRarity(a.element)) return `${cardName(a)} is already at max level. Fuse it with a different element instead!`;
     return "";
   }
@@ -734,7 +737,11 @@ class Fx {
 }
 
 // ------------------------------------------------------------ Game state
-const rows = { active: Array(SLOTS).fill(null), storage: Array(SLOTS).fill(null), shop: Array(SHOP_N).fill(null) };
+const rows = { active: Array(SLOTS).fill(null), storage: Array(SLOTS).fill(null), shop: Array(SHOP_N).fill(null), chamber: Array(5).fill(null) };
+// Fusion Chamber: 3-5 Epic cards on the altars, a chance to become one Myth card. On failure every card is lost.
+const CHAMBER_CHANCE = { 3: 35, 4: 60, 5: 85 };
+const CHAMBER_Y = 340;
+let chamberOpen = false;
 let enemies = [], projectiles = [], zones = [], fxs = [];
 let gold = 0, castleHp = CASTLE_MAX, wave = 0, state = "title", breakTimer = -1;
 // Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
@@ -754,12 +761,14 @@ for (let y = FRONT_Y + 2, r = 0; y < WALL_Y; y += 38, r++)
     paving.push([x + 2, y + 2, 52, 34, ["#6f6361", "#75696a", "#6a5d58", "#7a6e69"][Math.floor(Math.random() * 4)]]);
 
 function slotPos(row, i) {
+  if (row === "chamber") return { x: 88 + i * 136, y: CHAMBER_Y };
   if (row === "active") return { x: 72 + i * 144, y: ACTIVE_Y };
   if (row === "storage") return { x: 72 + i * 144, y: STORAGE_Y };
   return { x: 80 + i * 130, y: SHOP_Y };
 }
 function slotAt(p) {
-  for (const row of ["active", "storage", "shop"]) for (let i = 0; i < rows[row].length; i++) {
+  const list = chamberOpen ? ["chamber", "active", "storage"] : ["active", "storage", "shop"];
+  for (const row of list) for (let i = 0; i < rows[row].length; i++) {
     const s = slotPos(row, i);
     if (inRect(p, { x: s.x - CARD_W / 2 - 10, y: s.y - CARD_H / 2 - 10, w: CARD_W + 20, h: CARD_H + 20 })) return [row, i];
   }
@@ -769,7 +778,7 @@ function showBanner(t, c) { banner = { text: t, color: c, t: 0 }; }
 function showInfo(t) { info = { text: t, t: 0 }; }
 
 function clearBoard() {
-  for (const r in rows) rows[r].fill(null);
+  for (const r in rows) rows[r].fill(null); chamberOpen = false;
   enemies = []; projectiles = []; zones = []; fxs = []; drag = null; spawners = []; callCd = 0;
 }
 function startRun() {
@@ -948,7 +957,9 @@ function cancelDrag() { if (drag) { drag.card.dragging = false; } drag = null; h
 // ------------------------------------------------------------ Buttons
 function makeBtn(label, x, y, w, h, onTap, size = 26) { return { label, x, y, w, h, onTap, size, down: false }; }
 const btn = {
-  book: makeBtn("Book", 466, 9, 120, 54, () => openBook()),
+  chamber: makeBtn("Chamber", 450, 9, 140, 54, () => openChamber(), 24),
+  fuse: makeBtn("Fuse", 150, 520, 200, 76, () => fuseChamber(), 30),
+  closeChamber: makeBtn("Close", 370, 520, 200, 76, () => closeChamber(), 28),
   pause: makeBtn("II", 600, 9, 106, 54, () => { cancelDrag(); paused = true; }),
   next: makeBtn("Next Wave", 14, HUD_H + 14, 230, 60, () => beginWave(), 24),
   reroll: makeBtn("Reroll", 450, 1100, 250, 96, () => reroll(), 28),
@@ -962,12 +973,60 @@ const btn = {
   closeBook: makeBtn("Close", 240, 1078, 240, 70, () => { bookOpen = false; }),
 };
 function openBook() { cancelDrag(); bookOpen = true; bookScroll = 0; }
+const isEpic = c => c && EL[c.element].tier === 3 && c.rarity === EPIC;
+const chamberCount = () => rows.chamber.filter(Boolean).length;
+function openChamber() {
+  cancelDrag(); chamberOpen = true;
+  showInfo("Drag Epic cards onto the altars. 3 or more are needed.");
+}
+// Returns every card on the altars to the first free board slots.
+function closeChamber() {
+  for (let i = 0; i < rows.chamber.length; i++) {
+    const c = rows.chamber[i]; if (!c) continue;
+    const slot = firstFree(); if (!slot) break;
+    rows.chamber[i] = null; rows[slot[0]][slot[1]] = c; const p = slotPos(slot[0], slot[1]); c.setHome(p.x, p.y);
+  }
+  chamberOpen = false;
+}
+function fuseChamber() {
+  const cards = rows.chamber.filter(Boolean), n = cards.length;
+  if (n < 3) { showInfo("Put at least 3 Epic cards on the altars to fuse."); return; }
+  const chance = CHAMBER_CHANCE[n];
+  for (const c of cards) fxs.push(new Fx("burst", { x: c.x, y: c.y, color: "#b36bff", radius: 80, duration: 0.5 }));
+  rows.chamber.fill(null);
+  if (Math.random() * 100 < chance) {
+    // The Myth card takes the element of one of the fused cards.
+    const el = cards[Math.floor(Math.random() * n)].element;
+    const m = new Card(el, MYTH); const p = slotPos("chamber", 2);
+    m.setHome(p.x, p.y, true); m.scale = 1.6; rows.chamber[2] = m;
+    fxs.push(new Fx("burst", { x: p.x, y: p.y, color: RARITY_COLORS[MYTH], radius: 160, duration: 0.7 }));
+    fxs.push(new Fx("burst", { x: p.x, y: p.y, color: GOLD, radius: 110, duration: 0.6 }));
+    showBanner(`MYTH ${EL[el].name.toUpperCase()} CREATED!`, RARITY_COLORS[MYTH]);
+    showInfo(`Success (${chance}% chance)! Close the Chamber to put your Myth card on the board.`);
+  } else {
+    showBanner("Fusion failed...", "#a89878");
+    showInfo(`The ${n} Epic cards crumbled to dust (${chance}% chance).`);
+  }
+}
+// Drag & drop while the Chamber is open: only Epic cards may go on the altars; nothing merges here.
+function chamberDrop(d, p) {
+  if (!d.moved) return;
+  const target = slotAt(p);
+  if (!target || (target[0] === d.from && target[1] === d.index)) return;
+  const card = d.card, other = rows[target[0]][target[1]];
+  if (target[0] === "chamber" && !isEpic(card) && d.from !== "chamber") { showInfo("Only Epic cards can go on the altars."); card.shake = 1; return; }
+  if (d.from === "chamber" && other && !isEpic(other) && target[0] !== "chamber") { showInfo("Drop it on an empty slot."); return; }
+  rows[d.from][d.index] = other; rows[target[0]][target[1]] = card;
+  const a = slotPos(target[0], target[1]); card.setHome(a.x, a.y);
+  if (other) { const b = slotPos(d.from, d.index); other.setHome(b.x, b.y); }
+}
 function visibleButtons() {
   if (bookOpen) return [btn.closeBook];
+  if (chamberOpen) return [btn.fuse, btn.closeChamber];
   if (state === "title") return [btn.play, btn.titleBook];
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.quit];
-  const list = [btn.book, btn.pause, btn.reroll];
+  const list = [btn.chamber, btn.pause, btn.reroll];
   if (!drag) list.push(btn.next);
   return list;
 }
@@ -1018,6 +1077,7 @@ function pointerUp(ev) {
   const p = toLogical(ev); pointer = p; bookDrag = null;
   if (!drag) return;
   const d = drag; cancelDrag();
+  if (chamberOpen) { chamberDrop(d, p); return; }
   if (!d.moved) {
     if (d.from === "shop") {
       const slot = firstFree();
@@ -1035,7 +1095,7 @@ canvas.addEventListener("pointerup", pointerUp);
 canvas.addEventListener("pointercancel", () => { cancelDrag(); bookDrag = null; });
 canvas.addEventListener("wheel", ev => { if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); } }, { passive: false });
 document.addEventListener("keydown", ev => {
-  if (ev.key === "Escape") { if (bookOpen) bookOpen = false; else if (state === "wave" || state === "break") paused = !paused; }
+  if (ev.key === "Escape") { if (bookOpen) bookOpen = false; else if (chamberOpen) closeChamber(); else if (state === "wave" || state === "break") paused = !paused; }
 });
 
 // ------------------------------------------------------------ Update
@@ -1043,7 +1103,7 @@ function update(dt) {
   time += dt;
   banner.t += dt; info.t += dt;
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
-  if (paused || bookOpen || state === "title" || state === "gameover") return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover") return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt);
   if (state === "wave") {
@@ -1244,7 +1304,8 @@ function drawWorld() {
 
   for (const z of zones) z.draw();
   for (const e of enemies) e.draw();
-  for (const r of ["active", "storage", "shop"]) for (const c of rows[r]) if (c && !c.dragging) c.draw();
+  if (chamberOpen) drawChamber();
+  for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging) c.draw();
   for (const p of projectiles) p.draw();
   for (const f of fxs) f.draw();
 }
@@ -1272,9 +1333,13 @@ function drawHud() {
   if (state === "gameover") return;
   btn.reroll.label = `Reroll\n${rerollCost} gold`;
   btn.next.label = callCd > 0 ? `Next Wave  ${Math.ceil(callCd)}s` : (state === "break" && breakTimer > 0 ? `Next Wave (${Math.ceil(breakTimer)})` : "Next Wave");
-  drawBtn(btn.book); drawBtn(btn.pause); drawBtn(btn.reroll, gold < rerollCost);
-  drawSellBox();
-  if (!drag && !paused) {
+  if (chamberOpen) {
+    drawBtn(btn.fuse, chamberCount() < 3); drawBtn(btn.closeChamber);
+  } else {
+    drawBtn(btn.chamber); drawBtn(btn.pause); drawBtn(btn.reroll, gold < rerollCost);
+    drawSellBox();
+  }
+  if (!drag && !paused && !chamberOpen) {
     drawBtn(btn.next, callCd > 0);
     // Cooldown bar along the bottom of the button.
     if (callCd > 0) {
@@ -1292,6 +1357,32 @@ function drawHud() {
     ctx.translate(W / 2, 340); ctx.scale(s, s);
     text(banner.text, 0, 0, 44, banner.color, { weight: 700, outline: 10, baseline: "middle" });
     ctx.restore();
+  }
+}
+function drawChamber() {
+  // Covers the battlefield (the game is paused) and the shop while the Chamber is open.
+  ctx.fillStyle = "rgba(10,4,20,0.6)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
+  ctx.fillStyle = "rgba(10,4,20,0.75)"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
+  rrect(20, 96, W - 40, 620, 26); ctx.fillStyle = "#2a1640"; ctx.fill();
+  ctx.strokeStyle = "#b36bff"; ctx.lineWidth = 4; ctx.stroke();
+  const pulse = 0.5 + 0.5 * Math.sin(time * 2);
+  text("Fusion Chamber", W / 2, 158, 40, "#e3c9ff", { font: DISPLAY, weight: 900, outline: 8 });
+  text("Place 3 to 5 Epic cards on the altars", W / 2, 198, 22, PARCH, { outline: 5 });
+  for (let i = 0; i < rows.chamber.length; i++) {
+    const p = slotPos("chamber", i);
+    ctx.save(); ctx.translate(p.x, p.y + 58); ctx.scale(1, 0.32);
+    circle(0, 0, 64, hexA("#b36bff", 0.15 + 0.12 * pulse));
+    ring(0, 0, 60, hexA("#d9b8ff", 0.7), 4); ring(0, 0, 44, hexA("#b36bff", 0.6), 3, -time, -time + Math.PI * 1.5);
+    ctx.restore();
+    slotFrame(p.x, p.y, hexA("#d9b8ff", 0.45));
+  }
+  const n = chamberCount();
+  if (n >= 3) {
+    text(`Success chance: ${CHAMBER_CHANCE[n]}%`, W / 2, 462, 34, GOLD, { weight: 700, outline: 8 });
+    text("If it fails, every card on the altars is lost!", W / 2, 498, 20, "#ff9a8a", { outline: 5 });
+  } else {
+    text("3 cards: 35%   4 cards: 60%   5 cards: 85%", W / 2, 462, 24, PARCH, { outline: 6 });
+    text("Success creates one Myth card.", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
   }
 }
 function drawSellBox() {
@@ -1367,7 +1458,7 @@ function bookLines() {
   for (const s of ["Main elements: same + same = next level.", "V1 (Common) > V2 (Uncommon) > V3 (Rare, max).",
     "Next elements: two different main elements", "of the same level (V2 Fire + V2 Earth = V2 Lava).",
     "They level up to V3 too.", "Epic elements: two different V3 next elements.",
-    "Epic levels up: Epic > Myth > Legend."])
+    "Epic cards have one form (no V1-V3).", "Fuse 3-5 Epic cards in the Chamber for", "a chance at a Myth card (fail = cards lost)."])
     L.push({ segs: [[s, INK, 22]] });
   L.push({ segs: RARITY_NAMES.flatMap((n, i) => [[n, shade(RARITY_COLORS[i], -0.3), 22, FONT, 700], [i < 5 ? " > " : "", INK, 22]]) });
   let lastTier = 0;
