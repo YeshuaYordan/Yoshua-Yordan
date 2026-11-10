@@ -13,7 +13,8 @@ who run it for you.
 - Ad offers never appear in the middle of the action as a pop-up.
 - When there is no internet connection, ad buttons are hidden and the game still works.
 - Current rewarded ad offers:
-  - **Rush hour:** 2x money for 2 minutes (5 minute cooldown).
+  - **Power-ups** (Rush hour, Quick hands, Busy street, Tip jar): each can be started by watching an ad
+    (with a cooldown) or by spending gems. The player picks.
   - **Offline earnings:** collect 2x on the welcome-back screen.
   - **VIP tip:** after serving a VIP guest, an optional chip offers a bonus tip.
 
@@ -29,6 +30,14 @@ who run it for you.
   once you have hired baristas (capped at 4 hours).
 - Play style: **active first, then automated** — tap to brew early on, then hire staff.
 - Look: **clean and minimal**, slightly angled (isometric) view of the café.
+- Screen: the café fills the **whole screen**. Swipe to move the camera, pinch (or mouse wheel) to zoom.
+- Bottom dock with **4 buttons**: Upgrade, Decoration, Power-ups, Top-ups. Each opens a sheet above the dock.
+  A Brew button sits above the dock, and tapping the café also brews.
+
+### Currencies
+- **Money:** earned from every sale. Pays for upgrades, decorations and expansion.
+- **Gems:** for power-ups. Start with 10. +1 per day closed, +1 per VIP served, +5 per expansion,
+  or bought in Top-ups.
 
 ## Game loop
 1. Customers walk in, join the line and order something from your menu.
@@ -43,12 +52,13 @@ who run it for you.
 | Menu | Add new items (espresso → cold brew tonic) and raise their price with upgrades |
 | Espresso machine | Every order is made 10% faster per level |
 | Tables | Seated guests pay 20% more, and more seats bring more customers |
-| Decor | 12 visible pieces (plants, lights, neon sign...) that bring more customers |
+| Decoration | 12 pieces bought one by one (plants, lights, neon sign...). Each is visible and brings 12% more customers |
 | Baristas | Make orders automatically. Train them to work faster. They earn wages |
 | Cashier | +10% tips per level |
+| Power-ups | Rush hour (2x money), Quick hands (2x work speed), Busy street (2x customers), Tip jar (instant cash) |
 | Expansion | Coffee Stand → Cozy Café → Corner Café → Grand Café. Bigger room, more staff and tables, new menu items, higher rent |
 
-## Current status (v0.1, test build)
+## Current status (v0.2, test build)
 - Single file: `index.html` (HTML, CSS, JavaScript, no downloads needed).
 - Progress saves on the device automatically.
 - Ads and purchases are **simulated** so the game can be tested. Real Google AdMob and Google Play
