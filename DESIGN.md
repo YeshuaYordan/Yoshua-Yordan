@@ -39,6 +39,10 @@ who run it for you.
 - **Gems:** for power-ups. Start with 10. +1 per day closed, +1 per VIP served, +5 per expansion,
   or bought in Top-ups.
 
+### Code and repo
+- Keep tool and assistant names out of the game files, code comments and commit messages.
+- Web builds for itch.io: `tools/build_web.sh beanery-web.zip`, then upload the zip as an HTML game played in the browser.
+
 ## Game loop
 1. Customers come in through the **one door** (left wall) and line up **in front of the cash register**.
 2. Each customer is **dine-in** (chair icon, 40%) or **takeaway** (bag icon, 60%).

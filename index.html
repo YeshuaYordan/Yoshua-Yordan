@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Beanery</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Sora:wght@500;600;700&display=swap">
@@ -1716,7 +1715,6 @@ function boot(data){
   if (data && data.S){ S = migrate(data.S); fromHot = true; }
   const had = fromHot || load();
   layout(); measure();
-  try { window.claude?.hot?.snapshot?.(() => ({ S })); } catch {}
   if (!fromHot){
     const away = (Date.now() - S.lastSeen) / 1000;
     if (had) welcomeBack(away);
@@ -1726,10 +1724,7 @@ function boot(data){
   lastT = performance.now();
   requestAnimationFrame(frame);
 }
-try {
-  if (window.claude?.hot?.ready) window.claude.hot.ready(boot);
-  else boot(window.claude?.hot?.data ?? {});
-} catch { boot({}); }
+boot({});
 })();
 </script>
 </body>
