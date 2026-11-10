@@ -100,8 +100,11 @@ const RECIPES = {};
 const rkey = (a, b) => [a, b].sort().join("+");
 for (const r of RECIPE_LIST) RECIPES[rkey(r[0], r[1])] = r[2];
 
+// Base elements (Fire, Water, Earth, Wind) level up only to Rare (V3). Fusions can go all the way to Legend.
+const BASE_MAX_RARITY = 2;
+const maxRarity = el => EL[el].tier === 1 ? BASE_MAX_RARITY : MAX_RARITY;
 function merge(aEl, aR, bEl, bR) {
-  if (aEl === bEl) return (aR === bR && aR < MAX_RARITY) ? { element: aEl, rarity: aR + 1 } : null;
+  if (aEl === bEl) return (aR === bR && aR < maxRarity(aEl)) ? { element: aEl, rarity: aR + 1 } : null;
   const res = RECIPES[rkey(aEl, bEl)];
   return res ? { element: res, rarity: Math.min(aR, bR) } : null;
 }
@@ -746,7 +749,8 @@ function hitEnemy(e, el, r, dmg) {
 // ------------------------------------------------------------ Shop & merging
 function refreshShop() {
   for (let i = 0; i < SHOP_N; i++) {
-    const c = new Card(randomBase(), rollRarity(Math.max(1, wave + 1)));
+    const el = randomBase();
+    const c = new Card(el, Math.min(maxRarity(el), rollRarity(Math.max(1, wave + 1))));
     c.inShop = true; c.price = priceOf(c.element, c.rarity);
     const s = slotPos("shop", i); c.setHome(s.x, s.y, true); c.y += 200;
     rows.shop[i] = c;
@@ -799,6 +803,8 @@ function moveCard(fr, fi, tr, ti) {
   if (!other) { rows[fr][fi] = null; rows[tr][ti] = card; const s = slotPos(tr, ti); card.setHome(s.x, s.y); return "move"; }
   const res = merge(card.element, card.rarity, other.element, other.rarity);
   if (res) { rows[fr][fi] = null; applyMerge(other, res); return "merge"; }
+  if (card.element === other.element && card.rarity === other.rarity && card.rarity >= maxRarity(card.element))
+    showInfo(`${cardName(card)} is already at max level. Fuse it with a different element instead!`);
   rows[fr][fi] = other; rows[tr][ti] = card;
   const a = slotPos(fr, fi), b = slotPos(tr, ti); other.setHome(a.x, a.y); card.setHome(b.x, b.y);
   return "swap";
@@ -1142,7 +1148,7 @@ function bookLines() {
   L.push({ center: true, segs: [[`${found} / ${RECIPE_LIST.length} recipes discovered`, "#6b3a22", 22]] });
   L.push({ gap: 18 });
   L.push({ segs: [["Rules", INK, 28, DISPLAY, 900]] });
-  for (const s of ["Two of the same card with the same rarity", "fuse into one rarity higher.", "Two different elements may fuse into a", "new one (it keeps the lower rarity)."])
+  for (const s of ["Two of the same card with the same rarity", "fuse into one rarity higher.", "Fire, Water, Earth and Wind max out at Rare.", "Two different elements may fuse into a", "new one (it keeps the lower rarity)."])
     L.push({ segs: [[s, INK, 22]] });
   L.push({ segs: RARITY_NAMES.flatMap((n, i) => [[n, shade(RARITY_COLORS[i], -0.3), 22, FONT, 700], [i < 5 ? " > " : "", INK, 22]]) });
   let lastTier = 0;
