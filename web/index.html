@@ -1586,7 +1586,7 @@ function drawChamber() {
   if (legend) { ctx.save(); ctx.shadowColor = "#ff8a2a"; ctx.shadowBlur = 24; ctx.strokeStyle = hexA("#ffd27a", 0.7); ctx.lineWidth = 2; rrect(30, 106, W - 60, 600, 20); ctx.stroke(); ctx.restore(); }
   const pulse = 0.5 + 0.5 * Math.sin(time * 2);
   text(legend ? "Legend Chamber" : "Fusion Chamber", W / 2, 158, 40, TH.title, { font: DISPLAY, weight: 900, outline: 8 });
-  text(legend ? "Myth cards forge a Legend. Epic cards add a little." : "Place 3 to 5 Epic or Myth cards on the altars", W / 2, 198, 22, PARCH, { outline: 5 });
+  text(legend ? "Myth cards forge a Legend." : "Place 3 to 5 Epic or Myth cards on the altars", W / 2, 198, 22, PARCH, { outline: 5 });
   for (let i = 0; i < rows.chamber.length; i++) {
     const p = slotPos("chamber", i);
     ctx.save(); ctx.translate(p.x, p.y + 58); ctx.scale(1, 0.32);
