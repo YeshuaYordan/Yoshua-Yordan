@@ -92,22 +92,25 @@ who run it for you.
 Room sizes: Coffee Stand 9×9, Cozy Café 10×10, Corner Café 11×11, Grand Café 12×12 tiles.
 
 ## Characters
-- Art: the owner's pixel-art sheet (`assets/characters/girl-source.png`): 4 poses x 4 frames
-  (walk, standing, eating while sitting, drinking while sitting). It faces right and is flipped for the other direction.
-- `tools/slice_sprites.py` cuts it into equal frames with a transparent background, on one feet line.
-  The game uses a 72%-size, 128-colour version: `assets/characters/girl-sheet.png` (embedded in `index.html`).
-- Use in the game:
-  - Walking → walk frames. In line and in the waiting area → standing frames.
-  - Seated → eating frames for food, drinking frames for drinks. The art includes its own chair,
-    so the café chair is hidden while someone sits on it (empty chairs are wooden to match).
-- Variety: customers get one of 6 hair colours (dark, brown, blonde, auburn, black, ash).
-  Baristas get a green café apron painted over the chest. The shirt is not recoloured, because its
-  near-white, skin-like shading makes a colour swap look patchy.
-- To add a new character: send a sheet with the same 4-row layout and run the slicer on it.
+- Drawn in code as pixel art in `characters.js` (loaded by `index.html`). Frames are 20 x 32 art pixels,
+  scaled up with crisp pixels. Each character has **one fixed look** (no recolours).
+- **Customers (10):** student, office worker, grandma, kid, hoodie guy, hijab lady, artist, runner,
+  businesswoman, bookworm. The same person never comes in twice in a row.
+- **Baristas (4):** white shirt and green apron, each with their own face and hair. Customers never use these looks.
+- **Views:** 3/4 front (toward the camera) and 3/4 back (away), mirrored for left/right, so 4 walking directions.
+- **Walk:** 4 frames. Wide step, then the back leg swings forward lifted with a bent knee, then the other side.
+  Arms stay attached at the shoulder and swing opposite to the legs; the body bobs on the passing frames.
+- **Standing:** in line they face the register (back view); in the waiting area they face the camera. They blink now and then.
+- **Seated:** guests sit on the café's own chairs and only the upper body is drawn.
+  - Far side of a table: facing the camera; the table hides the lower body; they lift the cup or food to the mouth.
+  - Near side: back to the camera; the chair back covers the lower back; the elbow lifts and the cup peeks out.
+  - Food → eating animation, drinks → drinking animation.
+- The owner's earlier pixel-art sheet is kept in `assets/characters/girl-source.png`, with `tools/slice_sprites.py`
+  for cutting future sheets, but the game no longer uses it.
 
-## Current status (v0.6, test build)
+## Current status (v0.7, test build)
 - Menu prices doubled in v0.4 because customers now arrive less often.
-- Single file: `index.html` (HTML, CSS, JavaScript, no downloads needed).
+- `index.html` (game) + `characters.js` (character art). No other downloads needed.
 - Progress saves on the device automatically.
 - Ads and purchases are **simulated** so the game can be tested. Real Google AdMob and Google Play
   Billing are connected later, when the Android app is set up.
