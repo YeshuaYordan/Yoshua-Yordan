@@ -79,34 +79,55 @@ const EL = {
   wind:      { name: "Wind", tier: 1, color: "#bfe6e0", shape: "swirl", parts: ["wind"], desc: "Fast gusts pierce foes.", dmg: 6, rate: 2.0, speed: 980, pierce: 2 },
   steam:     { name: "Steam", tier: 2, color: "#d8d4e8", shape: "cloud", parts: ["fire", "water"], desc: "Scalding cloud hurts all inside.", dmg: 8, rate: 0.8, speed: 600, cloud: 80, cloud_dps: 12 },
   lava:      { name: "Lava", tier: 2, color: "#e8452c", shape: "rock", parts: ["fire", "earth"], desc: "Leaves burning magma pools.", dmg: 16, rate: 0.9, speed: 560, puddle: 55, puddle_dps: 10, burn: 4 },
-  lightning: { name: "Lightning", tier: 2, color: "#ffe34a", shape: "spiky", parts: ["fire", "wind"], desc: "Thunderbird bolt chains 3 foes.", dmg: 14, rate: 1.0, chain: 3 },
+  blaze:     { name: "Blaze", tier: 2, color: "#ffb52e", shape: "spiky", parts: ["fire", "wind"], desc: "Wind-fed fire bolt chains 3 foes.", dmg: 14, rate: 1.0, chain: 3 },
   plant:     { name: "Plant", tier: 2, color: "#5cc36a", shape: "leaf", parts: ["water", "earth"], desc: "Dryad vines root enemies.", dmg: 12, rate: 0.9, speed: 620, root: 1.0 },
   ice:       { name: "Ice", tier: 2, color: "#9fdcff", shape: "crystal", parts: ["water", "wind"], desc: "Frost wolf bite slows foes.", dmg: 11, rate: 1.1, speed: 700, slow: 0.5 },
-  sand:      { name: "Sand", tier: 2, color: "#e6c36a", shape: "blob", parts: ["earth", "wind"], desc: "Djinn sandblast pushes foes back.", dmg: 10, rate: 1.0, speed: 640, knock: 55, splash: 40 },
+  dust:      { name: "Dust", tier: 2, color: "#d9b77a", shape: "blob", parts: ["earth", "wind"], desc: "Dust storm blast pushes foes back.", dmg: 10, rate: 1.0, speed: 640, knock: 55, splash: 40 },
   storm:     { name: "Storm", tier: 3, color: "#8a7dff", shape: "cloud", parts: ["fire", "wind", "water"], desc: "Chains 5 foes and slows them.", dmg: 22, rate: 1.1, chain: 5, slow: 0.6 },
-  blizzard:  { name: "Blizzard", tier: 3, color: "#e6f6ff", shape: "crystal", parts: ["water", "wind"], desc: "Freezing blast slows a wide area.", dmg: 14, rate: 0.9, speed: 640, splash: 110, slow: 0.45 },
-  obsidian:  { name: "Obsidian", tier: 3, color: "#4a3a5e", shape: "rock", parts: ["fire", "earth", "water"], desc: "Volcanic glass pierces 5 foes.", dmg: 40, rate: 0.8, speed: 820, pierce: 5 },
-  grove:     { name: "Grove", tier: 3, color: "#2f9e55", shape: "leaf", parts: ["water", "earth"], desc: "Ancient roots trap a whole area.", dmg: 20, rate: 0.8, speed: 560, splash: 90, root: 1.2 },
-  wildfire:  { name: "Wildfire", tier: 3, color: "#ff4f1f", shape: "flame", parts: ["fire", "water", "earth"], desc: "Spreading flames burn an area.", dmg: 14, rate: 1.2, speed: 640, splash: 70, burn: 12 },
+  blizzard:  { name: "Blizzard", tier: 3, color: "#e6f6ff", shape: "crystal", parts: ["water", "wind", "earth"], desc: "Freezing blast slows a wide area.", dmg: 14, rate: 0.9, speed: 640, splash: 110, slow: 0.45 },
+  obsidian:  { name: "Obsidian", tier: 3, color: "#4a3a5e", shape: "rock", parts: ["fire", "earth", "water", "wind"], desc: "Volcanic glass pierces 5 foes.", dmg: 40, rate: 0.8, speed: 820, pierce: 5 },
+  grove:     { name: "Grove", tier: 3, color: "#2f9e55", shape: "leaf", parts: ["water", "earth", "fire"], desc: "Ancient roots trap a whole area.", dmg: 20, rate: 0.8, speed: 560, splash: 90, root: 1.2 },
+  wildfire:  { name: "Wildfire", tier: 3, color: "#ff4f1f", shape: "flame", parts: ["fire", "water", "earth", "wind"], desc: "Spreading flames burn an area.", dmg: 14, rate: 1.2, speed: 640, splash: 70, burn: 12 },
   crystal:   { name: "Crystal", tier: 3, color: "#ff8ad8", shape: "crystal", parts: ["earth", "wind", "fire"], desc: "Fires 3 prism shards at once.", dmg: 16, rate: 1.2, speed: 760, multishot: 3 },
 };
+// Element tiers:
+//   Main elements (tier 1): Fire, Earth, Water, Wind. Same + same levels up V1 (Common) > V2 (Uncommon) > V3 (Rare, max).
+//   Next elements (tier 2): two different main elements of the SAME level make a next element of that level
+//     (V2 Fire + V2 Earth = V2 Lava). Same + same levels up to V3 (Rare, max).
+//   Epic elements (tier 3): only two different V3 next elements make one, and it starts at Epic.
+//     Same + same levels up Epic > Myth > Legend.
 const RECIPE_LIST = [
-  ["fire", "water", "steam"], ["fire", "earth", "lava"], ["fire", "wind", "lightning"],
-  ["water", "earth", "plant"], ["water", "wind", "ice"], ["earth", "wind", "sand"],
-  ["lightning", "water", "storm"], ["ice", "wind", "blizzard"], ["lava", "water", "obsidian"],
-  ["plant", "earth", "grove"], ["plant", "fire", "wildfire"], ["sand", "lightning", "crystal"],
+  ["fire", "earth", "lava"], ["fire", "water", "steam"], ["fire", "wind", "blaze"],
+  ["earth", "water", "plant"], ["earth", "wind", "dust"], ["water", "wind", "ice"],
+  ["steam", "blaze", "storm"], ["ice", "dust", "blizzard"], ["lava", "ice", "obsidian"],
+  ["plant", "steam", "grove"], ["plant", "blaze", "wildfire"], ["dust", "blaze", "crystal"],
 ];
 const RECIPES = {};
 const rkey = (a, b) => [a, b].sort().join("+");
 for (const r of RECIPE_LIST) RECIPES[rkey(r[0], r[1])] = r[2];
 
-// Base elements (Fire, Water, Earth, Wind) level up only to Rare (V3). Fusions can go all the way to Legend.
-const BASE_MAX_RARITY = 2;
-const maxRarity = el => EL[el].tier === 1 ? BASE_MAX_RARITY : MAX_RARITY;
+const V3 = 2, EPIC = 3;
+// Main and next elements max out at V3 (Rare). Epic elements go up to Legend.
+const maxRarity = el => EL[el].tier === 3 ? MAX_RARITY : V3;
 function merge(aEl, aR, bEl, bR) {
   if (aEl === bEl) return (aR === bR && aR < maxRarity(aEl)) ? { element: aEl, rarity: aR + 1 } : null;
   const res = RECIPES[rkey(aEl, bEl)];
-  return res ? { element: res, rarity: Math.min(aR, bR) } : null;
+  if (!res || aR !== bR) return null;
+  if (EL[res].tier === 3) return aR === V3 ? { element: res, rarity: EPIC } : null;
+  return { element: res, rarity: aR };
+}
+// Explains why two cards did not fuse (or returns "" when there is nothing useful to say).
+function mergeHint(a, b) {
+  if (a.element === b.element) {
+    if (a.rarity !== b.rarity) return `Both ${EL[a.element].name} cards must be the same level to level up.`;
+    if (a.rarity >= maxRarity(a.element)) return `${cardName(a)} is already at max level. Fuse it with a different element instead!`;
+    return "";
+  }
+  const res = RECIPES[rkey(a.element, b.element)];
+  if (!res) return `${EL[a.element].name} and ${EL[b.element].name} don't fuse together.`;
+  if (EL[res].tier === 3 && (a.rarity !== V3 || b.rarity !== V3)) return "Epic fusions need two V3 (Rare) cards.";
+  if (a.rarity !== b.rarity) return `Both cards must be the same level (like V2 + V2) to fuse.`;
+  return "";
 }
 const damageOf = (el, r) => EL[el].dmg * RARITY_DMG[r];
 const rateOf = (el, r) => EL[el].rate * RARITY_RATE[r];
@@ -776,7 +797,7 @@ function buy(si, row, i) {
     const s = slotPos(row, i); card.setHome(s.x, s.y);
   } else {
     const res = merge(card.element, card.rarity, other.element, other.rarity);
-    if (!res) { showInfo(`${cardName(card)} can't fuse with ${cardName(other)}.`); card.shake = 1; return false; }
+    if (!res) { showInfo(mergeHint(card, other) || `${cardName(card)} can't fuse with ${cardName(other)}.`); card.shake = 1; return false; }
     rows.shop[si] = null; applyMerge(other, res);
   }
   gold -= cost; freeCard = false; return true;
@@ -803,8 +824,8 @@ function moveCard(fr, fi, tr, ti) {
   if (!other) { rows[fr][fi] = null; rows[tr][ti] = card; const s = slotPos(tr, ti); card.setHome(s.x, s.y); return "move"; }
   const res = merge(card.element, card.rarity, other.element, other.rarity);
   if (res) { rows[fr][fi] = null; applyMerge(other, res); return "merge"; }
-  if (card.element === other.element && card.rarity === other.rarity && card.rarity >= maxRarity(card.element))
-    showInfo(`${cardName(card)} is already at max level. Fuse it with a different element instead!`);
+  const hint = mergeHint(card, other);
+  if (hint) showInfo(hint);
   rows[fr][fi] = other; rows[tr][ti] = card;
   const a = slotPos(fr, fi), b = slotPos(tr, ti); other.setHome(a.x, a.y); card.setHome(b.x, b.y);
   return "swap";
@@ -1148,13 +1169,16 @@ function bookLines() {
   L.push({ center: true, segs: [[`${found} / ${RECIPE_LIST.length} recipes discovered`, "#6b3a22", 22]] });
   L.push({ gap: 18 });
   L.push({ segs: [["Rules", INK, 28, DISPLAY, 900]] });
-  for (const s of ["Two of the same card with the same rarity", "fuse into one rarity higher.", "Fire, Water, Earth and Wind max out at Rare.", "Two different elements may fuse into a", "new one (it keeps the lower rarity)."])
+  for (const s of ["Main elements: same + same = next level.", "V1 (Common) > V2 (Uncommon) > V3 (Rare, max).",
+    "Next elements: two different main elements", "of the same level (V2 Fire + V2 Earth = V2 Lava).",
+    "They level up to V3 too.", "Epic elements: two different V3 next elements.",
+    "Epic levels up: Epic > Myth > Legend."])
     L.push({ segs: [[s, INK, 22]] });
   L.push({ segs: RARITY_NAMES.flatMap((n, i) => [[n, shade(RARITY_COLORS[i], -0.3), 22, FONT, 700], [i < 5 ? " > " : "", INK, 22]]) });
   let lastTier = 0;
   for (const r of RECIPE_LIST) {
     const tier = EL[r[2]].tier;
-    if (tier !== lastTier) { L.push({ gap: 16 }); L.push({ segs: [[tier === 2 ? "Tier II Fusions" : "Tier III Fusions", INK, 28, DISPLAY, 900]] }); lastTier = tier; }
+    if (tier !== lastTier) { L.push({ gap: 16 }); L.push({ segs: [[tier === 2 ? "Next Elements" : "Epic Elements (V3 + V3)", INK, 28, DISPLAY, 900]] }); lastTier = tier; }
     if (save.discovered[r[2]]) {
       const c = el => shade(EL[el].color, -0.35);
       L.push({ segs: [[EL[r[0]].name, c(r[0]), 24], [" + ", INK, 24], [EL[r[1]].name, c(r[1]), 24], [" = ", INK, 24], [EL[r[2]].name, c(r[2]), 30, FONT, 700]] });
