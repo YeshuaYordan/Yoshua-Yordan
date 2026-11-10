@@ -88,7 +88,12 @@ const EL = {
   obsidian:  { name: "Obsidian", tier: 3, color: "#4a3a5e", shape: "rock", parts: ["fire", "earth", "water", "wind"], desc: "Volcanic glass pierces 5 foes.", dmg: 40, rate: 0.8, speed: 820, pierce: 5 },
   grove:     { name: "Grove", tier: 3, color: "#2f9e55", shape: "leaf", parts: ["water", "earth", "fire"], desc: "Ancient roots trap a whole area.", dmg: 20, rate: 0.8, speed: 560, splash: 90, root: 1.2 },
   wildfire:  { name: "Wildfire", tier: 3, color: "#ff4f1f", shape: "flame", parts: ["fire", "water", "earth", "wind"], desc: "Spreading flames burn an area.", dmg: 14, rate: 1.2, speed: 640, splash: 70, burn: 12 },
-  crystal:   { name: "Crystal", tier: 3, color: "#ff8ad8", shape: "crystal", parts: ["earth", "wind", "fire"], desc: "Fires 3 prism shards at once.", dmg: 16, rate: 1.2, speed: 760, multishot: 3 },
+  geyser:    { name: "Geyser", tier: 3, color: "#6fd0e8", shape: "cloud", parts: ["fire", "earth", "water"], desc: "Boiling eruption blasts an area back.", dmg: 18, rate: 0.8, speed: 600, splash: 85, knock: 60 },
+  ash:       { name: "Ash", tier: 3, color: "#9a9196", shape: "blob", parts: ["fire", "earth", "wind"], desc: "Choking ash cloud slows and hurts.", dmg: 10, rate: 0.9, speed: 600, cloud: 95, cloud_dps: 14, cloud_slow: 0.7 },
+  magmabloom:{ name: "Magmabloom", tier: 3, color: "#ff6f3c", shape: "leaf", parts: ["fire", "earth", "water"], desc: "Burning blossoms root and scorch an area.", dmg: 16, rate: 0.9, speed: 600, splash: 65, burn: 10, root: 0.8 },
+  frostveil: { name: "Frostveil", tier: 3, color: "#cfe9ff", shape: "cloud", parts: ["fire", "water", "wind"], desc: "Freezing mist slows everything inside.", dmg: 9, rate: 0.9, speed: 620, cloud: 105, cloud_dps: 9, cloud_slow: 0.4 },
+  aurora:    { name: "Icy Aurora", tier: 3, color: "#7dffd9", shape: "crystal", parts: ["fire", "water", "wind"], desc: "Shimmering light chains 4 foes and chills them.", dmg: 18, rate: 1.0, chain: 4, slow: 0.5 },
+  sandstorm: { name: "Sandstorm", tier: 3, color: "#d9a85a", shape: "swirl", parts: ["fire", "earth", "wind"], desc: "Three whirling sand blasts push foes back.", dmg: 14, rate: 1.1, speed: 760, multishot: 3, knock: 25 },
 };
 // Element tiers:
 //   Main elements (tier 1): Fire, Earth, Water, Wind. Same + same levels up V1 (Common) > V2 (Uncommon) > V3 (Rare, max).
@@ -100,7 +105,9 @@ const RECIPE_LIST = [
   ["fire", "earth", "lava"], ["fire", "water", "steam"], ["fire", "wind", "lightning"],
   ["earth", "water", "plant"], ["earth", "wind", "dust"], ["water", "wind", "ice"],
   ["steam", "lightning", "storm"], ["ice", "dust", "blizzard"], ["lava", "ice", "obsidian"],
-  ["plant", "steam", "grove"], ["plant", "lightning", "wildfire"], ["dust", "lightning", "crystal"],
+  ["plant", "steam", "grove"], ["plant", "lightning", "wildfire"],
+  ["lava", "steam", "geyser"], ["lava", "dust", "ash"], ["lava", "plant", "magmabloom"],
+  ["steam", "ice", "frostveil"], ["lightning", "ice", "aurora"], ["lightning", "dust", "sandstorm"],
 ];
 const RECIPES = {};
 const rkey = (a, b) => [a, b].sort().join("+");
@@ -836,7 +843,7 @@ function applyHit(el, r, x, y, enemy) {
     hitEnemy(enemy, el, r, dmg);
     fxs.push(new Fx("burst", { x, y, color: d.color, radius: 22, duration: 0.35 }));
   }
-  if (d.cloud) zones.push(new Zone(x, y, d.cloud, d.cloud_dps * rm, 2.5, d.color));
+  if (d.cloud) { const z = new Zone(x, y, d.cloud, d.cloud_dps * rm, 2.5, d.color); z.slowAmt = d.cloud_slow || 0; zones.push(z); }
   if (d.puddle) { const z = new Zone(x, y, d.puddle, d.puddle_dps * rm, 3, d.color); z.burnAmt = 2 * rm; zones.push(z); }
 }
 function hitEnemy(e, el, r, dmg) {
