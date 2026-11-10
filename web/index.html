@@ -786,7 +786,7 @@ function pickKind(wave) {
   return pool[0][0];
 }
 function spawnEnemy(kind, wave) {
-  const e = new Enemy(kind, wave, rand(50, W - 50), HUD_H + 20);
+  const e = new Enemy(kind, wave, rand(80, W - 80), HUD_H + 20);
   e.wave = wave; enemies.push(e);
 }
 function damageCastle(a) {
@@ -1052,82 +1052,97 @@ function slotFrame(x, y, col) {
   rrect(x - CARD_W / 2, y - CARD_H / 2, CARD_W, CARD_H, 12);
   ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
 }
-// ------------------------------------------------------------ Stage backgrounds
+// ------------------------------------------------------------ Stage backgrounds (top-down, like the castle)
+// Flat ground seen from above. Decorations are placed once; crystals in the cave stay along the side walls.
+const FIELD_T = HUD_H, FIELD_B = FRONT_Y - 8;
 const seeded = n => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
-const DECOR = { flowers: seeded(46), clouds: seeded(5), pebbles: seeded(30), cacti: [[0.12, 0.62], [0.84, 0.75], [0.6, 0.9]], crystals: seeded(14), spores: seeded(30), stal: seeded(14) };
+const DECOR = {
+  patches: seeded(18), tufts: seeded(70), flowers: seeded(26), bushes: seeded(5), stones: seeded(8),
+  ripples: seeded(22), pebbles: seeded(40), cacti: seeded(5), bones: seeded(3),
+  cracks: seeded(12), rubble: seeded(40),
+  crystals: Array.from({ length: 12 }, (_, i) => [i % 2 ? 0.94 + Math.random() * 0.05 : 0.01 + Math.random() * 0.05, (i + Math.random()) / 12, Math.random()]),
+};
 const FLOWER_COLORS = ["#ffffff", "#ffd35a", "#ff8ac2", "#b9a3ff"];
 const CRYSTAL_COLORS = ["#6ff3ff", "#b77bff", "#ff7ad9"];
-function gradRect(y0, y1, c0, c1) {
-  const g = ctx.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, c0); g.addColorStop(1, c1);
-  ctx.fillStyle = g; ctx.fillRect(0, y0, W, y1 - y0);
-}
-function hills(base, amp, step, phase, color) {
-  const pts = [[0, FRONT_Y]];
-  for (let x = 0; x <= W + step; x += step) pts.push([x, base + Math.sin(x / step * 1.3 + phase) * amp]);
-  pts.push([W, FRONT_Y]); poly(pts, color, null);
-}
+const fx = k => k * W, fy = k => FIELD_T + k * (FIELD_B - FIELD_T);
 function drawBgGrass() {
-  gradRect(0, 400, "#7ec8ef", "#d6f0ff");
-  circle(600, 150, 60, "rgba(255,236,150,0.35)"); circle(600, 150, 40, "#ffe680"); ring(600, 150, 40, INK, 3);
-  for (const c of DECOR.clouds) {
-    const x = ((c[0] * W + time * (8 + c[2] * 10)) % (W + 200)) - 100, y = HUD_H + 40 + c[1] * 180, k = 0.6 + c[2] * 0.6;
-    ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
-    poly([[-40, 10], [-44, -8], [-26, -10], [-22, -28], [-2, -24], [8, -38], [24, -26], [44, -26], [42, -6], [54, 4], [40, 14]], "#ffffff", INK, 3);
-    ctx.restore();
-  }
-  hills(330, 22, 120, 0.5, "#8fd07a");
-  hills(372, 14, 90, 2.1, "#6fbf5a");
-  gradRect(390, FRONT_Y, "#64b552", "#4f9e44");
+  ctx.fillStyle = "#5fae4f"; ctx.fillRect(0, FIELD_T, W, FRONT_Y - FIELD_T);
+  for (const p of DECOR.patches) ellipse(fx(p[0]), fy(p[1]), 40 + p[2] * 50, 22 + p[2] * 26, p[2] > 0.5 ? "#69b858" : "#559f46");
+  // A worn dirt trail the enemies march along.
+  ctx.strokeStyle = "rgba(150,110,60,0.35)"; ctx.lineWidth = 70; ctx.lineCap = "round"; ctx.beginPath();
+  ctx.moveTo(W * 0.55, FIELD_T); ctx.bezierCurveTo(W * 0.25, 300, W * 0.75, 480, W * 0.45, FRONT_Y); ctx.stroke();
+  ctx.strokeStyle = "#3f8a37"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.beginPath();
+  for (const t of DECOR.tufts) { const x = fx(t[0]), y = fy(t[1]); ctx.moveTo(x - 4, y); ctx.lineTo(x - 6, y - 6); ctx.moveTo(x, y); ctx.lineTo(x, y - 8); ctx.moveTo(x + 4, y); ctx.lineTo(x + 6, y - 6); }
+  ctx.stroke();
   for (const f of DECOR.flowers) {
-    const x = f[0] * W, y = 400 + f[1] * (FRONT_Y - 420);
-    ctx.strokeStyle = "#3f8a37"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 3, y - 8); ctx.moveTo(x, y); ctx.lineTo(x + 3, y - 9); ctx.stroke();
-    if (f[2] > 0.55) { const c = FLOWER_COLORS[Math.floor(f[2] * 10) % 4]; for (let i = 0; i < 5; i++) circle(x + Math.cos(i * 1.256) * 4, y - 12 + Math.sin(i * 1.256) * 4, 3, c); circle(x, y - 12, 2.5, "#ffb52e"); }
+    const x = fx(f[0]), y = fy(f[1]), c = FLOWER_COLORS[Math.floor(f[2] * 4)];
+    for (let i = 0; i < 5; i++) circle(x + Math.cos(i * 1.256) * 4, y + Math.sin(i * 1.256) * 4, 3, c);
+    circle(x, y, 2.5, "#ffb52e");
+  }
+  for (const s of DECOR.stones) { const x = fx(s[0]), y = fy(s[1]), r = 6 + s[2] * 8; ellipse(x, y, r, r * 0.8, "#a8a29a"); ring(x, y, r * 0.9, INK, 2); }
+  for (const b of DECOR.bushes) {
+    const x = b[0] < 0.5 ? fx(b[0] * 0.2) : fx(0.8 + b[0] * 0.2), y = fy(b[1]), r = 18 + b[2] * 10;
+    for (const [dx, dy, k] of [[-0.6, 0.2, 0.7], [0.6, 0.25, 0.7], [0, -0.2, 0.85], [0, 0.3, 0.75]]) circle(x + dx * r, y + dy * r, r * k, "#3f8f3a");
+    ring(x, y, r * 1.15, hexA(INK, 0.6), 2.5); circle(x - r * 0.3, y - r * 0.35, r * 0.2, "rgba(255,255,255,0.2)");
   }
 }
 function drawBgSand() {
-  gradRect(0, 400, "#f6a35c", "#ffe0a6");
-  circle(560, 170, 80, "rgba(255,240,200,0.4)"); circle(560, 170, 52, "#fff1c4"); ring(560, 170, 52, INK, 3);
-  // Pyramids on the horizon.
-  poly([[380, 340], [470, 250], [560, 340]], "#d99a55", INK, 3); poly([[470, 250], [560, 340], [500, 340]], "#c58444", null);
-  poly([[520, 345], [590, 280], [660, 345]], "#e0a862", INK, 3); poly([[590, 280], [660, 345], [610, 345]], "#c98a48", null);
-  hills(338, 16, 140, 1.2, "#efc27a");
-  hills(378, 18, 110, 3.0, "#e6b265");
-  gradRect(395, FRONT_Y, "#e8bb72", "#d9a35a");
-  ctx.strokeStyle = "rgba(160,100,40,0.35)"; ctx.lineWidth = 2; ctx.beginPath();
-  for (let y = 430; y < FRONT_Y; y += 46) for (let x = -40; x < W; x += 160) { const o = (y / 46) % 2 ? 80 : 0; ctx.moveTo(x + o, y); ctx.quadraticCurveTo(x + o + 40, y - 8, x + o + 80, y); }
+  ctx.fillStyle = "#e6bc76"; ctx.fillRect(0, FIELD_T, W, FRONT_Y - FIELD_T);
+  for (const p of DECOR.patches) ellipse(fx(p[0]), fy(p[1]), 50 + p[2] * 60, 24 + p[2] * 22, p[2] > 0.5 ? "#ecc684" : "#dcae66");
+  // Wind ripples.
+  ctx.strokeStyle = "rgba(170,110,45,0.4)"; ctx.lineWidth = 2; ctx.beginPath();
+  for (const r of DECOR.ripples) { const x = fx(r[0]), y = fy(r[1]), w = 40 + r[2] * 50; ctx.moveTo(x - w, y); ctx.quadraticCurveTo(x - w / 2, y - 6, x, y); ctx.quadraticCurveTo(x + w / 2, y + 6, x + w, y); }
   ctx.stroke();
-  for (const p of DECOR.pebbles) circle(p[0] * W, 410 + p[1] * (FRONT_Y - 420), 2 + p[2] * 3, "#b98547");
-  for (const [cx, cyr] of DECOR.cacti) {
-    const x = cx * W, y = 400 + cyr * (FRONT_Y - 420) * 0.6;
-    rrect(x - 8, y - 46, 16, 50, 8); ctx.fillStyle = "#5aa45a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-    rrect(x - 24, y - 34, 10, 22, 5); ctx.fill(); ctx.stroke(); rrect(x + 14, y - 40, 10, 20, 5); ctx.fill(); ctx.stroke();
+  for (const p of DECOR.pebbles) circle(fx(p[0]), fy(p[1]), 1.5 + p[2] * 3, p[2] > 0.5 ? "#b98547" : "#c99a5a");
+  // Bones half buried in the sand.
+  for (const b of DECOR.bones) {
+    const x = fx(0.15 + b[0] * 0.7), y = fy(0.15 + b[1] * 0.7), a = b[2] * Math.PI;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+    rrect(-14, -3, 28, 6, 3); ctx.fillStyle = "#f3ead6"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    for (const sx of [-14, 14]) for (const sy of [-3, 3]) { circle(sx, sy, 4, "#f3ead6"); ring(sx, sy, 4, INK, 1.5); }
+    ctx.restore();
+  }
+  // Round cacti seen from above, kept near the sides.
+  for (const c of DECOR.cacti) {
+    const x = c[0] < 0.5 ? fx(0.03 + c[0] * 0.15) : fx(0.82 + c[0] * 0.15), y = fy(c[1]), r = 14 + c[2] * 8;
+    circle(x, y, r, "#5aa45a"); ring(x, y, r, INK, 3);
+    ctx.strokeStyle = "#3f7f40"; ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * r * 0.85, y + Math.sin(a) * r * 0.85); }
+    ctx.stroke(); circle(x, y, 3, "#ff8ac2");
   }
 }
 function drawBgCave() {
-  gradRect(0, FRONT_Y, "#120b1e", "#2a1d3d");
-  // Cave walls and back rock.
-  poly([[0, HUD_H], [0, FRONT_Y], [70, FRONT_Y], [50, 520], [90, 380], [40, 240], [80, HUD_H]], "#1e1430", INK, 3);
-  poly([[W, HUD_H], [W, FRONT_Y], [W - 70, FRONT_Y], [W - 40, 540], [W - 95, 400], [W - 45, 250], [W - 85, HUD_H]], "#1e1430", INK, 3);
-  hills(350, 26, 110, 0.8, "#241838");
-  gradRect(400, FRONT_Y, "#2b1f40", "#33264a");
-  // Stalactites.
-  for (const k of DECOR.stal) { const x = k[0] * W, h = 30 + k[1] * 70; poly([[x - 12 - k[2] * 10, HUD_H], [x, HUD_H + h], [x + 12 + k[2] * 10, HUD_H]], "#2a1d3d", INK, 2.5); }
-  // Glowing crystals.
+  ctx.fillStyle = "#2a1f3a"; ctx.fillRect(0, FIELD_T, W, FRONT_Y - FIELD_T);
+  for (const p of DECOR.patches) ellipse(fx(p[0]), fy(p[1]), 40 + p[2] * 60, 22 + p[2] * 28, p[2] > 0.5 ? "#30243f" : "#251b33");
+  // Floor cracks.
+  ctx.strokeStyle = "rgba(10,5,18,0.55)"; ctx.lineWidth = 2; ctx.beginPath();
+  for (const c of DECOR.cracks) {
+    let x = fx(c[0]), y = fy(c[1]); ctx.moveTo(x, y);
+    for (let i = 0; i < 4; i++) { x += (c[2] - 0.5) * 30 + (i % 2 ? 12 : -10); y += 10 + i * 4; ctx.lineTo(x, y); }
+  }
+  ctx.stroke();
+  for (const r of DECOR.rubble) circle(fx(r[0]), fy(r[1]), 1.5 + r[2] * 3, "#3d2f50");
+  // Rock walls on both sides.
+  const wall = side => {
+    const pts = [];
+    for (let i = 0; i <= 12; i++) { const y = FIELD_T + i * (FRONT_Y - FIELD_T) / 12; pts.push([side ? W - (34 + Math.sin(i * 1.9) * 12) : 34 + Math.sin(i * 1.9) * 12, y]); }
+    poly(side ? [[W, FIELD_T], ...pts, [W, FRONT_Y]] : [[0, FIELD_T], ...pts, [0, FRONT_Y]], "#181024", INK, 3);
+  };
+  wall(0); wall(1);
+  // Glowing crystal clusters, only along the side walls (seen from above).
   DECOR.crystals.forEach((c, i) => {
-    const x = c[0] * W, y = 260 + c[1] * (FRONT_Y - 300), col = CRYSTAL_COLORS[i % 3], h = 18 + c[2] * 26;
+    const x = fx(c[0]), y = fy(c[1]), col = CRYSTAL_COLORS[i % 3], len = 16 + c[2] * 14;
     const pulse = 0.5 + 0.5 * Math.sin(time * 2 + i * 1.7);
-    circle(x, y - h * 0.4, h * 1.3, hexA(col, 0.10 + 0.08 * pulse));
-    for (const [dx, sc, rot] of [[-8, 0.7, -0.35], [0, 1, 0], [9, 0.6, 0.4]]) {
-      ctx.save(); ctx.translate(x + dx, y); ctx.rotate(rot);
-      poly([[-5 * sc, 0], [-5 * sc, -h * sc * 0.75], [0, -h * sc], [5 * sc, -h * sc * 0.75], [5 * sc, 0]], col, INK, 2);
-      poly([[-2 * sc, -2], [-2 * sc, -h * sc * 0.7], [0, -h * sc * 0.85], [0, -2]], "rgba(255,255,255,0.45)", null);
+    circle(x, y, len * 1.8, hexA(col, 0.10 + 0.08 * pulse));
+    const toward = c[0] < 0.5 ? 0 : Math.PI;
+    for (let k = -2; k <= 2; k++) {
+      const a = toward + k * 0.45, l = len * (1 - Math.abs(k) * 0.18);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      poly([[0, -4], [l * 0.75, -5], [l, 0], [l * 0.75, 5], [0, 4]], col, INK, 2);
+      poly([[2, -1], [l * 0.7, -2], [l * 0.9, 0], [2, 1]], "rgba(255,255,255,0.45)", null);
       ctx.restore();
     }
   });
-  for (const sp of DECOR.spores) {
-    const x = sp[0] * W + Math.sin(time * 0.8 + sp[2] * 10) * 12, y = HUD_H + 40 + ((sp[1] * 600 - time * (6 + sp[2] * 8)) % 600 + 600) % 600;
-    circle(x, y, 1.5 + sp[2] * 1.5, hexA(CRYSTAL_COLORS[Math.floor(sp[2] * 3) % 3], 0.6));
-  }
 }
 function drawBackground() {
   const w = state === "title" ? 1 : (state === "break" ? wave + 1 : wave);
