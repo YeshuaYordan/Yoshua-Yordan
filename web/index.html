@@ -524,11 +524,12 @@ class Card {
   drawMythAura(hw, hh, t, gold = false) {
     const pulse = 0.5 + 0.5 * Math.sin(t * 4);
     ctx.save();
-    ctx.globalCompositeOperation = "lighter";
+    // Legend fire glows additively (gold light); Myth fire is painted normally so its deep red stays deep.
+    ctx.globalCompositeOperation = gold ? "lighter" : "source-over";
     for (let i = 4; i >= 0; i--) {
       const g = 4 + i * 6 + pulse * 4;
       rrect(-hw - g, -hh - g, CARD_W + g * 2, CARD_H + g * 2, 12 + g);
-      ctx.fillStyle = hexA(gold ? (i > 2 ? "#ffb21f" : "#ffe27a") : (i > 2 ? "#ff3d1f" : "#ff8a2a"), 0.07 + (4 - i) * 0.025); ctx.fill();
+      ctx.fillStyle = hexA(gold ? (i > 2 ? "#ffb21f" : "#ffe27a") : (i > 2 ? "#7a0010" : "#b0101c"), 0.09 + (4 - i) * 0.03); ctx.fill();
     }
     // Flame tongues all around the edge, leaning upward like real fire.
     const per = 2 * (CARD_W + CARD_H), N = 40;
@@ -539,7 +540,7 @@ class Card {
       d -= CARD_W; return [-hw, hh - d, -1, 0];
     };
     for (let layer = 0; layer < 3; layer++) {
-      const col = (gold ? ["#ff9a1f", "#ffd84a", "#fff6c8"] : ["#ff3d1f", "#ff9a2e", "#ffe27a"])[layer], k = [1, 0.66, 0.38][layer], a = [0.55, 0.6, 0.7][layer];
+      const col = (gold ? ["#ff9a1f", "#ffd84a", "#fff6c8"] : ["#7d0012", "#c4111f", "#ff4a3a"])[layer], k = [1, 0.66, 0.38][layer], a = [0.55, 0.6, 0.7][layer];
       ctx.fillStyle = hexA(col, a);
       for (let i = 0; i < N; i++) {
         const [x, y, nx, ny] = edge((i + 0.5) * per / N);
@@ -558,9 +559,9 @@ class Card {
     ctx.restore();
     // Hot glowing border.
     ctx.save();
-    ctx.shadowColor = "#ff6a2a"; ctx.shadowBlur = 18 + pulse * 12;
+    ctx.shadowColor = gold ? "#ff6a2a" : "#c00018"; ctx.shadowBlur = 18 + pulse * 12;
     rrect(-hw - 2, -hh - 2, CARD_W + 4, CARD_H + 4, 11);
-    ctx.strokeStyle = hexA("#ffd27a", 0.95); ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = hexA(gold ? "#ffd27a" : "#ff5a4a", 0.95); ctx.lineWidth = 3; ctx.stroke();
     ctx.restore();
     // Embers drifting upward.
     for (let i = 0; i < 12; i++) {
@@ -568,8 +569,8 @@ class Card {
       const ex = -hw + ((i * 37) % 100) / 100 * CARD_W + Math.sin(t * 3 + i) * 6;
       const ey = hh - life * (CARD_H + 50);
       const s = 2.4 * (1 - life) + 0.8;
-      circle(ex, ey, s + 2.5, `rgba(255,120,40,${0.35 * (1 - life)})`);
-      circle(ex, ey, s, `rgba(255,230,150,${0.9 * (1 - life)})`);
+      circle(ex, ey, s + 2.5, gold ? `rgba(255,120,40,${0.35 * (1 - life)})` : `rgba(200,10,30,${0.4 * (1 - life)})`);
+      circle(ex, ey, s, gold ? `rgba(255,230,150,${0.9 * (1 - life)})` : `rgba(255,110,90,${0.9 * (1 - life)})`);
     }
   }
   accents(cx, cy, r, d) {
