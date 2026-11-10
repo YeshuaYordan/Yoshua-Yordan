@@ -46,7 +46,12 @@ who run it for you.
 4. Takeaway customers leave through the same door. Dine-in customers (pay 20% more) look for a free chair.
    - No free chair: they go to the marked **"Waiting for a seat" area** (12 numbered spots, one guest per spot,
      left of the line) for **15 seconds**. If a chair frees up they sit, otherwise they walk out and give **1 star**.
-   - A chip at the top shows how many guests are waiting for a chair. Tapping it opens the Chairs upgrade.
+   - The waiting area is fixed against the **left wall**, so it stays in the same place when the café expands.
+   - A chip at the top shows how many guests are waiting for a chair. Tapping it opens the Chairs upgrade
+     (or reminds you to clean tables when dirty ones are blocking seats).
+   - **Dirty tables:** when a dine-in guest leaves, the dish for what they ordered stays on the table
+     (coffee leaves a cup, cold drinks a glass, food a plate with crumbs). That seat can't be used until the player
+     **taps the table** to clean it. Dirty tables pulse and show "Tap to clean".
 5. Spend money on upgrades. Bigger upgrades unlock as you earn more.
 6. One in-game day lasts **30 real minutes**. At the end of the day you pay rent and staff wages and get +3 gems.
    (Rent and wages were scaled up 15x when days went from 2 to 30 minutes, so the cost per minute is unchanged.)
@@ -86,7 +91,7 @@ who run it for you.
 
 Room sizes: Coffee Stand 9×9, Cozy Café 10×10, Corner Café 11×11, Grand Café 12×12 tiles.
 
-## Current status (v0.4, test build)
+## Current status (v0.5, test build)
 - Menu prices doubled in v0.4 because customers now arrive less often.
 - Single file: `index.html` (HTML, CSS, JavaScript, no downloads needed).
 - Progress saves on the device automatically.

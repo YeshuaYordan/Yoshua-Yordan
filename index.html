@@ -509,17 +509,39 @@ function rebuildChairs(){
   const n = Math.min(S.seats, L.spots.length * 2);
   for (let j = 0; j < n; j++){
     const s = L.spots[j >> 1], left = j % 2 === 0;
-    L.chairs.push({ x:s.x + (left ? -.62 : .62), y:s.y, lane:s.x + (left ? -.95 : .95), table:j >> 1, c:keep[j]?.c || null });
+    L.chairs.push({ x:s.x + (left ? -.62 : .62), y:s.y, lane:s.x + (left ? -.95 : .95), table:j >> 1, c:keep[j]?.c || null, dirty:keep[j]?.dirty || null });
   }
 }
-// Waiting area for dine-in guests with no free chair: a marked zone left of the line, 3 x 4 fixed spots.
-const WAIT_COLS = 3, WAIT_ROWS = 4;
+// Waiting area for dine-in guests with no free chair: a marked zone against the left wall, 3 x 4 fixed spots.
+// It is anchored to the wall, so it stays in the same place when the café grows. Spot 1 is the one nearest the line.
+const WAIT_COLS = 3, WAIT_ROWS = 4, WAIT_X0 = .45, WAIT_Y0 = 2.85, WAIT_GAP = .78;
+const freeChair = () => L.chairs.find(ch => !ch.c && !ch.dirty);
+const dirtyCount = () => L.chairs.reduce((a, ch) => a + (ch.dirty ? 1 : 0), 0);
+function cleanTable(t){
+  let n = 0;
+  L.chairs.forEach(ch => { if (ch.table === t && ch.dirty){ ch.dirty = null; n++; } });
+  if (n){ const s = L.spots[t]; floater(s.x, s.y, n > 1 ? `Cleaned ${n} dishes` : 'Cleaned', false); sfx.tap(); tone(1320, .08, 'sine', .04, .05); }
+  return n;
+}
+// Tap test for dirty tables, in screen pixels relative to the canvas.
+function tableAt(px, py){
+  let best = -1, bd = Infinity;
+  const seen = new Set();
+  for (const ch of L.chairs){
+    if (!ch.dirty || seen.has(ch.table)) continue;
+    seen.add(ch.table);
+    const s = L.spots[ch.table], [sx, sy] = P(s.x, s.y, .62), d = Math.hypot(px - sx, py - (sy - hw * .25));
+    if (d < bd){ bd = d; best = ch.table; }
+  }
+  return bd < Math.max(34, hw * 1.1) ? best : -1;
+}
 function waitSpots(){
   const out = [];
-  for (let r = 0; r < WAIT_ROWS; r++) for (let k = 0; k < WAIT_COLS; k++) out.push([L.regX - 1.55 - k * .78, 3.35 + r * .78]);
+  for (let r = 0; r < WAIT_ROWS; r++) for (let k = 0; k < WAIT_COLS; k++)
+    out.push([WAIT_X0 + .5 + (WAIT_COLS - 1 - k) * WAIT_GAP, WAIT_Y0 + .5 + r * WAIT_GAP]);
   return out;
 }
-function waitZone(){ return { x0:L.regX - 1.55 - (WAIT_COLS - 1) * .78 - .5, x1:L.regX - 1.05, y0:2.85, y1:3.35 + (WAIT_ROWS - 1) * .78 + .5 }; }
+function waitZone(){ return { x0:WAIT_X0, x1:WAIT_X0 + 1 + (WAIT_COLS - 1) * WAIT_GAP, y0:WAIT_Y0, y1:WAIT_Y0 + 1 + (WAIT_ROWS - 1) * WAIT_GAP }; }
 function freeWaitSpot(){
   const taken = new Set(customers.filter(o => o.state === 'wait' || (o.state === 'toWait')).map(o => o.wspot));
   for (let i = 0; i < WAIT_COLS * WAIT_ROWS; i++) if (!taken.has(i)) return i;
@@ -573,7 +595,7 @@ function serve(c){
   sfx.coin();
   c.claimed = false;
   if (c.dine){
-    const seat = L.chairs.find(ch => !ch.c);
+    const seat = freeChair();
     if (seat) goSit(c, seat);
     else {
       const k = freeWaitSpot();
@@ -639,7 +661,7 @@ function updateCustomers(dt){
       if (c.patience <= 0) giveUp(c);
     }
     if (c.state === 'wait'){
-      const seat = L.chairs.find(ch => !ch.c);
+      const seat = freeChair();
       if (seat) goSit(c, seat);
       else {
         c.waitT -= dt;
@@ -655,6 +677,8 @@ function updateCustomers(dt){
       c.sitT -= dt;
       if (c.sitT <= 0){
         const s = c.seat; s.c = null; c.seat = null; c.state = 'leave';
+        s.dirty = { kind:c.item.kind, color:c.item.color };
+        if (!S.hintClean){ S.hintClean = true; toast('A guest left their dishes. Tap the table to clean it, or nobody can sit there.', 5500); }
         rate(c, serviceStars(c));
         const ey = L.N - .55;
         c.path = [[s.lane, s.y], [s.lane, ey], [1.0, ey], L.door, L.outside];
@@ -764,7 +788,10 @@ function offerVipTip(paid){
   if (!adsAvailable()) return;
   vipOffer = { amount:Math.round(paid * 5), until:performance.now() + 20000 };
 }
-$('#seatChip').addEventListener('click', () => { sub.upgrade = 'equip'; openDrawer('upgrade'); });
+$('#seatChip').addEventListener('click', () => {
+  if (dirtyCount()){ toast('Tap a table with "Tap to clean" above it to clear the dishes.'); return; }
+  sub.upgrade = 'equip'; openDrawer('upgrade');
+});
 $('#vipBtn').addEventListener('click', () => {
   if (!vipOffer) return;
   const amt = vipOffer.amount; vipOffer = null;
@@ -810,7 +837,7 @@ function settings(){
       ? `<p>This deletes your café and all progress on this device. It cannot be undone.</p>
          <div class="actions"><button class="btn danger" data-m="wipe">Yes, start over</button><button class="btn" data-m="back">Keep my café</button></div>`
       : `<div class="actions"><button class="btn danger" data-m="reset">Reset progress</button><button class="btn primary" data-m="close">Done</button></div>`}
-    <p style="font-size:12.5px">Beanery v0.4 test build. Drag the café to look around, pinch to zoom. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
+    <p style="font-size:12.5px">Beanery v0.5 test build. Drag the café to look around, pinch to zoom. Ads and purchases are pretend for now. Progress is saved on this device.</p>`, {
     sound(){ S.sound = !S.sound; if (S.sound) unlockAudio(); save(); draw(false); },
     reset(){ draw(true); },
     back(){ draw(false); },
@@ -890,7 +917,7 @@ const VIEWS = {
     out.push(row(ICON.machine, 'Espresso machine', `Lv ${S.machine + 1}`, `Every order is made 10% faster per level. Speed now ×${(1 / Math.pow(.9, S.machine)).toFixed(2)}.`,
       mMax ? btn('', 'Top level', 'Max', true) : btn('machine', 'Upgrade', fmt(cost.machine()), !can(cost.machine()))));
     const tMax = S.seats >= st.maxSeats;
-    out.push(row(ICON.table, 'Chairs', `${S.seats}/${st.maxSeats}`, tMax ? 'No space for more chairs. Expand the café to add more.' : `Dine-in guests need a free chair. Without one they stand in the waiting area for ${SEAT_WAIT} seconds, then leave a 1-star review. A table comes with every 2 chairs.`,
+    out.push(row(ICON.table, 'Chairs', `${S.seats}/${st.maxSeats}`, tMax ? 'No space for more chairs. Expand the café to add more.' : `Dine-in guests need a free, clean chair. Without one they stand in the waiting area for ${SEAT_WAIT} seconds, then leave a 1-star review. Guests leave their dishes, so tap a table to clean it. A table comes with every 2 chairs.`,
       tMax ? btn('', 'Full', '—', true) : btn('seat', 'Add chair', fmt(cost.seat()), !can(cost.seat()))));
     const avg = avgRating();
     out.push(`<p class="note">Customers: your café pulls ${gapText(baseAppeal() / BASE_GAP)}. Rating ${avg ? '★' + avg.toFixed(1) : '(none yet, counts as ★5)'} keeps ${Math.round(ratingMult() * 100)}% of that, so ${gapText(appeal() / BASE_GAP)}. Decorations, chairs, menu items and a bigger café raise the pull.</p>`);
@@ -1148,7 +1175,13 @@ function endPointer(e){
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = null;
   if (pointers.size === 0 && drag){
-    if (!drag.moved && e.type === 'pointerup'){ if (section) closeDrawer(); else brewTap(); }
+    if (!drag.moved && e.type === 'pointerup'){
+      if (section) closeDrawer();
+      else {
+        const r = canvas.getBoundingClientRect(), t = tableAt(e.clientX - r.left, e.clientY - r.top);
+        if (t >= 0){ unlockAudio(); cleanTable(t); } else brewTap();
+      }
+    }
     if (performance.now() - drag.t > 80){ velX = velY = 0; }
     drag = null; canvas.classList.remove('dragging');
   }
@@ -1334,9 +1367,30 @@ function drawRug(){
   poly([P(x0, y0, .005), P(x1, y0, .005), P(x1, y1, .005), P(x0, y1, .005)], '#C9D8CF');
   poly([P(x0 + .15, y0 + .15, .006), P(x1 - .15, y0 + .15, .006), P(x1 - .15, y1 - .15, .006), P(x0 + .15, y1 - .15, .006)], null, 'rgba(47,107,85,.35)', 1.5);
 }
-function drawTable(t){
+function drawTable(t, i){
   box(t.x - .07, t.y - .07, .14, .14, 0, .55, '#2E3430', '#2E3430', '#3E4541');
   box(t.x - .4, t.y - .4, .8, .8, .55, .07, '#D2AA7C', '#B48A5C', '#BF956A');
+  L.chairs.forEach(ch => { if (ch.table === i && ch.dirty) drawDish(t.x + (ch.x < t.x ? -.2 : .2), t.y, ch.dirty); });
+}
+// What the guest leaves behind matches what they ordered: a coffee cup, a tall glass, or a plate with crumbs.
+function drawDish(x, y, d){
+  const z = .62;
+  if (d.kind === 'cup'){
+    box(x - .07, y - .07, .14, .14, z, .11, '#FFFFFF', '#E3DFD8', '#EDEAE4');
+    const [cx, cy] = P(x, y, z + .11);
+    ctx.beginPath(); ctx.ellipse(cx, cy, hw * .07, hw * .035, 0, 0, Math.PI * 2); ctx.fillStyle = '#6B4A33'; ctx.fill();
+    const [hx, hy] = P(x + .07, y, z + .06);
+    ctx.beginPath(); ctx.arc(hx + hw * .03, hy, hw * .035, -Math.PI / 2, Math.PI / 2); ctx.strokeStyle = '#E3DFD8'; ctx.lineWidth = Math.max(1, hw * .025); ctx.stroke();
+  } else if (d.kind === 'glass'){
+    box(x - .055, y - .055, .11, .11, z, .2, 'rgba(255,255,255,.95)', 'rgba(225,235,238,.9)', 'rgba(235,242,244,.9)');
+    box(x - .05, y - .05, .1, .1, z, .05, d.color, d.color, d.color);
+  } else {
+    const [cx, cy] = P(x, y, z + .005);
+    ctx.beginPath(); ctx.ellipse(cx, cy, hw * .17, hw * .085, 0, 0, Math.PI * 2); ctx.fillStyle = '#FFFFFF'; ctx.fill();
+    ctx.strokeStyle = '#E3DFD8'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = d.color;
+    [[-.06, -.01], [.04, .02], [.07, -.02], [-.02, .03]].forEach(([dx, dy]) => { ctx.beginPath(); ctx.arc(cx + dx * hw, cy + dy * hw, Math.max(1, hw * .018), 0, Math.PI * 2); ctx.fill(); });
+  }
 }
 function drawChair(ch){
   box(ch.x - .17, ch.y - .17, .34, .34, 0, .32, '#3E4541', '#2E3430', '#353C37');
@@ -1444,7 +1498,7 @@ function draw(){
 
   const objs = [];
   const tables = L.spots.slice(0, Math.ceil(L.chairs.length / 2));
-  tables.forEach(t => objs.push({ k:t.x + t.y, f:() => drawTable(t) }));
+  tables.forEach((t, i) => objs.push({ k:t.x + t.y, f:() => drawTable(t, i) }));
   L.chairs.forEach(c => objs.push({ k:c.x + c.y - .01, f:() => drawChair(c) }));
   if (has('plant')) objs.push({ k:N, f:() => drawPlant(.55, N - .55) });
   if (has('plant2')) objs.push({ k:N, f:() => drawPlant(N - .55, .55, 1.1) });
@@ -1472,6 +1526,18 @@ function draw(){
     }
     if (c.vip){ ctx.font = `700 ${Math.round(u * .42)}px Sora, sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#94661C'; ctx.fillText('VIP', c.hx, by - 4); }
   }
+  const dirtyTables = new Set(L.chairs.filter(ch => ch.dirty).map(ch => ch.table));
+  const pulse = reduceMotion ? 0 : Math.sin(performance.now() / 260) * .5 + .5;
+  dirtyTables.forEach(ti => {
+    const t = L.spots[ti], [sx, sy] = P(t.x, t.y, .62);
+    ctx.beginPath(); ctx.ellipse(sx, sy, hw * (.62 + pulse * .08), hw * (.31 + pulse * .04), 0, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(47,107,85,${.45 + pulse * .4})`; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = `700 ${Math.round(Math.max(10, u * .42))}px Sora, sans-serif`;
+    const w = ctx.measureText('Tap to clean').width + u * .7, h = u * .95, [bx, by] = bubble(sx, sy - hw * .55, w, h);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#2F6B55'; ctx.fillText('Tap to clean', sx, by + h / 2 + 1);
+    ctx.textBaseline = 'alphabetic';
+  });
   for (const c of customers){
     if (c.state !== 'wait' || c.hx === undefined) continue;
     const w = u * 1.25, h = u * 1.2, [bx, by] = bubble(c.hx, c.hy - 6, w, h);
@@ -1531,7 +1597,8 @@ function hud(now){
   if (chips !== chipKey){ $('#boostChips').innerHTML = chips; chipKey = chips; }
 
   const wc = waitingCount(), sc = $('#seatChip');
-  sc.hidden = !wc; if (wc) sc.textContent = `${wc} guest${wc > 1 ? 's' : ''} waiting for a chair · Add chairs`;
+  const dc = dirtyCount();
+  sc.hidden = !wc; if (wc) sc.textContent = `${wc} guest${wc > 1 ? 's' : ''} waiting for a chair · ${dc ? 'Clean the tables' : 'Add chairs'}`;
   const v = $('#vipBtn');
   if (vipOffer && now < vipOffer.until && adsAvailable()){
     v.hidden = false; v.textContent = `VIP tip ${fmt(vipOffer.amount)} · ${S.supporter ? 'Claim' : 'Watch ad'} (${Math.ceil((vipOffer.until - now) / 1000)}s)`;
