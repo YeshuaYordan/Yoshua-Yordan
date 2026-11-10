@@ -362,6 +362,88 @@ function drawSprite(el, x, y, size, t, rarity = 0) {
   return true;
 }
 
+// ------------------------------------------------------------ Sound effects (synthesized with Web Audio, no files)
+// Every element has an attack sound (when the card shoots) and a hit sound (when the shot lands).
+// Audio can only start after the player taps, so the first tap unlocks it.
+const Sfx = { ctx: null, master: null, noise: null, muted: false, last: {}, recent: [] };
+try { Sfx.muted = localStorage.getItem("arcane-fusion-muted") === "1"; } catch (e) {}
+function sfxUnlock() {
+  if (Sfx.ctx) { if (Sfx.ctx.state === "suspended") Sfx.ctx.resume(); return; }
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    const ac = new AC(); Sfx.ctx = ac;
+    Sfx.master = ac.createGain(); Sfx.master.gain.value = 0.32; Sfx.master.connect(ac.destination);
+    const buf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    Sfx.noise = buf;
+  } catch (e) { Sfx.ctx = null; }
+}
+function setMuted(m) { Sfx.muted = m; try { localStorage.setItem("arcane-fusion-muted", m ? "1" : "0"); } catch (e) {} }
+// A pitched tone that slides from f0 to f1.
+function sTone(type, f0, f1, dur, vol, delay = 0) {
+  const ac = Sfx.ctx, t0 = ac.currentTime + delay, p = 1 + (Math.random() - 0.5) * 0.12;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0 * p, t0); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1 * p), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(Sfx.master); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+// Filtered noise whose filter sweeps from f0 to f1 (whoosh, hiss, splash, crunch...).
+function sNoise(dur, vol, filter, f0, f1, q = 1, delay = 0) {
+  const ac = Sfx.ctx, t0 = ac.currentTime + delay;
+  const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = Sfx.noise; src.playbackRate.value = 0.9 + Math.random() * 0.2;
+  f.type = filter; f.Q.value = q; f.frequency.setValueAtTime(f0, t0); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f); f.connect(g); g.connect(Sfx.master); src.start(t0, Math.random() * 0.5); src.stop(t0 + dur + 0.02);
+}
+const SOUNDS = {
+  fire:  { atk: () => sNoise(0.2, 0.5, "bandpass", 500, 2600, 1.2),
+           hit: () => { sNoise(0.14, 0.45, "lowpass", 3200, 700); sTone("sine", 150, 60, 0.12, 0.25); } },
+  water: { atk: () => sTone("sine", 950, 280, 0.13, 0.35),
+           hit: () => { sNoise(0.16, 0.42, "lowpass", 2600, 400); sTone("sine", 520, 180, 0.09, 0.2); } },
+  earth: { atk: () => sTone("sine", 170, 70, 0.17, 0.5),
+           hit: () => { sNoise(0.22, 0.55, "lowpass", 1300, 180); sTone("triangle", 95, 40, 0.2, 0.45); } },
+  wind:  { atk: () => sNoise(0.17, 0.32, "highpass", 1400, 5200),
+           hit: () => sNoise(0.09, 0.22, "bandpass", 3200, 1500, 2) },
+  zap:   { atk: () => { sTone("sawtooth", 1900, 220, 0.13, 0.16); sNoise(0.09, 0.24, "highpass", 3000, 7000); },
+           hit: () => { sTone("square", 650, 160, 0.07, 0.1); sNoise(0.05, 0.18, "highpass", 4000, 6000); } },
+  hiss:  { atk: () => sNoise(0.3, 0.28, "highpass", 2200, 6500),
+           hit: () => sNoise(0.14, 0.2, "highpass", 3200, 1400) },
+  magma: { atk: () => { sTone("sine", 230, 90, 0.16, 0.35); sNoise(0.13, 0.2, "lowpass", 900, 260); },
+           hit: () => { sTone("sine", 125, 50, 0.22, 0.4); sNoise(0.16, 0.32, "lowpass", 1500, 260); sTone("sine", 320, 520, 0.06, 0.12, 0.05); } },
+  plant: { atk: () => sTone("triangle", 540, 270, 0.11, 0.3),
+           hit: () => { sNoise(0.11, 0.28, "bandpass", 1900, 900, 1.5); sTone("triangle", 310, 200, 0.07, 0.18); } },
+  ice:   { atk: () => { sTone("sine", 1900, 1450, 0.16, 0.17); sTone("sine", 2800, 2700, 0.13, 0.09, 0.02); },
+           hit: () => { sTone("triangle", 2500, 1800, 0.09, 0.2); sNoise(0.06, 0.18, "highpass", 4200, 6500); } },
+  dust:  { atk: () => sNoise(0.21, 0.34, "bandpass", 850, 2300, 0.8),
+           hit: () => sNoise(0.15, 0.3, "bandpass", 1300, 480, 0.8) },
+  geyser:{ atk: () => { sTone("sine", 300, 950, 0.2, 0.28); sNoise(0.22, 0.28, "highpass", 1500, 4200); },
+           hit: () => { sNoise(0.2, 0.45, "lowpass", 2600, 380); sTone("sine", 420, 160, 0.12, 0.22); } },
+  blaze: { atk: () => { sNoise(0.26, 0.6, "bandpass", 400, 2800, 1); sTone("sine", 200, 90, 0.14, 0.2); },
+           hit: () => { sNoise(0.2, 0.55, "lowpass", 3500, 500); sTone("sine", 140, 50, 0.18, 0.35); } },
+  phoenix:{ atk: () => { sNoise(0.28, 0.55, "bandpass", 450, 3000, 1); sTone("sawtooth", 720, 1500, 0.22, 0.07); },
+           hit: () => { sNoise(0.24, 0.6, "lowpass", 3800, 450); sTone("triangle", 110, 40, 0.22, 0.45); } },
+};
+// Which sound set each element uses.
+const SOUND_OF = {
+  fire: "fire", water: "water", earth: "earth", wind: "wind",
+  lava: "magma", steam: "hiss", lightning: "zap", plant: "plant", dust: "dust", ice: "ice",
+  storm: "zap", blizzard: "ice", obsidian: "magma", grove: "plant", wildfire: "blaze",
+  geyser: "geyser", ash: "hiss", magmabloom: "magma", frostveil: "hiss", aurora: "zap", sandstorm: "dust",
+  phoenix: "phoenix",
+};
+// Plays an element's "atk" or "hit" sound, with limits so a full board never turns into noise.
+function playSfx(el, kind) {
+  if (Sfx.muted || !Sfx.ctx || Sfx.ctx.state !== "running") return;
+  const set = SOUNDS[SOUND_OF[el] || "fire"]; if (!set) return;
+  const now = Sfx.ctx.currentTime, key = el + kind;
+  if (now - (Sfx.last[key] || 0) < (kind === "hit" ? 0.07 : 0.05)) return;
+  Sfx.recent = Sfx.recent.filter(t => now - t < 0.12);
+  if (Sfx.recent.length >= 8) return;
+  Sfx.last[key] = now; Sfx.recent.push(now);
+  try { set[kind](); } catch (e) {}
+}
+
 // ------------------------------------------------------------ Entities
 class Card {
   constructor(el, r) {
@@ -1010,6 +1092,7 @@ function fireCard(c) {
   const d = EL[c.element], shots = d.multishot || 1, targets = closestTo(c.x, c.y - 60, shots);
   if (!targets.length) return;
   c.kick = 1;
+  playSfx(c.element, "atk");
   const ox = c.x, oy = c.y - 60;
   if (d.chain) { chain(c.element, c.rarity, ox, oy, targets[0], d.chain); return; }
   for (let i = 0; i < shots; i++) projectiles.push(new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]));
@@ -1025,8 +1108,10 @@ function chain(el, r, ox, oy, first, count) {
     cur = best;
   }
   fxs.push(new Fx("bolt", { points: pts, color: EL[el].color, duration: 0.18 }));
+  if (hit.size) playSfx(el, "hit");
 }
 function applyHit(el, r, x, y, enemy) {
+  playSfx(el, "hit");
   const d = EL[el], dmg = damageOf(el, r), splash = d.splash || 0, rm = RARITY_DMG[r];
   if (splash > 0) {
     for (const e of enemies.slice()) if (!e.dead && Math.hypot(e.x - x, e.y - y) <= splash + e.size) hitEnemy(e, el, r, e === enemy ? dmg : dmg * 0.6);
@@ -1254,6 +1339,7 @@ const btn = {
   play: makeBtn("Play", 180, 560, 360, 90, () => startRun(), 38),
   titleBook: makeBtn("Spellbook", 180, 670, 360, 76, () => openBook()),
   resume: makeBtn("Resume", 180, 560, 360, 80, () => { paused = false; }),
+  sound: makeBtn("Sound: On", 180, 960, 360, 80, () => { setMuted(!Sfx.muted); if (!Sfx.muted) playSfx("fire", "atk"); }),
   pauseBook: makeBtn("Spellbook", 180, 660, 360, 80, () => openBook()),
   // Restart asks for a second tap within 3 seconds, so a run is never thrown away by accident.
   restart: makeBtn("Restart", 180, 760, 360, 80, () => {
@@ -1300,7 +1386,7 @@ function visibleButtons() {
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") return [btn.play, btn.titleBook];
   if (state === "gameover") return [btn.again, btn.title];
-  if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit];
+  if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
   const list = [btn.chamber, btn.pause, btn.reroll];
   if (!drag) list.push(btn.next);
   return list;
@@ -1324,6 +1410,7 @@ let bookDrag = null;
 canvas.addEventListener("pointerdown", ev => {
   ev.preventDefault();
   canvas.setPointerCapture?.(ev.pointerId);
+  sfxUnlock();
   const p = toLogical(ev); pointer = p;
   for (const b of visibleButtons()) {
     if (inRect(p, b)) {
@@ -1739,8 +1826,9 @@ function drawOverlays() {
     dim(0.6);
     text("Paused", W / 2, 480, 60, PARCH, { font: DISPLAY, weight: 900, outline: 12 });
     btn.restart.label = restartArmed > 0 ? "Tap again to restart" : "Restart";
-    drawBtn(btn.resume); drawBtn(btn.pauseBook); drawBtn(btn.restart); drawBtn(btn.quit);
-    if (restartArmed > 0) text("Your current run will be lost.", W / 2, 965, 22, "#ff9a8a", { outline: 6 });
+    btn.sound.label = Sfx.muted ? "Sound: Off" : "Sound: On";
+    drawBtn(btn.resume); drawBtn(btn.pauseBook); drawBtn(btn.restart); drawBtn(btn.quit); drawBtn(btn.sound);
+    if (restartArmed > 0) text("Your current run will be lost.", W / 2, 1075, 22, "#ff9a8a", { outline: 6 });
   }
   if (bookOpen) drawBook();
 }
