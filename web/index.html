@@ -356,10 +356,7 @@ class Card {
     ctx.translate(this.x + Math.sin(t * 60) * 6 * this.shake, this.y - 8 * this.kick - (this.dragging ? 6 : 0));
     ctx.scale(this.scale, this.scale);
     const hw = CARD_W / 2, hh = CARD_H / 2;
-    if (this.rarity >= 3) {
-      const pulse = 0.5 + 0.5 * Math.sin(t * 3);
-      for (let i = 0; i < 3; i++) { const g = 4 + i * 4 + pulse * 3; rrect(-hw - g, -hh - g, CARD_W + g * 2, CARD_H + g * 2, 18); ctx.fillStyle = hexA(rc, 0.13 - i * 0.03); ctx.fill(); }
-    }
+    if (d.tier === 3) this.drawEpicAura(hw, hh, t);
     // Card background for this rarity (falls back to a plain frame until the art has loaded).
     const art = CARD_ART[this.rarity], k = CARD_W / ART_W;
     rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 9); ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fill();
@@ -403,6 +400,31 @@ class Card {
       text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
     }
     ctx.restore();
+  }
+  // Glowing purple aura on every side of Epic element cards, with sparks circling the border.
+  drawEpicAura(hw, hh, t) {
+    const P = "#b36bff", pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    for (let i = 3; i >= 0; i--) {
+      const g = 3 + i * 5 + pulse * 3;
+      rrect(-hw - g, -hh - g, CARD_W + g * 2, CARD_H + g * 2, 12 + g);
+      ctx.fillStyle = hexA(P, 0.10 + (3 - i) * 0.05); ctx.fill();
+    }
+    ctx.save();
+    ctx.shadowColor = P; ctx.shadowBlur = 14 + pulse * 10;
+    rrect(-hw - 3, -hh - 3, CARD_W + 6, CARD_H + 6, 12);
+    ctx.strokeStyle = hexA("#d9b8ff", 0.85); ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+    // Sparks travelling around the card's edge.
+    const per = 2 * (CARD_W + CARD_H);
+    for (let i = 0; i < 10; i++) {
+      let d = ((t * 70 + i * per / 10) % per + per) % per, x, y;
+      if (d < CARD_W) { x = -hw + d; y = -hh - 6; }
+      else if ((d -= CARD_W) < CARD_H) { x = hw + 6; y = -hh + d; }
+      else if ((d -= CARD_H) < CARD_W) { x = hw - d; y = hh + 6; }
+      else { d -= CARD_W; x = -hw - 6; y = hh - d; }
+      const s = 2 + 1.5 * Math.sin(t * 6 + i);
+      circle(x, y, s + 3, hexA(P, 0.35)); circle(x, y, s, "#f1e4ff");
+    }
   }
   accents(cx, cy, r, d) {
     const t = this.t;
