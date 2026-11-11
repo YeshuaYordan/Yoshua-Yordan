@@ -1404,10 +1404,10 @@ const SPELLS = {
   meteor: { name: "Meteor", cost: 30, color: "#ff6a2a", aspect: 1,
             rune: [[[0, 0], [1, 0], [0, 1], [1, 1]]],
             desc: "Meteors crash onto the 3 strongest enemies." },
-  // Snowflake: four lines through the middle (from the player's drawing).
-  freeze: { name: "Freeze", cost: 15, color: "#7fd8ff", aspect: 0.625,
-            rune: [[[0.556, 0], [0.556, 1]], [[0, 0.511], [0.983, 0.543]], [[0.122, 0.19], [0.922, 0.804]], [[1, 0.237], [0.16, 0.793]]],
-            desc: "Every enemy is frozen in place for 5 seconds." },
+  // Snowflake: four equal lines through the centre, 45 degrees apart.
+  freeze: { name: "Freeze", cost: 12, color: "#7fd8ff", aspect: 1,
+            rune: [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.146, 0.146], [0.854, 0.854]], [[0.854, 0.146], [0.146, 0.854]]],
+            desc: "Every enemy is frozen in place for 6 seconds." },
 };
 const RUNE_SETTLE = 0.6;   // seconds without a new line before a multi-line drawing is read
 let spell = null;      // { phase: "draw" | "result", t, strokes: [[[x,y]...]...], drawing, settle, match, score, failT }
@@ -1535,9 +1535,9 @@ function castMeteor() {
   const spots = targets.length ? targets.map(e => [e.x, e.y]) : [[W / 2, 380]];
   spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) }));
 }
-// Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 5 seconds.
+// Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 6 seconds.
 function castFreeze() {
-  for (const e of enemies) if (!e.dead) { e.stunT = Math.max(e.stunT || 0, 5); fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#bfefff", radius: e.size * 2.2, duration: 0.5 })); }
+  for (const e of enemies) if (!e.dead) { e.stunT = Math.max(e.stunT || 0, 6); fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#bfefff", radius: e.size * 2.2, duration: 0.5 })); }
   freezeFlash = 1; playSfx("ice", "hit");
 }
 let freezeFlash = 0;
@@ -1610,7 +1610,7 @@ function drawSpell() {
     const sp = SPELLS[spell.match];
     text(sp.name, W / 2, 170, 56, sp.color, { font: DISPLAY, weight: 900, outline: 10 });
     text(`${Math.round(spell.score * 100)}% match`, W / 2, 212, 22, PARCH, { outline: 5 });
-    text(sp.desc, W / 2, 560, 22, PARCH, { outline: 6 });
+    text(sp.desc, W / 2, FRONT_Y - 26, 22, PARCH, { outline: 6 });
     btn.castSpell.label = `Cast (${sp.cost} gold)`;
     drawBtn(btn.castSpell, gold < sp.cost); drawBtn(btn.cancelSpell);
   } else {
@@ -2270,6 +2270,7 @@ function applyLayout() {
   FIELD_SPEED = (FRONT_Y - HUD_H) / (752 - HUD_H);
   SELL_RECT.y = 1206 + E; SELL_HIT.y = SELL_RECT.y - 14;
   btn.reroll.y = 1100 + E;
+  btn.castSpell.y = btn.cancelSpell.y = FRONT_Y + 8;   // below the drawing area so the rune stays visible
   canvas.height = H;
   buildPaving(); buildVignette();
   for (const r in rows) rows[r].forEach((c, i) => { if (c) { const p = slotPos(r, i); c.setHome(p.x, p.y, true); } });
