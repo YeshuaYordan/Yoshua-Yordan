@@ -1529,6 +1529,10 @@ const SPELLS = {
   freeze: { name: "Freeze", cost: 12, color: "#7fd8ff", aspect: 1,
             rune: [[[0.5, 0], [0.5, 1]], [[0, 0.5], [1, 0.5]], [[0.146, 0.146], [0.854, 0.854]], [[0.854, 0.146], [0.146, 0.854]]],
             desc: "Every enemy is frozen in place for 6 seconds." },
+  // A circle with a plus inside: the circle (drawn from the top, clockwise), then the two lines of the plus.
+  heal: { name: "Healing", cost: 25, color: "#6cff8a", aspect: 1,
+          rune: [[[0.500, 0.000], [0.629, 0.017], [0.750, 0.067], [0.854, 0.146], [0.933, 0.250], [0.983, 0.371], [1.000, 0.500], [0.983, 0.629], [0.933, 0.750], [0.854, 0.854], [0.750, 0.933], [0.629, 0.983], [0.500, 1.000], [0.371, 0.983], [0.250, 0.933], [0.146, 0.854], [0.067, 0.750], [0.017, 0.629], [0.000, 0.500], [0.017, 0.371], [0.067, 0.250], [0.146, 0.146], [0.250, 0.067], [0.371, 0.017], [0.500, 0.000]], [[0.5, 0.22], [0.5, 0.78]], [[0.22, 0.5], [0.78, 0.5]]],
+          desc: "Restores 25 castle HP." },
 };
 const RUNE_SETTLE = 0.6;   // seconds without a new line before a multi-line drawing is read
 let spell = null;      // { phase: "draw" | "result", t, strokes: [[[x,y]...]...], drawing, settle, match, score, failT }
@@ -1612,7 +1616,7 @@ function recognizeRune(strokes) {
       score = Math.max(0, 1 - Math.min(pathDistance(c, t), pathDistance(c, tr)) / (0.5 * Math.SQRT2));
     } else {
       // Different number of lines than the rune: a small penalty per missing or extra line.
-      const penalty = 0.06 * Math.abs(lines.length - sp.rune.length);
+      const penalty = 0.12 * Math.abs(lines.length - sp.rune.length);
       // A slightly tilted drawing still counts: try the drawing turned up to 25 degrees either way.
       const tpl = toCloud(runeStrokes(sp)); let best = Infinity;
       for (let deg = -25; deg <= 25; deg += 5) {
@@ -1651,9 +1655,11 @@ function castSpell() {
   if (!spell || !spell.match) return;
   const sp = SPELLS[spell.match];
   if (gold < sp.cost) { showInfo(`Not enough gold: ${sp.name} costs ${sp.cost}.`); return; }
+  if (spell.match === "heal" && castleHp >= CASTLE_MAX) { showInfo("The castle is already at full HP."); return; }
   gold -= sp.cost;
   if (spell.match === "meteor") castMeteor();
   if (spell.match === "freeze") castFreeze();
+  if (spell.match === "heal") castHeal();
   showBanner(`${sp.name}!`, sp.color);
   spell = null;
 }
@@ -1663,6 +1669,15 @@ function castMeteor() {
   spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) }));
 }
 // Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 6 seconds.
+// Healing: +25 castle HP (up to the maximum), with green light over the wall.
+const HEAL_AMOUNT = 25;
+function castHeal() {
+  const before = castleHp; castleHp = Math.min(CASTLE_MAX, castleHp + HEAL_AMOUNT);
+  const healed = Math.round(castleHp - before);
+  for (let i = 0; i < 6; i++) fxs.push(new Fx("burst", { x: 60 + i * 120, y: (FRONT_Y + WALL_Y) / 2, color: "#6cff8a", radius: 70, duration: 0.6 }));
+  fxs.push(new Fx("text", { x: W / 2, y: FRONT_Y - 40, text: `+${healed} HP`, color: "#6cff8a", size: 40, duration: 1.2 }));
+  playSfx("plant", "hit");
+}
 function castFreeze() {
   for (const e of enemies) if (!e.dead && e.stun(6)) fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#bfefff", radius: e.size * 2.2, duration: 0.5 }));
   freezeFlash = 1; playSfx("ice", "hit");
@@ -1739,7 +1754,9 @@ function drawSpell() {
     text(`${Math.round(spell.score * 100)}% match`, W / 2, 212, 22, PARCH, { outline: 5 });
     text(sp.desc, W / 2, FRONT_Y - 26, 22, PARCH, { outline: 6 });
     btn.castSpell.label = `Cast (${sp.cost} gold)`;
-    drawBtn(btn.castSpell, gold < sp.cost); drawBtn(btn.cancelSpell);
+    const full = spell.match === "heal" && castleHp >= CASTLE_MAX;
+    if (full) btn.castSpell.label = "Castle HP is full";
+    drawBtn(btn.castSpell, gold < sp.cost || full); drawBtn(btn.cancelSpell);
   } else {
     text("Spell failed", W / 2, 360, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 10 });
     if (spell.reason) text(spell.reason, W / 2, 404, 24, PARCH, { outline: 6 });
