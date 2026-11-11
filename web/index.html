@@ -2334,10 +2334,6 @@ const btn = {
   reroll: makeBtn("Reroll", 450, 1100, 250, 96, () => reroll(), 28),
   play: Object.assign(makeBtn("PLAY", 210, 1140, 300, 96, () => { startRun(); fadeIn = 0.5; }, 40), { fill: GOLD, fillDown: "#d9a838", font: DISPLAY, weight: 900 }),
   titleBook: makeBtn("Spellbook", 14, 14, 190, 58, () => openBook(), 24),
-  toSummon: Object.assign(makeBtn("Summon ›", 560, 560, 190, 64, () => setLobbyPage(1), 24), { fill: "#c9a6ff", fillDown: "#a982e8" }),
-  toLobby: Object.assign(makeBtn("‹ Lobby", -30, 560, 190, 64, () => setLobbyPage(0), 24), { fill: "#e9d3a6" }),
-  toCards: Object.assign(makeBtn("‹ Cards", -30, 560, 190, 64, () => setLobbyPage(-1), 24), { fill: "#9cff9c", fillDown: "#6cd66c" }),
-  toLobbyR: Object.assign(makeBtn("Lobby ›", 560, 1190, 190, 64, () => setLobbyPage(0), 24), { fill: "#e9d3a6" }),
   summon: Object.assign(makeBtn("x1", 184, 1130, 170, 92, () => doSummon(1), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
   summon10: Object.assign(makeBtn("x10", 366, 1130, 170, 92, () => doSummon(10), 40), { fill: "#ffcd50", fillDown: "#e0a830", font: DISPLAY, weight: 900 }),
   rates: makeBtn("Rates", 16, 1150, 150, 60, () => { ratesOpen = true; }, 24),
@@ -2425,9 +2421,9 @@ function baseButtons() {
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.titleBook, btn.lobbySound, btn.gemPill];
-    if (lobbyPage === 0) return [btn.play, btn.toSummon, btn.toCards, btn.daily, btn.help, ...top];
-    if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, btn.getGems, btn.toLobby, ...top];
-    return [btn.toLobbyR, ...visibleUpgradeBtns(), ...top];
+    if (lobbyPage === 0) return [btn.play, btn.daily, btn.help, ...top];
+    if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, btn.getGems, ...top];
+    return [...visibleUpgradeBtns(), ...top];
   }
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
@@ -3302,7 +3298,6 @@ function drawSummonUi() {
   const left = PITY - (save.pity || 0);
   if (summonMsgT > 0) text(summonMsg, W / 2, H - 176, 21, GOLD, { outline: 6 });
   else text(`Special card guaranteed in ${left} pull${left === 1 ? "" : "s"}`, W / 2, H - 176, 22, "#e3c9ff", { outline: 6 });
-  drawBtn(btn.toLobby);
 }
 // ---- Summon: x1 or x10 (x10 is 10% off). The card on the altar gathers light, spins, then bursts into the result(s).
 const PULL10_COST = Math.round(PULL_COST * 10 * 0.9);   // 90 gems
@@ -3856,7 +3851,6 @@ function drawCardsUi(dt) {
     rrect(W - 12, CARDS_TOP + 20, 6, trackH, 3); ctx.fillStyle = "rgba(255,255,255,0.08)"; ctx.fill();
     rrect(W - 12, CARDS_TOP + 20 + (trackH - barH) * cardsScroll / max, 6, barH, 3); ctx.fillStyle = "rgba(233,211,166,0.5)"; ctx.fill();
   }
-  btn.toLobbyR.y = H - 86; drawBtn(btn.toLobbyR);
 }
 
 function drawLobbyUi() {
@@ -3909,7 +3903,7 @@ function drawHomeUi() {
   });
   btn.play.x = W / 2 - 150; btn.play.y = H - 140; btn.play.w = 300; btn.play.h = 96;
   btn.play.size = 40 + Math.sin(lobbyT * 3) * 1.5;
-  drawBtn(btn.play); drawBtn(btn.toSummon); drawBtn(btn.toCards);
+  drawBtn(btn.play);
   // Daily reward (red dot when it is waiting) and Help (replays the tutorial).
   drawBtn(btn.daily); drawBtn(btn.help);
   if (dailyReady()) { const b = btn.daily; circle(b.x + b.w - 6, b.y + 6, 11 + Math.sin(lobbyT * 6) * 1.5, "#e0533f"); ring(b.x + b.w - 6, b.y + 6, 11, INK, 2); }
@@ -3927,8 +3921,8 @@ const TUT = {
   lobby: [
     { t: "Welcome to Arcane Fusion!", b: "Monsters march toward your castle in endless waves. Buy elemental cards, merge them into stronger spirits and survive as long as you can. Between runs you collect and upgrade cards." },
     { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (15 waves) gives you 20 gems, and the daily reward gives more. Tap the green + to open the Shop." },
-    { t: "Summon", hl: () => btnRect(btn.toSummon), b: "Swipe left (or tap here) to open Summon. One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
-    { t: "Your cards", hl: () => btnRect(btn.toCards), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
+    { t: "Summon", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe left to open Summon (the dots up here show which page you are on). One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
+    { t: "Your cards", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
     { t: "Daily reward", hl: () => btnRect(btn.daily), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. If you like, watch an ad to double it (always optional). A red dot shows when your reward is waiting." },
     { t: "Help", hl: () => btnRect(btn.help), b: "Tap ? Help any time to replay this tutorial." },
     { t: "Spellbook", hl: () => btnRect(btn.titleBook), b: "Every fusion recipe and every spell rune is written in the Spellbook. You can open it any time, even in the middle of a run." },
