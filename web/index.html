@@ -216,7 +216,7 @@ const levelNeed = el => levelOf(el) >= MAX_LEVEL ? 0 : LEVEL_NEED[levelOf(el) - 
 const cardKnown = el => EL[el].tier === 1 || (EL[el].special ? !!save.specials[el] : !!save.discovered[el]);
 const canUpgrade = el => cardKnown(el) && levelOf(el) < MAX_LEVEL && copiesOf(el) >= levelNeed(el);
 function summonOnce() {
-  save.pity = (save.pity || 0) + 1;   // the caller (doSummon) pays the gems
+  save.pity = (save.pity || 0) + 1; profile().pulls = (profile().pulls || 0) + 1;   // the caller (doSummon) pays the gems
   const r = Math.random(); let el, acc = SPECIAL_RATE;
   if (save.pity >= PITY || r < acc) { el = pickOne(SPECIALS); save.pity = 0; }
   else if (r < (acc += MAIN_RATE)) el = pickOne(BASE);
@@ -1550,7 +1550,9 @@ function beginWave(fromTimer = false) {
 function waveCleared(w) {
   const bonus = 4 + w; gold += bonus; wavesCleared++;
   if (wavesCleared > save.best) save.best = wavesCleared;
+  profile().waves = (profile().waves || 0) + 1;
   if (w % STAGE_LEN === 0) {
+    profile().stages = (profile().stages || 0) + 1;
     // Finishing a stage (beating its boss) earns a gem for Summon.
     save.gems += GEMS_PER_STAGE; runGems += GEMS_PER_STAGE;
     showBanner(`Stage ${stageNum(w)} cleared!  +${bonus} gold  +${GEMS_PER_STAGE} gems`, "#7fe6ff");
@@ -2346,6 +2348,10 @@ const btn = {
   dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 230, 84, () => claimDaily(1), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   dailyAd: Object.assign(makeBtn("Watch ad", 296, 0, 374, 84, () => watchAdForDaily(), 22), { fill: "#ffcd50", fillDown: "#e0a830" }),
   dailyClose: makeBtn("Close", W / 2 - 110, 0, 220, 70, () => { dailyOpen = false; }, 26),
+  bio: makeBtn("", 12, 12, 232, 58, () => { bioOpen = true; playUi("ui_pick"); }),
+  bioAvatar: makeBtn("", 0, 0, 140, 140, () => nextAvatar()),
+  bioName: makeBtn("Edit name", 0, 0, 170, 52, () => editName(), 20),
+  bioClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { bioOpen = false; }, 26),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: makeBtn("", 14, 372, 112, 112, () => openShop()),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
@@ -2415,12 +2421,13 @@ function baseButtons() {
   if (state === "title") {
     if (shopOpen) return shopButtons();
     if (adSim || adBusy) return [];
+    if (bioOpen) return [btn.bioAvatar, btn.bioName, btn.bioClose];
     if (dailyOpen) return dailyReady() ? [btn.dailyClaim, btn.dailyAd, btn.dailyClose] : [btn.dailyClose];
     if (cardInfo) return canUpgrade(cardInfo.el) ? [btn.closeInfo, btn.infoUpgrade] : [btn.closeInfo];
     if (summonReveal) return summonDone() ? [btn.revealOk, btn.revealAgain] : [];
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
-    const top = [btn.lobbySound, btn.gemPill];
+    const top = [btn.bio, btn.lobbySound, btn.gemPill];
     if (lobbyPage === 0) return [btn.play, btn.daily, btn.help, btn.getGems, btn.titleBook, ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
     return [...visibleUpgradeBtns(), ...top];
@@ -3058,7 +3065,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
-function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; }
+function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -3153,7 +3160,7 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
-  if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || tutBlocking()) return;   // no swiping under a popup
+  if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || bioOpen || tutBlocking()) return;   // no swiping under a popup
   const dy = p.y - s.y0;
   if (!s.moved && !s.vscroll) {
     if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
@@ -3469,6 +3476,82 @@ function drawRates() {
   text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 596, 20, INK, { weight: 600 });
   text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 624, 18, "#6b3a22", { weight: 500 });
   btn.closeRates.y = y + h - 90 + 10; drawBtn(btn.closeRates);
+}
+
+// ------------------------------------------------------------ Player profile (top left of the lobby)
+// Avatar (an element spirit), a name and a level from total waves cleared. Tap it for the full profile.
+const AVATARS = ["fire", "water", "earth", "wind", "lava", "steam", "lightning", "plant", "dust", "ice"];
+let bioOpen = false;
+const profile = () => (save.profile = save.profile || { name: "Player", avatar: "fire", waves: 0 });
+// Player level: grows with every wave you clear (all runs together); each level needs a few more waves.
+function playerLevel() { const w = profile().waves || 0; let lvl = 1, need = 10, left = w; while (left >= need) { left -= need; lvl++; need += 5; } return { lvl, into: left, need }; }
+function editName() {
+  let n = null;
+  try { n = window.prompt("Your player name (max 14 letters):", profile().name); } catch (e) {}
+  if (n === null) return;
+  n = n.replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, 14);
+  if (n) { profile().name = n; writeSave(); }
+}
+function nextAvatar() {
+  const pr = profile(), unlocked = AVATARS.filter(el => EL[el].tier === 1 || save.discovered[el]);
+  pr.avatar = unlocked[(unlocked.indexOf(pr.avatar) + 1) % unlocked.length]; writeSave(); playUi("ui_pick");
+}
+function drawAvatar(x, y, r) {
+  const el = profile().avatar, d = EL[el];
+  circle(x, y, r + 4, INK); circle(x, y, r, shade(d.color, -0.45));
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+  if (!drawSprite(el, x, y + 2, r * 2.3, lobbyT, 2)) circle(x, y, r * 0.6, d.color);
+  ctx.restore();
+  ring(x, y, r, GOLD, 3);
+}
+function drawBioPill() {
+  const b = btn.bio, lv = playerLevel(), press = b.down ? 2 : 0;
+  rrect(b.x, b.y + press, b.w, b.h, 29); ctx.fillStyle = "rgba(20,10,30,0.72)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+  drawAvatar(b.x + 29, b.y + 29 + press, 23);
+  // Level badge on the avatar.
+  circle(b.x + 46, b.y + 47 + press, 12, GOLD); ring(b.x + 46, b.y + 47 + press, 12, INK, 2);
+  text(String(lv.lvl), b.x + 46, b.y + 48 + press, lv.lvl > 99 ? 10 : 13, INK, { weight: 900, baseline: "middle" });
+  ctx.font = `800 20px ${FONT}`;
+  text(profile().name, b.x + 64, b.y + 26 + press, 20, PARCH, { align: "left", weight: 800, outline: 5 });
+  // XP bar to the next level.
+  const bx = b.x + 64, bw = b.w - 78, by = b.y + 36 + press;
+  rrect(bx, by, bw, 9, 4.5); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
+  rrect(bx, by, Math.max(9, bw * lv.into / lv.need), 9, 4.5); ctx.fillStyle = "#9cff9c"; ctx.fill();
+}
+function drawBio() {
+  const pr = profile(), lv = playerLevel();
+  dim(0.72);
+  const x = 40, w = W - 80, h = 780, y = Math.max(100, H / 2 - h / 2);
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  text("Profile", W / 2, y + 60, 40, INK, { font: DISPLAY, weight: 900 });
+  // Big avatar (tap to change) and name (tap to edit).
+  const ax = x + 110, ay = y + 170; btn.bioAvatar.x = ax - 70; btn.bioAvatar.y = ay - 70;
+  drawAvatar(ax, ay, 62);
+  text("tap to change", ax, ay + 90, 15, "#8a6a4a", { weight: 600 });
+  text(pr.name, x + 210, y + 150, 34, INK, { align: "left", weight: 900 });
+  btn.bioName.x = x + 206; btn.bioName.y = y + 168; drawBtn(btn.bioName);
+  text(`Level ${lv.lvl}`, x + 210, y + 262, 26, "#2f8f3f", { align: "left", weight: 800 });
+  const bx = x + 210, bw = w - 250;
+  rrect(bx, y + 276, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fill();
+  rrect(bx, y + 276, Math.max(16, bw * lv.into / lv.need), 16, 8); ctx.fillStyle = "#6cc56a"; ctx.fill();
+  text(`${lv.into} / ${lv.need} waves to level ${lv.lvl + 1}`, bx, y + 314, 16, "#6b3a22", { align: "left", weight: 600 });
+  // Stats.
+  const cards = UPGRADABLE.filter(cardKnown).length;
+  const stats = [
+    ["Best run", save.best > 0 ? `Wave ${waveLabel(save.best)}` : "-"],
+    ["Waves cleared (all runs)", fmtNum(pr.waves || 0)],
+    ["Stages cleared (all runs)", fmtNum(pr.stages || 0)],
+    ["Fusions discovered", `${RECIPE_LIST.filter(r => save.discovered[r[2]]).length} / ${RECIPE_LIST.length}`],
+    ["Cards in library", `${cards} / ${UPGRADABLE.length}`],
+    ["Summons", fmtNum(pr.pulls || 0)],
+  ];
+  stats.forEach(([a, b], i) => {
+    const ry = y + 380 + i * 46;
+    ctx.fillStyle = "rgba(42,26,18,0.12)"; ctx.fillRect(x + 28, ry - 30, w - 56, 2);
+    text(a, x + 32, ry, 22, INK, { align: "left", weight: 700 });
+    text(b, x + w - 32, ry, 22, "#7a3fb0", { align: "right", weight: 800 });
+  });
+  btn.bioClose.y = y + h - 96; drawBtn(btn.bioClose);
 }
 
 // ------------------------------------------------------------ Daily reward
@@ -3873,11 +3956,12 @@ function drawLobbyUi() {
     if (page === -1) drawCardsUi(dt); else if (page === 0) drawHomeUi(); else drawSummonUi();
     ctx.restore();
   }
-  // Fixed top bar: Spellbook, gems, Sound, and page dots.
+  // Fixed top bar: profile, gems, Sound, and page dots.
+  drawBioPill();
   btn.lobbySound.label = Sfx.muted ? "Sound: Off" : "Sound: On"; drawBtn(btn.lobbySound);
   // Gem counter: grows with the number; "+" opens the shop.
   ctx.font = `700 28px ${FONT}`;
-  const gTxt = fmtNum(save.gems), pw = Math.min(300, Math.max(132, ctx.measureText(gTxt).width + 100)), gx0 = W / 2 - pw / 2;
+  const gTxt = fmtNum(save.gems), pw = Math.min(240, Math.max(132, ctx.measureText(gTxt).width + 100)), gx0 = Math.max(btn.bio.x + btn.bio.w + 10, W / 2 - pw / 2 + 20);
   btn.gemPill.x = gx0; btn.gemPill.w = pw;
   rrect(gx0, 18, pw, 50, 25); ctx.fillStyle = "rgba(20,10,30,0.7)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
   drawGem(gx0 + 26, 43, 14); text(gTxt, gx0 + 46, 53, 28, PARCH, { align: "left", weight: 700, outline: 5 });
@@ -3893,6 +3977,7 @@ function drawLobbyUi() {
   if (cardInfo) drawCardInfo(dt);
   if (shopOpen) drawShop(dt);
   if (dailyOpen) drawDaily(dt);
+  if (bioOpen) drawBio();
   updateAdSim(dt); if (adSim) drawAdSim();
   if (shopToast) drawShopToast(dt);
 }
@@ -3943,6 +4028,7 @@ const btnRect = b => ({ x: b.x - 6, y: b.y - 6, w: b.w + 12, h: b.h + 12 });
 const TUT = {
   lobby: [
     { t: "Welcome to Arcane Fusion!", b: "Monsters march toward your castle in endless waves. Buy elemental cards, merge them into stronger spirits and survive as long as you can. Between runs you collect and upgrade cards." },
+    { t: "Your profile", hl: () => btnRect(btn.bio), b: "This is you! Tap it to change your name and avatar and to see your records. Your level goes up as you clear waves in every run." },
     { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (15 waves) gives you 20 gems, and the daily reward gives more. Tap the green + or the cart to open the Shop." },
     { t: "Summon", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe left to open Summon (the dots up here show which page you are on). One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
     { t: "Your cards", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
@@ -4001,7 +4087,7 @@ function tutCheck() {
   if (tut) { const st = tutStep(); if (st.wait && st.wait()) tutNext(); return; }
   const seen = k => save.tut[k];
   if (state === "title") {
-    const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen;
+    const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen && !bioOpen;
     if (!seen("lobby") && calm) tutStart("lobby");
     else if (seen("lobby") && calm && !dailyShownThisSession && dailyReady()) { dailyShownThisSession = true; dailyOpen = true; }
     return;
