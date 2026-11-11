@@ -1550,7 +1550,11 @@ function beginWave(fromTimer = false) {
 function waveCleared(w) {
   const bonus = 4 + w; gold += bonus; wavesCleared++;
   if (wavesCleared > save.best) save.best = wavesCleared;
+  const lvlBefore = playerLevel().lvl;
   profile().waves = (profile().waves || 0) + 1;
+  fxs.push(new Fx("text", { x: W / 2, y: HUD_H + 150, text: `+${XP_PER_WAVE} XP`, color: "#9cff9c", size: 28, duration: 1.4 }));
+  const lvlNow = playerLevel().lvl;
+  if (lvlNow > lvlBefore) fxs.push(new Fx("text", { x: W / 2, y: HUD_H + 200, text: `LEVEL UP!  Lv ${lvlNow}`, color: GOLD, size: 36, duration: 2 }));
   if (w % STAGE_LEN === 0) {
     profile().stages = (profile().stages || 0) + 1;
     // Finishing a stage (beating its boss) earns a gem for Summon.
@@ -3482,9 +3486,14 @@ function drawRates() {
 // Avatar (an element spirit), a name and a level from total waves cleared. Tap it for the full profile.
 const AVATARS = ["fire", "water", "earth", "wind", "lava", "steam", "lightning", "plant", "dust", "ice"];
 let bioOpen = false;
-const profile = () => (save.profile = save.profile || { name: "Player", avatar: "fire", waves: 0 });
+function profile() {
+  const pr = (save.profile = save.profile || { name: "Player", avatar: "fire", waves: 0 });
+  if (!pr.seeded) { pr.waves = Math.max(pr.waves || 0, save.best || 0); pr.seeded = true; }
+  return pr;
+}
+const XP_PER_WAVE = 10;   // XP for every wave cleared
 // Player level: grows with every wave you clear (all runs together); each level needs a few more waves.
-function playerLevel() { const w = profile().waves || 0; let lvl = 1, need = 10, left = w; while (left >= need) { left -= need; lvl++; need += 5; } return { lvl, into: left, need }; }
+function playerLevel() { const xp = (profile().waves || 0) * XP_PER_WAVE; let lvl = 1, need = 50, left = xp; while (left >= need) { left -= need; lvl++; need += 50; } return { lvl, into: left, need }; }
 function editName() {
   let n = null;
   try { n = window.prompt("Your player name (max 14 letters):", profile().name); } catch (e) {}
@@ -3511,8 +3520,8 @@ function drawBioPill() {
   // Level badge on the avatar.
   circle(b.x + 46, b.y + 47 + press, 12, GOLD); ring(b.x + 46, b.y + 47 + press, 12, INK, 2);
   text(String(lv.lvl), b.x + 46, b.y + 48 + press, lv.lvl > 99 ? 10 : 13, INK, { weight: 900, baseline: "middle" });
-  ctx.font = `800 20px ${FONT}`;
-  text(profile().name, b.x + 64, b.y + 26 + press, 20, PARCH, { align: "left", weight: 800, outline: 5 });
+  text(profile().name, b.x + 64, b.y + 26 + press, 19, PARCH, { align: "left", weight: 800, outline: 5 });
+  text(`${lv.into}/${lv.need} XP`, b.x + b.w - 14, b.y + 25 + press, 13, "#9cff9c", { align: "right", weight: 800, outline: 4 });
   // XP bar to the next level.
   const bx = b.x + 64, bw = b.w - 78, by = b.y + 36 + press;
   rrect(bx, by, bw, 9, 4.5); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
@@ -3534,7 +3543,7 @@ function drawBio() {
   const bx = x + 210, bw = w - 250;
   rrect(bx, y + 276, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fill();
   rrect(bx, y + 276, Math.max(16, bw * lv.into / lv.need), 16, 8); ctx.fillStyle = "#6cc56a"; ctx.fill();
-  text(`${lv.into} / ${lv.need} waves to level ${lv.lvl + 1}`, bx, y + 314, 16, "#6b3a22", { align: "left", weight: 600 });
+  text(`${lv.into} / ${lv.need} XP to level ${lv.lvl + 1}  (+${XP_PER_WAVE} XP per wave)`, bx, y + 314, 16, "#6b3a22", { align: "left", weight: 600 });
   // Stats.
   const cards = UPGRADABLE.filter(cardKnown).length;
   const stats = [
@@ -4028,7 +4037,7 @@ const btnRect = b => ({ x: b.x - 6, y: b.y - 6, w: b.w + 12, h: b.h + 12 });
 const TUT = {
   lobby: [
     { t: "Welcome to Arcane Fusion!", b: "Monsters march toward your castle in endless waves. Buy elemental cards, merge them into stronger spirits and survive as long as you can. Between runs you collect and upgrade cards." },
-    { t: "Your profile", hl: () => btnRect(btn.bio), b: "This is you! Tap it to change your name and avatar and to see your records. Your level goes up as you clear waves in every run." },
+    { t: "Your profile", hl: () => btnRect(btn.bio), b: "This is you! Tap it to change your name and avatar and to see your records. Every wave you clear gives 10 XP, and XP raises your level." },
     { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (15 waves) gives you 20 gems, and the daily reward gives more. Tap the green + or the cart to open the Shop." },
     { t: "Summon", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe left to open Summon (the dots up here show which page you are on). One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
     { t: "Your cards", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
