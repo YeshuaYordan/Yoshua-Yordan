@@ -3422,19 +3422,20 @@ function drawRates() {
 // (resolve true only after Google Play confirms the payment). Product ids below must match the Play Console.
 // Without it (web / itch.io builds) the shop runs in TEST MODE: purchases are free, for testing only.
 const SHOP_GEMS = [
-  { id: "gems_10", gems: 10, bonus: 0, price: "$0.99", name: "Handful" },
-  { id: "gems_55", gems: 50, bonus: 5, price: "$4.99", name: "Pouch" },
-  { id: "gems_120", gems: 100, bonus: 20, price: "$9.99", name: "Chest" },
-  { id: "gems_260", gems: 200, bonus: 60, price: "$19.99", name: "Big Chest" },
-  { id: "gems_700", gems: 500, bonus: 200, price: "$49.99", name: "Vault" },
-  { id: "gems_1500", gems: 1000, bonus: 500, price: "$99.99", name: "Dragon Hoard" },
+  { id: "gems_250", gems: 200, bonus: 50, price: "$0.99", name: "Handful" },
+  { id: "gems_1150", gems: 1000, bonus: 150, price: "$4.99", name: "Pouch" },
+  { id: "gems_2900", gems: 2500, bonus: 400, price: "$9.99", name: "Chest" },
+  { id: "gems_6700", gems: 6000, bonus: 700, price: "$19.99", name: "Big Chest" },
+  { id: "gems_10200", gems: 9000, bonus: 1200, price: "$49.99", name: "Vault" },
+  { id: "gems_24200", gems: 22000, bonus: 2200, price: "$99.99", name: "Dragon Hoard" },
 ];
 const SHOP_SPECIAL_PRICE = "$4.99";
+const fmtNum = n => n.toLocaleString("en-US");   // 24200 -> "24,200"
 const storeIsTest = () => typeof window.nativePurchase !== "function";
 let shopOpen = false, shopConfirm = null, shopBusy = false, shopToast = null;
 function openShop() { shopOpen = true; shopConfirm = null; playUi("ui_pick"); }
 function grantProduct(pr) {
-  if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${n} gems!`, color: "#7fe6ff", t: 0 }; }
+  if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; }
   else {
     const el = pr.special, isNew = !save.specials[el];
     if (isNew) save.specials[el] = true; else save.copies[el] = copiesOf(el) + 1;
@@ -3478,8 +3479,8 @@ function drawShop(dt) {
   rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
   text("SHOP", W / 2, y + 66, 52, INK, { font: DISPLAY, weight: 900 });
   ctx.font = `700 22px ${FONT}`;
-  const haveW = ctx.measureText(`You have ${save.gems} gems`).width;
-  drawGem(W / 2 - haveW / 2 - 6, y + 100, 12); text(`You have ${save.gems} gems`, W / 2 + 12, y + 108, 22, "#6b3a22", { weight: 700 });
+  const haveW = ctx.measureText(`You have ${fmtNum(save.gems)} gems`).width;
+  drawGem(W / 2 - haveW / 2 - 6, y + 100, 12); text(`You have ${fmtNum(save.gems)} gems`, W / 2 + 12, y + 108, 22, "#6b3a22", { weight: 700 });
   if (storeIsTest()) text("TEST MODE: purchases are free (no real money)", W / 2, y + 136, 17, "#c0392b", { weight: 700 });
   // Gem packs: 2 columns x 3 rows.
   text("Gems", x + 24, y + 176, 26, INK, { align: "left", weight: 800 });
@@ -3489,11 +3490,11 @@ function drawShop(dt) {
     const pr = b.pr, press = b.down ? 3 : 0;
     rrect(b.x, b.y + press, tw, th, 16); ctx.fillStyle = b.down ? "#e2cfa6" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
     gemPile(b.x + 60, b.y + 66 + press, Math.min(6, i + 1));
-    text(String(pr.gems + pr.bonus), b.x + 120, b.y + 58 + press, 36, INK, { align: "left", weight: 800 });
+    text(fmtNum(pr.gems + pr.bonus), b.x + 112, b.y + 60 + press, 34, INK, { align: "left", weight: 800 });
     text(pr.name, b.x + 120, b.y + 86 + press, 18, "#6b3a22", { align: "left", weight: 600 });
     if (pr.bonus) {
-      rrect(b.x + tw - 92, b.y - 10 + press, 84, 28, 14); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
-      text(`+${pr.bonus} free`, b.x + tw - 50, b.y + 5 + press, 16, "#fff", { weight: 800, baseline: "middle" });
+      rrect(b.x + tw - 124, b.y - 10 + press, 116, 28, 14); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+      text(`+${fmtNum(pr.bonus)} free`, b.x + tw - 66, b.y + 5 + press, 16, "#fff", { weight: 800, baseline: "middle" });
     }
     priceTag(b.x + tw - 132, b.y + th - 52 + press, 116, pr.price);
   });
@@ -3517,7 +3518,7 @@ function drawShopConfirm() {
   const pr = shopConfirm, w = 520, h = 330, x = W / 2 - w / 2, y = H / 2 - h / 2;
   dim(0.55);
   rrect(x, y, w, h, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
-  const what = pr.gems ? `${pr.gems + pr.bonus} gems` : (save.specials[pr.special] ? `${pr.name} (+1 copy)` : `${pr.name} (unlock)`);
+  const what = pr.gems ? `${fmtNum(pr.gems + pr.bonus)} gems` : (save.specials[pr.special] ? `${pr.name} (+1 copy)` : `${pr.name} (unlock)`);
   text("Buy", W / 2, y + 62, 30, "#6b3a22", { weight: 700 });
   text(what, W / 2, y + 112, what.length > 18 ? 32 : 40, INK, { font: DISPLAY, weight: 900 });
   text(`for ${pr.price}?`, W / 2, y + 158, 30, INK, { weight: 700 });
@@ -3721,11 +3722,15 @@ function drawLobbyUi() {
   // Fixed top bar: Spellbook, gems, Sound, and page dots.
   drawBtn(btn.titleBook);
   btn.lobbySound.label = Sfx.muted ? "Sound: Off" : "Sound: On"; drawBtn(btn.lobbySound);
-  rrect(W / 2 - 66, 18, 132, 50, 25); ctx.fillStyle = "rgba(20,10,30,0.7)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-  drawGem(W / 2 - 40, 43, 14); text(String(save.gems), W / 2 + 4, 53, 28, PARCH, { weight: 700, outline: 5 });
-  // "+" opens the shop.
-  circle(W / 2 + 50, 43, 15, btn.gemPill.down ? "#4fa84d" : "#6cc56a"); ring(W / 2 + 50, 43, 15, INK, 2.5);
-  ctx.fillStyle = INK; ctx.fillRect(W / 2 + 43, 41, 14, 4); ctx.fillRect(W / 2 + 48, 36, 4, 14);
+  // Gem counter: grows with the number; "+" opens the shop.
+  ctx.font = `700 28px ${FONT}`;
+  const gTxt = fmtNum(save.gems), pw = Math.min(300, Math.max(132, ctx.measureText(gTxt).width + 100)), gx0 = W / 2 - pw / 2;
+  btn.gemPill.x = gx0; btn.gemPill.w = pw;
+  rrect(gx0, 18, pw, 50, 25); ctx.fillStyle = "rgba(20,10,30,0.7)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+  drawGem(gx0 + 26, 43, 14); text(gTxt, gx0 + 46, 53, 28, PARCH, { align: "left", weight: 700, outline: 5 });
+  const plx = gx0 + pw - 26;
+  circle(plx, 43, 15, btn.gemPill.down ? "#4fa84d" : "#6cc56a"); ring(plx, 43, 15, INK, 2.5);
+  ctx.fillStyle = INK; ctx.fillRect(plx - 7, 41, 14, 4); ctx.fillRect(plx - 2, 36, 4, 14);
   for (let i = -1; i <= 1; i++) {
     const on = Math.abs(pos - i) < 0.5;
     circle(W / 2 + i * 24, 88, 7, INK); circle(W / 2 + i * 24, 88, 4.5, on ? GOLD : hexA(PARCH, 0.5));
