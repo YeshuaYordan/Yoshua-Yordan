@@ -188,13 +188,18 @@ function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.str
 const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
 const PULL_COST = 10;            // gems per summon
 const PITY = 100;                // a Special card is guaranteed on this pull
-const SPECIAL_RATE = 0.005, MAIN_RATE = 0.6, EPIC_RATE = 0.075;   // the rest (32%) are next elements
+// Summon rates: Main 50%, Next 30%, Epic 13%, Myth 5%, Legend 1.5% (the rest), Special 0.5%.
+const SPECIAL_RATE = 0.005, MAIN_RATE = 0.5, NEXT_RATE = 0.3, EPIC_RATE = 0.13, MYTH_RATE = 0.05;
 const LEVEL_NEED = [5, 10, 20, 40], LEVEL_BONUS = 0.2, MAX_LEVEL = 5;   // copies for Lv2..Lv5, +20% damage each
 const SPECIAL_SHOP_CHANCE = 0.02;   // chance for each shop slot to offer an owned Special card
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice"];
 const SPECIALS = ["solarflare", "tidalwave", "earthquake", "tempest"];
-const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3);   // the 11 Epic elements + the Myth Phoenix
-const UPGRADABLE = [...BASE, ...NEXT_ELS, ...EPIC_ELS, ...SPECIALS];
+const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth);   // the 11 Epic elements
+const MYTH_ELS = Object.keys(EL).filter(k => EL[k].myth);                       // Phoenix
+// Legend cards are separate cards (not a Legend version of a Myth card). None exist yet:
+// until they are added, the Legend slot in Summon gives a Myth copy instead.
+const LEGEND_ELS = Object.keys(EL).filter(k => EL[k].legendCard);
+const UPGRADABLE = [...BASE, ...NEXT_ELS, ...EPIC_ELS, ...MYTH_ELS, ...LEGEND_ELS, ...SPECIALS];
 // How a card is shown outside of a run (Summon reveal, Cards page).
 const showRarity = el => EL[el].special ? SPECIAL : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : V3;
 const pickOne = a => a[Math.floor(Math.random() * a.length)];
@@ -206,11 +211,13 @@ const canUpgrade = el => (!EL[el].special || save.specials[el]) && levelOf(el) <
 function summonOnce() {
   if (save.gems < PULL_COST) return null;
   save.gems -= PULL_COST; save.pity = (save.pity || 0) + 1;
-  const r = Math.random(); let el;
-  if (save.pity >= PITY || r < SPECIAL_RATE) { el = pickOne(SPECIALS); save.pity = 0; }
-  else if (r < SPECIAL_RATE + MAIN_RATE) el = pickOne(BASE);
-  else if (r < SPECIAL_RATE + MAIN_RATE + EPIC_RATE) el = pickOne(EPIC_ELS);
-  else el = pickOne(NEXT_ELS);
+  const r = Math.random(); let el, acc = SPECIAL_RATE;
+  if (save.pity >= PITY || r < acc) { el = pickOne(SPECIALS); save.pity = 0; }
+  else if (r < (acc += MAIN_RATE)) el = pickOne(BASE);
+  else if (r < (acc += NEXT_RATE)) el = pickOne(NEXT_ELS);
+  else if (r < (acc += EPIC_RATE)) el = pickOne(EPIC_ELS);
+  else if (r < (acc += MYTH_RATE)) el = pickOne(MYTH_ELS);
+  else el = pickOne(LEGEND_ELS.length ? LEGEND_ELS : MYTH_ELS);   // Legend slot
   const isNew = !!EL[el].special && !save.specials[el];
   if (isNew) save.specials[el] = true;           // first copy unlocks it for the shop
   else save.copies[el] = copiesOf(el) + 1;       // later copies count towards upgrades
@@ -2639,27 +2646,30 @@ function drawSummonReveal(dt) {
 }
 function drawRates() {
   dim(0.7);
-  const x = 60, y = H / 2 - 316, w = W - 120, h = 632;
+  const x = 50, y = H / 2 - 360, w = W - 100, h = 720;
   rrect(x, y, w, h, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
   text("Summon Rates", W / 2, y + 62, 36, INK, { font: DISPLAY, weight: 900 });
   const rows = [
-    ["Main element copy", "60%", "Fire, Water, Earth, Wind: 15% each"],
-    ["Next element copy", "32%", "Lava, Steam, Lightning, Plant, Dust, Ice: 5.33% each"],
-    ["Epic element copy", "7.5%", "11 Epic elements + Phoenix: 0.625% each"],
+    ["Main element copy", "50%", "Fire, Water, Earth, Wind: 12.5% each"],
+    ["Next element copy", "30%", "Lava, Steam, Lightning, Plant, Dust, Ice: 5% each"],
+    ["Epic element copy", "13%", `${EPIC_ELS.length} Epic elements: ${(13 / EPIC_ELS.length).toFixed(2)}% each`],
+    ["Myth card copy", "5%", "Phoenix"],
+    ["Legend card copy", "1.5%", LEGEND_ELS.length ? `${LEGEND_ELS.length} Legend cards` : "Legend cards coming soon. Until then: a Phoenix copy"],
     ["Special card", "0.5%", "Solar Flare, Tidal Wave, Earthquake, Tempest: 0.125% each"],
   ];
   rows.forEach(([a, b, c], i) => {
-    const ry = y + 130 + i * 92;
+    const ry = y + 126 + i * 78;
     text(a, x + 30, ry, 25, INK, { align: "left", weight: 700 }); text(b, x + w - 30, ry, 25, "#7a3fb0", { align: "right", weight: 700 });
     text(c, x + 30, ry + 30, 17, "#6b3a22", { align: "left", weight: 500 });
   });
-  text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 510, 20, INK, { weight: 600 });
-  text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 538, 18, "#6b3a22", { weight: 500 });
+  text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 596, 20, INK, { weight: 600 });
+  text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 624, 18, "#6b3a22", { weight: 500 });
   btn.closeRates.y = y + h - 90 + 10; drawBtn(btn.closeRates);
 }
 
 // ---- Cards page: every upgradable card with its level, copies and an Upgrade button.
-const CARD_GROUPS = [["Main Elements", BASE], ["Next Elements", NEXT_ELS], ["Epic Elements", EPIC_ELS], ["Special Cards", SPECIALS]];
+const CARD_GROUPS = [["Main Elements", BASE], ["Next Elements", NEXT_ELS], ["Epic Elements", EPIC_ELS], ["Myth Cards", MYTH_ELS],
+  ...(LEGEND_ELS.length ? [["Legend Cards", LEGEND_ELS]] : []), ["Special Cards", SPECIALS]];
 let cardsScroll = 0;
 const CARDS_TOP = 236;   // the page header covers everything above this line
 const collectionCards = {}, upgradeBtns = {};
