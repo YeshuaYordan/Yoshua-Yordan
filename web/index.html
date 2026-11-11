@@ -852,6 +852,7 @@ const KINDS = {
   purpleSlime: { name: "Glowy Purple Slime", look: "slime", glow: true, heavy: true, resist: "wind", hp: 100, speed: 30, size: 27, gold: 3, dps: 11, color: "#b36bff" },
   kingSlime:   { name: "King Slime", look: "slime", king: true, boss: true, hp: 1500, speed: 14, size: 58, gold: 50, dps: 50, color: "#8a4fe0" },
 };
+const CC_LIMIT = 10;   // each enemy can be knocked back 10 times and stunned 10 times, then it is immune
 class Enemy {
   constructor(kind, wave, x, y) {
     const d = KINDS[kind], w = wave - 1;
@@ -863,6 +864,7 @@ class Enemy {
     this.flying = false; this.color = d.color; this.resist = d.resist || "";
     this.dead = false; this.t = Math.random() * 10; this.flash = 0;
     this.burnDps = 0; this.burnT = 0; this.slowMult = 1; this.slowT = 0; this.rootT = 0; this.attacking = false;
+    this.knockN = 0; this.stunN = 0; this.stunT = 0;   // after CC_LIMIT of each, the enemy becomes immune to it
   }
   update(dt) {
     if (this.dead) return;
@@ -886,9 +888,27 @@ class Enemy {
     if (this.hp <= 0) { this.dead = true; onEnemyKilled(this); }
   }
   slow(mult, dur) { if (this.isBoss) mult = lerp(mult, 1, 0.5); this.slowMult = Math.min(this.slowMult, mult); this.slowT = Math.max(this.slowT, dur); }
-  root(dur) { if (this.isBoss) dur *= 0.3; this.rootT = Math.max(this.rootT, dur); }
+  // Stuns (roots and Freeze) and knockbacks only work CC_LIMIT times on each enemy.
+  root(dur) {
+    if (this.isBoss) dur *= 0.3;
+    if (this.rootT <= 0 && this.stunT <= 0) { if (!this.useCc("stunN", "stun")) return; }   // a new stun counts, refreshing one doesn't
+    this.rootT = Math.max(this.rootT, dur);
+  }
+  stun(dur) {
+    if (this.stunT <= 0 && this.rootT <= 0) { if (!this.useCc("stunN", "stun")) return false; }
+    this.stunT = Math.max(this.stunT, dur); return true;
+  }
+  useCc(key, what) {
+    if (this[key] >= CC_LIMIT) return false;
+    this[key]++;
+    if (this[key] === CC_LIMIT) fxs.push(new Fx("text", { x: this.x, y: this.y - this.size - 34, text: what === "stun" ? "Stun immune!" : "Knockback immune!", color: "#d6d0c4", size: 20, duration: 1.2 }));
+    return true;
+  }
   burn(dps, dur) { this.burnDps = Math.max(this.burnT > 0 ? this.burnDps : 0, dps); this.burnT = Math.max(this.burnT, dur); }
-  knock(px) { if (this.isBoss) px *= 0.15; else if (this.heavy) px *= 0.5; this.y = Math.max(90, this.y - px); }
+  knock(px) {
+    if (!this.useCc("knockN", "knock")) return;
+    if (this.isBoss) px *= 0.15; else if (this.heavy) px *= 0.5; this.y = Math.max(90, this.y - px);
+  }
   draw() {
     const s = this.size, t = this.t;
     ctx.save(); ctx.translate(this.x, this.y);
@@ -1638,7 +1658,7 @@ function castMeteor() {
 }
 // Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 6 seconds.
 function castFreeze() {
-  for (const e of enemies) if (!e.dead) { e.stunT = Math.max(e.stunT || 0, 6); fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#bfefff", radius: e.size * 2.2, duration: 0.5 })); }
+  for (const e of enemies) if (!e.dead && e.stun(6)) fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#bfefff", radius: e.size * 2.2, duration: 0.5 }));
   freezeFlash = 1; playSfx("ice", "hit");
 }
 let freezeFlash = 0;
