@@ -1679,54 +1679,193 @@ function castMeteor() {
   spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) }));
 }
 // Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 6 seconds.
-// Dome: one giant meteor falls on the middle of the battlefield and kills every enemy on it (bosses too).
-const DOME_FALL = 1.5;
-let dome = null, shakeT = 0;
-function castDome() { dome = { t: 0, hit: false, x0: W + 140, y0: -160, tx: W / 2, ty: (HUD_H + FRONT_Y) / 2 }; playSfx("phoenix", "atk"); }
+// Dome: the most powerful spell. A pentagram portal opens in the sky, a giant meteor falls through it in slow motion,
+// and its impact wipes out every enemy on the field (bosses too) as the shockwave reaches them.
+const DOME_OPEN = 0.8, DOME_HIT = 2.6, DOME_END = DOME_HIT + 3.4, DOME_STOP = 0.14;
+let dome = null, shakeT = 0, shakeAmp = 0;
+function castDome() {
+  const mid = (HUD_H + FRONT_Y) / 2;
+  const rock = Array.from({ length: 16 }, (_, i) => 0.84 + Math.random() * 0.2);
+  dome = {
+    t: 0, hit: false, done: false, px: W * 0.72, py: HUD_H + 120, tx: W / 2, ty: mid + 40, rock, rot: 0,
+    fire: [], debris: [], embers: [], smoke: [], victims: [], cracks: Array.from({ length: 11 }, (_, i) => ({ a: i / 11 * Math.PI * 2 + Math.random() * 0.3, l: 0.6 + Math.random() * 0.6 })),
+  };
+  playSfx("earth", "atk"); playSfx("phoenix", "atk");
+}
+// Where the meteor is (k: 0 = in the portal, 1 = impact) and how big it looks.
+function domeMeteorAt(k) {
+  const e = Math.pow(k, 1.7);
+  return { x: lerp(dome.px, dome.tx, e), y: lerp(dome.py, dome.ty, e), r: lerp(34, 130, e) };
+}
 function updateDome(dt) {
   shakeT = Math.max(0, shakeT - dt);
   if (!dome) return;
-  dome.t += dt;
-  if (!dome.hit && dome.t >= DOME_FALL) {
-    dome.hit = true; shakeT = 0.9;
-    for (const e of enemies.slice()) if (!e.dead) e.takeDamage(e.hp + 1);
-    for (let i = 0; i < 10; i++) fxs.push(new Fx("burst", { x: dome.tx + rand(-260, 260), y: dome.ty + rand(-300, 300), color: i % 2 ? "#ff6a2a" : "#ffe27a", radius: rand(90, 160), duration: 0.7 }));
-    playSfx("lava", "hit"); playSfx("earth", "hit");
+  const d = dome; d.t += dt; d.rot += dt * 1.6;
+  const k = clamp((d.t - DOME_OPEN) / (DOME_HIT - DOME_OPEN), 0, 1);
+  if (!d.hit && d.t > DOME_OPEN) {
+    // Fire and smoke pour off the falling meteor; the ground rumbles harder as it gets close.
+    const m = domeMeteorAt(k), dx = d.tx - d.px, dy = d.ty - d.py, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
+    for (let i = 0; i < 9; i++) {
+      const sp = rand(120, 380), side = rand(-1, 1) * m.r * 0.8;
+      d.fire.push({ x: m.x - uy * side, y: m.y + ux * side, vx: -ux * sp + rand(-40, 40), vy: -uy * sp + rand(-40, 40), life: 0, max: rand(0.35, 0.7), size: m.r * rand(0.35, 0.7) });
+    }
+    if (Math.random() < 0.5) d.smoke.push({ x: m.x - ux * m.r, y: m.y - uy * m.r, vx: -ux * 60 + rand(-20, 20), vy: -uy * 60 - 20, life: 0, max: rand(1, 1.6), size: m.r * rand(0.6, 1) });
+    shakeT = Math.max(shakeT, 0.1); shakeAmp = 2 + 10 * k;
   }
-  if (dome.t > DOME_FALL + 2.2) dome = null;
+  if (!d.hit && d.t >= DOME_HIT) {
+    d.hit = true; shakeT = 1.3; shakeAmp = 26;
+    d.victims = enemies.filter(e => !e.dead);
+    for (let i = 0; i < 70; i++) { const a = rand(0, Math.PI * 2), sp = rand(250, 900); d.debris.push({ x: d.tx, y: d.ty, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.55 - rand(300, 700), life: 0, max: rand(1.2, 2.2), size: rand(5, 16), rot: rand(0, 6), vr: rand(-10, 10) }); }
+    for (let i = 0; i < 160; i++) d.embers.push({ x: d.tx + rand(-120, 120), y: d.ty + rand(-40, 40), vx: rand(-180, 180), vy: rand(-520, -120), life: 0, max: rand(1.2, 2.8), size: rand(1.5, 4) });
+    for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2; d.smoke.push({ x: d.tx, y: d.ty, vx: Math.cos(a) * rand(260, 420), vy: Math.sin(a) * rand(110, 180), life: 0, max: rand(1.6, 2.4), size: rand(40, 70), ground: true }); }
+    for (let i = 0; i < 14; i++) d.smoke.push({ x: d.tx + rand(-60, 60), y: d.ty - 40, vx: rand(-30, 30), vy: rand(-260, -140), life: 0, max: rand(2, 3), size: rand(60, 100), column: true });
+    playSfx("lava", "hit"); playSfx("earth", "hit"); playSfx("phoenix", "hit");
+  }
+  // The shockwave kills each enemy as it passes it; anything left dies when it fades.
+  if (d.hit) {
+    const u = d.t - DOME_HIT, radius = Math.max(0, u - DOME_STOP) * 1500;
+    for (const e of d.victims) if (!e.dead && (Math.hypot(e.x - d.tx, (e.y - d.ty) / 0.55) < radius || u > 1)) {
+      e.takeDamage(e.hp + 1);
+      fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#ff6a2a", radius: e.size * 3, duration: 0.5 }));
+    }
+  }
+  const step = (arr, grav, drag) => {
+    for (const p of arr) { p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += grav * dt; p.vx *= 1 - drag * dt; p.vy *= 1 - drag * dt; if (p.rot !== undefined) p.rot += p.vr * dt; }
+    return arr.filter(p => p.life < p.max);
+  };
+  d.fire = step(d.fire, 0, 2); d.smoke = step(d.smoke, 0, 1.6); d.debris = step(d.debris, 1400, 0.3); d.embers = step(d.embers, -60, 0.8);
+  if (d.t > DOME_END) dome = null;
+}
+// A glowing pentagram in a double ring (the Dome rune), squashed by sy for a ground view.
+function drawPentagram(x, y, r, sy, rot, col, alpha, lw) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(1, sy); ctx.globalAlpha = alpha;
+  ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 25; ctx.lineWidth = lw;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = lw * 0.6; ctx.beginPath(); ctx.arc(0, 0, r * 0.86, 0, Math.PI * 2); ctx.stroke();
+  ctx.rotate(rot); ctx.lineWidth = lw;
+  ctx.beginPath();
+  for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 4 / 5; i ? ctx.lineTo(Math.cos(a) * r * 0.84, Math.sin(a) * r * 0.84) : ctx.moveTo(Math.cos(a) * r * 0.84, Math.sin(a) * r * 0.84); }
+  ctx.stroke();
+  for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.88, Math.sin(a) * r * 0.88); ctx.lineTo(Math.cos(a) * r * 0.98, Math.sin(a) * r * 0.98); ctx.stroke(); }
+  ctx.restore();
+}
+function drawDomeMeteor(m, rot) {
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  let g = ctx.createRadialGradient(m.x, m.y, m.r * 0.5, m.x, m.y, m.r * 2.4);
+  g.addColorStop(0, "rgba(255,170,60,0.55)"); g.addColorStop(1, "rgba(255,60,20,0)");
+  ctx.fillStyle = g; ctx.fillRect(m.x - m.r * 2.4, m.y - m.r * 2.4, m.r * 4.8, m.r * 4.8);
+  ctx.restore();
+  ctx.save(); ctx.translate(m.x, m.y); ctx.rotate(rot);
+  ctx.beginPath();
+  dome.rock.forEach((k, i) => { const a = i / dome.rock.length * Math.PI * 2; i ? ctx.lineTo(Math.cos(a) * m.r * k, Math.sin(a) * m.r * k) : ctx.moveTo(Math.cos(a) * m.r * k, Math.sin(a) * m.r * k); });
+  ctx.closePath();
+  g = ctx.createRadialGradient(-m.r * 0.3, -m.r * 0.3, m.r * 0.1, 0, 0, m.r);
+  g.addColorStop(0, "#7a3a1e"); g.addColorStop(1, "#2a120a");
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  // Glowing magma cracks and craters.
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = "#ffb03a"; ctx.shadowColor = "#ff6a00"; ctx.shadowBlur = 16; ctx.lineWidth = Math.max(2, m.r * 0.05);
+  for (let i = 0; i < 5; i++) {
+    const a = i * 1.3; ctx.beginPath(); ctx.moveTo(Math.cos(a) * m.r * 0.1, Math.sin(a) * m.r * 0.1);
+    ctx.lineTo(Math.cos(a + 0.3) * m.r * 0.5, Math.sin(a + 0.3) * m.r * 0.5); ctx.lineTo(Math.cos(a - 0.1) * m.r * 1.1, Math.sin(a - 0.1) * m.r * 1.1); ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  for (const [cx, cy, cr] of [[-0.35, -0.2, 0.2], [0.3, 0.35, 0.15], [0.25, -0.4, 0.11]]) { circle(cx * m.r, cy * m.r, cr * m.r, "rgba(0,0,0,0.35)"); }
+  // Hot leading edge (it faces down-left, toward the ground).
+  ctx.restore(); ctx.rotate(-rot);
+  g = ctx.createRadialGradient(-m.r * 0.5, m.r * 0.6, 0, -m.r * 0.5, m.r * 0.6, m.r * 1.2);
+  g.addColorStop(0, "rgba(255,240,180,0.85)"); g.addColorStop(1, "rgba(255,120,30,0)");
+  ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, m.r * 1.02, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 }
 function drawDome() {
   if (!dome) return;
-  const t = dome.t, mid = (HUD_H + FRONT_Y) / 2;
-  if (!dome.hit) {
-    const k = clamp(t / DOME_FALL, 0, 1), e = k * k, x = lerp(dome.x0, dome.tx, e), y = lerp(dome.y0, dome.ty, e), r = 70 + 40 * k;
-    // The sky darkens and turns red as it comes down.
-    ctx.fillStyle = `rgba(60,0,0,${0.45 * k})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
-    // Shadow growing on the ground.
-    ctx.save(); ctx.globalAlpha = 0.5 * k; ellipse(dome.tx, dome.ty + 30, 260 * k, 90 * k, "rgba(0,0,0,0.6)"); ctx.restore();
-    // Burning trail.
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
-    for (let i = 12; i >= 1; i--) {
-      const kk = Math.max(0, k - i * 0.035), ee = kk * kk;
-      circle(lerp(dome.x0, dome.tx, ee), lerp(dome.y0, dome.ty, ee), r * (1 - i * 0.06), `rgba(255,${90 + i * 10},30,${0.25 - i * 0.015})`);
+  const d = dome, t = d.t, top = HUD_H, bot = FRONT_Y, fh = bot - top;
+  ctx.save(); ctx.beginPath(); ctx.rect(0, top, W, fh); ctx.clip();
+  const pre = clamp(t / 0.5, 0, 1), k = clamp((t - DOME_OPEN) / (DOME_HIT - DOME_OPEN), 0, 1);
+  const after = d.hit ? t - DOME_HIT : -1, fadeOut = d.hit ? clamp((DOME_END - t) / 1.2, 0, 1) : 1;
+  // Darkness with a red pulse.
+  ctx.fillStyle = `rgba(25,0,8,${(d.hit ? 0.55 * fadeOut : 0.62 * pre)})`; ctx.fillRect(0, top, W, fh);
+  if (!d.hit) { ctx.fillStyle = `rgba(255,30,20,${0.08 + 0.08 * Math.sin(t * 12) * k})`; ctx.fillRect(0, top, W, fh); }
+  // Target pentagram on the ground, the meteor's shadow, and the portal in the sky.
+  if (!d.hit) {
+    drawPentagram(d.tx, d.ty, 150 + 60 * k, 0.42, -t * 0.8, "#ff3d2e", Math.min(1, t / 0.8) * (0.6 + 0.4 * Math.sin(t * 10)), 5);
+    ctx.save(); ctx.globalAlpha = 0.55 * k; ellipse(d.tx, d.ty + 10, 220 * k + 20, 80 * k + 8, "#000"); ctx.restore();
+    const po = clamp(t / DOME_OPEN, 0, 1) * clamp((DOME_HIT - 0.2 - t) / 0.8, 0, 1);
+    if (po > 0) {
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(d.px, d.py, 10, d.px, d.py, 170);
+      g.addColorStop(0, `rgba(255,90,40,${0.7 * po})`); g.addColorStop(1, "rgba(120,0,40,0)");
+      ctx.fillStyle = g; ctx.fillRect(d.px - 180, d.py - 180, 360, 360); ctx.restore();
+      ctx.save(); ctx.globalAlpha = po; ellipse(d.px, d.py, 105 * po, 105 * po, "#140006"); ctx.restore();
+      drawPentagram(d.px, d.py, 120 * (0.4 + 0.6 * po), 1, t * 1.5, "#ff5a3a", po, 6);
     }
-    circle(x, y, r * 1.6, "rgba(255,120,40,0.35)");
+  }
+  // Smoke (behind the fire).
+  for (const p of d.smoke) {
+    const a = 1 - p.life / p.max, s = p.size * (1 + p.life * (p.column ? 0.9 : 0.6));
+    ctx.globalAlpha = 0.45 * a; circle(p.x, p.y, s, p.column ? "#3a2a2a" : "#4a3a34");
+  }
+  ctx.globalAlpha = 1;
+  // Fire trail.
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (const p of d.fire) {
+    const u = p.life / p.max, s = p.size * (1 - u * 0.6);
+    const col = u < 0.25 ? "255,240,190" : u < 0.5 ? "255,190,70" : u < 0.75 ? "255,110,40" : "200,40,20";
+    ctx.fillStyle = `rgba(${col},${0.55 * (1 - u)})`; ctx.beginPath(); ctx.arc(p.x, p.y, s, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  if (!d.hit && t > DOME_OPEN) drawDomeMeteor(domeMeteorAt(k), d.rot);
+  // --- After the impact.
+  if (d.hit) {
+    const u = after;
+    // Crater with glowing cracks.
+    const cr = Math.min(1, u / 0.3);
+    ctx.save(); ctx.globalAlpha = fadeOut;
+    ellipse(d.tx, d.ty, 170 * cr, 70 * cr, "#1e0f08"); ellipse(d.tx, d.ty + 6, 130 * cr, 48 * cr, "#120804");
+    ctx.strokeStyle = `rgba(255,${140 + 60 * Math.sin(t * 8)},40,0.9)`; ctx.shadowColor = "#ff6a00"; ctx.shadowBlur = 14; ctx.lineWidth = 4;
+    for (const c of d.cracks) {
+      const L = 240 * c.l * cr; ctx.beginPath(); ctx.moveTo(d.tx + Math.cos(c.a) * 90 * cr, d.ty + Math.sin(c.a) * 36 * cr);
+      ctx.lineTo(d.tx + Math.cos(c.a + 0.12) * L * 0.7, d.ty + Math.sin(c.a + 0.12) * L * 0.29); ctx.lineTo(d.tx + Math.cos(c.a - 0.05) * L, d.ty + Math.sin(c.a - 0.05) * L * 0.42); ctx.stroke();
+    }
     ctx.restore();
-    circle(x, y, r, "#4a1e10"); ring(x, y, r, INK, 5);
-    circle(x - r * 0.3, y - r * 0.3, r * 0.35, "#ff8a3a"); circle(x + r * 0.25, y + r * 0.2, r * 0.18, "#c2451c"); circle(x - r * 0.1, y + r * 0.45, r * 0.12, "#c2451c");
-    return;
+    // Ground shockwaves.
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 4; i++) {
+      const uu = (u - DOME_STOP - i * 0.12) / 0.9; if (uu < 0 || uu > 1) continue;
+      const rx = 60 + uu * 900;
+      ctx.globalAlpha = 1 - uu; ctx.strokeStyle = ["#fff4d6", "#ffd84a", "#ff8a3a", "#ff3d2e"][i]; ctx.lineWidth = 26 * (1 - uu) + 3;
+      ctx.beginPath(); ctx.ellipse(d.tx, d.ty, rx, rx * 0.42, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Fireball: white-hot core swelling, then cooling.
+    const fb = clamp((u - DOME_STOP) / 0.45, 0, 1), cool = clamp((u - 0.6) / 1.6, 0, 1);
+    if (u > DOME_STOP && cool < 1) {
+      const R = 60 + 300 * Math.sqrt(fb);
+      const g = ctx.createRadialGradient(d.tx, d.ty - R * 0.35, 0, d.tx, d.ty - R * 0.35, R);
+      g.addColorStop(0, `rgba(255,255,235,${0.95 * (1 - cool)})`); g.addColorStop(0.35, `rgba(255,210,90,${0.8 * (1 - cool)})`);
+      g.addColorStop(0.7, `rgba(255,90,30,${0.55 * (1 - cool)})`); g.addColorStop(1, "rgba(120,20,10,0)");
+      ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.fillRect(d.tx - R, d.ty - R * 1.35, R * 2, R * 2);
+    }
+    // Embers.
+    for (const p of d.embers) { const a = 1 - p.life / p.max; ctx.globalAlpha = a; circle(p.x, p.y, p.size * 2.2, "rgba(255,140,40,0.35)"); circle(p.x, p.y, p.size, "#ffd27a"); }
+    ctx.restore();
+    // Flying rocks.
+    for (const p of d.debris) {
+      const a = 1 - p.life / p.max; ctx.save(); ctx.globalAlpha = Math.min(1, a * 2); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = "#3a2216"; ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.8);
+      ctx.fillStyle = "#ff8a3a"; ctx.fillRect(-p.size / 2, -p.size / 2, p.size * 0.4, p.size * 0.3); ctx.restore();
+    }
   }
-  // Impact: white flash, then shockwave rings and a fading orange glow over the whole battlefield.
-  const u = t - DOME_FALL;
-  ctx.save(); ctx.beginPath(); ctx.rect(0, HUD_H, W, FRONT_Y - HUD_H); ctx.clip();
-  ctx.fillStyle = `rgba(255,120,40,${0.5 * Math.max(0, 1 - u / 2)})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
-  for (let i = 0; i < 3; i++) {
-    const uu = u - i * 0.15; if (uu < 0 || uu > 1) continue;
-    ctx.globalAlpha = 1 - uu; ctx.strokeStyle = i === 1 ? "#ffe27a" : "#ff6a2a"; ctx.lineWidth = 18 * (1 - uu) + 3;
-    ctx.beginPath(); ctx.ellipse(dome.tx, mid, 40 + uu * 700, (40 + uu * 700) * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+  // Cinematic black bars during the fall.
+  const bars = d.hit ? clamp(1 - (t - DOME_HIT - 0.6) / 0.5, 0, 1) : pre;
+  if (bars > 0) { ctx.fillStyle = "#000"; ctx.fillRect(0, top, W, 46 * bars); ctx.fillRect(0, bot - 46 * bars, W, 46 * bars); }
+  ctx.restore();
+  // Freeze-frame flash at the moment of impact, then a fading glare.
+  if (d.hit) {
+    const u = after;
+    if (u < DOME_STOP) { ctx.fillStyle = "#fffaf0"; ctx.fillRect(0, 0, W, H); }
+    else if (u < 0.7) { ctx.fillStyle = `rgba(255,236,200,${0.85 * (1 - (u - DOME_STOP) / (0.7 - DOME_STOP))})`; ctx.fillRect(0, 0, W, H); }
   }
-  ctx.globalAlpha = 1; ctx.restore();
-  if (u < 0.5) { ctx.fillStyle = `rgba(255,250,235,${1 - u / 0.5})`; ctx.fillRect(0, 0, W, H); }
 }
 // Speed Up: every card on the battle row attacks 2.5x faster for a few seconds.
 const SPEED_MULT = 2.5, SPEED_TIME = 8;
@@ -2023,6 +2162,8 @@ document.addEventListener("keydown", ev => {
 function update(dt) {
   updateSpell(dt);
   if (spell) dt *= SPELL_SLOWMO;   // slow motion while drawing / choosing a spell
+  const domeDt = dt;
+  if (dome && !dome.hit) dt *= 0.3;   // the battle slows down while the Dome meteor falls
   time += dt;
   banner.t += dt; info.t += dt;
   restartArmed = Math.max(0, restartArmed - dt);
@@ -2051,7 +2192,7 @@ function update(dt) {
   for (const e of enemies.slice()) e.update(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
-  updateMeteors(dt); updateDome(dt);
+  updateMeteors(dt); updateDome(domeDt);
   for (const f of fxs) f.update(dt);
   projectiles = projectiles.filter(p => !p.dead); zones = zones.filter(z => !z.dead); fxs = fxs.filter(f => !f.dead);
   if (state === "wave") {
@@ -3316,7 +3457,12 @@ function frame(now) {
   ctx.clearRect(0, 0, W, H);
   if (state === "title") drawLobby(dt);
   else {
-    ctx.save(); if (shakeT > 0) ctx.translate(rand(-1, 1) * 14 * shakeT, rand(-1, 1) * 14 * shakeT);   // Dome impact shake
+    ctx.save();
+    if (shakeT > 0) {   // Dome rumble and impact: shake plus a short camera punch
+      const s = shakeAmp * Math.min(1, shakeT);
+      ctx.translate(rand(-1, 1) * s, rand(-1, 1) * s);
+      if (dome && dome.hit) { const z = 1 + 0.06 * Math.max(0, 1 - (dome.t - DOME_HIT) / 0.5); ctx.translate(W / 2, (HUD_H + FRONT_Y) / 2); ctx.scale(z, z); ctx.translate(-W / 2, -(HUD_H + FRONT_Y) / 2); }
+    }
     drawWorld(); drawDome(); drawHud(); drawSpell(); ctx.restore();
   }
   if (drag) {
