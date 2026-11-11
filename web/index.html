@@ -3105,7 +3105,7 @@ function drawLobby(dt) {
   }
 }
 function drawHomeScene() {
-  const v = lobbyView(), L = LOBBY, tc = lobbyT % 20;
+  const v = lobbyView(), L = LOBBY, tc = (lobbyT / 2) % 20;   // day/night runs at half speed: a full cycle takes 40 s
   ctx.fillStyle = "#3a2c48"; ctx.fillRect(0, 0, W, H);
   ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
   // Sky: crossfade between the two nearest keyframes.
