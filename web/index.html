@@ -178,7 +178,7 @@ const randomBase = () => BASE[Math.floor(Math.random() * 4)];
 const describe = (el, r) => `${RARITY_NAMES[r]} ${EL[el].name}: ${Math.round(damageOf(el, r))} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
 
 // ------------------------------------------------------------ Save (per-browser)
-const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {} };
+const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {}, tut: {} };
 try {
   const raw = localStorage.getItem("arcane-fusion-save");
   if (raw) Object.assign(save, JSON.parse(raw));
@@ -186,6 +186,7 @@ try {
 function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} }
 // ---- Summon (gacha), gems and card upgrades
 const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
+const GEMS_PER_STAGE = 10;       // gems for clearing a stage
 const PULL_COST = 10;            // gems per summon
 const PITY = 100;                // a Special card is guaranteed on this pull
 // Summon rates: Main 50%, Next 30%, Epic 13%, Myth 5%, Legend 1.5% (the rest), Special 0.5%.
@@ -1525,8 +1526,8 @@ function waveCleared(w) {
   if (wavesCleared > save.best) save.best = wavesCleared;
   if (w % STAGE_LEN === 0) {
     // Finishing a stage (beating its boss) earns a gem for Summon.
-    save.gems++; runGems++;
-    showBanner(`Stage ${stageNum(w)} cleared!  +${bonus} gold  +1 gem`, "#7fe6ff");
+    save.gems += GEMS_PER_STAGE; runGems += GEMS_PER_STAGE;
+    showBanner(`Stage ${stageNum(w)} cleared!  +${bonus} gold  +${GEMS_PER_STAGE} gems`, "#7fe6ff");
   } else showBanner(`Wave ${waveLabel(w)} cleared!  +${bonus} gold`, GOLD);
   writeSave();
 }
@@ -2293,6 +2294,8 @@ const btn = {
   summon: Object.assign(makeBtn("x1", 184, 1130, 170, 92, () => doSummon(1), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
   summon10: Object.assign(makeBtn("x10", 366, 1130, 170, 92, () => doSummon(10), 40), { fill: "#ffcd50", fillDown: "#e0a830", font: DISPLAY, weight: 900 }),
   rates: makeBtn("Rates", 16, 1150, 150, 60, () => { ratesOpen = true; }, 24),
+  tutNext: Object.assign(makeBtn("Next", 0, 0, 200, 64, () => tutNext(), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  tutSkip: makeBtn("Skip tutorial", 0, 0, 220, 64, () => tutSkipAll(), 22),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: Object.assign(makeBtn("Shop", 554, 1150, 150, 60, () => openShop(), 24), { fill: "#7fe6ff", fillDown: "#4fc0e0" }),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
@@ -2352,6 +2355,10 @@ function chamberDrop(d, p) {
   if (other) { const b = slotPos(d.from, d.index); other.setHome(b.x, b.y); }
 }
 function visibleButtons() {
+  if (tut) return tutBlocking() ? [btn.tutNext, btn.tutSkip] : [btn.tutSkip, ...baseButtons()];
+  return baseButtons();
+}
+function baseButtons() {
   if (bookOpen) return [btn.closeBook, btn.tabFusions, btn.tabRunes];
   if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
@@ -2400,6 +2407,7 @@ canvas.addEventListener("pointerdown", ev => {
       b.down = true; setTimeout(() => { b.down = false; }, 120); b.onTap(); return;
     }
   }
+  if (tutBlocking()) return;   // a tutorial step is open: only its buttons work
   if (bookOpen) { bookDrag = { y: p.y, s: bookScroll }; return; }
   if (fusion) return;
   if (spell) {
@@ -2470,7 +2478,7 @@ function update(dt) {
   restartArmed = Math.max(0, restartArmed - dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover") return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking()) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt);
   speedT = Math.max(0, speedT - dt);
@@ -3089,7 +3097,7 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
-  if (summonReveal || ratesOpen || cardInfo || shopOpen) return;   // no swiping under a popup
+  if (summonReveal || ratesOpen || cardInfo || shopOpen || tutBlocking()) return;   // no swiping under a popup
   const dy = p.y - s.y0;
   if (!s.moved && !s.vscroll) {
     if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
@@ -3107,7 +3115,7 @@ function lobbyUp(p) {
     if (s.btn && inRect(p, s.btn)) s.btn.onTap();
     else if (summonReveal && summonReveal.t < SUMMON_REVEAL) summonReveal.t = SUMMON_REVEAL;   // tap to skip the build-up
     else if (summonReveal && !summonReveal.multi && summonDone()) summonReveal = null;     // tap anywhere closes a x1 reveal
-    else if (lobbyPage === -1 && lobbySettled() && !cardInfo && !ratesOpen) { const el = cardAt(p); if (el) openCardInfo(el); }
+    else if (lobbyPage === -1 && lobbySettled() && !cardInfo && !ratesOpen && !tut) { const el = cardAt(p); if (el) openCardInfo(el); }
     return;
   }
   const shown = lobbyShownPos(), dx = p.x - s.x0, fast = Math.abs(dx) / Math.max(1, performance.now() - s.t0) > 0.6;
@@ -3245,7 +3253,7 @@ const TIER_GLOW = ["#d8dde6", "#6ED28C", "#5AA0FA", "#AF78FF", "#FF6E50", "#FFCD
 const tierColor = tier => tier >= 6 ? `hsl(${(lobbyT * 220) % 360},100%,66%)` : TIER_GLOW[tier];
 function doSummon(n = 1) {
   const cost = n === 10 ? PULL10_COST : PULL_COST;
-  if (save.gems < cost) { flashSummonMsg(`Not enough gems! Clear a stage for 1 gem, or get more in the Shop.`); openShop(); return; }
+  if (save.gems < cost) { flashSummonMsg(`Not enough gems! Clear a stage for 10 gems, or get more in the Shop.`); openShop(); return; }
   save.gems -= cost;
   const results = [];
   for (let i = 0; i < n; i++) {
@@ -3751,6 +3759,119 @@ function drawHomeUi() {
   text(stats, W / 2, H - 20, 20, PARCH, { outline: 6 });
 }
 
+// ------------------------------------------------------------ First-run tutorial
+// Short chapters that start the first time they matter. A spotlight points at the real button or area.
+// Steps with `wait` let you play until you have done the thing (the game keeps running); the others pause the game.
+const rowRect = (row, n) => { const a = slotPos(row, 0), b = slotPos(row, n - 1); return { x: a.x - CARD_W / 2 - 10, y: a.y - CARD_H / 2 - 12, w: b.x - a.x + CARD_W + 20, h: CARD_H + 24 }; };
+const btnRect = b => ({ x: b.x - 6, y: b.y - 6, w: b.w + 12, h: b.h + 12 });
+const TUT = {
+  lobby: [
+    { t: "Welcome to Arcane Fusion!", b: "Monsters march toward your castle in endless waves. Buy elemental cards, merge them into stronger spirits and survive as long as you can. Between runs you collect and upgrade cards." },
+    { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (15 waves) gives you 10 gems. Tap the green + to open the Shop." },
+    { t: "Summon", hl: () => btnRect(btn.toSummon), b: "Swipe left (or tap here) to open Summon. One pull costs 10 gems, ten pulls cost 90. Pulls give card copies, and a Special card is guaranteed by pull 100." },
+    { t: "Your cards", hl: () => btnRect(btn.toCards), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
+    { t: "Spellbook", hl: () => btnRect(btn.titleBook), b: "Every fusion recipe and every spell rune is written in the Spellbook. You can open it any time, even in the middle of a run." },
+    { t: "Ready?", hl: () => btnRect(btn.play), b: "Tap PLAY to start your first run. We will show you how everything works." },
+  ],
+  run1: [
+    { t: "Your castle", hl: () => ({ x: 146, y: 10, w: 308, h: 54 }), b: "This bar is your castle's HP. Enemies walk down the battlefield and attack the wall when they reach it. When the castle reaches 0 HP, the run is over." },
+    { t: "The shop", hl: () => rowRect("shop", SHOP_N), wait: () => rows.active.some(Boolean) || rows.storage.some(Boolean),
+      b: "New cards appear here before every wave. Your first card is FREE! Tap a card to buy it, or drag it into a slot. Try it now." },
+    { t: "Battle row", hl: () => rowRect("active", SLOTS), b: "Only cards in this top row attack. They fire at the nearest enemies on their own. Fill it with your strongest cards." },
+    { t: "Storage row", hl: () => rowRect("storage", SLOTS), b: "Cards down here do not attack. Keep cards here until you can merge them. You can drag cards between all slots at any time." },
+    { t: "Start the wave", hl: () => btnRect(btn.next), wait: () => state === "wave",
+      b: "Tap Next Wave to send the enemies. You can call the next wave early, even while one is still running, to earn gold faster. Tap it now!" },
+    { t: "Defend!", b: "Every enemy you kill drops gold, and every cleared wave gives bonus gold. The shop refills between waves. Good luck!" },
+  ],
+  merge: [
+    { t: "Gold", hl: () => ({ x: btn.reroll.x, y: btn.reroll.y + btn.reroll.h + 6, w: 140, h: 50 }), b: "This is your gold. Spend it on cards, shop rerolls and spells." },
+    { t: "Level up", hl: () => { const a = rowRect("active", SLOTS), s = rowRect("storage", SLOTS); return { x: a.x, y: a.y, w: a.w, h: s.y + s.h - a.y }; },
+      b: "Drag a card onto the SAME card at the SAME level to level it up: V1 > V2 > V3. Each level hits much harder. Main and Next elements stop at V3." },
+    { t: "Fusion", b: "Drag two DIFFERENT main elements of the same level together to fuse a Next element: Fire + Water = Steam, Fire + Earth = Lava, Water + Wind = Ice, and more. Two V3 Next elements fuse into a powerful Epic card." },
+    { t: "Recipes", b: "All recipes are in the Spellbook (Fusions tab). Every fusion you make for the first time is discovered and appears in your Cards library." },
+    { t: "Reroll", hl: () => btnRect(btn.reroll), b: "Don't like the shop? Reroll it for new cards. The price goes up with each reroll and resets every wave." },
+    { t: "Sell", hl: () => ({ x: SELL_RECT.x - 6, y: SELL_RECT.y - 6, w: SELL_RECT.w + 12, h: SELL_RECT.h + 12 }), b: "Drag a card you don't need onto Sell to get half of its price back." },
+    { t: "Elements", b: "Water beats Fire, Fire beats Wind, Wind beats Earth and Earth beats Water. Some enemies resist an element: they take half damage from it and 1.5x damage from the element that beats it. Wind is strong against flying enemies." },
+  ],
+  spells: [
+    { t: "Spells", hl: () => btnRect(btn.spell), b: "Tap Spell, then draw a rune on the battlefield with your finger. Time slows down and you have 5 seconds. A 70% match casts the spell, paid with gold." },
+    { t: "The runes", b: "Meteor (Z, 5 gold): hits the 3 strongest enemies.\nFreeze (snowflake, 12): freezes everything for 6s.\nHealing (circle + plus, 25): +25 castle HP.\nSpeed Up! (3 arrows, 20): cards attack 2.5x faster.\nDoom (circle, star, 4 rays, 200): destroys every enemy, but they drop no gold." },
+    { t: "Learn the shapes", b: "Open the Spellbook and its Runes tab to study each rune. In battle you must draw them from memory, so practise!" },
+    { t: "Immunity", b: "Each enemy can only be knocked back 10 times and stunned 10 times (roots and Freeze count as stuns). After that it becomes immune to it." },
+    { t: "Pause", hl: () => btnRect(btn.pause), b: "Pause at any time to resume, restart, open the Spellbook, turn the sound on or off, or quit to the lobby." },
+  ],
+  chamber: [
+    { t: "An Epic card!", hl: () => btnRect(btn.chamber), b: "Open the Chamber and place 3 to 5 Epic cards on the altars to try for a Myth Phoenix: 35%, 60% or 85% chance. If it fails, all those cards are lost!" },
+    { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 6% and each Epic adds 2%, up to 30%." },
+  ],
+  boss: [
+    { t: "Boss wave!", b: "Every 15th wave a boss appears. Beat it to clear the stage: you earn 10 gems for Summon, and the map changes to a new land with new enemies." },
+    { t: "Special cards", b: "Special cards from Summon or the Shop can show up in the shop during runs. They are very strong, but they can't be merged or fused." },
+  ],
+};
+let tut = null;   // { ch, i, t }
+const tutStep = () => tut && TUT[tut.ch][tut.i];
+const tutBlocking = () => !!tut && !tutStep().wait;
+function tutNext() {
+  tut.i++; tut.t = 0; playUi("ui_pick");
+  if (tut.i >= TUT[tut.ch].length) { save.tut[tut.ch] = true; writeSave(); tut = null; }
+}
+function tutSkipAll() { for (const k of Object.keys(TUT)) save.tut[k] = true; writeSave(); tut = null; }
+function tutStart(ch) { tut = { ch, i: 0, t: 0 }; cancelDrag(); }
+// Starts a chapter when its moment comes, and moves on from "do it" steps once they are done.
+function tutCheck() {
+  if (tut) { const st = tutStep(); if (st.wait && st.wait()) tutNext(); return; }
+  const seen = k => save.tut[k];
+  if (state === "title") {
+    if (!seen("lobby") && lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo) tutStart("lobby");
+    return;
+  }
+  if (paused || bookOpen || chamberOpen || spell || drag || fusion || doom || (state !== "break" && state !== "wave")) return;
+  if (!seen("run1") && state === "break" && wave === 0) tutStart("run1");
+  else if (!seen("merge") && state === "break" && wavesCleared >= 1) tutStart("merge");
+  else if (!seen("spells") && state === "break" && wavesCleared >= 2) tutStart("spells");
+  else if (!seen("chamber") && [...rows.active, ...rows.storage].some(c => c && EL[c.element].tier === 3)) tutStart("chamber");
+  else if (!seen("boss") && state === "wave" && spawners.some(s => s.wave % STAGE_LEN === 0)) tutStart("boss");
+}
+function drawTut(dt) {
+  const st = tutStep(); tut.t += dt;
+  const hl = st.hl ? st.hl() : null, pulse = 0.5 + 0.5 * Math.sin(tut.t * 5);
+  // Darken everything except the spotlight.
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H);
+  if (hl) { ctx.moveTo(hl.x, hl.y); ctx.lineTo(hl.x, hl.y + hl.h); ctx.lineTo(hl.x + hl.w, hl.y + hl.h); ctx.lineTo(hl.x + hl.w, hl.y); ctx.closePath(); }
+  ctx.fillStyle = `rgba(10,5,20,${st.wait ? 0.45 : 0.68})`; ctx.fill("evenodd"); ctx.restore();
+  if (hl) { rrect(hl.x - 3, hl.y - 3, hl.w + 6, hl.h + 6, 12); ctx.strokeStyle = `rgba(242,193,78,${0.6 + 0.4 * pulse})`; ctx.lineWidth = 4 + 2 * pulse; ctx.stroke(); }
+  // The text panel, placed on the other side of the spotlight.
+  const pw = W - 60, px = 30, size = 22, lh = 30;
+  ctx.font = `600 ${size}px ${FONT}`;
+  const lines = [];
+  for (const para of st.b.split("\n")) {   // "\n" starts a new line
+    let ln = "";
+    for (const wd of para.split(" ")) { const tt = ln ? ln + " " + wd : wd; if (ctx.measureText(tt).width > pw - 48 && ln) { lines.push(ln); ln = wd; } else ln = tt; }
+    if (ln) lines.push(ln);
+  }
+  const ph = 112 + lines.length * lh + 92;
+  let py;
+  if (!hl) py = H / 2 - ph / 2;
+  else if (hl.y + hl.h / 2 < H / 2) py = Math.min(H - ph - 20, hl.y + hl.h + 44);
+  else py = Math.max(84, hl.y - ph - 44);
+  rrect(px, py, pw, ph, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  const list = TUT[tut.ch];
+  text(`${tut.i + 1} / ${list.length}`, px + pw - 24, py + 36, 18, "#a08060", { align: "right", weight: 700 });
+  text(st.t, px + 24, py + 52, 32, INK, { align: "left", font: DISPLAY, weight: 900 });
+  lines.forEach((l, i) => text(l, px + 24, py + 98 + i * lh, size, "#4a2c1c", { align: "left", weight: 600 }));
+  // Arrow from the panel to the spotlight.
+  if (hl) {
+    const down = py < hl.y, ax = clamp(hl.x + hl.w / 2, px + 40, px + pw - 40), bob = Math.sin(tut.t * 6) * 6;
+    const ay = down ? py + ph + 8 + bob : py - 8 - bob, dir = down ? 1 : -1;
+    poly([[ax - 16, ay], [ax + 16, ay], [ax, ay + dir * 24]], GOLD, INK, 3);
+  }
+  const by = py + ph - 82;
+  btn.tutSkip.x = px + 20; btn.tutSkip.y = by; drawBtn(btn.tutSkip);
+  if (st.wait) text("Your turn!", px + pw - 120, by + 44, 28, "#2f8f3f", { weight: 800, baseline: "middle" });
+  else { btn.tutNext.label = tut.i === list.length - 1 ? "Got it!" : "Next"; btn.tutNext.x = px + pw - 20 - btn.tutNext.w; btn.tutNext.y = by; drawBtn(btn.tutNext); }
+}
+
 // ------------------------------------------------------------ Loop
 applyLayout();
 let last = performance.now();
@@ -3774,6 +3895,7 @@ function frame(now) {
       text(`Sell for +${sellOf(drag.card.element, drag.card.rarity)} g`, clamp(drag.card.x, 120, W - 120), drag.card.y - CARD_H / 2 - 18, 26, GOLD, { weight: 700, outline: 6 });
   }
   drawOverlays(); drawFilm();
+  tutCheck(); if (tut) drawTut(dt);
   if (fadeIn > 0) { ctx.fillStyle = `rgba(10,5,15,${fadeIn / 0.5})`; ctx.fillRect(0, 0, W, H); fadeIn = Math.max(0, fadeIn - dt); }
   requestAnimationFrame(frame);
 }
