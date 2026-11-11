@@ -30,10 +30,7 @@ body {
   touch-action: none;
 }
 canvas {
-  display: block;
-  max-width: 100%;
-  max-height: 100%;
-  aspect-ratio: 9 / 16;
+  display: block;   /* its size is set in applyLayout() to fit the screen */
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -46,10 +43,14 @@ canvas {
 <script>
 "use strict";
 // ============================================================ Arcane Fusion: Merge & Defend
-const W = 720, H = 1280;
+// The screen is 720 wide; its height follows the device (at least 9:16, taller phones get a taller battlefield).
+const W = 720, BASE_H = 1280;
+let H = BASE_H;
 // FRONT_Y: where enemies reach the castle (top edge of the battle row). WALL_Y: top-down wall below the battle row.
-const HUD_H = 72, FRONT_Y = 752, WALL_Y = 902, WALL_H = 44;
-const ACTIVE_Y = 826, STORAGE_Y = 1016, SHOP_Y = 1172, SHOP_TOP = 1090;
+// Everything from the castle down keeps its size and moves down by the extra height; see applyLayout().
+const HUD_H = 72, WALL_H = 44;
+let FRONT_Y = 752, WALL_Y = 902, ACTIVE_Y = 826, STORAGE_Y = 1016, SHOP_Y = 1172, SHOP_TOP = 1090;
+let FIELD_SPEED = 1;   // enemies walk faster on a longer battlefield, so a wave still takes the same time
 const SLOTS = 5, SHOP_N = 3;
 const CASTLE_MAX = 100, BREAK_TIME = 15, START_GOLD = 10, REROLL_BASE = 2;
 const CARD_W = 112, CARD_H = 136;
@@ -779,7 +780,7 @@ class Enemy {
     const limit = FRONT_Y - this.size * 0.9;
     if (this.y < limit) {
       this.attacking = false;
-      if (this.rootT <= 0) this.y += this.speed * this.slowMult * dt;
+      if (this.rootT <= 0) this.y += this.speed * this.slowMult * FIELD_SPEED * dt;
     } else {
       this.attacking = true; this.y = limit; damageCastle(this.dps * dt);
     }
@@ -1050,10 +1051,13 @@ let info = { text: "", t: 99 };
 let pointer = { x: 0, y: 0 };
 
 // Top-down paving stones on the rampart walkway.
-const paving = [];
-for (let y = FRONT_Y + 2, r = 0; y < WALL_Y; y += 38, r++)
-  for (let x = (r % 2) * -28; x < W; x += 56)
-    paving.push([x + 2, y + 2, 52, 34, ["#6f6361", "#75696a", "#6a5d58", "#7a6e69"][Math.floor(Math.random() * 4)]]);
+let paving = [];
+function buildPaving() {
+  paving = [];
+  for (let y = FRONT_Y + 2, r = 0; y < WALL_Y; y += 38, r++)
+    for (let x = (r % 2) * -28; x < W; x += 56)
+      paving.push([x + 2, y + 2, 52, 34, ["#6f6361", "#75696a", "#6a5d58", "#7a6e69"][Math.floor(Math.random() * 4)]]);
+}
 
 function slotPos(row, i) {
   if (row === "chamber") return { x: 88 + i * 136, y: CHAMBER_Y };
@@ -1739,7 +1743,7 @@ function slotFrame(x, y, col) {
 }
 // ------------------------------------------------------------ Stage backgrounds (top-down, like the castle)
 // Flat ground seen from above. Decorations are placed once; crystals in the cave stay along the side walls.
-const FIELD_T = HUD_H, FIELD_B = FRONT_Y - 8;
+const FIELD_T = HUD_H;
 const seeded = n => Array.from({ length: n }, () => [Math.random(), Math.random(), Math.random()]);
 const DECOR = {
   patches: seeded(18), tufts: seeded(70), flowers: seeded(26), bushes: seeded(5), stones: seeded(8),
@@ -1749,7 +1753,7 @@ const DECOR = {
 };
 const FLOWER_COLORS = ["#ffffff", "#ffd35a", "#ff8ac2", "#b9a3ff"];
 const CRYSTAL_COLORS = ["#6ff3ff", "#b77bff", "#ff7ad9"];
-const fx = k => k * W, fy = k => FIELD_T + k * (FIELD_B - FIELD_T);
+const fx = k => k * W, fy = k => FIELD_T + k * (FRONT_Y - 8 - FIELD_T);
 function drawBgGrass() {
   ctx.fillStyle = "#5fae4f"; ctx.fillRect(0, FIELD_T, W, FRONT_Y - FIELD_T);
   for (const p of DECOR.patches) ellipse(fx(p[0]), fy(p[1]), 40 + p[2] * 50, 22 + p[2] * 26, p[2] > 0.5 ? "#69b858" : "#559f46");
@@ -2166,19 +2170,40 @@ function drawBook() {
 }
 
 // ------------------------------------------------------------ Soft edge vignette
-const vignette = (() => {
+let vignette = null;
+function buildVignette() {
   const v = document.createElement("canvas"); v.width = W; v.height = H;
   const vc = v.getContext("2d"), g = vc.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.72);
   g.addColorStop(0, "rgba(20,10,15,0)"); g.addColorStop(1, "rgba(20,10,15,0.22)");
   vc.fillStyle = g; vc.fillRect(0, 0, W, H);
-  return v;
-})();
+  vignette = v;
+}
+// Fits the game to the screen: width stays 720, height grows with tall phones (up to about 9:21).
+// The extra height is added to the battlefield; the castle, cards, shop and buttons keep their size.
+function applyLayout() {
+  const ratio = (window.innerHeight || BASE_H) / (window.innerWidth || W);
+  const nh = Math.round(clamp(W * ratio, BASE_H, 1720));
+  // Show the canvas as large as fits the screen (no stretching: it keeps its own shape).
+  const k = Math.min((window.innerWidth || W) / W, (window.innerHeight || nh) / nh);
+  canvas.style.width = `${Math.floor(W * k)}px`; canvas.style.height = `${Math.floor(nh * k)}px`;
+  if (nh === H && vignette) return;
+  H = nh; const E = H - BASE_H;
+  FRONT_Y = 752 + E; WALL_Y = 902 + E; ACTIVE_Y = 826 + E; STORAGE_Y = 1016 + E; SHOP_Y = 1172 + E; SHOP_TOP = 1090 + E;
+  FIELD_SPEED = (FRONT_Y - HUD_H) / (752 - HUD_H);
+  SELL_RECT.y = 1206 + E; SELL_HIT.y = SELL_RECT.y - 14;
+  btn.reroll.y = 1100 + E;
+  canvas.height = H;
+  buildPaving(); buildVignette();
+  for (const r in rows) rows[r].forEach((c, i) => { if (c) { const p = slotPos(r, i); c.setHome(p.x, p.y, true); } });
+}
+window.addEventListener("resize", applyLayout);
 function drawFilm() {
   // Only a soft, static darkening at the edges. No grain, flicker or scratches.
   ctx.drawImage(vignette, 0, 0);
 }
 
 // ------------------------------------------------------------ Loop
+applyLayout();
 let last = performance.now();
 function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
