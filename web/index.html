@@ -773,8 +773,10 @@ class Enemy {
   }
   update(dt) {
     if (this.dead) return;
-    this.t += dt; this.flash = Math.max(0, this.flash - dt * 6);
+    this.flash = Math.max(0, this.flash - dt * 6);
     if (this.burnT > 0) { this.burnT -= dt; this.takeDamage(this.burnDps * dt); if (this.dead) return; }
+    if (this.stunT > 0) { this.stunT -= dt; this.attacking = false; return; }   // frozen: no moving, no attacking
+    this.t += dt;
     if (this.slowT > 0) this.slowT -= dt; else this.slowMult = 1;
     if (this.rootT > 0) this.rootT -= dt;
     const limit = FRONT_Y - this.size * 0.9;
@@ -800,7 +802,7 @@ class Enemy {
     ellipse(0, s * 0.85, s * 0.95, s * 0.28, "rgba(0,0,0,0.32)");
     const step = this.attacking ? 5 : 8;
     const cy = this.look === "slime" ? 0 : -Math.abs(Math.sin(t * step)) * s * 0.12;
-    const body = this.slowT > 0 ? mixHex(this.color, "#9fdcff", 0.45) : this.color;
+    const body = this.stunT > 0 ? mixHex(this.color, "#bfefff", 0.6) : this.slowT > 0 ? mixHex(this.color, "#9fdcff", 0.45) : this.color;
     if (this.look === "slime") this.drawSlime(s, t, body);
     else if (this.look === "boar") this.drawBoar(s, t, cy, body);
     else if (this.look === "goblin") this.drawGoblin(s, t, cy, body);
@@ -813,6 +815,14 @@ class Enemy {
       circle(fx, fy, 3.5, "#ff7a2f"); circle(fx, fy, 1.8, "#ffe34a");
     }
     if (this.rootT > 0) for (let i = 0; i < 4; i++) ring((i - 1.5) * s * 0.5, s * 0.75, s * 0.25, "#3e9b48", 3, Math.PI, Math.PI * 2);
+    if (this.stunT > 0) {
+      // Frozen in a block of ice.
+      ctx.save(); ctx.globalAlpha = 0.55;
+      poly([[-s * 1.15, cy + s * 0.9], [-s * 1.25, cy - s * 0.6], [-s * 0.4, cy - s * 1.3], [s * 0.6, cy - s * 1.2], [s * 1.25, cy - s * 0.4], [s * 1.1, cy + s * 0.9]], "#d6f4ff", "#7fd8ff", 3);
+      ctx.restore();
+      ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(-s * 0.8, cy - s * 0.5); ctx.lineTo(-s * 0.4, cy - s * 0.9); ctx.moveTo(s * 0.5, cy + s * 0.3); ctx.lineTo(s * 0.8, cy - s * 0.1); ctx.stroke();
+    }
     if (this.flash > 0) circle(0, cy, s * 1.05, `rgba(255,255,255,${this.flash * 0.45})`);
     if (this.hp < this.maxHp) {
       const bw = Math.max(34, s * 2), by = cy - s * 1.55 - (this.king ? 18 : 0);
@@ -1388,12 +1398,19 @@ function drawFusion() {
 // Tap Spell: the battle slows down and you have 5 seconds to draw one rune in a single stroke. The drawing is
 // compared with every spell's rune; a match of 80% or more lets you cast that spell for its gold cost.
 const RUNE_TIME = 5, RUNE_MATCH = 0.8, SPELL_SLOWMO = 0.25;
-// Rune shapes are polylines in a 0..1 box (y grows downward), drawn in this order.
+// A rune is a list of strokes; each stroke is a polyline in a 0..1 box (y grows downward).
+// aspect = the rune's real width / height (the box is squashed to 0..1 on both axes).
 const SPELLS = {
-  meteor: { name: "Meteor", cost: 30, color: "#ff6a2a", rune: [[0, 0], [1, 0], [0, 1], [1, 1]],
+  meteor: { name: "Meteor", cost: 30, color: "#ff6a2a", aspect: 1,
+            rune: [[[0, 0], [1, 0], [0, 1], [1, 1]]],
             desc: "Meteors crash onto the 3 strongest enemies." },
+  // Snowflake: four lines through the middle (from the player's drawing).
+  freeze: { name: "Freeze", cost: 15, color: "#7fd8ff", aspect: 0.625,
+            rune: [[[0.556, 0], [0.556, 1]], [[0, 0.511], [0.983, 0.543]], [[0.122, 0.19], [0.922, 0.804]], [[1, 0.237], [0.16, 0.793]]],
+            desc: "Every enemy is frozen in place for 5 seconds." },
 };
-let spell = null;      // { phase: "draw" | "result", t, stroke: [[x,y]...], drawing, match, score, failT }
+const RUNE_SETTLE = 0.6;   // seconds without a new line before a multi-line drawing is read
+let spell = null;      // { phase: "draw" | "result", t, strokes: [[[x,y]...]...], drawing, settle, match, score, failT }
 let meteors = [];
 
 // --- Shape recognition (a "$1 recognizer" without rotation: size and position do not matter, shape and direction do).
@@ -1424,15 +1441,59 @@ function normalizePath(pts) {
   return s.map(([x, y]) => [x - cx, y - cy]);
 }
 const pathDistance = (a, b) => a.reduce((sum, p, i) => sum + Math.hypot(p[0] - b[i][0], p[1] - b[i][1]), 0) / a.length;
-// Returns { id, score } for the closest spell (score 0..1), or null for a stroke too small to read.
-function recognizeRune(stroke) {
-  if (stroke.length < 6) return null;
-  const c = normalizePath(stroke); if (!c) return null;
+// --- Multi-line runes: a "$P point-cloud" match, so line order and direction do not matter.
+const CLOUD_N = 48;
+function strokeLen(st) { let l = 0; for (let i = 1; i < st.length; i++) l += Math.hypot(st[i][0] - st[i - 1][0], st[i][1] - st[i - 1][1]); return l; }
+function toCloud(strokes) {
+  const parts = strokes.filter(st => st.length > 1 && strokeLen(st) > 0);
+  const total = parts.reduce((a, st) => a + strokeLen(st), 0); if (!total) return null;
+  let left = CLOUD_N, pts = [];
+  parts.forEach((st, i) => {
+    const k = i === parts.length - 1 ? left : Math.max(2, Math.round(CLOUD_N * strokeLen(st) / total));
+    const r = resamplePath(st, Math.max(2, Math.min(k, left))); left -= r.length; pts = pts.concat(r);
+  });
+  pts = pts.slice(0, CLOUD_N); while (pts.length < CLOUD_N) pts.push(pts[pts.length - 1]);
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of pts) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
+  const sc = Math.max(maxX - minX, maxY - minY); if (sc < 1e-6) return null;
+  const q = pts.map(([x, y]) => [(x - minX) / sc, (y - minY) / sc]);
+  const cx = q.reduce((a, p) => a + p[0], 0) / q.length, cy = q.reduce((a, p) => a + p[1], 0) / q.length;
+  return q.map(([x, y]) => [x - cx, y - cy]);
+}
+function cloudDistance(a, b, start) {
+  const n = a.length, used = new Array(n).fill(false); let sum = 0, i = start;
+  do {
+    let min = Infinity, idx = -1;
+    for (let j = 0; j < n; j++) if (!used[j]) { const d = Math.hypot(a[i][0] - b[j][0], a[i][1] - b[j][1]); if (d < min) { min = d; idx = j; } }
+    used[idx] = true; sum += (1 - ((i - start + n) % n) / n) * min; i = (i + 1) % n;
+  } while (i !== start);
+  return sum;
+}
+function cloudMatch(a, b) {
+  const step = Math.floor(Math.sqrt(a.length)); let best = Infinity;
+  for (let i = 0; i < a.length; i += step) best = Math.min(best, cloudDistance(a, b, i), cloudDistance(b, a, i));
+  return best;
+}
+const CLOUD_FAIL = 6.5;   // a cloud distance this large scores 0%; tuned so neat drawings land around 85-95%
+const runeStrokes = sp => sp.rune.map(st => st.map(([x, y]) => [x * sp.aspect, y]));
+// Returns { id, score } for the closest spell (score 0..1), or null for a drawing too small to read.
+function recognizeRune(strokes) {
+  const lines = strokes.filter(st => st.length > 1);
+  if (!lines.length || lines.reduce((a, st) => a + st.length, 0) < 6) return null;
+  const cloud = toCloud(lines); if (!cloud) return null;
   let best = null;
   for (const [id, sp] of Object.entries(SPELLS)) {
-    const t = normalizePath(sp.rune), tr = t.slice().reverse();
-    const d = Math.min(pathDistance(c, t), pathDistance(c, tr));
-    const score = Math.max(0, 1 - d / (0.5 * Math.SQRT2));
+    let score;
+    if (sp.rune.length === 1 && lines.length === 1) {
+      // One-line rune drawn in one line: compare the path itself (shape and drawing direction).
+      const c = normalizePath(lines[0]); if (!c) continue;
+      const t = normalizePath(sp.rune[0]), tr = t.slice().reverse();
+      score = Math.max(0, 1 - Math.min(pathDistance(c, t), pathDistance(c, tr)) / (0.5 * Math.SQRT2));
+    } else {
+      // Different number of lines than the rune: a small penalty per missing or extra line.
+      const penalty = 0.06 * Math.abs(lines.length - sp.rune.length);
+      score = Math.max(0, 1 - cloudMatch(cloud, toCloud(runeStrokes(sp))) / CLOUD_FAIL - penalty);
+    }
     if (!best || score > best.score) best = { id, score };
   }
   return best;
@@ -1442,12 +1503,12 @@ function recognizeRune(stroke) {
 function openSpell() {
   if ((state !== "wave" && state !== "break") || spell) return;
   cancelDrag();
-  spell = { phase: "draw", t: RUNE_TIME, stroke: [], drawing: false, match: null, score: 0 };
+  spell = { phase: "draw", t: RUNE_TIME, strokes: [], drawing: false, settle: 0, match: null, score: 0 };
   showInfo("");
 }
 function finishRune(timedOut) {
   if (!spell || spell.phase !== "draw") return;
-  const r = timedOut ? null : recognizeRune(spell.stroke);
+  const r = timedOut ? null : recognizeRune(spell.strokes);
   spell.phase = "result"; spell.drawing = false;
   spell.score = r ? r.score : 0;
   if (r && r.score >= RUNE_MATCH) {
@@ -1465,6 +1526,7 @@ function castSpell() {
   if (gold < sp.cost) { showInfo(`Not enough gold: ${sp.name} costs ${sp.cost}.`); return; }
   gold -= sp.cost;
   if (spell.match === "meteor") castMeteor();
+  if (spell.match === "freeze") castFreeze();
   showBanner(`${sp.name}!`, sp.color);
   spell = null;
 }
@@ -1473,9 +1535,20 @@ function castMeteor() {
   const spots = targets.length ? targets.map(e => [e.x, e.y]) : [[W / 2, 380]];
   spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) }));
 }
+// Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 5 seconds.
+function castFreeze() {
+  for (const e of enemies) if (!e.dead) { e.stunT = Math.max(e.stunT || 0, 5); fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#bfefff", radius: e.size * 2.2, duration: 0.5 })); }
+  freezeFlash = 1; playSfx("ice", "hit");
+}
+let freezeFlash = 0;
 function updateSpell(realDt) {
+  freezeFlash = Math.max(0, freezeFlash - realDt * 1.5);
   if (!spell) return;
-  if (spell.phase === "draw") { spell.t -= realDt; if (spell.t <= 0) finishRune(true); }
+  if (spell.phase === "draw") {
+    spell.t -= realDt;
+    if (spell.t <= 0) finishRune(true);
+    else if (spell.settle > 0 && !spell.drawing) { spell.settle -= realDt; if (spell.settle <= 0) finishRune(false); }
+  }
   else if (!spell.match) { spell.failT -= realDt; if (spell.failT <= 0) spell = null; }
 }
 function updateMeteors(dt) {
@@ -1501,29 +1574,32 @@ function drawMeteors() {
     ctx.save(); ctx.globalAlpha = 0.5; ellipse(m.tx, m.ty + 6, 30 * k, 10 * k, "rgba(0,0,0,0.5)"); ctx.restore();
   }
 }
-// The rune drawn as a glowing line inside a box (used by the Spellbook Runes page).
-function drawRuneIcon(rune, x, y, w, h, color) {
+// The rune drawn as glowing lines inside a box (used by the Spellbook Runes page). Keeps the rune's proportions.
+function drawRuneIcon(sp, x, y, w, h) {
+  const rw = sp.aspect >= 1 ? w : w * sp.aspect, rh = sp.aspect >= 1 ? h / sp.aspect : h;
+  const ox = x + (w - rw) / 2, oy = y + (h - rh) / 2, color = sp.color;
   ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
   for (const [lw, c] of [[10, hexA(color, 0.25)], [4, color]]) {
-    ctx.beginPath(); rune.forEach(([u, v], i) => { const px = x + u * w, py = y + v * h; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.beginPath();
+    for (const st of sp.rune) st.forEach(([u, v], i) => { const px = ox + u * rw, py = oy + v * rh; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
     ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.stroke();
   }
-  circle(x + rune[0][0] * w, y + rune[0][1] * h, 5, color);   // start point
+  if (sp.rune.length === 1) circle(ox + sp.rune[0][0][0] * rw, oy + sp.rune[0][0][1] * rh, 5, color);   // start of a one-line rune
   ctx.restore();
 }
 function drawSpell() {
   if (!spell) return;
   ctx.fillStyle = "rgba(14,6,26,0.55)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
   // Glowing stroke.
-  const st = spell.stroke, ok = spell.phase === "result" && spell.match, bad = spell.phase === "result" && !spell.match;
+  const ok = spell.phase === "result" && spell.match, bad = spell.phase === "result" && !spell.match;
   const col = ok ? SPELLS[spell.match].color : bad ? "#8c7f6c" : "#d9b8ff";
-  if (st.length > 1) {
-    ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
-    for (const [lw, c] of [[22, hexA(col, 0.18)], [10, hexA(col, 0.45)], [4, "#fffaf0"]]) {
-      ctx.beginPath(); st.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.stroke();
-    }
-    ctx.restore();
+  ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const [lw, c] of [[22, hexA(col, 0.18)], [10, hexA(col, 0.45)], [4, "#fffaf0"]]) {
+    ctx.beginPath();
+    for (const st of spell.strokes) st.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.stroke();
   }
+  ctx.restore();
   if (spell.phase === "draw") {
     text("Draw a rune!", W / 2, 150, 40, "#e3c9ff", { font: DISPLAY, weight: 900, outline: 8 });
     const k = Math.max(0, spell.t / RUNE_TIME);
@@ -1644,7 +1720,7 @@ canvas.addEventListener("pointerdown", ev => {
   if (bookOpen) { bookDrag = { y: p.y, s: bookScroll }; return; }
   if (fusion) return;
   if (spell) {
-    if (spell.phase === "draw" && !spell.drawing && p.y > HUD_H && p.y < FRONT_Y) { spell.drawing = true; spell.stroke = [[p.x, p.y]]; }
+    if (spell.phase === "draw" && !spell.drawing && p.y > HUD_H && p.y < FRONT_Y && spell.strokes.length < 8) { spell.drawing = true; spell.settle = 0; spell.strokes.push([[p.x, p.y]]); }
     return;
   }
   if (paused || (state !== "wave" && state !== "break")) return;
@@ -1659,7 +1735,7 @@ canvas.addEventListener("pointerdown", ev => {
 canvas.addEventListener("pointermove", ev => {
   const p = toLogical(ev); pointer = p;
   if (bookOpen && bookDrag) { bookScroll = bookDrag.s - (p.y - bookDrag.y); return; }
-  if (spell && spell.drawing) { const l = spell.stroke[spell.stroke.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1]) > 3) spell.stroke.push([p.x, p.y]); return; }
+  if (spell && spell.drawing) { const st = spell.strokes[spell.strokes.length - 1], l = st[st.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1]) > 3) st.push([p.x, p.y]); return; }
   if (!drag) return;
   drag.card.x = p.x + drag.ox; drag.card.y = p.y + drag.oy;
   if (Math.hypot(p.x - drag.px, p.y - drag.py) > 12) drag.moved = true;
@@ -1667,7 +1743,8 @@ canvas.addEventListener("pointermove", ev => {
 });
 function pointerUp(ev) {
   const p = toLogical(ev); pointer = p; bookDrag = null;
-  if (spell && spell.drawing) { finishRune(false); return; }
+  // Lifting the finger ends a line; the rune is read once no new line starts for RUNE_SETTLE seconds.
+  if (spell && spell.drawing) { spell.drawing = false; spell.settle = RUNE_SETTLE; return; }
   if (!drag) return;
   const d = drag; cancelDrag();
   // Dropping on the Sell box plays the coin sound (from sell) instead of the place sound.
@@ -1915,6 +1992,7 @@ function drawWorld() {
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
   drawMeteors();
+  if (freezeFlash > 0) { ctx.fillStyle = `rgba(190,235,255,${0.35 * freezeFlash})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H); }
 }
 
 function drawHud() {
@@ -2073,7 +2151,7 @@ function drawOverlays() {
 function runeLines() {
   const L = [];
   L.push({ center: true, segs: [["Runes", INK, 32, DISPLAY, 900]] });
-  L.push({ center: true, segs: [["Tap Spell in battle, then draw a rune in one stroke.", "#6b3a22", 19]] });
+  L.push({ center: true, segs: [["Tap Spell in battle, then draw a rune (one or more lines).", "#6b3a22", 19]] });
   L.push({ center: true, segs: [["You have 5 seconds. 80% match casts the spell.", "#6b3a22", 19]] });
   L.push({ gap: 18 });
   for (const [id, sp] of Object.entries(SPELLS)) {
@@ -2148,11 +2226,11 @@ function drawBook() {
     if (l.rune) {
       const sp = SPELLS[l.rune];
       rrect(left, y + 6, 150, 138, 14); ctx.fillStyle = "#2a1640"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-      drawRuneIcon(sp.rune, left + 30, y + 30, 90, 90, sp.color);
+      drawRuneIcon(sp, left + 30, y + 30, 90, 90);
       text(sp.name, left + 172, y + 46, 32, shade(sp.color, -0.3), { align: "left", font: DISPLAY, weight: 900 });
       text(`Cost: ${sp.cost} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
       text(sp.desc, left + 172, y + 110, 17, "#6b5a48", { align: "left", weight: 500 });
-      text("Dot = start of the stroke", left + 172, y + 136, 15, "#a89878", { align: "left", weight: 500 });
+      text(sp.rune.length === 1 ? "One line. Dot = where it starts." : `${sp.rune.length} lines, any order.`, left + 172, y + 136, 15, "#a89878", { align: "left", weight: 500 });
       y += l.h; continue;
     }
     const lh = Math.max(...l.segs.map(s => s[2])) * 1.4; y += lh;
