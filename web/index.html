@@ -2347,8 +2347,9 @@ const btn = {
   tutSkip: makeBtn("Skip tutorial", 0, 0, 220, 64, () => tutSkipAll(), 22),
   daily: Object.assign(makeBtn("Daily", 14, 400, 124, 64, () => openDaily(), 24), { fill: "#7fe6ff", fillDown: "#4fc0e0" }),
   help: makeBtn("? Help", W - 138, 400, 124, 64, () => { save.tut = {}; writeSave(); tutStart("lobby"); }, 24),
-  dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 380, 80, () => claimDaily(), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
-  dailyClose: makeBtn("Close", W - 250, 0, 200, 80, () => { dailyOpen = false; }, 26),
+  dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 230, 84, () => claimDaily(1), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  dailyAd: Object.assign(makeBtn("Watch ad", 296, 0, 374, 84, () => watchAdForDaily(), 22), { fill: "#ffcd50", fillDown: "#e0a830" }),
+  dailyClose: makeBtn("Close", W / 2 - 110, 0, 220, 70, () => { dailyOpen = false; }, 26),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: Object.assign(makeBtn("Shop", 554, 1150, 150, 60, () => openShop(), 24), { fill: "#7fe6ff", fillDown: "#4fc0e0" }),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
@@ -2417,7 +2418,8 @@ function baseButtons() {
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") {
     if (shopOpen) return shopButtons();
-    if (dailyOpen) return dailyReady() ? [btn.dailyClaim, btn.dailyClose] : [btn.dailyClose];
+    if (adSim || adBusy) return [];
+    if (dailyOpen) return dailyReady() ? [btn.dailyClaim, btn.dailyAd, btn.dailyClose] : [btn.dailyClose];
     if (cardInfo) return canUpgrade(cardInfo.el) ? [btn.closeInfo, btn.infoUpgrade] : [btn.closeInfo];
     if (summonReveal) return summonDone() ? [btn.revealOk, btn.revealAgain] : [];
     if (ratesOpen) return [btn.closeRates];
@@ -3478,21 +3480,55 @@ function drawRates() {
 // A 7-day cycle of free gems. Each new calendar day you open the game moves you one day forward
 // (missing a day does not reset it); after day 7 it starts again at day 1.
 const DAILY_GEMS = [20, 30, 40, 50, 70, 100, 200];
+// ---- Rewarded ads. The game never shows an ad on its own: only when the player taps a "Watch ad" button.
+// HOW TO CONNECT REAL ADS: the Android wrapper sets window.nativeShowRewardedAd = () => Promise<boolean>
+// (true only when the ad was watched to the end, e.g. AdMob's reward callback). Without it a labelled
+// 5-second test ad plays instead, so the flow can be tried in web builds.
+let adSim = null, adBusy = false;
+const adsAreTest = () => typeof window.nativeShowRewardedAd !== "function";
+function showRewardedAd() {
+  if (!adsAreTest()) return Promise.resolve(window.nativeShowRewardedAd()).catch(() => false);
+  return new Promise(res => { adSim = { t: 0, dur: 5, res }; });
+}
+async function watchAdForDaily() {
+  if (adBusy || !dailyReady()) return;
+  adBusy = true;
+  const ok = await showRewardedAd();
+  adBusy = false;
+  if (ok) claimDaily(2);
+  else shopToast = { text: "Ad not available, try later", color: "#ff9a8a", t: 0 };
+}
+function updateAdSim(dt) {
+  if (!adSim) return;
+  adSim.t += dt;
+  if (adSim.t >= adSim.dur) { const r = adSim.res; adSim = null; r(true); }
+}
+function drawAdSim() {
+  const a = adSim, left = Math.ceil(a.dur - a.t);
+  ctx.fillStyle = "#0d0a14"; ctx.fillRect(0, 0, W, H);
+  const g = ctx.createLinearGradient(0, H * 0.3, 0, H * 0.7); g.addColorStop(0, "#2a1d40"); g.addColorStop(1, "#151022");
+  ctx.fillStyle = g; ctx.fillRect(40, H * 0.3, W - 80, H * 0.4);
+  text("TEST AD", W / 2, H * 0.42, 54, GOLD, { font: DISPLAY, weight: 900, outline: 10 });
+  text("A real video ad will play here in the Android app.", W / 2, H * 0.48, 21, PARCH, { weight: 600 });
+  text(`Reward in ${left}s`, W / 2, H * 0.56, 30, "#9cff9c", { weight: 800, outline: 6 });
+  rrect(W / 2 - 200, H * 0.6, 400, 14, 7); ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.fill();
+  rrect(W / 2 - 200, H * 0.6, 400 * Math.min(1, a.t / a.dur), 14, 7); ctx.fillStyle = GOLD; ctx.fill();
+}
 let dailyOpen = false, dailyShownThisSession = false, dailyFx = 0;
 const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
 const dailyData = () => (save.daily = save.daily || { last: "", day: 0 });
 const dailyReady = () => dailyData().last !== todayKey();
 function openDaily() { dailyOpen = true; playUi("ui_pick"); }
-function claimDaily() {
+function claimDaily(mult = 1) {
   const d = dailyData(); if (!dailyReady()) return;
-  const n = DAILY_GEMS[d.day]; save.gems += n; d.last = todayKey(); d.day = (d.day + 1) % DAILY_GEMS.length; writeSave();
+  const n = DAILY_GEMS[d.day] * mult; save.gems += n; d.last = todayKey(); d.day = (d.day + 1) % DAILY_GEMS.length; writeSave();
   dailyFx = 1; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; playUi("ui_sell");
 }
 function drawDaily(dt) {
   dailyFx = Math.max(0, dailyFx - dt * 1.5);
   const d = dailyData(), ready = dailyReady(), today = ready ? d.day : (d.day + DAILY_GEMS.length - 1) % DAILY_GEMS.length;
   dim(0.72);
-  const x = 30, w = W - 60, h = 700, y = Math.max(96, H / 2 - h / 2);
+  const x = 30, w = W - 60, h = 790, y = Math.max(96, H / 2 - h / 2);
   rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
   text("Daily Reward", W / 2, y + 64, 44, INK, { font: DISPLAY, weight: 900 });
   text("Come back every day for free gems!", W / 2, y + 102, 21, "#6b3a22", { weight: 600 });
@@ -3512,14 +3548,20 @@ function drawDaily(dt) {
       ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(tx + ww - 31, ty + 24); ctx.lineTo(tx + ww - 26, ty + 30); ctx.lineTo(tx + ww - 16, ty + 17); ctx.stroke();
     }
   }
-  const by = y + h - 104;
+  const by = y + h - 196;
   if (ready) {
-    btn.dailyClaim.label = `Claim ${DAILY_GEMS[d.day]} gems`; btn.dailyClaim.y = by; drawBtn(btn.dailyClaim);
+    // Free claim, or (optional) watch an ad for double.
+    btn.dailyClaim.label = `Claim ${DAILY_GEMS[d.day]}`; btn.dailyClaim.y = by; drawBtn(btn.dailyClaim);
+    btn.dailyAd.label = `Watch ad: x2 (${DAILY_GEMS[d.day] * 2})`; btn.dailyAd.y = by; drawBtn(btn.dailyAd, adBusy);
+    // Little "play" mark on the ad button.
+    const px = btn.dailyAd.x + 30, py = by + btn.dailyAd.h / 2;
+    poly([[px - 8, py - 11], [px + 11, py], [px - 8, py + 11]], INK, null);
+    text(adsAreTest() ? "Ads are optional. (Test mode: no real ad yet.)" : "Ads are optional.", W / 2, by + 112, 17, "#8a6a4a", { weight: 600 });
   } else {
     const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), s = Math.max(0, Math.floor((mid - now) / 1000));
-    text(`Next reward in ${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`, W / 2 - 110, by + 46, 23, "#6b3a22", { weight: 700 });
+    text(`Next reward in ${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`, W / 2, by + 46, 26, "#6b3a22", { weight: 700 });
   }
-  btn.dailyClose.y = by; drawBtn(btn.dailyClose);
+  btn.dailyClose.y = by + 128; drawBtn(btn.dailyClose);
 }
 
 // ------------------------------------------------------------ Shop (in-app purchases)
@@ -3847,6 +3889,7 @@ function drawLobbyUi() {
   if (cardInfo) drawCardInfo(dt);
   if (shopOpen) drawShop(dt);
   if (dailyOpen) drawDaily(dt);
+  updateAdSim(dt); if (adSim) drawAdSim();
   if (shopToast) drawShopToast(dt);
 }
 
@@ -3886,7 +3929,7 @@ const TUT = {
     { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (15 waves) gives you 20 gems, and the daily reward gives more. Tap the green + to open the Shop." },
     { t: "Summon", hl: () => btnRect(btn.toSummon), b: "Swipe left (or tap here) to open Summon. One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
     { t: "Your cards", hl: () => btnRect(btn.toCards), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
-    { t: "Daily reward", hl: () => btnRect(btn.daily), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. A red dot shows when your reward is waiting." },
+    { t: "Daily reward", hl: () => btnRect(btn.daily), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. If you like, watch an ad to double it (always optional). A red dot shows when your reward is waiting." },
     { t: "Help", hl: () => btnRect(btn.help), b: "Tap ? Help any time to replay this tutorial." },
     { t: "Spellbook", hl: () => btnRect(btn.titleBook), b: "Every fusion recipe and every spell rune is written in the Spellbook. You can open it any time, even in the middle of a run." },
     { t: "Ready?", hl: () => btnRect(btn.play), b: "Tap PLAY to start your first run. We will show you how everything works." },
