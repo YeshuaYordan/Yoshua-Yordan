@@ -1517,8 +1517,8 @@ function drawFusion() {
 
 // ------------------------------------------------------------ Rune spells (draw a rune from memory)
 // Tap Spell: the battle slows down and you have 5 seconds to draw one rune in a single stroke. The drawing is
-// compared with every spell's rune; a match of 65% or more lets you cast that spell for its gold cost.
-const RUNE_TIME = 5, RUNE_MATCH = 0.65, SPELL_SLOWMO = 0.25;
+// compared with every spell's rune; a match of 70% or more lets you cast that spell for its gold cost.
+const RUNE_TIME = 5, RUNE_MATCH = 0.7, SPELL_SLOWMO = 0.25;
 // A rune is a list of strokes; each stroke is a polyline in a 0..1 box (y grows downward).
 // aspect = the rune's real width / height (the box is squashed to 0..1 on both axes).
 const SPELLS = {
