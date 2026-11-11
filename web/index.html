@@ -1201,7 +1201,7 @@ function showInfo(t) { info = { text: t, t: 0 }; }
 
 function clearBoard() {
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
-  enemies = []; projectiles = []; zones = []; fxs = []; meteors = []; spell = null; speedT = 0; drag = null; spawners = []; callCd = 0;
+  enemies = []; projectiles = []; zones = []; fxs = []; meteors = []; spell = null; speedT = 0; dome = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 function startRun() {
   clearBoard();
@@ -1537,6 +1537,10 @@ const SPELLS = {
   speed: { name: "Speed Up!", cost: 20, color: "#ffd84a", aspect: 0.85,
            rune: [[[0, 0.4], [0.5, 0], [1, 0.4]], [[0, 0.7], [0.5, 0.3], [1, 0.7]], [[0, 1], [0.5, 0.6], [1, 1]]],
            desc: "Your cards attack 2.5x faster for 8 seconds." },
+  // A circle with a five-point star inside and four short rays at the diagonals.
+  dome: { name: "Dome", cost: 200, color: "#ff3d2e", aspect: 1,
+          rune: [[[0.500, 0.200], [0.578, 0.210], [0.650, 0.240], [0.712, 0.288], [0.760, 0.350], [0.790, 0.422], [0.800, 0.500], [0.790, 0.578], [0.760, 0.650], [0.712, 0.712], [0.650, 0.760], [0.578, 0.790], [0.500, 0.800], [0.422, 0.790], [0.350, 0.760], [0.288, 0.712], [0.240, 0.650], [0.210, 0.578], [0.200, 0.500], [0.210, 0.422], [0.240, 0.350], [0.288, 0.288], [0.350, 0.240], [0.422, 0.210], [0.500, 0.200]], [[0.500, 0.280], [0.647, 0.732], [0.262, 0.453], [0.738, 0.453], [0.353, 0.732], [0.500, 0.280]], [[0.217, 0.217], [0.104, 0.104]], [[0.783, 0.217], [0.896, 0.104]], [[0.217, 0.783], [0.104, 0.896]], [[0.783, 0.783], [0.896, 0.896]]],
+          desc: "A giant meteor destroys every enemy on the field." },
 };
 const RUNE_SETTLE = 0.6;   // seconds without a new line before a multi-line drawing is read
 let spell = null;      // { phase: "draw" | "result", t, strokes: [[[x,y]...]...], drawing, settle, match, score, failT }
@@ -1665,6 +1669,7 @@ function castSpell() {
   if (spell.match === "freeze") castFreeze();
   if (spell.match === "heal") castHeal();
   if (spell.match === "speed") castSpeed();
+  if (spell.match === "dome") castDome();
   showBanner(`${sp.name}!`, sp.color);
   spell = null;
 }
@@ -1674,6 +1679,55 @@ function castMeteor() {
   spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) }));
 }
 // Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 6 seconds.
+// Dome: one giant meteor falls on the middle of the battlefield and kills every enemy on it (bosses too).
+const DOME_FALL = 1.5;
+let dome = null, shakeT = 0;
+function castDome() { dome = { t: 0, hit: false, x0: W + 140, y0: -160, tx: W / 2, ty: (HUD_H + FRONT_Y) / 2 }; playSfx("phoenix", "atk"); }
+function updateDome(dt) {
+  shakeT = Math.max(0, shakeT - dt);
+  if (!dome) return;
+  dome.t += dt;
+  if (!dome.hit && dome.t >= DOME_FALL) {
+    dome.hit = true; shakeT = 0.9;
+    for (const e of enemies.slice()) if (!e.dead) e.takeDamage(e.hp + 1);
+    for (let i = 0; i < 10; i++) fxs.push(new Fx("burst", { x: dome.tx + rand(-260, 260), y: dome.ty + rand(-300, 300), color: i % 2 ? "#ff6a2a" : "#ffe27a", radius: rand(90, 160), duration: 0.7 }));
+    playSfx("lava", "hit"); playSfx("earth", "hit");
+  }
+  if (dome.t > DOME_FALL + 2.2) dome = null;
+}
+function drawDome() {
+  if (!dome) return;
+  const t = dome.t, mid = (HUD_H + FRONT_Y) / 2;
+  if (!dome.hit) {
+    const k = clamp(t / DOME_FALL, 0, 1), e = k * k, x = lerp(dome.x0, dome.tx, e), y = lerp(dome.y0, dome.ty, e), r = 70 + 40 * k;
+    // The sky darkens and turns red as it comes down.
+    ctx.fillStyle = `rgba(60,0,0,${0.45 * k})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
+    // Shadow growing on the ground.
+    ctx.save(); ctx.globalAlpha = 0.5 * k; ellipse(dome.tx, dome.ty + 30, 260 * k, 90 * k, "rgba(0,0,0,0.6)"); ctx.restore();
+    // Burning trail.
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let i = 12; i >= 1; i--) {
+      const kk = Math.max(0, k - i * 0.035), ee = kk * kk;
+      circle(lerp(dome.x0, dome.tx, ee), lerp(dome.y0, dome.ty, ee), r * (1 - i * 0.06), `rgba(255,${90 + i * 10},30,${0.25 - i * 0.015})`);
+    }
+    circle(x, y, r * 1.6, "rgba(255,120,40,0.35)");
+    ctx.restore();
+    circle(x, y, r, "#4a1e10"); ring(x, y, r, INK, 5);
+    circle(x - r * 0.3, y - r * 0.3, r * 0.35, "#ff8a3a"); circle(x + r * 0.25, y + r * 0.2, r * 0.18, "#c2451c"); circle(x - r * 0.1, y + r * 0.45, r * 0.12, "#c2451c");
+    return;
+  }
+  // Impact: white flash, then shockwave rings and a fading orange glow over the whole battlefield.
+  const u = t - DOME_FALL;
+  ctx.save(); ctx.beginPath(); ctx.rect(0, HUD_H, W, FRONT_Y - HUD_H); ctx.clip();
+  ctx.fillStyle = `rgba(255,120,40,${0.5 * Math.max(0, 1 - u / 2)})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
+  for (let i = 0; i < 3; i++) {
+    const uu = u - i * 0.15; if (uu < 0 || uu > 1) continue;
+    ctx.globalAlpha = 1 - uu; ctx.strokeStyle = i === 1 ? "#ffe27a" : "#ff6a2a"; ctx.lineWidth = 18 * (1 - uu) + 3;
+    ctx.beginPath(); ctx.ellipse(dome.tx, mid, 40 + uu * 700, (40 + uu * 700) * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.restore();
+  if (u < 0.5) { ctx.fillStyle = `rgba(255,250,235,${1 - u / 0.5})`; ctx.fillRect(0, 0, W, H); }
+}
 // Speed Up: every card on the battle row attacks 2.5x faster for a few seconds.
 const SPEED_MULT = 2.5, SPEED_TIME = 8;
 let speedT = 0;
@@ -1997,7 +2051,7 @@ function update(dt) {
   for (const e of enemies.slice()) e.update(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
-  updateMeteors(dt);
+  updateMeteors(dt); updateDome(dt);
   for (const f of fxs) f.update(dt);
   projectiles = projectiles.filter(p => !p.dead); zones = zones.filter(z => !z.dead); fxs = fxs.filter(f => !f.dead);
   if (state === "wave") {
@@ -3260,7 +3314,11 @@ function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
   update(dt);
   ctx.clearRect(0, 0, W, H);
-  if (state === "title") drawLobby(dt); else { drawWorld(); drawHud(); drawSpell(); }
+  if (state === "title") drawLobby(dt);
+  else {
+    ctx.save(); if (shakeT > 0) ctx.translate(rand(-1, 1) * 14 * shakeT, rand(-1, 1) * 14 * shakeT);   // Dome impact shake
+    drawWorld(); drawDome(); drawHud(); drawSpell(); ctx.restore();
+  }
   if (drag) {
     drag.card.draw();
     if (drag.from !== "shop" && inRect(pointer, SELL_HIT))
