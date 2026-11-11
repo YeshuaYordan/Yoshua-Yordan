@@ -3664,7 +3664,6 @@ function drawCardsUi(dt) {
     if (!cardKnown(el)) {
       // Not opened yet: the card back with ???, and how to open it.
       if (LOBBY.card_back.ready) { ctx.save(); ctx.globalAlpha = d.special ? 0.55 : 0.9; ctx.drawImage(LOBBY.card_back.img, cx - 40, top, 80, 98); ctx.restore(); }
-      text("???", cx, top + 58, 26, PARCH, { font: DISPLAY, weight: 900, outline: 7 });
       text("???", cx, top + 122, 19, PARCH, { weight: 700, outline: 5 });
       const hint = d.special ? "Summon to unlock" : copiesOf(el) ? `${copiesOf(el)} cop${copiesOf(el) > 1 ? "ies" : "y"} saved` : d.myth ? "Fuse in Chamber" : "Fuse to discover";
       text(hint, cx, top + 144, 15, hexA(PARCH, 0.75), { outline: 4 });
