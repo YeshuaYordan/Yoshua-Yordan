@@ -62,12 +62,12 @@ const FONT = "Fredoka, system-ui, sans-serif";
 const DISPLAY = '"Cinzel Decorative", Georgia, serif';
 
 // ------------------------------------------------------------ Card database
-const RARITY_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Myth", "Legend"];
+const RARITY_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Myth", "Legend", "Special"];
 // Frame colors from the "Mythical Card Backgrounds" designs.
-const RARITY_COLORS = ["#B8BEC8", "#5CBF6E", "#4F8BEA", "#9A68E8", "#E8614E", "#F2B632"];
-const RARITY_DMG = [1.0, 1.7, 2.8, 4.5, 7.0, 11.0];
-const RARITY_RATE = [1.0, 1.08, 1.16, 1.26, 1.38, 1.5];
-const RARITY_PRICE = [3, 6, 12, 24, 45, 80];
+const RARITY_COLORS = ["#B8BEC8", "#5CBF6E", "#4F8BEA", "#9A68E8", "#E8614E", "#F2B632", "#ff4fd8"];
+const RARITY_DMG = [1.0, 1.7, 2.8, 4.5, 7.0, 11.0, 4.5];
+const RARITY_RATE = [1.0, 1.08, 1.16, 1.26, 1.38, 1.5, 1.26];
+const RARITY_PRICE = [3, 6, 12, 24, 45, 80, 15];   // Special: 15 x tier 4 = 60 gold
 const MAX_RARITY = 5;
 const BASE = ["fire", "water", "earth", "wind"];
 const COUNTERS = { water: "fire", fire: "wind", wind: "earth", earth: "water" };
@@ -95,6 +95,12 @@ const EL = {
   aurora:    { name: "Icy Aurora", tier: 3, color: "#7dffd9", shape: "crystal", parts: ["fire", "water", "wind"], desc: "Shimmering light chains 4 foes and chills them.", dmg: 18, rate: 1.0, chain: 4, slow: 0.5 },
   sandstorm: { name: "Sandstorm", tier: 3, color: "#d9a85a", shape: "swirl", parts: ["fire", "earth", "wind"], desc: "Three whirling sand blasts push foes back.", dmg: 14, rate: 1.1, speed: 760, multishot: 3, knock: 25 },
   // Myth cards. These are not made from recipes: the Fusion Chamber creates them from Epic cards.
+  // Special cards (tier 4). Never made by merging or fusing: they come from Summon (gacha) or purchases.
+  // Once owned, they can show up (rarely) in the shop during runs. base = the element sprite they use.
+  solarflare: { name: "Solar Flare", tier: 4, special: true, base: "fire", color: "#ffb21f", shape: "flame", parts: ["fire"], desc: "A tiny sun bursts over a huge area and burns everything.", dmg: 26, rate: 0.8, speed: 700, splash: 120, burn: 16 },
+  tidalwave:  { name: "Tidal Wave", tier: 4, special: true, base: "water", color: "#2f8cff", shape: "drop", parts: ["water"], desc: "A crashing wave pushes back and slows a huge area.", dmg: 18, rate: 0.9, speed: 620, splash: 140, knock: 70, slow: 0.6 },
+  earthquake: { name: "Earthquake", tier: 4, special: true, base: "earth", color: "#c07a3a", shape: "rock", parts: ["earth"], desc: "The ground shakes: hits every enemy and roots them.", dmg: 14, rate: 0.45, speed: 520, splash: 2000, root: 0.6 },
+  tempest:    { name: "Tempest", tier: 4, special: true, base: "wind", color: "#5ff0c8", shape: "swirl", parts: ["wind"], desc: "Three razor gales pierce through everything.", dmg: 12, rate: 2.2, speed: 1100, pierce: 99, multishot: 3 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
 // Element tiers:
@@ -118,9 +124,10 @@ for (const r of RECIPE_LIST) RECIPES[rkey(r[0], r[1])] = r[2];
 const V3 = 2, EPIC = 3;
 // Main and next elements max out at V3 (Rare). Epic elements go up to Legend.
 // Epic elements have a single form (no V1-V3) and do not merge. Myth cards only come from the Fusion Chamber.
-const MYTH = 4;
-const maxRarity = el => EL[el].tier === 3 ? EPIC : V3;
+const MYTH = 4, SPECIAL = 6;
+const maxRarity = el => EL[el].special ? SPECIAL : EL[el].tier === 3 ? EPIC : V3;
 function merge(aEl, aR, bEl, bR) {
+  if (EL[aEl].special || EL[bEl].special) return null;   // Special cards never merge or fuse
   if (aEl === bEl) return (aR === bR && aR < maxRarity(aEl)) ? { element: aEl, rarity: aR + 1 } : null;
   const res = RECIPES[rkey(aEl, bEl)];
   if (!res || aR !== bR) return null;
@@ -129,6 +136,7 @@ function merge(aEl, aR, bEl, bR) {
 }
 // Explains why two cards did not fuse (or returns "" when there is nothing useful to say).
 function mergeHint(a, b) {
+  if (EL[a.element].special || EL[b.element].special) return "Special cards can't merge or fuse.";
   if (a.element === b.element) {
     if (a.rarity !== b.rarity) return `Both ${EL[a.element].name} cards must be the same level to level up.`;
     if (EL[a.element].tier === 3) return "Epic cards have a single form. Fuse 3 or more in the Chamber for a chance at a Myth card!";
@@ -141,7 +149,7 @@ function mergeHint(a, b) {
   if (a.rarity !== b.rarity) return `Both cards must be the same level (like V2 + V2) to fuse.`;
   return "";
 }
-const damageOf = (el, r) => EL[el].dmg * RARITY_DMG[r];
+const damageOf = (el, r) => EL[el].dmg * RARITY_DMG[r] * levelMult(el);   // levelMult: card upgrades from Summon
 const rateOf = (el, r) => EL[el].rate * RARITY_RATE[r];
 const priceOf = (el, r) => RARITY_PRICE[r] * EL[el].tier;
 const sellOf = (el, r) => Math.max(1, Math.floor(priceOf(el, r) / 2));
@@ -170,12 +178,46 @@ const randomBase = () => BASE[Math.floor(Math.random() * 4)];
 const describe = (el, r) => `${RARITY_NAMES[r]} ${EL[el].name}: ${Math.round(damageOf(el, r))} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
 
 // ------------------------------------------------------------ Save (per-browser)
-const save = { discovered: {}, best: 0 };
+const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {} };
 try {
   const raw = localStorage.getItem("arcane-fusion-save");
   if (raw) Object.assign(save, JSON.parse(raw));
 } catch (e) { /* storage unavailable: play without saving */ }
 function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} }
+// ---- Summon (gacha), gems and card upgrades
+const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
+const PULL_COST = 10;            // gems per summon
+const PITY = 100;                // a Special card is guaranteed on this pull
+const SPECIAL_RATE = 0.005, MAIN_RATE = 0.6;   // the rest (39.5%) are next elements
+const LEVEL_NEED = [5, 10, 20, 40], LEVEL_BONUS = 0.2, MAX_LEVEL = 5;   // copies for Lv2..Lv5, +20% damage each
+const SPECIAL_SHOP_CHANCE = 0.02;   // chance for each shop slot to offer an owned Special card
+const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice"];
+const SPECIALS = ["solarflare", "tidalwave", "earthquake", "tempest"];
+const UPGRADABLE = [...BASE, ...NEXT_ELS, ...SPECIALS];
+const pickOne = a => a[Math.floor(Math.random() * a.length)];
+const levelOf = el => save.levels[el] || 1;
+const levelMult = el => 1 + LEVEL_BONUS * (levelOf(el) - 1);
+const copiesOf = el => save.copies[el] || 0;
+const levelNeed = el => levelOf(el) >= MAX_LEVEL ? 0 : LEVEL_NEED[levelOf(el) - 1];
+const canUpgrade = el => (!EL[el].special || save.specials[el]) && levelOf(el) < MAX_LEVEL && copiesOf(el) >= levelNeed(el);
+function summonOnce() {
+  if (save.gems < PULL_COST) return null;
+  save.gems -= PULL_COST; save.pity = (save.pity || 0) + 1;
+  const r = Math.random(); let el;
+  if (save.pity >= PITY || r < SPECIAL_RATE) { el = pickOne(SPECIALS); save.pity = 0; }
+  else if (r < SPECIAL_RATE + MAIN_RATE) el = pickOne(BASE);
+  else el = pickOne(NEXT_ELS);
+  const isNew = !!EL[el].special && !save.specials[el];
+  if (isNew) save.specials[el] = true;           // first copy unlocks it for the shop
+  else save.copies[el] = copiesOf(el) + 1;       // later copies count towards upgrades
+  writeSave();
+  return { el, isNew };
+}
+function upgradeCard(el) {
+  if (!canUpgrade(el)) return false;
+  save.copies[el] = copiesOf(el) - levelNeed(el); save.levels[el] = levelOf(el) + 1; writeSave();
+  return true;
+}
 function discover(el) { if (save.discovered[el]) return false; save.discovered[el] = true; writeSave(); return true; }
 
 // ------------------------------------------------------------ Canvas & helpers
@@ -508,6 +550,7 @@ class Card {
     ctx.translate(this.x + Math.sin(t * 60) * 6 * this.shake, this.y - 8 * this.kick - (this.dragging ? 6 : 0));
     ctx.scale(this.scale, this.scale);
     const hw = CARD_W / 2, hh = CARD_H / 2;
+    if (d.special) { this.drawSpecial(hw, hh, t, d); ctx.restore(); return; }
     if (this.rarity === LEGEND) { this.drawLegendRays(hw, hh, t); this.drawLegendOrbit(hw, hh, t, true); }
     if (this.rarity >= MYTH) this.drawMythAura(hw, hh, t, this.rarity === LEGEND);
     else if (d.tier === 3) this.drawEpicAura(hw, hh, t);
@@ -553,7 +596,7 @@ class Card {
       }
     }
     if (this.rarity === LEGEND) this.drawLegendOrbit(hw, hh, t, false);   // orbs in front of the art, under the text
-    text(RARITY_NAMES[this.rarity].toUpperCase(), 0, -hh + 21, 10, shade(rc, -0.55), { weight: 700, outline: 4, outlineColor: "#ffffff" });
+    if (!this.noLabel) text(RARITY_NAMES[this.rarity].toUpperCase(), 0, -hh + 21, 10, shade(rc, -0.55), { weight: 700, outline: 4, outlineColor: "#ffffff" });
     // Epic / Myth / Legend frames have a taller name plate (centred 51 px below the card centre), so the name is bigger.
     // Name sits exactly on the middle of each frame's white name plate (centres measured from the frame art):
     // main cards 47.1, next element v2 ribbon 48.3, Epic / Myth / Legend plate 51.3 px below the card centre.
@@ -567,6 +610,46 @@ class Card {
       text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
     }
     ctx.restore();
+  }
+  // ---- Special cards: animated rainbow frame, starry inside, the element's top sprite.
+  drawSpecial(hw, hh, t, d) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 3; i++) {
+      rrect(-hw - 4 - i * 4, -hh - 4 - i * 4, CARD_W + 8 + i * 8, CARD_H + 8 + i * 8, 12 + i * 4);
+      ctx.strokeStyle = `hsla(${(t * 90 + i * 50) % 360},100%,65%,${0.4 - i * 0.12})`; ctx.lineWidth = 4; ctx.stroke();
+    }
+    ctx.restore();
+    rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 10); ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fill();
+    let g;
+    if (ctx.createConicGradient) {
+      g = ctx.createConicGradient(t * 1.5, 0, 0);
+      for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, `hsl(${i * 60},95%,62%)`);
+    } else { g = ctx.createLinearGradient(-hw, -hh, hw, hh); for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, `hsl(${i * 60},95%,62%)`); }
+    rrect(-hw, -hh, CARD_W, CARD_H, 10); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    const inner = ctx.createLinearGradient(0, -hh, 0, hh);
+    inner.addColorStop(0, "#160f3a"); inner.addColorStop(1, shade(d.color, -0.45));
+    rrect(-hw + 7, -hh + 7, CARD_W - 14, CARD_H - 14, 7); ctx.fillStyle = inner; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    for (let i = 0; i < 9; i++) {   // twinkling stars
+      const sx = -hw + 14 + ((i * 37 + this.seed * 7) % (CARD_W - 28)), sy = -hh + 30 + ((i * 53 + this.seed * 3) % (CARD_H - 70));
+      circle(sx, sy, 1 + 1.2 * (0.5 + 0.5 * Math.sin(t * 3 + i * 2)), "rgba(255,255,255,0.8)");
+    }
+    const cy = -10 + Math.sin(t * 2.2 + this.seed) * 3;
+    circle(0, cy, 40, hexA(d.color, 0.35)); circle(0, cy, 28, "rgba(255,255,255,0.12)");
+    if (!drawSprite(d.base, 0, cy, 72, t + this.seed, V3)) poly(radialPoly(0, cy, 26, d.shape, t, this.seed), d.color, INK, 3);
+    for (let i = 0; i < 4; i++) {   // orbiting sparkles
+      const a = t * 1.6 + i * Math.PI / 2, sx = Math.cos(a) * 42, sy = cy + Math.sin(a) * 28, k = 3 + Math.sin(t * 5 + i) * 1.2;
+      ctx.strokeStyle = `hsl(${(t * 120 + i * 90) % 360},100%,80%)`; ctx.lineWidth = 1.8; ctx.beginPath();
+      ctx.moveTo(sx - k, sy); ctx.lineTo(sx + k, sy); ctx.moveTo(sx, sy - k); ctx.lineTo(sx, sy + k); ctx.stroke();
+    }
+    if (!this.noLabel) text("SPECIAL", 0, -hh + 21, 10, "#ffffff", { weight: 700, outline: 4, outlineColor: CI });
+    rrect(-hw + 10, hh - 36, CARD_W - 20, 25, 12); ctx.fillStyle = "rgba(255,255,255,0.92)"; ctx.fill(); ctx.strokeStyle = CI; ctx.lineWidth = 2; ctx.stroke();
+    text(d.name, 0, hh - 23, d.name.length > 10 ? 13 : 15, CI, { weight: 700, baseline: "middle" });
+    if (this.inShop) {
+      const ty = hh + 4;
+      rrect(-34, ty - 13, 68, 26, 13); ctx.fillStyle = this.isFree ? "#6cc56a" : (this.affordable ? GOLD : "#c46a5a"); ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+      text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
+    }
   }
   // ---- Legend card extras: golden god-rays, orbiting orbs of light, and a shine sweeping across the card.
   drawLegendRays(hw, hh, t) {
@@ -739,9 +822,9 @@ const STAGES = [
   { name: "Desert Sands", bg: "sand", boss: "kingOrc", pool: [["goblin", 10, 1], ["mummy", 5, 3], ["orc", 6, 5]] },
   { name: "Crystal Cave", bg: "cave", boss: "kingSlime", pool: [["darkSlime", 10, 1], ["redSlime", 6, 2], ["blueSlime", 6, 3], ["purpleSlime", 5, 5]] },
 ];
-const stageNum = w => Math.floor((Math.max(1, w) - 1) / 10) + 1;
+const stageNum = w => Math.floor((Math.max(1, w) - 1) / STAGE_LEN) + 1;
 const stageOf = w => STAGES[(stageNum(w) - 1) % STAGES.length];
-const waveInStage = w => ((Math.max(1, w) - 1) % 10) + 1;
+const waveInStage = w => ((Math.max(1, w) - 1) % STAGE_LEN) + 1;
 const waveLabel = w => `${stageNum(w)}-${waveInStage(w)}`;
 
 // look: how the enemy is drawn. resist: element it shrugs off (and its counter hits it harder).
@@ -1049,7 +1132,7 @@ const CHAMBER_Y = 340;
 let chamberOpen = false;
 let restartArmed = 0; // seconds left to confirm Restart in the pause menu
 let enemies = [], projectiles = [], zones = [], fxs = [];
-let gold = 0, castleHp = CASTLE_MAX, wave = 0, state = "title", breakTimer = -1;
+let gold = 0, castleHp = CASTLE_MAX, wave = 0, state = "title", breakTimer = -1, runGems = 0;
 // Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
 const CALL_COOLDOWN = 5;
 let spawners = [], callCd = 0, wavesCleared = 0, rerollCost = REROLL_BASE, freeCard = true;
@@ -1092,7 +1175,7 @@ function clearBoard() {
 }
 function startRun() {
   clearBoard();
-  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
@@ -1104,17 +1187,22 @@ function beginWave(fromTimer = false) {
   if (callCd > 0 && !fromTimer) { showInfo(`Next wave ready in ${Math.ceil(callCd)}s.`); return; }
   wave++; state = "wave"; breakTimer = -1; callCd = CALL_COOLDOWN; rerollCost = REROLL_BASE;
   const total = Math.min(6 + wave * 2, 70);
-  spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % 10 === 0 });
+  spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % STAGE_LEN === 0 });
   const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
   const st = stageOf(wave);
-  if (wave % 10 === 0) showBanner(`Wave ${waveLabel(wave)}: ${KINDS[st.boss].name.toUpperCase()}!${stacked}`, "#e0533f");
+  if (wave % STAGE_LEN === 0) showBanner(`Wave ${waveLabel(wave)}: ${KINDS[st.boss].name.toUpperCase()}!${stacked}`, "#e0533f");
   else if (waveInStage(wave) === 1) showBanner(`Stage ${stageNum(wave)}: ${st.name}${stacked}`, GOLD);
   else showBanner(`Wave ${waveLabel(wave)}${stacked}`, PARCH);
 }
 function waveCleared(w) {
   const bonus = 4 + w; gold += bonus; wavesCleared++;
-  if (wavesCleared > save.best) { save.best = wavesCleared; writeSave(); }
-  showBanner(`Wave ${waveLabel(w)} cleared!  +${bonus} gold`, GOLD);
+  if (wavesCleared > save.best) save.best = wavesCleared;
+  if (w % STAGE_LEN === 0) {
+    // Finishing a stage (beating its boss) earns a gem for Summon.
+    save.gems++; runGems++;
+    showBanner(`Stage ${stageNum(w)} cleared!  +${bonus} gold  +1 gem`, "#7fe6ff");
+  } else showBanner(`Wave ${waveLabel(w)} cleared!  +${bonus} gold`, GOLD);
+  writeSave();
 }
 function toBreak() {
   state = "break"; breakTimer = BREAK_TIME;
@@ -1181,7 +1269,7 @@ function applyHit(el, r, x, y, enemy) {
   const d = EL[el], dmg = damageOf(el, r), splash = d.splash || 0, rm = RARITY_DMG[r];
   if (splash > 0) {
     for (const e of enemies.slice()) if (!e.dead && Math.hypot(e.x - x, e.y - y) <= splash + e.size) hitEnemy(e, el, r, e === enemy ? dmg : dmg * 0.6);
-    fxs.push(new Fx("burst", { x, y, color: d.color, radius: splash, duration: 0.35 }));
+    fxs.push(new Fx("burst", { x, y, color: d.color, radius: Math.min(splash, 170), duration: 0.35 }));
   } else if (enemy && !enemy.dead) {
     hitEnemy(enemy, el, r, dmg);
     fxs.push(new Fx("burst", { x, y, color: d.color, radius: 22, duration: 0.35 }));
@@ -1204,8 +1292,11 @@ function hitEnemy(e, el, r, dmg) {
 // ------------------------------------------------------------ Shop & merging
 function refreshShop() {
   for (let i = 0; i < SHOP_N; i++) {
-    const el = randomBase();
-    const c = new Card(el, Math.min(maxRarity(el), rollRarity(Math.max(1, wave + 1))));
+    // Owned Special cards sometimes show up instead of a main element card.
+    const owned = SPECIALS.filter(id => save.specials[id]);
+    let c;
+    if (owned.length && Math.random() < SPECIAL_SHOP_CHANCE) c = new Card(pickOne(owned), SPECIAL);
+    else { const el = randomBase(); c = new Card(el, Math.min(maxRarity(el), rollRarity(Math.max(1, wave + 1)))); }
     c.inShop = true; c.price = priceOf(c.element, c.rarity);
     const s = slotPos("shop", i); c.setHome(s.x, s.y, true); c.y += 200;
     rows.shop[i] = c;
@@ -1637,7 +1728,13 @@ const btn = {
   titleBook: makeBtn("Spellbook", 14, 14, 190, 58, () => openBook(), 24),
   toSummon: Object.assign(makeBtn("Summon ›", 560, 560, 190, 64, () => setLobbyPage(1), 24), { fill: "#c9a6ff", fillDown: "#a982e8" }),
   toLobby: Object.assign(makeBtn("‹ Lobby", -30, 560, 190, 64, () => setLobbyPage(0), 24), { fill: "#e9d3a6" }),
-  summon: Object.assign(makeBtn("SUMMON", 210, 1140, 300, 96, () => { summonMsgT = 2; playUi("ui_pick"); }, 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
+  toCards: Object.assign(makeBtn("‹ Cards", -30, 560, 190, 64, () => setLobbyPage(-1), 24), { fill: "#9cff9c", fillDown: "#6cd66c" }),
+  toLobbyR: Object.assign(makeBtn("Lobby ›", 560, 1190, 190, 64, () => setLobbyPage(0), 24), { fill: "#e9d3a6" }),
+  summon: Object.assign(makeBtn("SUMMON", 210, 1140, 300, 96, () => doSummon(), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
+  rates: makeBtn("Rates", 24, 1150, 150, 60, () => { ratesOpen = true; }, 24),
+  closeRates: makeBtn("Close", 240, 900, 240, 70, () => { ratesOpen = false; }, 26),
+  revealOk: makeBtn("OK", 70, 1150, 230, 86, () => { summonReveal = null; }, 30),
+  revealAgain: Object.assign(makeBtn("Again", 320, 1150, 330, 86, () => { summonReveal = null; doSummon(); }, 26), { fill: "#c9a6ff", fillDown: "#a982e8" }),
   lobbySound: makeBtn("Sound: On", 516, 14, 190, 58, () => { setMuted(!Sfx.muted); if (!Sfx.muted) playUi("ui_pick"); }, 24),
   resume: makeBtn("Resume", 180, 560, 360, 80, () => { paused = false; }),
   sound: makeBtn("Sound: On", 180, 960, 360, 80, () => { setMuted(!Sfx.muted); if (!Sfx.muted) playSfx("fire", "atk"); }),
@@ -1688,8 +1785,13 @@ function visibleButtons() {
   if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") {
+    if (summonReveal) return summonReveal.t > 0.8 ? [btn.revealOk, btn.revealAgain] : [];
+    if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
-    return lobbyPage === 0 ? [btn.play, btn.toSummon, btn.titleBook, btn.lobbySound] : [btn.summon, btn.toLobby, btn.titleBook, btn.lobbySound];
+    const top = [btn.titleBook, btn.lobbySound];
+    if (lobbyPage === 0) return [btn.play, btn.toSummon, btn.toCards, ...top];
+    if (lobbyPage === 1) return [btn.summon, btn.rates, btn.toLobby, ...top];
+    return [btn.toLobbyR, ...UPGRADABLE.filter(canUpgrade).map(el => upgradeBtns[el]), ...top];
   }
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
@@ -2126,7 +2228,7 @@ function drawOverlays() {
     text("Has Fallen!", W / 2, 540, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
     const n = wavesCleared;
     text(`You cleared ${n} wave${n === 1 ? "" : "s"}.`, W / 2, 610, 30, PARCH, { outline: 8 });
-    text(`Best: ${save.best}`, W / 2, 660, 26, GOLD, { outline: 8 });
+    text(`Best: ${save.best}` + (runGems ? `   ·   +${runGems} gem${runGems > 1 ? "s" : ""}` : ""), W / 2, 660, 26, GOLD, { outline: 8 });
     drawBtn(btn.again); drawBtn(btn.title);
   } else if (paused && !bookOpen) {
     dim(0.6);
@@ -2299,11 +2401,11 @@ const LOBBY_CARDS = [
 const LOBBY_BADGES = ["fire", "water", "earth", "wind"];
 // Day/night over a 20 s loop: [time, sky, how dark the room is].
 const SKY_KEYS = [[0, "day", 0], [3, "day", 0], [6, "sunset", 0.25], [8.5, "dusk", 0.6], [10.5, "night", 1], [15, "night", 1], [17.5, "dawn", 0.4], [20, "day", 0]];
-let lobbyT = 0, fadeIn = 0;
+let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
-function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; }
+function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -2331,15 +2433,16 @@ function drawLobbyCard(i, dy) {
 }
 
 function drawLobby(dt) {
-  lobbyT += dt; summonMsgT = Math.max(0, summonMsgT - dt);
-  if (!lobbySwipe?.moved) lobbyPos += (lobbyPage - lobbyPos) * Math.min(1, dt * 12);
+  lobbyT += dt; lobbyUiDt = dt; summonMsgT = Math.max(0, summonMsgT - dt);
+  if (!lobbySwipe?.moved) { lobbyPos += (lobbyPage - lobbyPos) * Math.min(1, dt * 12); if (Math.abs(lobbyPos - lobbyPage) < 0.002) lobbyPos = lobbyPage; }
   const pos = lobbyShownPos();
   ctx.fillStyle = "#110820"; ctx.fillRect(0, 0, W, H);
-  ctx.save(); ctx.translate(-pos * W, 0);
-  if (pos < 0.999) drawHomeScene();
-  ctx.translate(W, 0);
-  if (pos > 0.001) drawSummonScene();
-  ctx.restore();
+  for (const page of [-1, 0, 1]) {
+    const off = (page - pos) * W; if (Math.abs(off) >= W) continue;
+    ctx.save(); ctx.translate(off, 0); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
+    if (page === -1) drawCardsScene(); else if (page === 0) drawHomeScene(); else drawSummonScene();
+    ctx.restore();
+  }
 }
 function drawHomeScene() {
   const v = lobbyView(), L = LOBBY, tc = lobbyT % 20;
@@ -2378,16 +2481,18 @@ function drawHomeScene() {
 }
 
 // Lobby buttons and text, drawn on top of the background.
-// ------------------------------------------------------------ Lobby pages (swipe left for Summon)
-// Page 0 = lobby, page 1 = Summon (gacha). Swipe left/right, or tap the arrow tab at the screen edge.
-let lobbyPage = 0, lobbyPos = 0, lobbySwipe = null, summonMsgT = 0;
+// ------------------------------------------------------------ Lobby pages
+// Page -1 = Cards (collection & upgrades), 0 = lobby, 1 = Summon (gacha).
+// Swipe left/right, or tap the tabs at the screen edges.
+let lobbyPage = 0, lobbyPos = 0, lobbySwipe = null, summonMsg = "", summonMsgT = 0;
+let summonReveal = null, ratesOpen = false, upgradeFx = null;
 function lobbyShownPos() {
   if (!lobbySwipe || !lobbySwipe.moved) return lobbyPos;
   let raw = lobbySwipe.startPos - lobbySwipe.dx / W;
-  if (raw < 0) raw *= 0.3; else if (raw > 1) raw = 1 + (raw - 1) * 0.3;   // rubber band past the ends
+  if (raw < -1) raw = -1 + (raw + 1) * 0.3; else if (raw > 1) raw = 1 + (raw - 1) * 0.3;   // rubber band past the ends
   return raw;
 }
-function setLobbyPage(n) { if (n !== lobbyPage) playUi("ui_pick"); lobbyPage = clamp(n, 0, 1); }
+function setLobbyPage(n) { n = clamp(n, -1, 1); if (n !== lobbyPage) playUi("ui_pick"); lobbyPage = n; }
 function lobbyDown(p) {
   const b = visibleButtons().find(b => inRect(p, b)) || null;
   if (b) b.down = true;
@@ -2395,19 +2500,38 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
+  if (summonReveal || ratesOpen) return;   // no swiping under a popup
   if (!s.moved && Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(p.y - s.y0)) { s.moved = true; if (s.btn) s.btn.down = false; }
   if (s.moved) s.dx = dx;
 }
 function lobbyUp(p) {
   const s = lobbySwipe; if (!s) return;
   if (s.btn) s.btn.down = false;
-  if (!s.moved) { lobbySwipe = null; if (s.btn && inRect(p, s.btn)) s.btn.onTap(); return; }
+  if (!s.moved) {
+    lobbySwipe = null;
+    if (s.btn && inRect(p, s.btn)) s.btn.onTap();
+    else if (summonReveal && summonReveal.t > 0.9) summonReveal = null;   // tap anywhere closes the reveal
+    return;
+  }
   const shown = lobbyShownPos(), dx = p.x - s.x0, fast = Math.abs(dx) / Math.max(1, performance.now() - s.t0) > 0.6;
   lobbySwipe = null; lobbyPos = shown;
   if (dx < -W * 0.2 || (fast && dx < 0)) setLobbyPage(lobbyPage + 1);
   else if (dx > W * 0.2 || (fast && dx > 0)) setLobbyPage(lobbyPage - 1);
 }
 const lobbySettled = () => !lobbySwipe?.moved && Math.abs(lobbyPos - lobbyPage) < 0.02;
+function flashSummonMsg(m) { summonMsg = m; summonMsgT = 2.2; }
+function doSummon() {
+  if (save.gems < PULL_COST) { flashSummonMsg(`Not enough gems! Clear a stage (${STAGE_LEN} waves) for 1 gem.`); playSfx("ash", "hit"); return; }
+  const r = summonOnce(); if (!r) return;
+  const c = new Card(r.el, EL[r.el].special ? SPECIAL : V3); c.noLabel = true;
+  summonReveal = { ...r, card: c, t: 0 };
+  playUi("ui_pick");
+}
+// A small cut gem icon.
+function drawGem(x, y, s) {
+  poly([[x, y - s], [x + s * 0.85, y - s * 0.3], [x, y + s], [x - s * 0.85, y - s * 0.3]], "#4fd6ff", INK, 2.5);
+  poly([[x, y - s], [x + s * 0.85, y - s * 0.3], [x, y - s * 0.05], [x - s * 0.85, y - s * 0.3]], "#c8f4ff", null);
+}
 
 // The Summon page background: a glowing summoning circle with a card floating above it.
 function drawSummonScene() {
@@ -2418,8 +2542,7 @@ function drawSummonScene() {
     const x = (i * 97.3) % W, y = 90 + (i * 53.7) % (H * 0.55), tw = 0.5 + 0.5 * Math.sin(lobbyT * 2 + i * 1.7);
     circle(x, y, 1.2 + tw * 1.3, `rgba(255,240,255,${0.2 + 0.5 * tw})`);
   }
-  const cx = W / 2, cy = H * 0.52, fy = cy + 190;
-  // Floor glow and the circle, seen at an angle.
+  const cx = W / 2, cy = H * 0.5, fy = cy + 190;
   g = ctx.createRadialGradient(cx, fy, 10, cx, fy, 330);
   g.addColorStop(0, "rgba(184,140,255,0.45)"); g.addColorStop(1, "rgba(184,140,255,0)");
   ctx.fillStyle = g; ctx.fillRect(cx - 330, fy - 330, 660, 660);
@@ -2437,7 +2560,6 @@ function drawSummonScene() {
     ctx.closePath(); ctx.stroke();
   }
   ctx.restore(); ctx.restore();
-  // Pillar of light and rising sparks.
   g = ctx.createLinearGradient(0, fy, 0, fy - 520);
   g.addColorStop(0, "rgba(200,160,255,0.07)"); g.addColorStop(1, "rgba(200,160,255,0)");
   ctx.fillStyle = g;
@@ -2446,8 +2568,7 @@ function drawSummonScene() {
     const p = (lobbyT * 0.22 + i * 0.137) % 1, x = cx + Math.sin(i * 12.9) * 170 + Math.sin(lobbyT + i) * 8;
     circle(x, fy - p * 480, 2.5 + (i % 3), `rgba(230,210,255,${0.8 * Math.sin(Math.PI * p)})`);
   }
-  // The floating card back.
-  if (LOBBY.card_back.ready) {
+  if (LOBBY.card_back.ready && !summonReveal) {
     const by = cy - 60 + Math.sin(lobbyT * 1.8) * 12;
     ctx.save(); ctx.translate(cx, by); ctx.rotate(Math.sin(lobbyT * 1.1) * 0.05);
     ctx.shadowColor = "#d6b8ff"; ctx.shadowBlur = 40 + Math.sin(lobbyT * 3) * 12;
@@ -2456,11 +2577,155 @@ function drawSummonScene() {
 }
 function drawSummonUi() {
   text("SUMMON", W / 2, 190, 76, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
-  text("Call new spirits to your deck", W / 2, 244, 28, PARCH, { outline: 8 });
+  text("Collect copies to upgrade your cards", W / 2, 244, 26, PARCH, { outline: 8 });
   btn.summon.x = W / 2 - 150; btn.summon.y = H - 140; btn.summon.w = 300; btn.summon.h = 96;
-  drawBtn(btn.summon);
-  text(summonMsgT > 0 ? "Summoning is coming soon!" : "Coming soon", W / 2, H - 162, summonMsgT > 0 ? 26 : 22, summonMsgT > 0 ? GOLD : hexA(PARCH, 0.8), { outline: 6 });
+  drawBtn(btn.summon, save.gems < PULL_COST);
+  btn.rates.y = H - 124; drawBtn(btn.rates);
+  // Cost and pity counter above the button.
+  const left = PITY - (save.pity || 0);
+  if (summonMsgT > 0) text(summonMsg, W / 2, H - 196, 23, GOLD, { outline: 6 });
+  else text(`Special card guaranteed in ${left} pull${left === 1 ? "" : "s"}`, W / 2, H - 196, 22, "#e3c9ff", { outline: 6 });
+  text(`Cost: ${PULL_COST}`, W / 2 - 14, H - 158, 26, PARCH, { outline: 7 }); drawGem(W / 2 + 46, H - 167, 13);
   drawBtn(btn.toLobby);
+}
+// The reveal after a pull: the card flips over, then shows what was won.
+function drawSummonReveal(dt) {
+  const r = summonReveal; r.t += dt; r.card.t += dt;
+  dim(0.72);
+  const cx = W / 2, cy = H * 0.44, flip = clamp(r.t / 0.6, 0, 1), sp = !!EL[r.el].special;
+  // Light burst behind the card (rainbow for a Special).
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 16; i++) {
+    const a = lobbyT * 0.4 + i * Math.PI / 8, len = 330 * Math.min(1, r.t * 2);
+    const col = sp ? `hsla(${(i * 22 + lobbyT * 80) % 360},100%,65%,0.22)` : hexA(EL[r.el].color, 0.18);
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, len, a - 0.08, a + 0.08); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+  const sx = Math.abs(Math.cos(flip * Math.PI)), scale = 2.4;
+  if (flip < 0.5) {
+    if (LOBBY.card_back.ready) { ctx.save(); ctx.translate(cx, cy); ctx.scale(sx * scale * CARD_W / 200, scale * CARD_H / 310 * 1.04); ctx.drawImage(LOBBY.card_back.img, -100, -155, 200, 310); ctx.restore(); }
+  } else {
+    const c = r.card; c.x = c.hx = cx; c.y = c.hy = cy; c.scale = scale;
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(sx, 1); ctx.translate(-cx, -cy); c.draw(); ctx.restore();
+  }
+  if (r.t < 0.8) return;
+  const d = EL[r.el], ty = cy + CARD_H * scale / 2 + 50;
+  if (r.isNew) {
+    text("NEW  SPECIAL  CARD!", W / 2, ty, 36, "#ff8af0", { font: DISPLAY, weight: 900, outline: 10 });
+    text(d.name, W / 2, ty + 46, 30, PARCH, { outline: 8 });
+    text("It can now appear in the shop during runs (rare).", W / 2, ty + 84, 21, "#e3c9ff", { outline: 6 });
+  } else {
+    text(`${d.name}  +1 copy`, W / 2, ty, 38, sp ? "#ff8af0" : GOLD, { font: DISPLAY, weight: 900, outline: 10 });
+    const need = levelNeed(r.el);
+    text(need ? `Lv ${levelOf(r.el)}   ·   ${copiesOf(r.el)} / ${need} copies to Lv ${levelOf(r.el) + 1}` : `Lv ${MAX_LEVEL} (max)`, W / 2, ty + 46, 24, PARCH, { outline: 7 });
+    if (canUpgrade(r.el)) text("Ready to upgrade! Swipe to the Cards page.", W / 2, ty + 84, 21, "#9cff9c", { outline: 6 });
+  }
+  btn.revealAgain.label = `Again (${PULL_COST} gems)`;
+  btn.revealOk.y = btn.revealAgain.y = H - 130;
+  drawBtn(btn.revealOk); drawBtn(btn.revealAgain, save.gems < PULL_COST);
+}
+function drawRates() {
+  dim(0.7);
+  const x = 60, y = H / 2 - 270, w = W - 120, h = 540;
+  rrect(x, y, w, h, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  text("Summon Rates", W / 2, y + 62, 36, INK, { font: DISPLAY, weight: 900 });
+  const rows = [
+    ["Main element copy", "60%", "Fire, Water, Earth, Wind: 15% each"],
+    ["Next element copy", "39.5%", "Lava, Steam, Lightning, Plant, Dust, Ice: 6.58% each"],
+    ["Special card", "0.5%", "Solar Flare, Tidal Wave, Earthquake, Tempest: 0.125% each"],
+  ];
+  rows.forEach(([a, b, c], i) => {
+    const ry = y + 130 + i * 92;
+    text(a, x + 30, ry, 25, INK, { align: "left", weight: 700 }); text(b, x + w - 30, ry, 25, "#7a3fb0", { align: "right", weight: 700 });
+    text(c, x + 30, ry + 30, 17, "#6b3a22", { align: "left", weight: 500 });
+  });
+  text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 418, 20, INK, { weight: 600 });
+  text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 446, 18, "#6b3a22", { weight: 500 });
+  btn.closeRates.y = y + h - 90 + 10; drawBtn(btn.closeRates);
+}
+
+// ---- Cards page: every upgradable card with its level, copies and an Upgrade button.
+const CARD_GROUPS = [["Main Elements", BASE], ["Next Elements", NEXT_ELS], ["Special Cards", SPECIALS]];
+const collectionCards = {}, upgradeBtns = {};
+for (const el of UPGRADABLE) {
+  const c = new Card(el, EL[el].special ? SPECIAL : V3); c.noLabel = true; collectionCards[el] = c;
+  upgradeBtns[el] = Object.assign(makeBtn("Upgrade", 0, 0, 130, 40, () => {
+    if (upgradeCard(el)) { upgradeFx = { el, t: 0 }; playUi("ui_place"); playSfx(EL[el].base || el, "atk"); }
+  }, 20), { fill: "#9cff9c", fillDown: "#6cd66c" });
+}
+// Cell positions for the grid (4 columns), shared by drawing and tapping.
+function cardCells() {
+  const cells = [], colW = 172, x0 = W / 2 - colW * 1.5, rowH = 186;
+  let y = 262 + Math.max(0, H - 1280) * 0.25;
+  for (const [title, list] of CARD_GROUPS) {
+    cells.push({ title, y }); y += 26;
+    list.forEach((el, i) => {
+      if (i && i % 4 === 0) y += rowH;
+      cells.push({ el, x: x0 + (i % 4) * colW, y });
+    });
+    y += rowH + 18;
+  }
+  return cells;
+}
+function drawCardsScene() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#3a2418"); g.addColorStop(1, "#1a0f0a");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(255,220,170,0.05)"; ctx.lineWidth = 2;
+  for (let y = 40; y < H; y += 46) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y + 8); ctx.stroke(); }   // wood grain
+}
+function drawCardsUi(dt) {
+  text("CARDS", W / 2, 172, 70, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
+  text("Upgrades add +20% damage per level", W / 2, 218, 24, PARCH, { outline: 7 });
+  for (const cell of cardCells()) {
+    if (cell.title) { text(cell.title, 24, cell.y + 4, 24, "#e9d3a6", { align: "left", weight: 700, outline: 6 }); continue; }
+    const el = cell.el, d = EL[el], locked = d.special && !save.specials[el], cx = cell.x, top = cell.y + 4;
+    if (locked) {
+      if (LOBBY.card_back.ready) { ctx.save(); ctx.globalAlpha = 0.55; ctx.drawImage(LOBBY.card_back.img, cx - 40, top, 80, 98); ctx.restore(); }
+      text("?", cx, top + 62, 40, PARCH, { font: DISPLAY, weight: 900, outline: 8 });
+      text("Summon to", cx, top + 124, 17, hexA(PARCH, 0.75), { outline: 5 });
+      text("unlock", cx, top + 144, 17, hexA(PARCH, 0.75), { outline: 5 });
+      continue;
+    }
+    const c = collectionCards[el]; c.t += dt; c.x = c.hx = cx; c.y = c.hy = top + 49; c.scale = 0.72; c.draw();
+    if (upgradeFx && upgradeFx.el === el) {
+      const k = 1 - upgradeFx.t / 0.9;
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(cx, top + 49, 70 * (1 - k * 0.4), `rgba(160,255,160,${0.5 * k})`); ctx.restore();
+      text(`Lv ${levelOf(el)}!`, cx, top + 20 - (1 - k) * 30, 30, "#9cff9c", { weight: 800, outline: 7 });
+    }
+    const lvl = levelOf(el), need = levelNeed(el), b = upgradeBtns[el];
+    text(`Lv ${lvl}` + (lvl > 1 ? `  +${Math.round((lvl - 1) * LEVEL_BONUS * 100)}%` : ""), cx, top + 122, 19, lvl > 1 ? "#9cff9c" : PARCH, { weight: 700, outline: 5 });
+    if (canUpgrade(el)) { b.x = cx - 65; b.y = top + 132; drawBtn(b); }
+    else {
+      const bw = 120, bx = cx - bw / 2, by = top + 136, k = need ? Math.min(1, copiesOf(el) / need) : 1;
+      rrect(bx, by, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
+      if (k > 0) { rrect(bx, by, Math.max(16, bw * k), 16, 8); ctx.fillStyle = need ? "#c9a6ff" : GOLD; ctx.fill(); }
+      text(need ? `${copiesOf(el)} / ${need}` : "MAX", cx, by + 34, 16, hexA(PARCH, 0.85), { weight: 600, outline: 4 });
+    }
+  }
+  btn.toLobbyR.y = H - 86; drawBtn(btn.toLobbyR);
+}
+
+function drawLobbyUi() {
+  const pos = lobbyShownPos(), dt = lobbyUiDt;
+  if (upgradeFx) { upgradeFx.t += dt; if (upgradeFx.t > 0.9) upgradeFx = null; }
+  for (const page of [-1, 0, 1]) {
+    const off = (page - pos) * W; if (Math.abs(off) >= W) continue;
+    ctx.save(); ctx.translate(off, 0);
+    if (page === -1) drawCardsUi(dt); else if (page === 0) drawHomeUi(); else drawSummonUi();
+    ctx.restore();
+  }
+  // Fixed top bar: Spellbook, gems, Sound, and page dots.
+  drawBtn(btn.titleBook);
+  btn.lobbySound.label = Sfx.muted ? "Sound: Off" : "Sound: On"; drawBtn(btn.lobbySound);
+  rrect(W / 2 - 66, 18, 132, 50, 25); ctx.fillStyle = "rgba(20,10,30,0.7)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+  drawGem(W / 2 - 34, 43, 14); text(String(save.gems), W / 2 + 14, 53, 28, PARCH, { weight: 700, outline: 5 });
+  for (let i = -1; i <= 1; i++) {
+    const on = Math.abs(pos - i) < 0.5;
+    circle(W / 2 + i * 24, 88, 7, INK); circle(W / 2 + i * 24, 88, 4.5, on ? GOLD : hexA(PARCH, 0.5));
+  }
+  if (summonReveal) drawSummonReveal(dt);
+  if (ratesOpen) drawRates();
 }
 
 function drawHomeUi() {
@@ -2479,25 +2744,10 @@ function drawHomeUi() {
   });
   btn.play.x = W / 2 - 150; btn.play.y = H - 140; btn.play.w = 300; btn.play.h = 96;
   btn.play.size = 40 + Math.sin(lobbyT * 3) * 1.5;
-  drawBtn(btn.play); drawBtn(btn.toSummon);
+  drawBtn(btn.play); drawBtn(btn.toSummon); drawBtn(btn.toCards);
   const found = RECIPE_LIST.filter(r => save.discovered[r[2]]).length;
   const stats = (save.best > 0 ? `Best: Wave ${waveLabel(save.best)}   ·   ` : "") + `${found}/${RECIPE_LIST.length} fusions found`;
   text(stats, W / 2, H - 20, 20, PARCH, { outline: 6 });
-}
-function drawLobbyUi() {
-  const pos = lobbyShownPos();
-  ctx.save(); ctx.translate(-pos * W, 0);
-  if (pos < 0.999) drawHomeUi();
-  ctx.translate(W, 0);
-  if (pos > 0.001) drawSummonUi();
-  ctx.restore();
-  // Fixed top bar: Spellbook, page dots, Sound.
-  drawBtn(btn.titleBook);
-  btn.lobbySound.label = Sfx.muted ? "Sound: Off" : "Sound: On"; drawBtn(btn.lobbySound);
-  for (let i = 0; i < 2; i++) {
-    const on = 1 - Math.min(1, Math.abs(pos - i));
-    circle(W / 2 - 16 + i * 32, 43, 9, INK); circle(W / 2 - 16 + i * 32, 43, 6, on > 0.5 ? GOLD : hexA(PARCH, 0.5));
-  }
 }
 
 // ------------------------------------------------------------ Loop
