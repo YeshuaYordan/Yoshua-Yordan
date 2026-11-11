@@ -189,8 +189,8 @@ try {
 function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} }
 // ---- Summon (gacha), gems and card upgrades
 const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
-const GEMS_PER_STAGE = 10;       // gems for clearing a stage
-const PULL_COST = 10;            // gems per summon
+const GEMS_PER_STAGE = 20;       // gems for clearing a stage
+const PULL_COST = 100;           // gems per summon (x10 costs 900)
 const PITY = 100;                // a Special card is guaranteed on this pull
 // Summon rates: Main 50%, Next 30%, Epic 13%, Myth 5%, Legend 1.5% (the rest), Special 0.5%.
 const SPECIAL_RATE = 0.005, MAIN_RATE = 0.5, NEXT_RATE = 0.3, EPIC_RATE = 0.13, MYTH_RATE = 0.05;
@@ -2345,6 +2345,10 @@ const btn = {
   storPrev: makeBtn("", 0, 0, 30, 68, () => setStoragePage(0)),
   tutNext: Object.assign(makeBtn("Next", 0, 0, 200, 64, () => tutNext(), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   tutSkip: makeBtn("Skip tutorial", 0, 0, 220, 64, () => tutSkipAll(), 22),
+  daily: Object.assign(makeBtn("Daily", 14, 400, 124, 64, () => openDaily(), 24), { fill: "#7fe6ff", fillDown: "#4fc0e0" }),
+  help: makeBtn("? Help", W - 138, 400, 124, 64, () => { save.tut = {}; writeSave(); tutStart("lobby"); }, 24),
+  dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 380, 80, () => claimDaily(), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  dailyClose: makeBtn("Close", W - 250, 0, 200, 80, () => { dailyOpen = false; }, 26),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: Object.assign(makeBtn("Shop", 554, 1150, 150, 60, () => openShop(), 24), { fill: "#7fe6ff", fillDown: "#4fc0e0" }),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
@@ -2413,12 +2417,13 @@ function baseButtons() {
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") {
     if (shopOpen) return shopButtons();
+    if (dailyOpen) return dailyReady() ? [btn.dailyClaim, btn.dailyClose] : [btn.dailyClose];
     if (cardInfo) return canUpgrade(cardInfo.el) ? [btn.closeInfo, btn.infoUpgrade] : [btn.closeInfo];
     if (summonReveal) return summonDone() ? [btn.revealOk, btn.revealAgain] : [];
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.titleBook, btn.lobbySound, btn.gemPill];
-    if (lobbyPage === 0) return [btn.play, btn.toSummon, btn.toCards, ...top];
+    if (lobbyPage === 0) return [btn.play, btn.toSummon, btn.toCards, btn.daily, btn.help, ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, btn.getGems, btn.toLobby, ...top];
     return [btn.toLobbyR, ...visibleUpgradeBtns(), ...top];
   }
@@ -3055,7 +3060,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
-function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; }
+function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -3150,7 +3155,7 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
-  if (summonReveal || ratesOpen || cardInfo || shopOpen || tutBlocking()) return;   // no swiping under a popup
+  if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || tutBlocking()) return;   // no swiping under a popup
   const dy = p.y - s.y0;
   if (!s.moved && !s.vscroll) {
     if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
@@ -3306,7 +3311,7 @@ const TIER_GLOW = ["#d8dde6", "#6ED28C", "#5AA0FA", "#AF78FF", "#FF6E50", "#FFCD
 const tierColor = tier => tier >= 6 ? `hsl(${(lobbyT * 220) % 360},100%,66%)` : TIER_GLOW[tier];
 function doSummon(n = 1) {
   const cost = n === 10 ? PULL10_COST : PULL_COST;
-  if (save.gems < cost) { flashSummonMsg(`Not enough gems! Clear a stage for 10 gems, or get more in the Shop.`); openShop(); return; }
+  if (save.gems < cost) { flashSummonMsg(`Not enough gems! Clear stages, claim your daily reward, or visit the Shop.`); openShop(); return; }
   save.gems -= cost;
   const results = [];
   for (let i = 0; i < n; i++) {
@@ -3467,6 +3472,54 @@ function drawRates() {
   text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 596, 20, INK, { weight: 600 });
   text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 624, 18, "#6b3a22", { weight: 500 });
   btn.closeRates.y = y + h - 90 + 10; drawBtn(btn.closeRates);
+}
+
+// ------------------------------------------------------------ Daily reward
+// A 7-day cycle of free gems. Each new calendar day you open the game moves you one day forward
+// (missing a day does not reset it); after day 7 it starts again at day 1.
+const DAILY_GEMS = [20, 30, 40, 50, 70, 100, 200];
+let dailyOpen = false, dailyShownThisSession = false, dailyFx = 0;
+const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+const dailyData = () => (save.daily = save.daily || { last: "", day: 0 });
+const dailyReady = () => dailyData().last !== todayKey();
+function openDaily() { dailyOpen = true; playUi("ui_pick"); }
+function claimDaily() {
+  const d = dailyData(); if (!dailyReady()) return;
+  const n = DAILY_GEMS[d.day]; save.gems += n; d.last = todayKey(); d.day = (d.day + 1) % DAILY_GEMS.length; writeSave();
+  dailyFx = 1; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; playUi("ui_sell");
+}
+function drawDaily(dt) {
+  dailyFx = Math.max(0, dailyFx - dt * 1.5);
+  const d = dailyData(), ready = dailyReady(), today = ready ? d.day : (d.day + DAILY_GEMS.length - 1) % DAILY_GEMS.length;
+  dim(0.72);
+  const x = 30, w = W - 60, h = 700, y = Math.max(96, H / 2 - h / 2);
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  text("Daily Reward", W / 2, y + 64, 44, INK, { font: DISPLAY, weight: 900 });
+  text("Come back every day for free gems!", W / 2, y + 102, 21, "#6b3a22", { weight: 600 });
+  // Days 1-6 in two rows of three, day 7 as a big tile underneath.
+  const tw = (w - 80) / 3, th = 142;
+  for (let i = 0; i < DAILY_GEMS.length; i++) {
+    const big = i === 6, tx = big ? x + 20 : x + 20 + (i % 3) * (tw + 20), ty = y + 128 + (big ? 2 : Math.floor(i / 3)) * (th + 16), ww = big ? w - 40 : tw;
+    const claimed = ready ? i < d.day : i <= today, isToday = i === today, pulse = 0.5 + 0.5 * Math.sin(lobbyT * 5);
+    rrect(tx, ty, ww, th, 16);
+    ctx.fillStyle = claimed ? "#d8c9a6" : isToday && ready ? "#fff3c4" : big ? "#ffe7a8" : "#fff6e0"; ctx.fill();
+    ctx.strokeStyle = isToday && ready ? `rgba(224,160,40,${0.6 + 0.4 * pulse})` : INK; ctx.lineWidth = isToday && ready ? 5 : 3; ctx.stroke();
+    text(`Day ${i + 1}`, tx + ww / 2, ty + 30, 21, claimed ? "#8a7a60" : INK, { weight: 800 });
+    if (big) { gemPile(tx + ww / 2 - 90, ty + 88, 6); text(`${DAILY_GEMS[i]}`, tx + ww / 2 + 30, ty + 102, 46, claimed ? "#8a7a60" : INK, { weight: 900 }); }
+    else { drawGem(tx + ww / 2 - 30, ty + 80, 16); text(`${DAILY_GEMS[i]}`, tx + ww / 2 + 18, ty + 92, 32, claimed ? "#8a7a60" : INK, { weight: 800 }); }
+    if (claimed) {
+      circle(tx + ww - 24, ty + 24, 15, "#6cc56a"); ring(tx + ww - 24, ty + 24, 15, INK, 2.5);
+      ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(tx + ww - 31, ty + 24); ctx.lineTo(tx + ww - 26, ty + 30); ctx.lineTo(tx + ww - 16, ty + 17); ctx.stroke();
+    }
+  }
+  const by = y + h - 104;
+  if (ready) {
+    btn.dailyClaim.label = `Claim ${DAILY_GEMS[d.day]} gems`; btn.dailyClaim.y = by; drawBtn(btn.dailyClaim);
+  } else {
+    const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), s = Math.max(0, Math.floor((mid - now) / 1000));
+    text(`Next reward in ${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`, W / 2 - 110, by + 46, 23, "#6b3a22", { weight: 700 });
+  }
+  btn.dailyClose.y = by; drawBtn(btn.dailyClose);
 }
 
 // ------------------------------------------------------------ Shop (in-app purchases)
@@ -3793,6 +3846,7 @@ function drawLobbyUi() {
   if (ratesOpen) drawRates();
   if (cardInfo) drawCardInfo(dt);
   if (shopOpen) drawShop(dt);
+  if (dailyOpen) drawDaily(dt);
   if (shopToast) drawShopToast(dt);
 }
 
@@ -3813,6 +3867,9 @@ function drawHomeUi() {
   btn.play.x = W / 2 - 150; btn.play.y = H - 140; btn.play.w = 300; btn.play.h = 96;
   btn.play.size = 40 + Math.sin(lobbyT * 3) * 1.5;
   drawBtn(btn.play); drawBtn(btn.toSummon); drawBtn(btn.toCards);
+  // Daily reward (red dot when it is waiting) and Help (replays the tutorial).
+  drawBtn(btn.daily); drawBtn(btn.help);
+  if (dailyReady()) { const b = btn.daily; circle(b.x + b.w - 6, b.y + 6, 11 + Math.sin(lobbyT * 6) * 1.5, "#e0533f"); ring(b.x + b.w - 6, b.y + 6, 11, INK, 2); }
   const found = RECIPE_LIST.filter(r => save.discovered[r[2]]).length;
   const stats = (save.best > 0 ? `Best: Wave ${waveLabel(save.best)}   ·   ` : "") + `${found}/${RECIPE_LIST.length} fusions found`;
   text(stats, W / 2, H - 20, 20, PARCH, { outline: 6 });
@@ -3826,9 +3883,11 @@ const btnRect = b => ({ x: b.x - 6, y: b.y - 6, w: b.w + 12, h: b.h + 12 });
 const TUT = {
   lobby: [
     { t: "Welcome to Arcane Fusion!", b: "Monsters march toward your castle in endless waves. Buy elemental cards, merge them into stronger spirits and survive as long as you can. Between runs you collect and upgrade cards." },
-    { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (15 waves) gives you 10 gems. Tap the green + to open the Shop." },
-    { t: "Summon", hl: () => btnRect(btn.toSummon), b: "Swipe left (or tap here) to open Summon. One pull costs 10 gems, ten pulls cost 90. Pulls give card copies, and a Special card is guaranteed by pull 100." },
+    { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (15 waves) gives you 20 gems, and the daily reward gives more. Tap the green + to open the Shop." },
+    { t: "Summon", hl: () => btnRect(btn.toSummon), b: "Swipe left (or tap here) to open Summon. One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
     { t: "Your cards", hl: () => btnRect(btn.toCards), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
+    { t: "Daily reward", hl: () => btnRect(btn.daily), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. A red dot shows when your reward is waiting." },
+    { t: "Help", hl: () => btnRect(btn.help), b: "Tap ? Help any time to replay this tutorial." },
     { t: "Spellbook", hl: () => btnRect(btn.titleBook), b: "Every fusion recipe and every spell rune is written in the Spellbook. You can open it any time, even in the middle of a run." },
     { t: "Ready?", hl: () => btnRect(btn.play), b: "Tap PLAY to start your first run. We will show you how everything works." },
   ],
@@ -3864,7 +3923,7 @@ const TUT = {
     { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 6% and each Epic adds 2%, up to 30%." },
   ],
   boss: [
-    { t: "Boss wave!", b: "Every 15th wave a boss appears. Beat it to clear the stage: you earn 10 gems for Summon, and the map changes to a new land with new enemies." },
+    { t: "Boss wave!", b: "Every 15th wave a boss appears. Beat it to clear the stage: you earn 20 gems for Summon, and the map changes to a new land with new enemies." },
     { t: "Special cards", b: "Special cards from Summon or the Shop can show up in the shop during runs. They are very strong, but they can't be merged or fused." },
   ],
 };
@@ -3882,7 +3941,9 @@ function tutCheck() {
   if (tut) { const st = tutStep(); if (st.wait && st.wait()) tutNext(); return; }
   const seen = k => save.tut[k];
   if (state === "title") {
-    if (!seen("lobby") && lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo) tutStart("lobby");
+    const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen;
+    if (!seen("lobby") && calm) tutStart("lobby");
+    else if (seen("lobby") && calm && !dailyShownThisSession && dailyReady()) { dailyShownThisSession = true; dailyOpen = true; }
     return;
   }
   if (paused || bookOpen || chamberOpen || spell || drag || fusion || doom || (state !== "break" && state !== "wave")) return;
