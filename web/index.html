@@ -52,6 +52,9 @@ const HUD_H = 72, WALL_H = 44;
 let FRONT_Y = 752, WALL_Y = 902, ACTIVE_Y = 826, STORAGE_Y = 1016, SHOP_Y = 1172, SHOP_TOP = 1090;
 let FIELD_SPEED = 1;   // enemies walk faster on a longer battlefield, so a wave still takes the same time
 const SLOTS = 5, SHOP_N = 3;
+// Storage holds 10 cards on two pages of 5. Swipe the row or tap its arrow to switch pages.
+const STORAGE_N = 10, STORAGE_PAGE = 5;
+let storagePage = 0, storageX = 0, storageSwipe = null, storageEdgeT = 0;
 const CASTLE_MAX = 100, BREAK_TIME = 15, START_GOLD = 10, REROLL_BASE = 2;
 const CARD_W = 112, CARD_H = 136;
 // Sell box under the right side of the Reroll button. SELL_HIT is a little larger so drops are forgiving.
@@ -1441,7 +1444,7 @@ class Fx {
 }
 
 // ------------------------------------------------------------ Game state
-const rows = { active: Array(SLOTS).fill(null), storage: Array(SLOTS).fill(null), shop: Array(SHOP_N).fill(null), chamber: Array(5).fill(null) };
+const rows = { active: Array(SLOTS).fill(null), storage: Array(STORAGE_N).fill(null), shop: Array(SHOP_N).fill(null), chamber: Array(5).fill(null) };
 // Fusion Chamber: 3-5 Epic cards on the altars, a chance to become one Myth card. On failure every card is lost.
 const CHAMBER_CHANCE = { 3: 35, 4: 60, 5: 85 };
 // Legend Chamber: active as soon as a Myth card is on an altar. Myth cards are the base of a Legend; Epic cards only
@@ -1482,13 +1485,14 @@ function buildPaving() {
 function slotPos(row, i) {
   if (row === "chamber") return { x: 88 + i * 136, y: CHAMBER_Y };
   if (row === "active") return { x: 72 + i * 144, y: ACTIVE_Y };
-  if (row === "storage") return { x: 72 + i * 144, y: STORAGE_Y };
+  if (row === "storage") return { x: 72 + (i % STORAGE_PAGE) * 144 + Math.floor(i / STORAGE_PAGE) * W - storageX, y: STORAGE_Y };
   return { x: 80 + i * 130, y: SHOP_Y };
 }
 function slotAt(p) {
   const list = chamberOpen ? ["chamber", "active", "storage"] : ["active", "storage", "shop"];
   for (const row of list) for (let i = 0; i < rows[row].length; i++) {
     const s = slotPos(row, i);
+    if (row === "storage" && (s.x < 0 || s.x > W)) continue;   // the other storage page
     if (inRect(p, { x: s.x - CARD_W / 2 - 10, y: s.y - CARD_H / 2 - 10, w: CARD_W + 20, h: CARD_H + 20 })) return [row, i];
   }
   return null;
@@ -1497,6 +1501,7 @@ function showBanner(t, c) { banner = { text: t, color: c, t: 0 }; }
 function showInfo(t) { info = { text: t, t: 0 }; }
 
 function clearBoard() {
+  storagePage = 0; storageX = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
   enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
@@ -1640,8 +1645,29 @@ function reroll() {
 }
 function cardName(c) { return `${RARITY_NAMES[c.rarity]} ${EL[c.element].name}`; }
 function firstFree() {
-  for (const row of ["active", "storage"]) for (let i = 0; i < SLOTS; i++) if (!rows[row][i]) return [row, i];
+  for (let i = 0; i < SLOTS; i++) if (!rows.active[i]) return ["active", i];
+  // Storage: the page you are looking at first, then the other one (and show it).
+  const pages = [storagePage, 1 - storagePage];
+  for (const pg of pages) for (let i = pg * STORAGE_PAGE; i < (pg + 1) * STORAGE_PAGE; i++) if (!rows.storage[i]) {
+    if (pg !== storagePage) setStoragePage(pg);
+    return ["storage", i];
+  }
   return null;
+}
+function setStoragePage(pg) {
+  pg = clamp(pg, 0, STORAGE_N / STORAGE_PAGE - 1);
+  if (pg !== storagePage) { storagePage = pg; playUi("ui_pick"); }
+}
+// Slides the storage row and keeps its cards' homes on their slots.
+function updateStorage(dt) {
+  storageX += (storagePage * W - storageX) * Math.min(1, dt * 12);
+  if (Math.abs(storageX - storagePage * W) < 0.5) storageX = storagePage * W;
+  rows.storage.forEach((c, i) => { if (c && !c.dragging) { const q = slotPos("storage", i); c.hx = q.x; c.hy = q.y; } });
+  // Holding a dragged card over the arrow flips to the other page.
+  const band = Math.abs(pointer.y - STORAGE_Y) < CARD_H / 2 + 10;
+  if (drag && band && ((storagePage === 0 && pointer.x > W - 44) || (storagePage === 1 && pointer.x < 44))) {
+    storageEdgeT += dt; if (storageEdgeT > 0.45) { setStoragePage(1 - storagePage); storageEdgeT = 0; }
+  } else storageEdgeT = 0;
 }
 function buy(si, row, i) {
   const card = rows.shop[si]; if (!card) return false;
@@ -2294,6 +2320,8 @@ const btn = {
   summon: Object.assign(makeBtn("x1", 184, 1130, 170, 92, () => doSummon(1), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
   summon10: Object.assign(makeBtn("x10", 366, 1130, 170, 92, () => doSummon(10), 40), { fill: "#ffcd50", fillDown: "#e0a830", font: DISPLAY, weight: 900 }),
   rates: makeBtn("Rates", 16, 1150, 150, 60, () => { ratesOpen = true; }, 24),
+  storNext: makeBtn("", W - 30, 0, 30, 68, () => setStoragePage(1)),
+  storPrev: makeBtn("", 0, 0, 30, 68, () => setStoragePage(0)),
   tutNext: Object.assign(makeBtn("Next", 0, 0, 200, 64, () => tutNext(), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   tutSkip: makeBtn("Skip tutorial", 0, 0, 220, 64, () => tutSkipAll(), 22),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
@@ -2375,7 +2403,7 @@ function baseButtons() {
   }
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
-  const list = [btn.chamber, btn.pause, btn.reroll];
+  const list = [btn.chamber, btn.pause, btn.reroll, storagePage === 0 ? btn.storNext : btn.storPrev];
   if (!drag) list.push(btn.next, btn.spell);
   return list;
 }
@@ -2416,6 +2444,7 @@ canvas.addEventListener("pointerdown", ev => {
   }
   if (paused || (state !== "wave" && state !== "break")) return;
   const s = slotAt(p);
+  if (Math.abs(p.y - STORAGE_Y) < CARD_H / 2 + 10 && (!s || (s[0] === "storage" && !rows.storage[s[1]]))) { storageSwipe = { x0: p.x }; return; }
   if (!s || !rows[s[0]][s[1]]) return;
   const card = rows[s[0]][s[1]];
   drag = { card, from: s[0], index: s[1], ox: card.x - p.x, oy: card.y - p.y, px: p.x, py: p.y, moved: false };
@@ -2428,13 +2457,14 @@ canvas.addEventListener("pointermove", ev => {
   if (lobbySwipe) { lobbyMove(p); return; }
   if (bookOpen && bookDrag) { bookScroll = bookDrag.s - (p.y - bookDrag.y); return; }
   if (spell && spell.drawing) { const st = spell.strokes[spell.strokes.length - 1], l = st[st.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1]) > 3) st.push([p.x, p.y]); return; }
+  if (storageSwipe) { const dx = p.x - storageSwipe.x0; if (Math.abs(dx) > 40) { setStoragePage(storagePage + (dx < 0 ? 1 : -1)); storageSwipe = null; } return; }
   if (!drag) return;
   drag.card.x = p.x + drag.ox; drag.card.y = p.y + drag.oy;
   if (Math.hypot(p.x - drag.px, p.y - drag.py) > 12) drag.moved = true;
   hover = slotAt(p);
 });
 function pointerUp(ev) {
-  const p = toLogical(ev); pointer = p; bookDrag = null;
+  const p = toLogical(ev); pointer = p; bookDrag = null; storageSwipe = null;
   if (lobbySwipe) { lobbyUp(p); return; }
   // Lifting the finger ends a line; the rune is read once no new line starts for RUNE_SETTLE seconds.
   if (spell && spell.drawing) { spell.drawing = false; spell.settle = RUNE_SETTLE; return; }
@@ -2476,6 +2506,7 @@ function update(dt) {
   time += dt;
   banner.t += dt; info.t += dt;
   restartArmed = Math.max(0, restartArmed - dt);
+  updateStorage(dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
   if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking()) return;
@@ -2660,7 +2691,7 @@ function drawWorld() {
     ctx.restore();
     slotFrame(p.x, p.y, hexA(GOLD, 0.35));
   }
-  for (let i = 0; i < SLOTS; i++) { const p = slotPos("storage", i); slotFrame(p.x, p.y, hexA(PARCH, 0.25)); }
+  for (let i = 0; i < STORAGE_N; i++) { const p = slotPos("storage", i); if (p.x > -CARD_W && p.x < W + CARD_W) slotFrame(p.x, p.y, hexA(PARCH, 0.25)); }
   // Shop table.
   ctx.fillStyle = "#5a3b28"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
   ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 2; ctx.beginPath();
@@ -2688,7 +2719,8 @@ function drawWorld() {
     for (const f of fxs) if (f.underChamber) f.draw();
     drawChamber();
   }
-  for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging) c.draw();
+  for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W))) c.draw();
+  if (!chamberOpen) drawStorageNav();
   if (!chamberOpen) { drawParts(); for (const p of projectiles) p.draw(); }
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
@@ -3768,7 +3800,7 @@ function drawHomeUi() {
 // ------------------------------------------------------------ First-run tutorial
 // Short chapters that start the first time they matter. A spotlight points at the real button or area.
 // Steps with `wait` let you play until you have done the thing (the game keeps running); the others pause the game.
-const rowRect = (row, n) => { const a = slotPos(row, 0), b = slotPos(row, n - 1); return { x: a.x - CARD_W / 2 - 10, y: a.y - CARD_H / 2 - 12, w: b.x - a.x + CARD_W + 20, h: CARD_H + 24 }; };
+const rowRect = (row, n) => { const o = row === "storage" ? storagePage * STORAGE_PAGE : 0, a = slotPos(row, o), b = slotPos(row, o + n - 1); return { x: a.x - CARD_W / 2 - 10, y: a.y - CARD_H / 2 - 12, w: b.x - a.x + CARD_W + 20, h: CARD_H + 24 }; };
 const btnRect = b => ({ x: b.x - 6, y: b.y - 6, w: b.w + 12, h: b.h + 12 });
 const TUT = {
   lobby: [
@@ -3784,7 +3816,7 @@ const TUT = {
     { t: "The shop", hl: () => rowRect("shop", SHOP_N), wait: () => rows.active.some(Boolean) || rows.storage.some(Boolean),
       b: "New cards appear here before every wave. Your first card is FREE! Tap a card to buy it, or drag it into a slot. Try it now." },
     { t: "Battle row", hl: () => rowRect("active", SLOTS), b: "Only cards in this top row attack. They fire at the nearest enemies on their own. Fill it with your strongest cards." },
-    { t: "Storage row", hl: () => rowRect("storage", SLOTS), b: "Cards down here do not attack. Keep cards here until you can merge them. You can drag cards between all slots at any time." },
+    { t: "Storage row", hl: () => rowRect("storage", SLOTS), b: "Cards down here do not attack. Keep cards here until you can merge them. Storage has 2 pages of 5 slots: swipe the row or tap the arrow to switch. Drag cards between all slots at any time." },
     { t: "Start the wave", hl: () => btnRect(btn.next), wait: () => state === "wave",
       b: "Tap Next Wave to send the enemies. You can call the next wave early, even while one is still running, to earn gold faster. Tap it now!" },
     { t: "Defend!", b: "Every enemy you kill drops gold, and every cleared wave gives bonus gold. The shop refills between waves. Good luck!" },
@@ -3876,6 +3908,21 @@ function drawTut(dt) {
   btn.tutSkip.x = px + 20; btn.tutSkip.y = by; drawBtn(btn.tutSkip);
   if (st.wait) text("Your turn!", px + pw - 120, by + 44, 28, "#2f8f3f", { weight: 800, baseline: "middle" });
   else { btn.tutNext.label = tut.i === list.length - 1 ? "Got it!" : "Next"; btn.tutNext.x = px + pw - 20 - btn.tutNext.w; btn.tutNext.y = by; drawBtn(btn.tutNext); }
+}
+
+// Storage page arrow (at the row's edge) and two page dots above the row.
+function drawStorageNav() {
+  const b = storagePage === 0 ? btn.storNext : btn.storPrev, hot = storageEdgeT > 0;
+  b.y = STORAGE_Y - 34;
+  rrect(b.x, b.y, b.w, b.h, 10); ctx.fillStyle = hot ? hexA(GOLD, 0.95) : "rgba(233,211,166,0.85)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+  text(storagePage === 0 ? "\u203a" : "\u2039", b.x + b.w / 2, b.y + b.h / 2 + 2, 34, INK, { weight: 800, baseline: "middle" });
+  // Count of cards on the other page, so nothing is forgotten there.
+  const other = rows.storage.slice((1 - storagePage) * STORAGE_PAGE, (2 - storagePage) * STORAGE_PAGE).filter(Boolean).length;
+  if (other) { circle(b.x + b.w / 2, b.y - 4, 11, "#e0533f"); text(String(other), b.x + b.w / 2, b.y - 3, 15, "#fff", { weight: 800, baseline: "middle" }); }
+  for (let i = 0; i < STORAGE_N / STORAGE_PAGE; i++) {
+    const on = Math.abs(storageX / W - i) < 0.5, x = W / 2 + (i - 0.5) * 22, y = STORAGE_Y - CARD_H / 2 - 9;
+    circle(x, y, 6, INK); circle(x, y, 4, on ? GOLD : hexA(PARCH, 0.5));
+  }
 }
 
 // ------------------------------------------------------------ Loop
