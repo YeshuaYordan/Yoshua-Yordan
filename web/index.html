@@ -555,8 +555,10 @@ class Card {
     if (this.rarity === LEGEND) this.drawLegendOrbit(hw, hh, t, false);   // orbs in front of the art, under the text
     text(RARITY_NAMES[this.rarity].toUpperCase(), 0, -hh + 21, 10, shade(rc, -0.55), { weight: 700, outline: 4, outlineColor: "#ffffff" });
     // Epic / Myth / Legend frames have a taller name plate (centred 51 px below the card centre), so the name is bigger.
-    const bigPlate = fr && d.tier >= 2, nameY = !fr ? hh - 16 : d.tier === 3 ? hh - 11 : hh - 13;
-    text(d.name, 0, nameY, !fr ? 16 : d.tier === 3 ? 17 : 16, CI, { weight: 700 });
+    // Name sits exactly on the middle of each frame's white name plate (centres measured from the frame art):
+    // main cards 47.1, next element v2 ribbon 48.3, Epic / Myth / Legend plate 51.3 px below the card centre.
+    const nameY = !fr ? (ART_PAD ? 336 + 34 : 0) * (CARD_W / ART_W) - hh : d.tier === 3 ? (442 - 252) * CARD_H / 504 : (458 - 282) * CARD_H / 496;
+    text(d.name, 0, nameY + 1, !fr ? 16 : d.tier === 3 ? 17 : 16, CI, { weight: 700, baseline: "middle" });
     if (this.inShop) {
       const ty = hh + 4;
       rrect(-34, ty - 13, 68, 26, 13);
