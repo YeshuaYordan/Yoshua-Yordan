@@ -1743,6 +1743,11 @@ const btn = {
   toLobbyR: Object.assign(makeBtn("Lobby ›", 560, 1190, 190, 64, () => setLobbyPage(0), 24), { fill: "#e9d3a6" }),
   summon: Object.assign(makeBtn("SUMMON", 210, 1140, 300, 96, () => doSummon(), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
   rates: makeBtn("Rates", 24, 1150, 150, 60, () => { ratesOpen = true; }, 24),
+  closeInfo: makeBtn("Close", 240, 900, 240, 76, () => { cardInfo = null; }, 26),
+  infoUpgrade: Object.assign(makeBtn("Upgrade", 400, 900, 240, 76, () => {
+    const el = cardInfo && cardInfo.el;
+    if (el && upgradeCard(el)) { upgradeFx = { el, t: 0 }; cardInfo.card.scale = 1.9; playUi("ui_place"); playSfx(EL[el].base || el, "atk"); }
+  }, 26), { fill: "#9cff9c", fillDown: "#6cd66c" }),
   closeRates: makeBtn("Close", 240, 900, 240, 70, () => { ratesOpen = false; }, 26),
   revealOk: makeBtn("OK", 70, 1150, 230, 86, () => { summonReveal = null; }, 30),
   revealAgain: Object.assign(makeBtn("Again", 320, 1150, 330, 86, () => { summonReveal = null; doSummon(); }, 26), { fill: "#c9a6ff", fillDown: "#a982e8" }),
@@ -1796,6 +1801,7 @@ function visibleButtons() {
   if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") {
+    if (cardInfo) return canUpgrade(cardInfo.el) ? [btn.closeInfo, btn.infoUpgrade] : [btn.closeInfo];
     if (summonReveal) return summonReveal.t > 0.8 ? [btn.revealOk, btn.revealAgain] : [];
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
@@ -2419,7 +2425,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
-function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; }
+function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -2514,7 +2520,7 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
-  if (summonReveal || ratesOpen) return;   // no swiping under a popup
+  if (summonReveal || ratesOpen || cardInfo) return;   // no swiping under a popup
   const dy = p.y - s.y0;
   if (!s.moved && !s.vscroll) {
     if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
@@ -2531,6 +2537,7 @@ function lobbyUp(p) {
     lobbySwipe = null;
     if (s.btn && inRect(p, s.btn)) s.btn.onTap();
     else if (summonReveal && summonReveal.t > 0.9) summonReveal = null;   // tap anywhere closes the reveal
+    else if (lobbyPage === -1 && lobbySettled() && !cardInfo && !ratesOpen) { const el = cardAt(p); if (el) openCardInfo(el); }
     return;
   }
   const shown = lobbyShownPos(), dx = p.x - s.x0, fast = Math.abs(dx) / Math.max(1, performance.now() - s.t0) > 0.6;
@@ -2667,6 +2674,97 @@ function drawRates() {
   btn.closeRates.y = y + h - 90 + 10; drawBtn(btn.closeRates);
 }
 
+// ---- Card details popup (tap a card on the Cards page).
+let cardInfo = null;   // { el, card, t }
+function cardAt(p) {
+  for (const cell of cardCells()) {
+    if (!cell.el || cell.y + 4 < CARDS_TOP - 60) continue;
+    if (Math.abs(p.x - cell.x) < 46 && p.y > cell.y + 2 && p.y < cell.y + 108 && p.y > CARDS_TOP && p.y < H - 96) return cell.el;
+  }
+  return null;
+}
+function openCardInfo(el) {
+  const c = new Card(el, showRarity(el)); c.noLabel = true;
+  cardInfo = { el, card: c, t: 0 }; playUi("ui_pick");
+}
+// Short lines describing a card's special effects.
+function effectLines(d) {
+  const L = [];
+  if (d.multishot) L.push(`Fires ${d.multishot} shots at once`);
+  if (d.chain) L.push(`Lightning chains to ${d.chain} enemies`);
+  if (d.pierce) L.push(d.pierce >= 99 ? "Pierces through every enemy" : `Pierces ${d.pierce} enemies`);
+  if (d.splash) L.push(d.splash >= 1000 ? "Hits every enemy on the field" : `Area damage (radius ${d.splash})`);
+  if (d.burn) L.push(`Burns for ${d.burn} damage/s (x rarity)`);
+  if (d.slow) L.push(`Slows enemies to ${Math.round(d.slow * 100)}% speed`);
+  if (d.root) L.push(`Roots enemies for ${d.root}s`);
+  if (d.knock) L.push(`Knocks enemies back (${d.knock})`);
+  if (d.cloud) L.push(`Leaves a cloud: ${d.cloud_dps} damage/s` + (d.cloud_slow ? ", slows" : ""));
+  if (d.puddle) L.push(`Leaves a magma pool: ${d.puddle_dps} damage/s`);
+  return L;
+}
+function howToGet(el) {
+  const d = EL[el];
+  if (d.special) return "Summon only. Once unlocked it can appear in the shop (rare).";
+  if (d.myth) return "Fusion Chamber: fuse 3 or more Epic cards.";
+  const r = RECIPE_LIST.find(x => x[2] === el);
+  if (r) return `Fuse ${EL[r[0]].name} + ${EL[r[1]].name}` + (d.tier === 3 ? " (both V3 Rare)." : " (same level).");
+  return "Buy it in the shop during runs.";
+}
+function drawCardInfo(dt) {
+  const ci = cardInfo; ci.t += dt; ci.card.t += dt;
+  const el = ci.el, d = EL[el], lvl = levelOf(el), lm = levelMult(el), locked = d.special && !save.specials[el];
+  dim(0.75);
+  const x = 36, w = W - 72, h = 730, y = Math.max(100, H / 2 - h / 2);
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  // Card on the left, name and level on the right.
+  const c = ci.card; c.x = c.hx = x + 120; c.y = c.hy = y + 150; c.scale = 1.5; c.draw();
+  const group = d.special ? "Special card" : d.myth ? "Myth card" : d.tier === 3 ? "Epic element" : d.tier === 2 ? "Next element" : "Main element";
+  const tx = x + 232;
+  text(d.name, tx, y + 74, d.name.length > 10 ? 34 : 40, INK, { align: "left", font: DISPLAY, weight: 900 });
+  text(group, tx, y + 108, 21, RARITY_COLORS[showRarity(el)] === "#B8BEC8" ? "#6b3a22" : shade(RARITY_COLORS[showRarity(el)], -0.25), { align: "left", weight: 700 });
+  text(locked ? "Locked" : `Level ${lvl}` + (lvl > 1 ? `  (+${Math.round((lm - 1) * 100)}% damage)` : ""), tx, y + 146, 23, locked ? "#a05050" : lvl > 1 ? "#2f8f3f" : INK, { align: "left", weight: 700 });
+  const need = levelNeed(el);
+  if (!locked) text(need ? `${copiesOf(el)} / ${need} copies to Lv ${lvl + 1} (+${Math.round(lvl * LEVEL_BONUS * 100)}%)` : "Max level", tx, y + 178, 18, "#6b3a22", { align: "left", weight: 600 });
+  wrapInk(d.desc, tx, y + 214, w - 250, 19, 24);
+  // Stats table.
+  let ry = y + 316;
+  const line = () => { ctx.fillStyle = "rgba(42,26,18,0.15)"; ctx.fillRect(x + 24, ry - 26, w - 48, 2); };
+  const forms = d.special ? [SPECIAL] : d.myth ? [MYTH] : d.tier === 3 ? [EPIC] : [0, 1, 2];
+  const formName = r => r <= 2 ? `V${r + 1}` : RARITY_NAMES[r];
+  line();
+  text(forms.length > 1 ? "Damage per hit" : "Damage per hit", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(damageOf(el, r))).join("   "), x + w - 30, ry, 22, "#b4441f", { align: "right", weight: 700 });
+  ry += 44; line();
+  text("Attack speed", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + rateOf(el, r).toFixed(1)).join("   ") + " /s", x + w - 30, ry, 22, "#2f6fb4", { align: "right", weight: 700 });
+  ry += 44; line();
+  text("Damage per second", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(damageOf(el, r) * rateOf(el, r) * (d.multishot || 1))).join("   "), x + w - 30, ry, 22, "#7a3fb0", { align: "right", weight: 700 });
+  ry += 44; line();
+  text("Element", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  text(d.parts.map(p => EL[p].name).join(" + "), x + w - 30, ry, 22, INK, { align: "right", weight: 600 });
+  ry += 44; line();
+  text("Effects", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  const fx = effectLines(d);
+  if (!fx.length) text("None", x + w - 30, ry, 20, "#6b3a22", { align: "right", weight: 600 });
+  fx.forEach((f, i) => text(f, x + w - 30, ry + i * 28, 19, "#6b3a22", { align: "right", weight: 600 }));
+  ry += Math.max(1, fx.length) * 28 + 18; line();
+  text("How to get", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  wrapInk(howToGet(el), x + 30, ry + 30, w - 60, 19, 24, "left");
+  btn.closeInfo.y = btn.infoUpgrade.y = y + h - 96;
+  if (canUpgrade(el)) { btn.closeInfo.x = x + 40; btn.infoUpgrade.x = x + w - 40 - btn.infoUpgrade.w; drawBtn(btn.infoUpgrade); }
+  else btn.closeInfo.x = W / 2 - btn.closeInfo.w / 2;
+  drawBtn(btn.closeInfo);
+}
+// Dark word-wrapped text for the parchment popups (first line at y).
+function wrapInk(s, x, y, maxW, size, lh, align = "left") {
+  ctx.font = `600 ${size}px ${FONT}`;
+  const words = s.split(" "), lines = []; let ln = "";
+  for (const wd of words) { const t = ln ? ln + " " + wd : wd; if (ctx.measureText(t).width > maxW && ln) { lines.push(ln); ln = wd; } else ln = t; }
+  if (ln) lines.push(ln);
+  lines.forEach((l, i) => text(l, x, y + i * lh, size, "#6b3a22", { align, weight: 600 }));
+}
+
 // ---- Cards page: every upgradable card with its level, copies and an Upgrade button.
 const CARD_GROUPS = [["Main Elements", BASE], ["Next Elements", NEXT_ELS], ["Epic Elements", EPIC_ELS], ["Myth Cards", MYTH_ELS],
   ...(LEGEND_ELS.length ? [["Legend Cards", LEGEND_ELS]] : []), ["Special Cards", SPECIALS]];
@@ -2770,6 +2868,7 @@ function drawLobbyUi() {
   }
   if (summonReveal) drawSummonReveal(dt);
   if (ratesOpen) drawRates();
+  if (cardInfo) drawCardInfo(dt);
 }
 
 function drawHomeUi() {
