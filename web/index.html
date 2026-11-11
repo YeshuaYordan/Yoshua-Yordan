@@ -2278,30 +2278,30 @@ for (const [k, src] of Object.entries(LOBBY_SRC)) {
   img.onload = () => { slot.ready = true; if (k === "room" || k === "hills" || k === "clouds") slot.night = nightCopy(img); };
   img.src = src; LOBBY[k] = slot;
 }
-// Cards lying on the table, left to right (rarity 2+ gets a light sweep).
-const LOBBY_CARDS = [["c_fire", 0], ["u_earth", 1], ["r_water", 2], ["l_water", 5], ["m_fire", 4], ["e_earth", 3], ["u_wind", 1]];
+// Cards dropped messily on the table, bottom of the pile first: [card or null for face down, rarity, x, y, angle].
+// Positions are in the 1080 x 1920 art (the table). Rarity 2+ gets a light sweep.
+const LOBBY_CARDS = [
+  [null, 0, 300, 1440, -31], ["u_wind", 1, 790, 1430, 24], [null, 0, 560, 1600, 84],
+  ["c_fire", 0, 250, 1590, -9], ["r_water", 2, 455, 1450, 13], [null, 0, 720, 1590, -17],
+  ["e_earth", 3, 840, 1580, 38], ["u_earth", 1, 395, 1640, -52], ["m_fire", 4, 640, 1460, -6],
+  ["l_water", 5, 520, 1570, 21],
+];
 const LOBBY_BADGES = ["fire", "water", "earth", "wind"];
 // Day/night over a 20 s loop: [time, sky, how dark the room is].
 const SKY_KEYS = [[0, "day", 0], [3, "day", 0], [6, "sunset", 0.25], [8.5, "dusk", 0.6], [10.5, "night", 1], [15, "night", 1], [17.5, "dawn", 0.4], [20, "day", 0]];
-const FLIP_TIME = 1.1;
-let lobbyT = 0, lobbyFlip = null, lobbyNextFlip = 3, lobbyLastFlip = -1, fadeIn = 0;
+let lobbyT = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
 function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; }
 
-function drawLobbyCard(i, x, y, rot, lift) {
-  const [key, rarity] = LOBBY_CARDS[i], slot = LOBBY["card_" + key];
-  let sx = 1, back = false;
-  if (lobbyFlip && lobbyFlip.i === i) {
-    const p = lobbyFlip.t / FLIP_TIME, c = Math.cos(2 * Math.PI * p);
-    back = c < 0; sx = Math.max(0.02, Math.abs(c)); rot *= 1 - Math.sin(Math.PI * p);
-  }
-  const grow = 1 + lift / 600, w = 224, h = 347;
-  // Shadow on the table (smaller and lighter while the card is in the air).
-  ctx.save(); ctx.translate(x + 10 + lift * 0.3, y + 16); ctx.rotate(rot); ctx.scale(sx * (1 - lift / 500), 0.9 * (1 - lift / 500));
-  rrect(-w / 2, -h / 2, w, h, 18); ctx.fillStyle = `rgba(40,18,6,${0.32 - lift / 450})`; ctx.fill(); ctx.restore();
-  ctx.save(); ctx.translate(x, y - lift); ctx.rotate(rot); ctx.scale(sx * grow, 0.9 * grow);
+function drawLobbyCard(i, dy) {
+  const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
+  const y = cy + dy, rot = deg * Math.PI / 180, w = 224, h = 347;
+  // Shadow on the table.
+  ctx.save(); ctx.translate(x + 8, y + 12); ctx.rotate(rot); ctx.scale(1, 0.9);
+  rrect(-w / 2, -h / 2, w, h, 18); ctx.fillStyle = "rgba(40,18,6,0.3)"; ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(1, 0.9);
   if (back) { if (LOBBY.card_back.ready) ctx.drawImage(LOBBY.card_back.img, -w / 2, -h / 2, w, h); }
   else if (slot.ready) {
     const f = Math.floor(lobbyT * 12 + i * 3) % 12;
@@ -2351,21 +2351,9 @@ function drawLobby(dt) {
   g.addColorStop(0, `rgba(255,200,90,${0.35 * night})`); g.addColorStop(1, "rgba(255,200,90,0)");
   ctx.fillStyle = g; ctx.fillRect(790, 160, 340, 340);
   ctx.globalCompositeOperation = "source-over";
-  // Cards fanned on the table. Every ~5 s one lifts, flips once and lands.
-  lobbyNextFlip -= dt;
-  if (lobbyFlip) { lobbyFlip.t += dt; if (lobbyFlip.t >= FLIP_TIME) lobbyFlip = null; }
-  else if (lobbyNextFlip <= 0) {
-    let n; do n = Math.floor(Math.random() * LOBBY_CARDS.length); while (n === lobbyLastFlip);
-    lobbyFlip = { i: n, t: 0 }; lobbyLastFlip = n; lobbyNextFlip = 5;
-  }
-  const visW = W / v.s, spread = Math.min(112, (visW - 300) / 6), fanY = (H - 150) / v.s - 250;
-  const order = LOBBY_CARDS.map((_, j) => j).sort((p, q) => Math.abs(q - 3) - Math.abs(p - 3) || p - q);
-  if (lobbyFlip) { order.splice(order.indexOf(lobbyFlip.i), 1); order.push(lobbyFlip.i); }
-  for (const j of order) {
-    const d = j - 3, lift = lobbyFlip && lobbyFlip.i === j ? Math.sin(Math.PI * lobbyFlip.t / FLIP_TIME) * 110 : 0;
-    drawLobbyCard(j, 540 + d * spread, fanY + d * d * 9 + Math.sin(lobbyT * 1.6 + j) * 5,
-      (d * 6 + Math.sin(lobbyT * 1.1 + j * 1.7) * 1.2) * Math.PI / 180, lift);
-  }
+  // Cards lying on the table (moved down a little on taller phones so they stay just above the Play button).
+  const dy = Math.max(0, (H - 150) / v.s - 1710);
+  for (let j = 0; j < LOBBY_CARDS.length; j++) drawLobbyCard(j, dy);
   ctx.restore();
 }
 
