@@ -1743,6 +1743,11 @@ const btn = {
   toLobbyR: Object.assign(makeBtn("Lobby ›", 560, 1190, 190, 64, () => setLobbyPage(0), 24), { fill: "#e9d3a6" }),
   summon: Object.assign(makeBtn("SUMMON", 210, 1140, 300, 96, () => doSummon(), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
   rates: makeBtn("Rates", 24, 1150, 150, 60, () => { ratesOpen = true; }, 24),
+  gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
+  getGems: Object.assign(makeBtn("Shop", 546, 1150, 150, 60, () => openShop(), 24), { fill: "#7fe6ff", fillDown: "#4fc0e0" }),
+  shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
+  shopBuy: Object.assign(makeBtn("Buy", 0, 0, 260, 80, () => { if (shopConfirm) buyProduct(shopConfirm); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  shopCancel: makeBtn("Cancel", 0, 0, 180, 80, () => { shopConfirm = null; }, 26),
   closeInfo: makeBtn("Close", 240, 900, 240, 76, () => { cardInfo = null; }, 26),
   infoUpgrade: Object.assign(makeBtn("Upgrade", 400, 900, 240, 76, () => {
     const el = cardInfo && cardInfo.el;
@@ -1801,13 +1806,14 @@ function visibleButtons() {
   if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") {
+    if (shopOpen) return shopButtons();
     if (cardInfo) return canUpgrade(cardInfo.el) ? [btn.closeInfo, btn.infoUpgrade] : [btn.closeInfo];
     if (summonReveal) return summonReveal.t > 0.8 ? [btn.revealOk, btn.revealAgain] : [];
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
-    const top = [btn.titleBook, btn.lobbySound];
+    const top = [btn.titleBook, btn.lobbySound, btn.gemPill];
     if (lobbyPage === 0) return [btn.play, btn.toSummon, btn.toCards, ...top];
-    if (lobbyPage === 1) return [btn.summon, btn.rates, btn.toLobby, ...top];
+    if (lobbyPage === 1) return [btn.summon, btn.rates, btn.getGems, btn.toLobby, ...top];
     return [btn.toLobbyR, ...visibleUpgradeBtns(), ...top];
   }
   if (state === "gameover") return [btn.again, btn.title];
@@ -2425,7 +2431,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
-function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; }
+function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -2520,7 +2526,7 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
-  if (summonReveal || ratesOpen || cardInfo) return;   // no swiping under a popup
+  if (summonReveal || ratesOpen || cardInfo || shopOpen) return;   // no swiping under a popup
   const dy = p.y - s.y0;
   if (!s.moved && !s.vscroll) {
     if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
@@ -2548,7 +2554,7 @@ function lobbyUp(p) {
 const lobbySettled = () => !lobbySwipe?.moved && Math.abs(lobbyPos - lobbyPage) < 0.02;
 function flashSummonMsg(m) { summonMsg = m; summonMsgT = 2.2; }
 function doSummon() {
-  if (save.gems < PULL_COST) { flashSummonMsg(`Not enough gems! Clear a stage (${STAGE_LEN} waves) for 1 gem.`); playSfx("ash", "hit"); return; }
+  if (save.gems < PULL_COST) { flashSummonMsg(`Not enough gems! Clear a stage for 1 gem, or get more in the Shop.`); openShop(); return; }
   const r = summonOnce(); if (!r) return;
   const c = new Card(r.el, showRarity(r.el)); c.noLabel = true;
   summonReveal = { ...r, card: c, t: 0 };
@@ -2658,7 +2664,7 @@ function drawSummonUi() {
   text("SUMMON", W / 2, 150, 60, GOLD, { font: DISPLAY, weight: 900, outline: 12 });
   btn.summon.x = W / 2 - 150; btn.summon.y = H - 140; btn.summon.w = 300; btn.summon.h = 96;
   drawBtn(btn.summon, save.gems < PULL_COST);
-  btn.rates.y = H - 124; drawBtn(btn.rates);
+  btn.rates.y = btn.getGems.y = H - 124; drawBtn(btn.rates); drawBtn(btn.getGems);
   // Cost and pity counter above the button.
   const left = PITY - (save.pity || 0);
   if (summonMsgT > 0) text(summonMsg, W / 2, H - 196, 23, GOLD, { outline: 6 });
@@ -2723,6 +2729,124 @@ function drawRates() {
   text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 596, 20, INK, { weight: 600 });
   text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 624, 18, "#6b3a22", { weight: 500 });
   btn.closeRates.y = y + h - 90 + 10; drawBtn(btn.closeRates);
+}
+
+// ------------------------------------------------------------ Shop (in-app purchases)
+// Products are sold through the store app once the game is packaged for Android.
+// HOW TO CONNECT REAL PAYMENTS: the Android wrapper sets window.nativePurchase = productId => Promise<boolean>
+// (resolve true only after Google Play confirms the payment). Product ids below must match the Play Console.
+// Without it (web / itch.io builds) the shop runs in TEST MODE: purchases are free, for testing only.
+const SHOP_GEMS = [
+  { id: "gems_10", gems: 10, bonus: 0, price: "$0.99", name: "Handful" },
+  { id: "gems_55", gems: 50, bonus: 5, price: "$4.99", name: "Pouch" },
+  { id: "gems_120", gems: 100, bonus: 20, price: "$9.99", name: "Chest" },
+  { id: "gems_260", gems: 200, bonus: 60, price: "$19.99", name: "Big Chest" },
+  { id: "gems_700", gems: 500, bonus: 200, price: "$49.99", name: "Vault" },
+  { id: "gems_1500", gems: 1000, bonus: 500, price: "$99.99", name: "Dragon Hoard" },
+];
+const SHOP_SPECIAL_PRICE = "$4.99";
+const storeIsTest = () => typeof window.nativePurchase !== "function";
+let shopOpen = false, shopConfirm = null, shopBusy = false, shopToast = null;
+function openShop() { shopOpen = true; shopConfirm = null; playUi("ui_pick"); }
+function grantProduct(pr) {
+  if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${n} gems!`, color: "#7fe6ff", t: 0 }; }
+  else {
+    const el = pr.special, isNew = !save.specials[el];
+    if (isNew) save.specials[el] = true; else save.copies[el] = copiesOf(el) + 1;
+    shopToast = { text: isNew ? `${EL[el].name} unlocked!` : `${EL[el].name} +1 copy`, color: "#ff8af0", t: 0 };
+  }
+  writeSave(); playUi("ui_sell");
+}
+async function buyProduct(pr) {
+  if (shopBusy) return;
+  shopBusy = true;
+  let ok = false;
+  try { ok = storeIsTest() ? true : await window.nativePurchase(pr.id); } catch (e) { ok = false; }
+  shopBusy = false; shopConfirm = null;
+  if (ok) grantProduct(pr);
+  else shopToast = { text: "Purchase cancelled", color: "#ff9a8a", t: 0 };
+}
+// Tiles are buttons with custom drawing (positions set when the shop is drawn).
+const gemTiles = SHOP_GEMS.map(pr => ({ ...makeBtn("", 0, 0, 0, 0, () => { shopConfirm = pr; playUi("ui_pick"); }), pr }));
+const specialTiles = SPECIALS.map(el => {
+  const pr = { id: "special_" + el, special: el, price: SHOP_SPECIAL_PRICE, name: EL[el].name };
+  const card = new Card(el, SPECIAL); card.noLabel = true;
+  return { ...makeBtn("", 0, 0, 0, 0, () => { shopConfirm = pr; playUi("ui_pick"); }), pr, card };
+});
+function shopPanel() { const h = 1120; return { x: 24, y: Math.max(96, H / 2 - h / 2), w: W - 48, h }; }
+function shopButtons() {
+  if (shopConfirm) return shopBusy ? [] : [btn.shopBuy, btn.shopCancel];
+  return [btn.shopClose, ...gemTiles, ...specialTiles];
+}
+function priceTag(x, y, w, label) {
+  rrect(x, y, w, 40, 20); ctx.fillStyle = "#6cc56a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+  text(label, x + w / 2, y + 21, 22, INK, { weight: 800, baseline: "middle" });
+}
+function gemPile(cx, cy, n) {
+  // More gems in the picture for bigger packs.
+  const spots = [[0, 0], [-22, 10], [22, 10], [-12, -14], [12, -14], [0, 22]].slice(0, n);
+  for (const [dx, dy] of spots) drawGem(cx + dx, cy + dy, 16);
+}
+function drawShop(dt) {
+  const P = shopPanel(), { x, y, w, h } = P;
+  dim(0.75);
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  text("SHOP", W / 2, y + 66, 52, INK, { font: DISPLAY, weight: 900 });
+  ctx.font = `700 22px ${FONT}`;
+  const haveW = ctx.measureText(`You have ${save.gems} gems`).width;
+  drawGem(W / 2 - haveW / 2 - 6, y + 100, 12); text(`You have ${save.gems} gems`, W / 2 + 12, y + 108, 22, "#6b3a22", { weight: 700 });
+  if (storeIsTest()) text("TEST MODE: purchases are free (no real money)", W / 2, y + 136, 17, "#c0392b", { weight: 700 });
+  // Gem packs: 2 columns x 3 rows.
+  text("Gems", x + 24, y + 176, 26, INK, { align: "left", weight: 800 });
+  const tw = (w - 60) / 2, th = 150;
+  gemTiles.forEach((b, i) => {
+    b.x = x + 20 + (i % 2) * (tw + 20); b.y = y + 192 + Math.floor(i / 2) * (th + 14); b.w = tw; b.h = th;
+    const pr = b.pr, press = b.down ? 3 : 0;
+    rrect(b.x, b.y + press, tw, th, 16); ctx.fillStyle = b.down ? "#e2cfa6" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    gemPile(b.x + 60, b.y + 66 + press, Math.min(6, i + 1));
+    text(String(pr.gems + pr.bonus), b.x + 120, b.y + 58 + press, 36, INK, { align: "left", weight: 800 });
+    text(pr.name, b.x + 120, b.y + 86 + press, 18, "#6b3a22", { align: "left", weight: 600 });
+    if (pr.bonus) {
+      rrect(b.x + tw - 92, b.y - 10 + press, 84, 28, 14); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+      text(`+${pr.bonus} free`, b.x + tw - 50, b.y + 5 + press, 16, "#fff", { weight: 800, baseline: "middle" });
+    }
+    priceTag(b.x + tw - 132, b.y + th - 52 + press, 116, pr.price);
+  });
+  // Special cards: 4 tiles.
+  const sy = y + 192 + 3 * (th + 14) + 30;
+  text("Special Cards", x + 24, sy, 26, INK, { align: "left", weight: 800 });
+  text("Unlock it for runs, or +1 copy if you own it", x + w - 24, sy, 16, "#6b3a22", { align: "right", weight: 600 });
+  const sw = (w - 70) / 4, sh = 272;
+  specialTiles.forEach((b, i) => {
+    b.x = x + 20 + i * (sw + 10); b.y = sy + 16; b.w = sw; b.h = sh;
+    const press = b.down ? 3 : 0, owned = save.specials[b.pr.special];
+    rrect(b.x, b.y + press, sw, sh, 16); ctx.fillStyle = b.down ? "#e2cfa6" : "#2a1d40"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    const c = b.card; c.t += dt; c.x = c.hx = b.x + sw / 2; c.y = c.hy = b.y + 96 + press; c.scale = 1.1; c.draw();
+    text(owned ? "Owned" : "New!", b.x + sw / 2, b.y + 200 + press, 18, owned ? "#c9a6ff" : "#ffe34a", { weight: 800, outline: 4 });
+    priceTag(b.x + 10, b.y + sh - 54 + press, sw - 20, b.pr.price);
+  });
+  btn.shopClose.y = y + h - 92; drawBtn(btn.shopClose);
+  if (shopConfirm) drawShopConfirm();
+}
+function drawShopConfirm() {
+  const pr = shopConfirm, w = 520, h = 330, x = W / 2 - w / 2, y = H / 2 - h / 2;
+  dim(0.55);
+  rrect(x, y, w, h, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  const what = pr.gems ? `${pr.gems + pr.bonus} gems` : (save.specials[pr.special] ? `${pr.name} (+1 copy)` : `${pr.name} (unlock)`);
+  text("Buy", W / 2, y + 62, 30, "#6b3a22", { weight: 700 });
+  text(what, W / 2, y + 112, what.length > 18 ? 32 : 40, INK, { font: DISPLAY, weight: 900 });
+  text(`for ${pr.price}?`, W / 2, y + 158, 30, INK, { weight: 700 });
+  if (storeIsTest()) text("Test mode: nothing is charged.", W / 2, y + 194, 18, "#c0392b", { weight: 700 });
+  btn.shopBuy.label = shopBusy ? "..." : `Buy ${pr.price}`;
+  btn.shopBuy.x = x + 30; btn.shopCancel.x = x + w - 30 - btn.shopCancel.w; btn.shopBuy.y = btn.shopCancel.y = y + h - 106;
+  drawBtn(btn.shopBuy); drawBtn(btn.shopCancel);
+}
+function drawShopToast(dt) {
+  const s = shopToast; s.t += dt; if (s.t > 1.8) { shopToast = null; return; }
+  const a = Math.min(1, (1.8 - s.t) * 3), yy = H * 0.42 - s.t * 30;
+  ctx.save(); ctx.globalAlpha = a;
+  text(s.text, W / 2, yy, 52, s.color, { font: DISPLAY, weight: 900, outline: 12 });
+  ctx.restore();
 }
 
 // ---- Card details popup (tap a card on the Cards page).
@@ -2912,7 +3036,10 @@ function drawLobbyUi() {
   drawBtn(btn.titleBook);
   btn.lobbySound.label = Sfx.muted ? "Sound: Off" : "Sound: On"; drawBtn(btn.lobbySound);
   rrect(W / 2 - 66, 18, 132, 50, 25); ctx.fillStyle = "rgba(20,10,30,0.7)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-  drawGem(W / 2 - 34, 43, 14); text(String(save.gems), W / 2 + 14, 53, 28, PARCH, { weight: 700, outline: 5 });
+  drawGem(W / 2 - 40, 43, 14); text(String(save.gems), W / 2 + 4, 53, 28, PARCH, { weight: 700, outline: 5 });
+  // "+" opens the shop.
+  circle(W / 2 + 50, 43, 15, btn.gemPill.down ? "#4fa84d" : "#6cc56a"); ring(W / 2 + 50, 43, 15, INK, 2.5);
+  ctx.fillStyle = INK; ctx.fillRect(W / 2 + 43, 41, 14, 4); ctx.fillRect(W / 2 + 48, 36, 4, 14);
   for (let i = -1; i <= 1; i++) {
     const on = Math.abs(pos - i) < 0.5;
     circle(W / 2 + i * 24, 88, 7, INK); circle(W / 2 + i * 24, 88, 4.5, on ? GOLD : hexA(PARCH, 0.5));
@@ -2920,6 +3047,8 @@ function drawLobbyUi() {
   if (summonReveal) drawSummonReveal(dt);
   if (ratesOpen) drawRates();
   if (cardInfo) drawCardInfo(dt);
+  if (shopOpen) drawShop(dt);
+  if (shopToast) drawShopToast(dt);
 }
 
 function drawHomeUi() {
