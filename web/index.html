@@ -1635,6 +1635,9 @@ const btn = {
   reroll: makeBtn("Reroll", 450, 1100, 250, 96, () => reroll(), 28),
   play: Object.assign(makeBtn("PLAY", 210, 1140, 300, 96, () => { startRun(); fadeIn = 0.5; }, 40), { fill: GOLD, fillDown: "#d9a838", font: DISPLAY, weight: 900 }),
   titleBook: makeBtn("Spellbook", 14, 14, 190, 58, () => openBook(), 24),
+  toSummon: Object.assign(makeBtn("Summon ›", 560, 560, 190, 64, () => setLobbyPage(1), 24), { fill: "#c9a6ff", fillDown: "#a982e8" }),
+  toLobby: Object.assign(makeBtn("‹ Lobby", -30, 560, 190, 64, () => setLobbyPage(0), 24), { fill: "#e9d3a6" }),
+  summon: Object.assign(makeBtn("SUMMON", 210, 1140, 300, 96, () => { summonMsgT = 2; playUi("ui_pick"); }, 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
   lobbySound: makeBtn("Sound: On", 516, 14, 190, 58, () => { setMuted(!Sfx.muted); if (!Sfx.muted) playUi("ui_pick"); }, 24),
   resume: makeBtn("Resume", 180, 560, 360, 80, () => { paused = false; }),
   sound: makeBtn("Sound: On", 180, 960, 360, 80, () => { setMuted(!Sfx.muted); if (!Sfx.muted) playSfx("fire", "atk"); }),
@@ -1684,7 +1687,10 @@ function visibleButtons() {
   if (bookOpen) return [btn.closeBook, btn.tabFusions, btn.tabRunes];
   if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
-  if (state === "title") return [btn.play, btn.titleBook, btn.lobbySound];
+  if (state === "title") {
+    if (!lobbySettled()) return [];
+    return lobbyPage === 0 ? [btn.play, btn.toSummon, btn.titleBook, btn.lobbySound] : [btn.summon, btn.toLobby, btn.titleBook, btn.lobbySound];
+  }
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
   const list = [btn.chamber, btn.pause, btn.reroll];
@@ -1712,6 +1718,7 @@ canvas.addEventListener("pointerdown", ev => {
   canvas.setPointerCapture?.(ev.pointerId);
   sfxUnlock();
   const p = toLogical(ev); pointer = p;
+  if (state === "title" && !bookOpen) { lobbyDown(p); return; }   // lobby: buttons fire on release, so a swipe never presses one
   for (const b of visibleButtons()) {
     if (inRect(p, b)) {
       if (b === btn.reroll && gold < rerollCost) { showInfo("Not enough gold to reroll."); return; }
@@ -1735,6 +1742,7 @@ canvas.addEventListener("pointerdown", ev => {
 });
 canvas.addEventListener("pointermove", ev => {
   const p = toLogical(ev); pointer = p;
+  if (lobbySwipe) { lobbyMove(p); return; }
   if (bookOpen && bookDrag) { bookScroll = bookDrag.s - (p.y - bookDrag.y); return; }
   if (spell && spell.drawing) { const st = spell.strokes[spell.strokes.length - 1], l = st[st.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1]) > 3) st.push([p.x, p.y]); return; }
   if (!drag) return;
@@ -1744,6 +1752,7 @@ canvas.addEventListener("pointermove", ev => {
 });
 function pointerUp(ev) {
   const p = toLogical(ev); pointer = p; bookDrag = null;
+  if (lobbySwipe) { lobbyUp(p); return; }
   // Lifting the finger ends a line; the rune is read once no new line starts for RUNE_SETTLE seconds.
   if (spell && spell.drawing) { spell.drawing = false; spell.settle = RUNE_SETTLE; return; }
   if (!drag) return;
@@ -1765,9 +1774,10 @@ function pointerUp(ev) {
   moveCard(d.from, d.index, target[0], target[1]);
 }
 canvas.addEventListener("pointerup", pointerUp);
-canvas.addEventListener("pointercancel", () => { cancelDrag(); bookDrag = null; });
+canvas.addEventListener("pointercancel", () => { cancelDrag(); bookDrag = null; if (lobbySwipe?.btn) lobbySwipe.btn.down = false; lobbySwipe = null; });
 canvas.addEventListener("wheel", ev => { if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); } }, { passive: false });
 document.addEventListener("keydown", ev => {
+  if (state === "title" && !bookOpen && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) setLobbyPage(lobbyPage + (ev.key === "ArrowRight" ? 1 : -1));
   if (ev.key === "Escape") { if (bookOpen) bookOpen = false; else if (chamberOpen && !fusion) closeChamber(); else if (state === "wave" || state === "break") paused = !paused; }
 });
 
@@ -2293,7 +2303,7 @@ let lobbyT = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
-function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; }
+function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -2321,7 +2331,17 @@ function drawLobbyCard(i, dy) {
 }
 
 function drawLobby(dt) {
-  lobbyT += dt;
+  lobbyT += dt; summonMsgT = Math.max(0, summonMsgT - dt);
+  if (!lobbySwipe?.moved) lobbyPos += (lobbyPage - lobbyPos) * Math.min(1, dt * 12);
+  const pos = lobbyShownPos();
+  ctx.fillStyle = "#110820"; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.translate(-pos * W, 0);
+  if (pos < 0.999) drawHomeScene();
+  ctx.translate(W, 0);
+  if (pos > 0.001) drawSummonScene();
+  ctx.restore();
+}
+function drawHomeScene() {
   const v = lobbyView(), L = LOBBY, tc = lobbyT % 20;
   ctx.fillStyle = "#3a2c48"; ctx.fillRect(0, 0, W, H);
   ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
@@ -2358,7 +2378,92 @@ function drawLobby(dt) {
 }
 
 // Lobby buttons and text, drawn on top of the background.
-function drawLobbyUi() {
+// ------------------------------------------------------------ Lobby pages (swipe left for Summon)
+// Page 0 = lobby, page 1 = Summon (gacha). Swipe left/right, or tap the arrow tab at the screen edge.
+let lobbyPage = 0, lobbyPos = 0, lobbySwipe = null, summonMsgT = 0;
+function lobbyShownPos() {
+  if (!lobbySwipe || !lobbySwipe.moved) return lobbyPos;
+  let raw = lobbySwipe.startPos - lobbySwipe.dx / W;
+  if (raw < 0) raw *= 0.3; else if (raw > 1) raw = 1 + (raw - 1) * 0.3;   // rubber band past the ends
+  return raw;
+}
+function setLobbyPage(n) { if (n !== lobbyPage) playUi("ui_pick"); lobbyPage = clamp(n, 0, 1); }
+function lobbyDown(p) {
+  const b = visibleButtons().find(b => inRect(p, b)) || null;
+  if (b) b.down = true;
+  lobbySwipe = { x0: p.x, y0: p.y, dx: 0, moved: false, btn: b, t0: performance.now(), startPos: lobbyPos };
+}
+function lobbyMove(p) {
+  const s = lobbySwipe, dx = p.x - s.x0;
+  if (!s.moved && Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(p.y - s.y0)) { s.moved = true; if (s.btn) s.btn.down = false; }
+  if (s.moved) s.dx = dx;
+}
+function lobbyUp(p) {
+  const s = lobbySwipe; if (!s) return;
+  if (s.btn) s.btn.down = false;
+  if (!s.moved) { lobbySwipe = null; if (s.btn && inRect(p, s.btn)) s.btn.onTap(); return; }
+  const shown = lobbyShownPos(), dx = p.x - s.x0, fast = Math.abs(dx) / Math.max(1, performance.now() - s.t0) > 0.6;
+  lobbySwipe = null; lobbyPos = shown;
+  if (dx < -W * 0.2 || (fast && dx < 0)) setLobbyPage(lobbyPage + 1);
+  else if (dx > W * 0.2 || (fast && dx > 0)) setLobbyPage(lobbyPage - 1);
+}
+const lobbySettled = () => !lobbySwipe?.moved && Math.abs(lobbyPos - lobbyPage) < 0.02;
+
+// The Summon page background: a glowing summoning circle with a card floating above it.
+function drawSummonScene() {
+  let g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#160c28"); g.addColorStop(0.55, "#2d1950"); g.addColorStop(1, "#110820");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 46; i++) {
+    const x = (i * 97.3) % W, y = 90 + (i * 53.7) % (H * 0.55), tw = 0.5 + 0.5 * Math.sin(lobbyT * 2 + i * 1.7);
+    circle(x, y, 1.2 + tw * 1.3, `rgba(255,240,255,${0.2 + 0.5 * tw})`);
+  }
+  const cx = W / 2, cy = H * 0.52, fy = cy + 190;
+  // Floor glow and the circle, seen at an angle.
+  g = ctx.createRadialGradient(cx, fy, 10, cx, fy, 330);
+  g.addColorStop(0, "rgba(184,140,255,0.45)"); g.addColorStop(1, "rgba(184,140,255,0)");
+  ctx.fillStyle = g; ctx.fillRect(cx - 330, fy - 330, 660, 660);
+  ctx.save(); ctx.translate(cx, fy); ctx.scale(1, 0.36);
+  ctx.strokeStyle = "#c9a6ff"; ctx.shadowColor = "#b88cff"; ctx.shadowBlur = 18;
+  ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(0, 0, 250, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 212, 0, Math.PI * 2); ctx.stroke();
+  ctx.save(); ctx.rotate(lobbyT * 0.35);
+  for (let i = 0; i < 24; i++) { const a = i * Math.PI / 12; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 214, Math.sin(a) * 214); ctx.lineTo(Math.cos(a) * 246, Math.sin(a) * 246); ctx.stroke(); }
+  ctx.restore();
+  ctx.save(); ctx.rotate(-lobbyT * 0.5); ctx.lineWidth = 4;
+  for (const off of [0, Math.PI]) {   // two triangles = a six-point star
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) { const a = off - Math.PI / 2 + k * 2 * Math.PI / 3; k ? ctx.lineTo(Math.cos(a) * 200, Math.sin(a) * 200) : ctx.moveTo(Math.cos(a) * 200, Math.sin(a) * 200); }
+    ctx.closePath(); ctx.stroke();
+  }
+  ctx.restore(); ctx.restore();
+  // Pillar of light and rising sparks.
+  g = ctx.createLinearGradient(0, fy, 0, fy - 520);
+  g.addColorStop(0, "rgba(200,160,255,0.07)"); g.addColorStop(1, "rgba(200,160,255,0)");
+  ctx.fillStyle = g;
+  for (let k = 0; k < 6; k++) { const hw = 150 - k * 22; ctx.fillRect(cx - hw, fy - 520, hw * 2, 520); }   // layered = soft edges
+  for (let i = 0; i < 20; i++) {
+    const p = (lobbyT * 0.22 + i * 0.137) % 1, x = cx + Math.sin(i * 12.9) * 170 + Math.sin(lobbyT + i) * 8;
+    circle(x, fy - p * 480, 2.5 + (i % 3), `rgba(230,210,255,${0.8 * Math.sin(Math.PI * p)})`);
+  }
+  // The floating card back.
+  if (LOBBY.card_back.ready) {
+    const by = cy - 60 + Math.sin(lobbyT * 1.8) * 12;
+    ctx.save(); ctx.translate(cx, by); ctx.rotate(Math.sin(lobbyT * 1.1) * 0.05);
+    ctx.shadowColor = "#d6b8ff"; ctx.shadowBlur = 40 + Math.sin(lobbyT * 3) * 12;
+    ctx.drawImage(LOBBY.card_back.img, -110, -170, 220, 340); ctx.restore();
+  }
+}
+function drawSummonUi() {
+  text("SUMMON", W / 2, 190, 76, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
+  text("Call new spirits to your deck", W / 2, 244, 28, PARCH, { outline: 8 });
+  btn.summon.x = W / 2 - 150; btn.summon.y = H - 140; btn.summon.w = 300; btn.summon.h = 96;
+  drawBtn(btn.summon);
+  text(summonMsgT > 0 ? "Summoning is coming soon!" : "Coming soon", W / 2, H - 162, summonMsgT > 0 ? 26 : 22, summonMsgT > 0 ? GOLD : hexA(PARCH, 0.8), { outline: 6 });
+  drawBtn(btn.toLobby);
+}
+
+function drawHomeUi() {
   // Soft dark band behind the title so it reads over any sky.
   const g = ctx.createLinearGradient(0, 90, 0, 330); g.addColorStop(0, "rgba(20,10,30,0.45)"); g.addColorStop(1, "rgba(20,10,30,0)");
   ctx.fillStyle = g; ctx.fillRect(0, 90, W, 240);
@@ -2374,11 +2479,25 @@ function drawLobbyUi() {
   });
   btn.play.x = W / 2 - 150; btn.play.y = H - 140; btn.play.w = 300; btn.play.h = 96;
   btn.play.size = 40 + Math.sin(lobbyT * 3) * 1.5;
-  drawBtn(btn.play); drawBtn(btn.titleBook);
-  btn.lobbySound.label = Sfx.muted ? "Sound: Off" : "Sound: On"; drawBtn(btn.lobbySound);
+  drawBtn(btn.play); drawBtn(btn.toSummon);
   const found = RECIPE_LIST.filter(r => save.discovered[r[2]]).length;
   const stats = (save.best > 0 ? `Best: Wave ${waveLabel(save.best)}   ·   ` : "") + `${found}/${RECIPE_LIST.length} fusions found`;
   text(stats, W / 2, H - 20, 20, PARCH, { outline: 6 });
+}
+function drawLobbyUi() {
+  const pos = lobbyShownPos();
+  ctx.save(); ctx.translate(-pos * W, 0);
+  if (pos < 0.999) drawHomeUi();
+  ctx.translate(W, 0);
+  if (pos > 0.001) drawSummonUi();
+  ctx.restore();
+  // Fixed top bar: Spellbook, page dots, Sound.
+  drawBtn(btn.titleBook);
+  btn.lobbySound.label = Sfx.muted ? "Sound: Off" : "Sound: On"; drawBtn(btn.lobbySound);
+  for (let i = 0; i < 2; i++) {
+    const on = 1 - Math.min(1, Math.abs(pos - i));
+    circle(W / 2 - 16 + i * 32, 43, 9, INK); circle(W / 2 - 16 + i * 32, 43, 6, on > 0.5 ? GOLD : hexA(PARCH, 0.5));
+  }
 }
 
 // ------------------------------------------------------------ Loop
