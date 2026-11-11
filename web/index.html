@@ -1201,7 +1201,7 @@ function showInfo(t) { info = { text: t, t: 0 }; }
 
 function clearBoard() {
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
-  enemies = []; projectiles = []; zones = []; fxs = []; meteors = []; spell = null; drag = null; spawners = []; callCd = 0;
+  enemies = []; projectiles = []; zones = []; fxs = []; meteors = []; spell = null; speedT = 0; drag = null; spawners = []; callCd = 0;
 }
 function startRun() {
   clearBoard();
@@ -1522,7 +1522,7 @@ const RUNE_TIME = 5, RUNE_MATCH = 0.65, SPELL_SLOWMO = 0.25;
 // A rune is a list of strokes; each stroke is a polyline in a 0..1 box (y grows downward).
 // aspect = the rune's real width / height (the box is squashed to 0..1 on both axes).
 const SPELLS = {
-  meteor: { name: "Meteor", cost: 30, color: "#ff6a2a", aspect: 1,
+  meteor: { name: "Meteor", cost: 5, color: "#ff6a2a", aspect: 1,
             rune: [[[0, 0], [1, 0], [0, 1], [1, 1]]],
             desc: "Meteors crash onto the 3 strongest enemies." },
   // Snowflake: four equal lines through the centre, 45 degrees apart.
@@ -1533,6 +1533,10 @@ const SPELLS = {
   heal: { name: "Healing", cost: 25, color: "#6cff8a", aspect: 1,
           rune: [[[0.500, 0.000], [0.629, 0.017], [0.750, 0.067], [0.854, 0.146], [0.933, 0.250], [0.983, 0.371], [1.000, 0.500], [0.983, 0.629], [0.933, 0.750], [0.854, 0.854], [0.750, 0.933], [0.629, 0.983], [0.500, 1.000], [0.371, 0.983], [0.250, 0.933], [0.146, 0.854], [0.067, 0.750], [0.017, 0.629], [0.000, 0.500], [0.017, 0.371], [0.067, 0.250], [0.146, 0.146], [0.250, 0.067], [0.371, 0.017], [0.500, 0.000]], [[0.5, 0.22], [0.5, 0.78]], [[0.22, 0.5], [0.78, 0.5]]],
           desc: "Restores 25 castle HP." },
+  // Three equal arrowheads stacked upward.
+  speed: { name: "Speed Up!", cost: 20, color: "#ffd84a", aspect: 0.85,
+           rune: [[[0, 0.4], [0.5, 0], [1, 0.4]], [[0, 0.7], [0.5, 0.3], [1, 0.7]], [[0, 1], [0.5, 0.6], [1, 1]]],
+           desc: "Your cards attack 2.5x faster for 8 seconds." },
 };
 const RUNE_SETTLE = 0.6;   // seconds without a new line before a multi-line drawing is read
 let spell = null;      // { phase: "draw" | "result", t, strokes: [[[x,y]...]...], drawing, settle, match, score, failT }
@@ -1660,6 +1664,7 @@ function castSpell() {
   if (spell.match === "meteor") castMeteor();
   if (spell.match === "freeze") castFreeze();
   if (spell.match === "heal") castHeal();
+  if (spell.match === "speed") castSpeed();
   showBanner(`${sp.name}!`, sp.color);
   spell = null;
 }
@@ -1669,6 +1674,14 @@ function castMeteor() {
   spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) }));
 }
 // Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 6 seconds.
+// Speed Up: every card on the battle row attacks 2.5x faster for a few seconds.
+const SPEED_MULT = 2.5, SPEED_TIME = 8;
+let speedT = 0;
+function castSpeed() {
+  speedT = SPEED_TIME;
+  for (const c of rows.active) if (c) { c.cooldown = Math.min(c.cooldown, 0.05); fxs.push(new Fx("burst", { x: c.hx, y: c.hy, color: "#ffd84a", radius: 80, duration: 0.5 })); }
+  playSfx("lightning", "atk");
+}
 // Healing: +25 castle HP (up to the maximum), with green light over the wall.
 const HEAL_AMOUNT = 25;
 function castHeal() {
@@ -1964,6 +1977,7 @@ function update(dt) {
   if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover") return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt);
+  speedT = Math.max(0, speedT - dt);
   if (state === "wave") {
     for (const sp of spawners) {
       sp.timer -= dt;
@@ -1974,7 +1988,7 @@ function update(dt) {
     }
     for (const c of rows.active) {
       if (!c || (drag && drag.card === c)) continue;
-      c.cooldown -= dt;
+      c.cooldown -= dt * (speedT > 0 ? SPEED_MULT : 1);
       if (c.cooldown <= 0 && enemies.length) { fireCard(c); c.cooldown = 1 / rateOf(c.element, c.rarity); }
     }
   } else if (state === "break" && breakTimer > 0) {
@@ -2174,6 +2188,15 @@ function drawWorld() {
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
   drawMeteors();
+  if (speedT > 0) {
+    // Golden glow around the battle-row cards and a timer while Speed Up lasts.
+    const pulse = 0.5 + 0.5 * Math.sin(time * 14);
+    for (const c of rows.active) if (c) {
+      rrect(c.x - CARD_W / 2 - 6, c.y - CARD_H / 2 - 6, CARD_W + 12, CARD_H + 12, 14);
+      ctx.strokeStyle = `rgba(255,216,74,${0.45 + 0.4 * pulse})`; ctx.lineWidth = 4; ctx.stroke();
+    }
+    text(`SPEED UP x${SPEED_MULT}  ${Math.ceil(speedT)}s`, W / 2, FRONT_Y - 14, 24, "#ffd84a", { weight: 800, outline: 6 });
+  }
   if (freezeFlash > 0) { ctx.fillStyle = `rgba(190,235,255,${0.35 * freezeFlash})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H); }
 }
 
