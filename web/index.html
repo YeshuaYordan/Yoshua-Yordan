@@ -207,7 +207,10 @@ const levelOf = el => save.levels[el] || 1;
 const levelMult = el => 1 + LEVEL_BONUS * (levelOf(el) - 1);
 const copiesOf = el => save.copies[el] || 0;
 const levelNeed = el => levelOf(el) >= MAX_LEVEL ? 0 : LEVEL_NEED[levelOf(el) - 1];
-const canUpgrade = el => (!EL[el].special || save.specials[el]) && levelOf(el) < MAX_LEVEL && copiesOf(el) >= levelNeed(el);
+// A card is "open" in the Cards library once you know it: main elements always, fused cards once their recipe was
+// discovered (fusing them, or the Chamber for Phoenix), Special cards once unlocked.
+const cardKnown = el => EL[el].tier === 1 || (EL[el].special ? !!save.specials[el] : !!save.discovered[el]);
+const canUpgrade = el => cardKnown(el) && levelOf(el) < MAX_LEVEL && copiesOf(el) >= levelNeed(el);
 function summonOnce() {
   save.pity = (save.pity || 0) + 1;   // the caller (doSummon) pays the gems
   const r = Math.random(); let el, acc = SPECIAL_RATE;
@@ -3528,7 +3531,7 @@ let cardInfo = null;   // { el, card, t }
 function cardAt(p) {
   for (const cell of cardCells()) {
     if (!cell.el || cell.y + 4 < CARDS_TOP - 60) continue;
-    if (Math.abs(p.x - cell.x) < 46 && p.y > cell.y + 2 && p.y < cell.y + 108 && p.y > CARDS_TOP && p.y < H - 96) return cell.el;
+    if (cardKnown(cell.el) && Math.abs(p.x - cell.x) < 46 && p.y > cell.y + 2 && p.y < cell.y + 108 && p.y > CARDS_TOP && p.y < H - 96) return cell.el;
   }
   return null;
 }
@@ -3657,12 +3660,14 @@ function drawCardsUi(dt) {
     if (cell.el) upgradeBtns[cell.el].y = -999;   // set again below when the button is drawn
     if (cell.y > H || cell.y < CARDS_TOP - 200) continue;
     if (cell.title) { text(cell.title, 24, cell.y + 4, 24, "#e9d3a6", { align: "left", weight: 700, outline: 6 }); continue; }
-    const el = cell.el, d = EL[el], locked = d.special && !save.specials[el], cx = cell.x, top = cell.y + 4;
-    if (locked) {
-      if (LOBBY.card_back.ready) { ctx.save(); ctx.globalAlpha = 0.55; ctx.drawImage(LOBBY.card_back.img, cx - 40, top, 80, 98); ctx.restore(); }
-      text("?", cx, top + 62, 40, PARCH, { font: DISPLAY, weight: 900, outline: 8 });
-      text("Summon to", cx, top + 124, 17, hexA(PARCH, 0.75), { outline: 5 });
-      text("unlock", cx, top + 144, 17, hexA(PARCH, 0.75), { outline: 5 });
+    const el = cell.el, d = EL[el], cx = cell.x, top = cell.y + 4;
+    if (!cardKnown(el)) {
+      // Not opened yet: the card back with ???, and how to open it.
+      if (LOBBY.card_back.ready) { ctx.save(); ctx.globalAlpha = d.special ? 0.55 : 0.9; ctx.drawImage(LOBBY.card_back.img, cx - 40, top, 80, 98); ctx.restore(); }
+      text("???", cx, top + 58, 26, PARCH, { font: DISPLAY, weight: 900, outline: 7 });
+      text("???", cx, top + 122, 19, PARCH, { weight: 700, outline: 5 });
+      const hint = d.special ? "Summon to unlock" : copiesOf(el) ? `${copiesOf(el)} cop${copiesOf(el) > 1 ? "ies" : "y"} saved` : d.myth ? "Fuse in Chamber" : "Fuse to discover";
+      text(hint, cx, top + 144, 15, hexA(PARCH, 0.75), { outline: 4 });
       continue;
     }
     const c = collectionCards[el]; c.t += dt; c.evolveAt = -1; c.x = c.hx = cx; c.y = c.hy = top + 49; c.scale = 0.72; c.draw();
