@@ -1517,8 +1517,8 @@ function drawFusion() {
 
 // ------------------------------------------------------------ Rune spells (draw a rune from memory)
 // Tap Spell: the battle slows down and you have 5 seconds to draw one rune in a single stroke. The drawing is
-// compared with every spell's rune; a match of 80% or more lets you cast that spell for its gold cost.
-const RUNE_TIME = 5, RUNE_MATCH = 0.8, SPELL_SLOWMO = 0.25;
+// compared with every spell's rune; a match of 65% or more lets you cast that spell for its gold cost.
+const RUNE_TIME = 5, RUNE_MATCH = 0.65, SPELL_SLOWMO = 0.25;
 // A rune is a list of strokes; each stroke is a polyline in a 0..1 box (y grows downward).
 // aspect = the rune's real width / height (the box is squashed to 0..1 on both axes).
 const SPELLS = {
@@ -1613,7 +1613,13 @@ function recognizeRune(strokes) {
     } else {
       // Different number of lines than the rune: a small penalty per missing or extra line.
       const penalty = 0.06 * Math.abs(lines.length - sp.rune.length);
-      score = Math.max(0, 1 - cloudMatch(cloud, toCloud(runeStrokes(sp))) / CLOUD_FAIL - penalty);
+      // A slightly tilted drawing still counts: try the drawing turned up to 25 degrees either way.
+      const tpl = toCloud(runeStrokes(sp)); let best = Infinity;
+      for (let deg = -25; deg <= 25; deg += 5) {
+        const c = Math.cos(deg * Math.PI / 180), s2 = Math.sin(deg * Math.PI / 180);
+        best = Math.min(best, cloudMatch(cloud.map(([x, y]) => [x * c - y * s2, x * s2 + y * c]), tpl));
+      }
+      score = Math.max(0, 1 - best / CLOUD_FAIL - penalty);
     }
     if (!best || score > best.score) best = { id, score };
   }
@@ -2291,7 +2297,7 @@ function runeLines() {
   const L = [];
   L.push({ center: true, segs: [["Runes", INK, 32, DISPLAY, 900]] });
   L.push({ center: true, segs: [["Tap Spell in battle, then draw a rune (one or more lines).", "#6b3a22", 19]] });
-  L.push({ center: true, segs: [["You have 5 seconds. 80% match casts the spell.", "#6b3a22", 19]] });
+  L.push({ center: true, segs: [[`You have 5 seconds. ${Math.round(RUNE_MATCH * 100)}% match casts the spell.`, "#6b3a22", 19]] });
   L.push({ gap: 18 });
   for (const [id, sp] of Object.entries(SPELLS)) {
     L.push({ rune: id, h: 150 });
