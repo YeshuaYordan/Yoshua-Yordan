@@ -188,12 +188,15 @@ function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.str
 const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
 const PULL_COST = 10;            // gems per summon
 const PITY = 100;                // a Special card is guaranteed on this pull
-const SPECIAL_RATE = 0.005, MAIN_RATE = 0.6;   // the rest (39.5%) are next elements
+const SPECIAL_RATE = 0.005, MAIN_RATE = 0.6, EPIC_RATE = 0.075;   // the rest (32%) are next elements
 const LEVEL_NEED = [5, 10, 20, 40], LEVEL_BONUS = 0.2, MAX_LEVEL = 5;   // copies for Lv2..Lv5, +20% damage each
 const SPECIAL_SHOP_CHANCE = 0.02;   // chance for each shop slot to offer an owned Special card
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice"];
 const SPECIALS = ["solarflare", "tidalwave", "earthquake", "tempest"];
-const UPGRADABLE = [...BASE, ...NEXT_ELS, ...SPECIALS];
+const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3);   // the 11 Epic elements + the Myth Phoenix
+const UPGRADABLE = [...BASE, ...NEXT_ELS, ...EPIC_ELS, ...SPECIALS];
+// How a card is shown outside of a run (Summon reveal, Cards page).
+const showRarity = el => EL[el].special ? SPECIAL : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : V3;
 const pickOne = a => a[Math.floor(Math.random() * a.length)];
 const levelOf = el => save.levels[el] || 1;
 const levelMult = el => 1 + LEVEL_BONUS * (levelOf(el) - 1);
@@ -206,6 +209,7 @@ function summonOnce() {
   const r = Math.random(); let el;
   if (save.pity >= PITY || r < SPECIAL_RATE) { el = pickOne(SPECIALS); save.pity = 0; }
   else if (r < SPECIAL_RATE + MAIN_RATE) el = pickOne(BASE);
+  else if (r < SPECIAL_RATE + MAIN_RATE + EPIC_RATE) el = pickOne(EPIC_ELS);
   else el = pickOne(NEXT_ELS);
   const isNew = !!EL[el].special && !save.specials[el];
   if (isNew) save.specials[el] = true;           // first copy unlocks it for the shop
@@ -1791,7 +1795,7 @@ function visibleButtons() {
     const top = [btn.titleBook, btn.lobbySound];
     if (lobbyPage === 0) return [btn.play, btn.toSummon, btn.toCards, ...top];
     if (lobbyPage === 1) return [btn.summon, btn.rates, btn.toLobby, ...top];
-    return [btn.toLobbyR, ...UPGRADABLE.filter(canUpgrade).map(el => upgradeBtns[el]), ...top];
+    return [btn.toLobbyR, ...visibleUpgradeBtns(), ...top];
   }
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
@@ -1877,7 +1881,10 @@ function pointerUp(ev) {
 }
 canvas.addEventListener("pointerup", pointerUp);
 canvas.addEventListener("pointercancel", () => { cancelDrag(); bookDrag = null; if (lobbySwipe?.btn) lobbySwipe.btn.down = false; lobbySwipe = null; });
-canvas.addEventListener("wheel", ev => { if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); } }, { passive: false });
+canvas.addEventListener("wheel", ev => {
+  if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); }
+  else if (state === "title" && lobbyPage === -1) { cardsScroll = clamp(cardsScroll + ev.deltaY, 0, cardsMaxScroll()); ev.preventDefault(); }
+}, { passive: false });
 document.addEventListener("keydown", ev => {
   if (state === "title" && !bookOpen && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) setLobbyPage(lobbyPage + (ev.key === "ArrowRight" ? 1 : -1));
   if (ev.key === "Escape") { if (bookOpen) bookOpen = false; else if (chamberOpen && !fusion) closeChamber(); else if (state === "wave" || state === "break") paused = !paused; }
@@ -2501,12 +2508,18 @@ function lobbyDown(p) {
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
   if (summonReveal || ratesOpen) return;   // no swiping under a popup
-  if (!s.moved && Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(p.y - s.y0)) { s.moved = true; if (s.btn) s.btn.down = false; }
-  if (s.moved) s.dx = dx;
+  const dy = p.y - s.y0;
+  if (!s.moved && !s.vscroll) {
+    if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
+    else if (lobbyPage === -1 && lobbySettled() && Math.abs(dy) > 14) { s.vscroll = true; s.scroll0 = cardsScroll; if (s.btn) s.btn.down = false; }
+  }
+  if (s.vscroll) cardsScroll = clamp(s.scroll0 - dy, 0, cardsMaxScroll());
+  else if (s.moved) s.dx = dx;
 }
 function lobbyUp(p) {
   const s = lobbySwipe; if (!s) return;
   if (s.btn) s.btn.down = false;
+  if (s.vscroll) { lobbySwipe = null; return; }
   if (!s.moved) {
     lobbySwipe = null;
     if (s.btn && inRect(p, s.btn)) s.btn.onTap();
@@ -2523,7 +2536,7 @@ function flashSummonMsg(m) { summonMsg = m; summonMsgT = 2.2; }
 function doSummon() {
   if (save.gems < PULL_COST) { flashSummonMsg(`Not enough gems! Clear a stage (${STAGE_LEN} waves) for 1 gem.`); playSfx("ash", "hit"); return; }
   const r = summonOnce(); if (!r) return;
-  const c = new Card(r.el, EL[r.el].special ? SPECIAL : V3); c.noLabel = true;
+  const c = new Card(r.el, showRarity(r.el)); c.noLabel = true;
   summonReveal = { ...r, card: c, t: 0 };
   playUi("ui_pick");
 }
@@ -2626,12 +2639,13 @@ function drawSummonReveal(dt) {
 }
 function drawRates() {
   dim(0.7);
-  const x = 60, y = H / 2 - 270, w = W - 120, h = 540;
+  const x = 60, y = H / 2 - 316, w = W - 120, h = 632;
   rrect(x, y, w, h, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
   text("Summon Rates", W / 2, y + 62, 36, INK, { font: DISPLAY, weight: 900 });
   const rows = [
     ["Main element copy", "60%", "Fire, Water, Earth, Wind: 15% each"],
-    ["Next element copy", "39.5%", "Lava, Steam, Lightning, Plant, Dust, Ice: 6.58% each"],
+    ["Next element copy", "32%", "Lava, Steam, Lightning, Plant, Dust, Ice: 5.33% each"],
+    ["Epic element copy", "7.5%", "11 Epic elements + Phoenix: 0.625% each"],
     ["Special card", "0.5%", "Solar Flare, Tidal Wave, Earthquake, Tempest: 0.125% each"],
   ];
   rows.forEach(([a, b, c], i) => {
@@ -2639,16 +2653,18 @@ function drawRates() {
     text(a, x + 30, ry, 25, INK, { align: "left", weight: 700 }); text(b, x + w - 30, ry, 25, "#7a3fb0", { align: "right", weight: 700 });
     text(c, x + 30, ry + 30, 17, "#6b3a22", { align: "left", weight: 500 });
   });
-  text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 418, 20, INK, { weight: 600 });
-  text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 446, 18, "#6b3a22", { weight: 500 });
+  text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 510, 20, INK, { weight: 600 });
+  text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 538, 18, "#6b3a22", { weight: 500 });
   btn.closeRates.y = y + h - 90 + 10; drawBtn(btn.closeRates);
 }
 
 // ---- Cards page: every upgradable card with its level, copies and an Upgrade button.
-const CARD_GROUPS = [["Main Elements", BASE], ["Next Elements", NEXT_ELS], ["Special Cards", SPECIALS]];
+const CARD_GROUPS = [["Main Elements", BASE], ["Next Elements", NEXT_ELS], ["Epic Elements", EPIC_ELS], ["Special Cards", SPECIALS]];
+let cardsScroll = 0;
+const CARDS_TOP = 236;   // the page header covers everything above this line
 const collectionCards = {}, upgradeBtns = {};
 for (const el of UPGRADABLE) {
-  const c = new Card(el, EL[el].special ? SPECIAL : V3); c.noLabel = true; collectionCards[el] = c;
+  const c = new Card(el, showRarity(el)); c.noLabel = true; collectionCards[el] = c;
   upgradeBtns[el] = Object.assign(makeBtn("Upgrade", 0, 0, 130, 40, () => {
     if (upgradeCard(el)) { upgradeFx = { el, t: 0 }; playUi("ui_place"); playSfx(EL[el].base || el, "atk"); }
   }, 20), { fill: "#9cff9c", fillDown: "#6cd66c" });
@@ -2656,7 +2672,7 @@ for (const el of UPGRADABLE) {
 // Cell positions for the grid (4 columns), shared by drawing and tapping.
 function cardCells() {
   const cells = [], colW = 172, x0 = W / 2 - colW * 1.5, rowH = 186;
-  let y = 262 + Math.max(0, H - 1280) * 0.25;
+  let y = 262 - cardsScroll;
   for (const [title, list] of CARD_GROUPS) {
     cells.push({ title, y }); y += 26;
     list.forEach((el, i) => {
@@ -2665,8 +2681,12 @@ function cardCells() {
     });
     y += rowH + 18;
   }
+  cells.bottom = y + cardsScroll;
   return cells;
 }
+const cardsMaxScroll = () => Math.max(0, cardCells().bottom - (H - 110));
+// Upgrade buttons that are on screen right now (not under the header or the Lobby tab).
+const visibleUpgradeBtns = () => UPGRADABLE.filter(canUpgrade).map(el => upgradeBtns[el]).filter(b => b.y > CARDS_TOP && b.y + b.h < H - 96);
 function drawCardsScene() {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, "#3a2418"); g.addColorStop(1, "#1a0f0a");
@@ -2675,9 +2695,10 @@ function drawCardsScene() {
   for (let y = 40; y < H; y += 46) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y + 8); ctx.stroke(); }   // wood grain
 }
 function drawCardsUi(dt) {
-  text("CARDS", W / 2, 172, 70, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
-  text("Upgrades add +20% damage per level", W / 2, 218, 24, PARCH, { outline: 7 });
+  cardsScroll = clamp(cardsScroll, 0, cardsMaxScroll());
   for (const cell of cardCells()) {
+    if (cell.el) upgradeBtns[cell.el].y = -999;   // set again below when the button is drawn
+    if (cell.y > H || cell.y < CARDS_TOP - 200) continue;
     if (cell.title) { text(cell.title, 24, cell.y + 4, 24, "#e9d3a6", { align: "left", weight: 700, outline: 6 }); continue; }
     const el = cell.el, d = EL[el], locked = d.special && !save.specials[el], cx = cell.x, top = cell.y + 4;
     if (locked) {
@@ -2687,7 +2708,7 @@ function drawCardsUi(dt) {
       text("unlock", cx, top + 144, 17, hexA(PARCH, 0.75), { outline: 5 });
       continue;
     }
-    const c = collectionCards[el]; c.t += dt; c.x = c.hx = cx; c.y = c.hy = top + 49; c.scale = 0.72; c.draw();
+    const c = collectionCards[el]; c.t += dt; c.evolveAt = -1; c.x = c.hx = cx; c.y = c.hy = top + 49; c.scale = 0.72; c.draw();
     if (upgradeFx && upgradeFx.el === el) {
       const k = 1 - upgradeFx.t / 0.9;
       ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(cx, top + 49, 70 * (1 - k * 0.4), `rgba(160,255,160,${0.5 * k})`); ctx.restore();
@@ -2702,6 +2723,19 @@ function drawCardsUi(dt) {
       if (k > 0) { rrect(bx, by, Math.max(16, bw * k), 16, 8); ctx.fillStyle = need ? "#c9a6ff" : GOLD; ctx.fill(); }
       text(need ? `${copiesOf(el)} / ${need}` : "MAX", cx, by + 34, 16, hexA(PARCH, 0.85), { weight: 600, outline: 4 });
     }
+  }
+  // Fixed header over the scrolling grid.
+  const g = ctx.createLinearGradient(0, 0, 0, CARDS_TOP + 26);
+  g.addColorStop(0, "#3a2418"); g.addColorStop(0.85, "#33201a"); g.addColorStop(1, "rgba(51,32,26,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, CARDS_TOP + 26);
+  text("CARDS", W / 2, 172, 70, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
+  text("Upgrades add +20% damage per level", W / 2, 218, 24, PARCH, { outline: 7 });
+  // Scroll bar.
+  const max = cardsMaxScroll();
+  if (max > 0) {
+    const trackH = H - CARDS_TOP - 130, barH = Math.max(50, trackH * (H - CARDS_TOP) / (H - CARDS_TOP + max));
+    rrect(W - 12, CARDS_TOP + 20, 6, trackH, 3); ctx.fillStyle = "rgba(255,255,255,0.08)"; ctx.fill();
+    rrect(W - 12, CARDS_TOP + 20 + (trackH - barH) * cardsScroll / max, 6, barH, 3); ctx.fillStyle = "rgba(233,211,166,0.5)"; ctx.fill();
   }
   btn.toLobbyR.y = H - 86; drawBtn(btn.toLobbyR);
 }
