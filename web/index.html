@@ -1071,7 +1071,7 @@ function showInfo(t) { info = { text: t, t: 0 }; }
 
 function clearBoard() {
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
-  enemies = []; projectiles = []; zones = []; fxs = []; drag = null; spawners = []; callCd = 0;
+  enemies = []; projectiles = []; zones = []; fxs = []; meteors = []; spell = null; drag = null; spawners = []; callCd = 0;
 }
 function startRun() {
   clearBoard();
@@ -1377,6 +1377,165 @@ function drawFusion() {
   }
 }
 
+// ------------------------------------------------------------ Rune spells (draw a rune from memory)
+// Tap Spell: the battle slows down and you have 5 seconds to draw one rune in a single stroke. The drawing is
+// compared with every spell's rune; a match of 80% or more lets you cast that spell for its gold cost.
+const RUNE_TIME = 5, RUNE_MATCH = 0.8, SPELL_SLOWMO = 0.25;
+// Rune shapes are polylines in a 0..1 box (y grows downward), drawn in this order.
+const SPELLS = {
+  meteor: { name: "Meteor", cost: 30, color: "#ff6a2a", rune: [[0, 0], [1, 0], [0, 1], [1, 1]],
+            desc: "Meteors crash onto the 3 strongest enemies." },
+};
+let spell = null;      // { phase: "draw" | "result", t, stroke: [[x,y]...], drawing, match, score, failT }
+let meteors = [];
+
+// --- Shape recognition (a "$1 recognizer" without rotation: size and position do not matter, shape and direction do).
+function resamplePath(pts, n = 64) {
+  let len = 0; for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  if (len === 0) return null;
+  const step = len / (n - 1), out = [pts[0].slice()], src = pts.map(p => p.slice());
+  let acc = 0;
+  for (let i = 1; i < src.length; i++) {
+    const d = Math.hypot(src[i][0] - src[i - 1][0], src[i][1] - src[i - 1][1]);
+    if (acc + d >= step && d > 0) {
+      const k = (step - acc) / d, q = [src[i - 1][0] + k * (src[i][0] - src[i - 1][0]), src[i - 1][1] + k * (src[i][1] - src[i - 1][1])];
+      out.push(q); src.splice(i, 0, q); acc = 0;
+    } else acc += d;
+  }
+  while (out.length < n) out.push(src[src.length - 1].slice());
+  return out.slice(0, n);
+}
+function normalizePath(pts) {
+  const r = resamplePath(pts); if (!r) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of r) { minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); }
+  let w = maxX - minX, h = maxY - minY;
+  if (Math.max(w, h) < 1e-6) return null;
+  if (Math.min(w, h) < 0.25 * Math.max(w, h)) w = h = Math.max(w, h);   // nearly straight strokes: keep proportions
+  const s = r.map(([x, y]) => [(x - minX) / w, (y - minY) / h]);
+  const cx = s.reduce((a, p) => a + p[0], 0) / s.length, cy = s.reduce((a, p) => a + p[1], 0) / s.length;
+  return s.map(([x, y]) => [x - cx, y - cy]);
+}
+const pathDistance = (a, b) => a.reduce((sum, p, i) => sum + Math.hypot(p[0] - b[i][0], p[1] - b[i][1]), 0) / a.length;
+// Returns { id, score } for the closest spell (score 0..1), or null for a stroke too small to read.
+function recognizeRune(stroke) {
+  if (stroke.length < 6) return null;
+  const c = normalizePath(stroke); if (!c) return null;
+  let best = null;
+  for (const [id, sp] of Object.entries(SPELLS)) {
+    const t = normalizePath(sp.rune), tr = t.slice().reverse();
+    const d = Math.min(pathDistance(c, t), pathDistance(c, tr));
+    const score = Math.max(0, 1 - d / (0.5 * Math.SQRT2));
+    if (!best || score > best.score) best = { id, score };
+  }
+  return best;
+}
+
+// --- Flow
+function openSpell() {
+  if ((state !== "wave" && state !== "break") || spell) return;
+  cancelDrag();
+  spell = { phase: "draw", t: RUNE_TIME, stroke: [], drawing: false, match: null, score: 0 };
+  showInfo("");
+}
+function finishRune(timedOut) {
+  if (!spell || spell.phase !== "draw") return;
+  const r = timedOut ? null : recognizeRune(spell.stroke);
+  spell.phase = "result"; spell.drawing = false;
+  spell.score = r ? r.score : 0;
+  if (r && r.score >= RUNE_MATCH) {
+    spell.match = r.id;
+    playSfx("phoenix", "atk");
+  } else {
+    spell.match = null; spell.failT = 1.6;
+    spell.reason = timedOut ? "Out of time" : "";
+    playSfx("ash", "hit");
+  }
+}
+function castSpell() {
+  if (!spell || !spell.match) return;
+  const sp = SPELLS[spell.match];
+  if (gold < sp.cost) { showInfo(`Not enough gold: ${sp.name} costs ${sp.cost}.`); return; }
+  gold -= sp.cost;
+  if (spell.match === "meteor") castMeteor();
+  showBanner(`${sp.name}!`, sp.color);
+  spell = null;
+}
+function castMeteor() {
+  const targets = enemies.filter(e => !e.dead).sort((a, b) => b.hp - a.hp).slice(0, 3);
+  const spots = targets.length ? targets.map(e => [e.x, e.y]) : [[W / 2, 380]];
+  spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) }));
+}
+function updateSpell(realDt) {
+  if (!spell) return;
+  if (spell.phase === "draw") { spell.t -= realDt; if (spell.t <= 0) finishRune(true); }
+  else if (!spell.match) { spell.failT -= realDt; if (spell.failT <= 0) spell = null; }
+}
+function updateMeteors(dt) {
+  for (const m of meteors) {
+    m.t += dt;
+    if (m.t >= m.dur && !m.done) {
+      m.done = true;
+      for (const e of enemies.slice()) if (!e.dead && Math.hypot(e.x - m.tx, e.y - m.ty) <= 100 + e.size) { e.burn(25, 3); e.takeDamage(m.dmg); }
+      fxs.push(new Fx("burst", { x: m.tx, y: m.ty, color: "#ff6a2a", radius: 130, duration: 0.5 }));
+      fxs.push(new Fx("burst", { x: m.tx, y: m.ty, color: "#ffe27a", radius: 80, duration: 0.4 }));
+      const z = new Zone(m.tx, m.ty, 70, 20, 2.5, "#ff5a1f"); z.burnAmt = 10; zones.push(z);
+      wallFlash = 0; playSfx("lava", "hit");
+    }
+  }
+  meteors = meteors.filter(m => !m.done);
+}
+function drawMeteors() {
+  for (const m of meteors) {
+    if (m.t < 0) continue;
+    const k = Math.min(1, m.t / m.dur), x = lerp(m.x0, m.tx, k), y = lerp(m.y0, m.ty, k);
+    for (let i = 6; i >= 1; i--) { const kk = Math.max(0, k - i * 0.04); circle(lerp(m.x0, m.tx, kk), lerp(m.y0, m.ty, kk), 16 - i * 1.6, `rgba(255,${120 + i * 15},40,${0.35 - i * 0.04})`); }
+    circle(x, y, 26, "rgba(255,120,40,0.35)"); circle(x, y, 17, "#5a2a14"); ring(x, y, 17, INK, 3); circle(x - 5, y - 5, 6, "#ff8a3a");
+    ctx.save(); ctx.globalAlpha = 0.5; ellipse(m.tx, m.ty + 6, 30 * k, 10 * k, "rgba(0,0,0,0.5)"); ctx.restore();
+  }
+}
+// The rune drawn as a glowing line inside a box (used by the Spellbook Runes page).
+function drawRuneIcon(rune, x, y, w, h, color) {
+  ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const [lw, c] of [[10, hexA(color, 0.25)], [4, color]]) {
+    ctx.beginPath(); rune.forEach(([u, v], i) => { const px = x + u * w, py = y + v * h; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+    ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.stroke();
+  }
+  circle(x + rune[0][0] * w, y + rune[0][1] * h, 5, color);   // start point
+  ctx.restore();
+}
+function drawSpell() {
+  if (!spell) return;
+  ctx.fillStyle = "rgba(14,6,26,0.55)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
+  // Glowing stroke.
+  const st = spell.stroke, ok = spell.phase === "result" && spell.match, bad = spell.phase === "result" && !spell.match;
+  const col = ok ? SPELLS[spell.match].color : bad ? "#8c7f6c" : "#d9b8ff";
+  if (st.length > 1) {
+    ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (const [lw, c] of [[22, hexA(col, 0.18)], [10, hexA(col, 0.45)], [4, "#fffaf0"]]) {
+      ctx.beginPath(); st.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (spell.phase === "draw") {
+    text("Draw a rune!", W / 2, 150, 40, "#e3c9ff", { font: DISPLAY, weight: 900, outline: 8 });
+    const k = Math.max(0, spell.t / RUNE_TIME);
+    rrect(160, 176, 400, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
+    rrect(160, 176, 400 * k, 16, 8); ctx.fillStyle = k > 0.3 ? "#b36bff" : "#e0533f"; ctx.fill();
+    text(`${spell.t.toFixed(1)}s`, W / 2, 222, 22, PARCH, { outline: 5 });
+  } else if (spell.match) {
+    const sp = SPELLS[spell.match];
+    text(sp.name, W / 2, 170, 56, sp.color, { font: DISPLAY, weight: 900, outline: 10 });
+    text(`${Math.round(spell.score * 100)}% match`, W / 2, 212, 22, PARCH, { outline: 5 });
+    text(sp.desc, W / 2, 560, 22, PARCH, { outline: 6 });
+    btn.castSpell.label = `Cast (${sp.cost} gold)`;
+    drawBtn(btn.castSpell, gold < sp.cost); drawBtn(btn.cancelSpell);
+  } else {
+    text("Spell failed", W / 2, 360, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 10 });
+    if (spell.reason) text(spell.reason, W / 2, 404, 24, PARCH, { outline: 6 });
+  }
+}
+
 // ------------------------------------------------------------ Buttons
 function makeBtn(label, x, y, w, h, onTap, size = 26) { return { label, x, y, w, h, onTap, size, down: false }; }
 const btn = {
@@ -1385,6 +1544,11 @@ const btn = {
   closeChamber: makeBtn("Close", 370, 520, 200, 76, () => closeChamber(), 28),
   pause: makeBtn("II", 600, 9, 106, 54, () => { cancelDrag(); paused = true; }),
   next: makeBtn("Next Wave", 14, HUD_H + 14, 230, 60, () => beginWave(), 24),
+  spell: makeBtn("Spell", 256, HUD_H + 14, 150, 60, () => openSpell(), 24),
+  castSpell: makeBtn("Cast", 150, 600, 260, 80, () => castSpell(), 26),
+  cancelSpell: makeBtn("Cancel", 430, 600, 140, 80, () => { spell = null; }, 26),
+  tabFusions: makeBtn("Fusions", 120, 128, 220, 56, () => { bookTab = "fusions"; bookScroll = 0; }, 24),
+  tabRunes: makeBtn("Runes", 380, 128, 220, 56, () => { bookTab = "runes"; bookScroll = 0; }, 24),
   reroll: makeBtn("Reroll", 450, 1100, 250, 96, () => reroll(), 28),
   play: makeBtn("Play", 180, 560, 360, 90, () => startRun(), 38),
   titleBook: makeBtn("Spellbook", 180, 670, 360, 76, () => openBook()),
@@ -1401,6 +1565,7 @@ const btn = {
   title: makeBtn("Title", 180, 806, 360, 76, () => { state = "title"; clearBoard(); }),
   closeBook: makeBtn("Close", 240, 1078, 240, 70, () => { bookOpen = false; }),
 };
+let bookTab = "fusions";
 function openBook() { cancelDrag(); bookOpen = true; bookScroll = 0; }
 const isEpic = c => c && EL[c.element].tier === 3 && c.rarity === EPIC;
 const canGoOnAltar = c => c && EL[c.element].tier === 3 && (c.rarity === EPIC || c.rarity === MYTH);
@@ -1432,13 +1597,14 @@ function chamberDrop(d, p) {
   if (other) { const b = slotPos(d.from, d.index); other.setHome(b.x, b.y); }
 }
 function visibleButtons() {
-  if (bookOpen) return [btn.closeBook];
+  if (bookOpen) return [btn.closeBook, btn.tabFusions, btn.tabRunes];
+  if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") return [btn.play, btn.titleBook];
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
   const list = [btn.chamber, btn.pause, btn.reroll];
-  if (!drag) list.push(btn.next);
+  if (!drag) list.push(btn.next, btn.spell);
   return list;
 }
 function drawBtn(b, disabled = false) {
@@ -1470,6 +1636,10 @@ canvas.addEventListener("pointerdown", ev => {
   }
   if (bookOpen) { bookDrag = { y: p.y, s: bookScroll }; return; }
   if (fusion) return;
+  if (spell) {
+    if (spell.phase === "draw" && !spell.drawing && p.y > HUD_H && p.y < FRONT_Y) { spell.drawing = true; spell.stroke = [[p.x, p.y]]; }
+    return;
+  }
   if (paused || (state !== "wave" && state !== "break")) return;
   const s = slotAt(p);
   if (!s || !rows[s[0]][s[1]]) return;
@@ -1482,6 +1652,7 @@ canvas.addEventListener("pointerdown", ev => {
 canvas.addEventListener("pointermove", ev => {
   const p = toLogical(ev); pointer = p;
   if (bookOpen && bookDrag) { bookScroll = bookDrag.s - (p.y - bookDrag.y); return; }
+  if (spell && spell.drawing) { const l = spell.stroke[spell.stroke.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1]) > 3) spell.stroke.push([p.x, p.y]); return; }
   if (!drag) return;
   drag.card.x = p.x + drag.ox; drag.card.y = p.y + drag.oy;
   if (Math.hypot(p.x - drag.px, p.y - drag.py) > 12) drag.moved = true;
@@ -1489,6 +1660,7 @@ canvas.addEventListener("pointermove", ev => {
 });
 function pointerUp(ev) {
   const p = toLogical(ev); pointer = p; bookDrag = null;
+  if (spell && spell.drawing) { finishRune(false); return; }
   if (!drag) return;
   const d = drag; cancelDrag();
   // Dropping on the Sell box plays the coin sound (from sell) instead of the place sound.
@@ -1516,6 +1688,8 @@ document.addEventListener("keydown", ev => {
 
 // ------------------------------------------------------------ Update
 function update(dt) {
+  updateSpell(dt);
+  if (spell) dt *= SPELL_SLOWMO;   // slow motion while drawing / choosing a spell
   time += dt;
   banner.t += dt; info.t += dt;
   restartArmed = Math.max(0, restartArmed - dt);
@@ -1543,6 +1717,7 @@ function update(dt) {
   for (const e of enemies.slice()) e.update(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
+  updateMeteors(dt);
   for (const f of fxs) f.update(dt);
   projectiles = projectiles.filter(p => !p.dead); zones = zones.filter(z => !z.dead); fxs = fxs.filter(f => !f.dead);
   if (state === "wave") {
@@ -1732,6 +1907,7 @@ function drawWorld() {
   if (!chamberOpen) for (const p of projectiles) p.draw();
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
+  drawMeteors();
 }
 
 function drawHud() {
@@ -1763,7 +1939,8 @@ function drawHud() {
     drawBtn(btn.chamber); drawBtn(btn.pause); drawBtn(btn.reroll, gold < rerollCost);
     drawSellBox();
   }
-  if (!drag && !paused && !chamberOpen) {
+  if (!drag && !paused && !chamberOpen && !spell) {
+    drawBtn(btn.spell);
     drawBtn(btn.next, callCd > 0);
     // Cooldown bar along the bottom of the button.
     if (callCd > 0) {
@@ -1886,7 +2063,20 @@ function drawOverlays() {
   if (bookOpen) drawBook();
 }
 
+function runeLines() {
+  const L = [];
+  L.push({ center: true, segs: [["Runes", INK, 32, DISPLAY, 900]] });
+  L.push({ center: true, segs: [["Tap Spell in battle, then draw a rune in one stroke.", "#6b3a22", 19]] });
+  L.push({ center: true, segs: [["You have 5 seconds. 80% match casts the spell.", "#6b3a22", 19]] });
+  L.push({ gap: 18 });
+  for (const [id, sp] of Object.entries(SPELLS)) {
+    L.push({ rune: id, h: 150 });
+    L.push({ gap: 10 });
+  }
+  return L;
+}
 function bookLines() {
+  if (bookTab === "runes") return runeLines();
   const L = [];
   const found = RECIPE_LIST.filter(r => save.discovered[r[2]]).length;
   L.push({ center: true, segs: [["Spellbook of Fusions", INK, 32, DISPLAY, 900]] });
@@ -1940,14 +2130,24 @@ function drawBook() {
   rrect(bx, by + 10, bw, bh, 18); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill();
   rrect(bx, by, bw, bh, 18); ctx.fillStyle = "#6b3a22"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
   rrect(bx + 12, by + 12, bw - 24, bh - 24, 10); ctx.fillStyle = "#efdcb4"; ctx.fill();
-  const top = by + 36, bottom = by + bh - 110, left = bx + 46;
+  const top = by + 96, bottom = by + bh - 110, left = bx + 46;
   ctx.save(); ctx.beginPath(); ctx.rect(bx + 12, top - 12, bw - 24, bottom - top + 12); ctx.clip();
   const lines = bookLines();
-  let total = 0; for (const l of lines) total += l.gap || Math.max(...l.segs.map(s => s[2])) * 1.4;
+  let total = 0; for (const l of lines) total += l.gap || l.h || Math.max(...l.segs.map(s => s[2])) * 1.4;
   bookScroll = clamp(bookScroll, 0, Math.max(0, total - (bottom - top)));
   let y = top - bookScroll;
   for (const l of lines) {
     if (l.gap) { y += l.gap; continue; }
+    if (l.rune) {
+      const sp = SPELLS[l.rune];
+      rrect(left, y + 6, 150, 138, 14); ctx.fillStyle = "#2a1640"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+      drawRuneIcon(sp.rune, left + 30, y + 30, 90, 90, sp.color);
+      text(sp.name, left + 172, y + 46, 32, shade(sp.color, -0.3), { align: "left", font: DISPLAY, weight: 900 });
+      text(`Cost: ${sp.cost} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
+      text(sp.desc, left + 172, y + 110, 17, "#6b5a48", { align: "left", weight: 500 });
+      text("Dot = start of the stroke", left + 172, y + 136, 15, "#a89878", { align: "left", weight: 500 });
+      y += l.h; continue;
+    }
     const lh = Math.max(...l.segs.map(s => s[2])) * 1.4; y += lh;
     let widths = l.segs.map(s => { ctx.font = `${s[4] || 600} ${s[2]}px ${s[3] || FONT}`; return ctx.measureText(s[0]).width; });
     let x = l.center ? W / 2 - widths.reduce((a, b) => a + b, 0) / 2 : left + (l.indent || 0);
@@ -1958,6 +2158,7 @@ function drawBook() {
     const trackH = bottom - top, thumb = Math.max(60, trackH * trackH / total), pos = (bookScroll / (total - trackH)) * (trackH - thumb);
     rrect(bx + bw - 30, top + pos, 8, thumb, 4); ctx.fillStyle = hexA(INK, 0.35); ctx.fill();
   }
+  drawBtn(btn.tabFusions, bookTab !== "fusions"); drawBtn(btn.tabRunes, bookTab !== "runes");
   drawBtn(btn.closeBook);
 }
 
@@ -1980,7 +2181,7 @@ function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
   update(dt);
   ctx.clearRect(0, 0, W, H);
-  drawWorld(); drawHud();
+  drawWorld(); drawHud(); drawSpell();
   if (drag) {
     drag.card.draw();
     if (drag.from !== "shop" && inRect(pointer, SELL_HIT))
