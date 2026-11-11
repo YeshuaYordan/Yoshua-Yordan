@@ -498,6 +498,27 @@ function sNoise(dur, vol, filter, f0, f1, q = 1, delay = 0) {
   g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
   src.connect(f); f.connect(g); g.connect(Sfx.master); src.start(t0, Math.random() * 0.5); src.stop(t0 + dur + 0.02);
 }
+// A heavy stone door sliding: a low grinding scrape with a rumble underneath, then a dull thud as it stops.
+function playDoorSlide() {
+  if (Sfx.muted || !Sfx.ctx || Sfx.ctx.state !== "running") return;
+  const ac = Sfx.ctx, t0 = ac.currentTime, dur = 0.5;
+  // Grinding scrape: band-passed noise, its loudness shaken by a fast wobble so it stutters like stone on stone.
+  const src = ac.createBufferSource(), bp = ac.createBiquadFilter(), am = ac.createGain(), env = ac.createGain();
+  const lfo = ac.createOscillator(), lfoGain = ac.createGain();
+  src.buffer = Sfx.noise; src.playbackRate.value = 0.55;
+  bp.type = "bandpass"; bp.Q.value = 1.6; bp.frequency.setValueAtTime(260, t0); bp.frequency.exponentialRampToValueAtTime(140, t0 + dur);
+  lfo.frequency.setValueAtTime(22, t0); lfo.frequency.linearRampToValueAtTime(12, t0 + dur); lfoGain.gain.value = 0.45; am.gain.value = 0.55;
+  lfo.connect(lfoGain); lfoGain.connect(am.gain);
+  env.gain.setValueAtTime(0.0001, t0); env.gain.exponentialRampToValueAtTime(0.9, t0 + 0.06); env.gain.setValueAtTime(0.9, t0 + dur - 0.12); env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(bp); bp.connect(am); am.connect(env); env.connect(Sfx.master);
+  src.start(t0, Math.random() * 0.4); src.stop(t0 + dur + 0.05); lfo.start(t0); lfo.stop(t0 + dur + 0.05);
+  // Gritty top layer and a deep rumble.
+  sNoise(dur, 0.12, "bandpass", 1100, 700, 0.9);
+  sTone("triangle", 58, 44, dur, 0.35);
+  // The thud when it reaches the end.
+  sTone("sine", 95, 38, 0.3, 0.7, dur - 0.06);
+  sNoise(0.18, 0.4, "lowpass", 500, 90, 0.7, dur - 0.06);
+}
 const SOUNDS = {
   fire:  { atk: () => sNoise(0.2, 0.5, "bandpass", 500, 2600, 1.2),
            hit: () => { sNoise(0.14, 0.45, "lowpass", 3200, 700); sTone("sine", 150, 60, 0.12, 0.25); } },
@@ -1656,7 +1677,7 @@ function firstFree() {
 }
 function setStoragePage(pg) {
   pg = clamp(pg, 0, STORAGE_N / STORAGE_PAGE - 1);
-  if (pg !== storagePage) { storagePage = pg; playUi("ui_pick"); }
+  if (pg !== storagePage) { storagePage = pg; playDoorSlide(); }
 }
 // Slides the storage row and keeps its cards' homes on their slots.
 function updateStorage(dt) {
