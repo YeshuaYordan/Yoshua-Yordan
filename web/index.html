@@ -106,7 +106,7 @@ const EL = {
   tempest:    { name: "Tempest", tier: 4, special: true, base: "wind", color: "#5ff0c8", shape: "swirl", parts: ["wind"], desc: "Three razor gales pierce through everything.", dmg: 12, rate: 2.2, speed: 1100, pierce: 99, multishot: 3 },
   // Legend cards: separate cards (not a Legend version of another card), created in the Legend Chamber or from Summon.
   // art = a full-card illustration instead of a frame + spirit.
-  zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: thunderbolts chain through 8 foes and stun them.", dmg: 32, rate: 1.2, chain: 8, slow: 0.5, root: 0.4 },
+  zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 32, rate: 1.2, beam: 10, slow: 0.5 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
 // Element tiers:
@@ -1841,7 +1841,7 @@ function clearBoard() {
 }
 function startRun() {
   clearBoard();
-  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
@@ -2004,6 +2004,50 @@ function chain(el, r, ox, oy, first, count) {
   }
   fxs.push(new Fx("bolt", { points: pts, color: EL[el].color, duration: 0.18 }));
   if (hit.size) playSfx(el, "hit");
+}
+// ---- Beam cards (Zeus): lightning streams lock onto up to `beam` enemies and keep hitting them until they die.
+// Each stream deals half of the card's damage per second, so ten streams together are very strong.
+const BEAM_SHARE = 0.5;
+function updateBeam(c, dt) {
+  const d = EL[c.element];
+  c.beamT = (c.beamT || 0) + dt;
+  c.beams = (c.beams || []).filter(b => !b.e.dead && enemies.includes(b.e));
+  // Lock onto new targets (nearest first) when a stream is free.
+  if (c.beams.length < d.beam) {
+    const taken = new Set(c.beams.map(b => b.e));
+    const free = enemies.filter(e => !e.dead && !taken.has(e)).sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y));
+    for (const e of free.slice(0, d.beam - c.beams.length)) { c.beams.push({ e, acc: 0, pop: 0 }); impactFx(c.element, e.x, e.y, c.rarity, 0); }
+  }
+  if (!c.beams.length) return;
+  if (c.beamT > 0.35) { c.beamT = 0; playSfx(c.element, "hit"); c.kick = 0.6; }
+  const per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * BEAM_SHARE, src = statKey(c.element, c.rarity);
+  for (const b of c.beams) {
+    const e = b.e, amt = per * dt * elementMult(c.element, e.resist, e.flying);
+    if (d.slow) e.slow(d.slow, 0.3);
+    b.acc += amt; b.pop += dt;
+    e.takeDamage(amt, src, d.color);
+    if (b.pop > 0.4 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(b.acc)), color: "#ffe34a", size: 18, duration: 0.7 })); b.acc = 0; b.pop = 0; }
+    if (Math.random() < dt * 6) addPart({ add: true, kind: "spark", x: e.x + rand(-8, 8), y: e.y + rand(-8, 8), vx: rand(-220, 220), vy: rand(-220, 220), drag: 4, life: 0.25, size: 2, rgb: "220,235,255", len: 0.04 });
+  }
+}
+// Jagged lightning from the card to each locked enemy, re-drawn many times a second so it crackles.
+function drawBeams() {
+  for (const c of rows.active) {
+    if (!c || !c.beams || !c.beams.length || (drag && drag.card === c) || state !== "wave") continue;
+    const ox = c.x, oy = c.y - CARD_H / 2 + 10;
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    for (const b of c.beams) {
+      const e = b.e, pts = [[ox, oy]], n = 7;
+      for (let i = 1; i < n; i++) { const k = i / n; pts.push([lerp(ox, e.x, k) + rand(-14, 14), lerp(oy, e.y, k) + rand(-14, 14)]); }
+      pts.push([e.x, e.y]);
+      for (const [w, col] of [[14, "rgba(255,216,74,0.18)"], [6, "rgba(160,200,255,0.6)"], [2.2, "rgba(255,255,255,0.95)"]]) {
+        ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+      }
+      circle(e.x, e.y, 10 + Math.random() * 6, "rgba(200,225,255,0.35)");
+    }
+    circle(ox, oy, 14 + Math.random() * 4, "rgba(255,230,140,0.45)");
+    ctx.restore();
+  }
 }
 function applyHit(el, r, x, y, enemy) {
   playSfx(el, "hit");
@@ -2798,6 +2842,8 @@ const btn = {
   tabDaily: makeBtn("Daily Missions", 0, 0, 300, 60, () => { missionsTab = 0; }, 22),
   tabAch: makeBtn("Achievements", 0, 0, 300, 60, () => { missionsTab = 1; achScroll = 0; }, 22),
   speed: makeBtn("1x", W - 124, HUD_H + 14, 110, 60, () => tapSpeed(), 26),
+  testCards: Object.assign(makeBtn("TEST", W - 124, HUD_H + 84, 110, 50, () => { testPick = { lvl: testPick ? testPick.lvl : 0 }; cancelDrag(); playUi("ui_pick"); }, 22), { fill: "#e0533f", fillDown: "#b8402f" }),
+  testClose: makeBtn("Close", 0, 0, 120, 50, () => { testPick = null; }, 22),
   speedBuy: Object.assign(makeBtn("Buy", 0, 0, 260, 84, () => { if (!shopBusy) buyProduct(SPEED_PRODUCT).then(() => { if (save.speed2x) { speedOffer = false; gameSpeed = 2; save.speedOn = true; writeSave(); } }); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   speedNo: makeBtn("Not now", 0, 0, 200, 84, () => { speedOffer = false; }, 24),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
@@ -2860,6 +2906,7 @@ function chamberDrop(d, p) {
 }
 function visibleButtons() {
   if (settingsOpen) return settingsButtons();
+  if (testPick) return [btn.testClose, ...testBtns];
   if (speedOffer) return shopBusy ? [] : [btn.speedBuy, btn.speedNo];
   if (missionsOpen) return [btn.missionsClose, btn.tabDaily, btn.tabAch, ...missionBtns];
   if (guide) return guideButtons();
@@ -2888,7 +2935,7 @@ function baseButtons() {
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
   const list = [btn.chamber, btn.pause, btn.reroll, storagePage === 0 ? btn.storNext : btn.storPrev];
-  if (!drag) list.push(btn.next, btn.spell, btn.speed);
+  if (!drag) list.push(btn.next, btn.spell, btn.speed, ...(TESTER_RESET ? [btn.testCards] : []));
   return list;
 }
 function drawBtn(b, disabled = false) {
@@ -2995,7 +3042,7 @@ function update(dt) {
   updateStorage(dt); updateShopTap(dt); updateRevive(dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || settingsOpen) return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || settingsOpen || testPick) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt); spellCd = Math.max(0, spellCd - dt);
   speedT = Math.max(0, speedT - dt);
@@ -3009,6 +3056,7 @@ function update(dt) {
     }
     for (const c of rows.active) {
       if (!c || (drag && drag.card === c)) continue;
+      if (EL[c.element].beam) { updateBeam(c, dt * (speedT > 0 ? SPEED_MULT : 1)); continue; }
       c.cooldown -= dt * (speedT > 0 ? SPEED_MULT : 1);
       if (c.cooldown <= 0 && enemies.length) { fireCard(c); c.cooldown = 1 / rateOf(c.element, c.rarity); }
     }
@@ -3208,7 +3256,7 @@ function drawWorld() {
   }
   for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W))) c.draw();
   if (!chamberOpen) { drawStorageNav(); drawShopLocks(); }
-  if (!chamberOpen) { drawParts(); for (const p of projectiles) p.draw(); }
+  if (!chamberOpen) { drawParts(); for (const p of projectiles) p.draw(); drawBeams(); }
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
   drawMeteors();
@@ -3258,6 +3306,7 @@ function drawHud() {
     drawBtn(btn.spell, spellCd > 0);
     if (spellCd > 0) { const b = btn.spell; rrect(b.x + 10, b.y + b.h - 12, (b.w - 20) * (1 - spellCd / SPELL_COOLDOWN), 6, 3); ctx.fillStyle = "#c9a6ff"; ctx.fill(); }
     drawBtn(btn.next, callCd > 0); drawSpeedButton();
+    if (TESTER_RESET) drawBtn(btn.testCards);
     // Cooldown bar along the bottom of the button.
     if (callCd > 0) {
       const b = btn.next; rrect(b.x + 10, b.y + b.h - 12, (b.w - 20) * (1 - callCd / CALL_COOLDOWN), 6, 3); ctx.fillStyle = GOLD; ctx.fill();
@@ -4010,6 +4059,46 @@ let bioOpen = false;
 // TEMPORARY for testers: a button in the Profile that wipes all progress. Set to false before release.
 const TESTER_RESET = true;
 let resetArmed = 0;
+// TEMPORARY for testers: a TEST button in battle opens a picker with every card in the game.
+let testPick = null, testBtns = [];
+const TEST_GROUPS = () => [["Main", BASE], ["Next", NEXT_ELS], ["Epic", EPIC_ELS], ["Myth", MYTH_ELS], ["Legend", LEGEND_ELS], ["Special", SPECIALS]];
+const testRarity = (el, lvl) => EL[el].special ? SPECIAL : EL[el].legendCard ? LEGEND_R : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : lvl;
+function testGive(el) {
+  const slot = firstFree();
+  if (!slot) { showInfo("No free slot. Sell or merge a card first."); playSfx("ash", "hit"); return; }
+  const c = new Card(el, testRarity(el, testPick.lvl)); rows[slot[0]][slot[1]] = c;
+  const q = slotPos(slot[0], slot[1]); c.setHome(q.x, q.y, true); c.scale = 1.35;
+  if (EL[el].tier === 3 && c.rarity === EPIC) c.evolveAt = c.t;
+  playUi("ui_place"); showInfo(`Test: added ${cardName(c)}.`);
+}
+const testCards = new Map();
+function drawTestPicker(dt) {
+  dim(0.8);
+  const x = 16, w = W - 32, h = Math.min(H - 120, 1100), y = (H - h) / 2;
+  rrect(x, y, w, h, 22); ctx.fillStyle = "#2a1d40"; ctx.fill(); ctx.strokeStyle = "#e0533f"; ctx.lineWidth = 4; ctx.stroke();
+  text("TEST: take any card", x + 24, y + 46, 28, "#ff8a7a", { align: "left", weight: 900, outline: 6 });
+  text("Main & Next level:", x + 30, y + 92, 20, PARCH, { align: "left", weight: 700 });
+  testBtns = [];
+  [0, 1, 2].forEach(l => { const b = Object.assign(makeBtn(`V${l + 1}`, x + 230 + l * 96, y + 66, 84, 44, () => { testPick.lvl = l; playUi("ui_pick"); }, 20), { fill: testPick.lvl === l ? GOLD : "#e9d3a6" }); testBtns.push(b); drawBtn(b); });
+  // Cards, 6 per row, grouped.
+  const cols = 6, cw = (w - 30) / cols, sc = 0.6, rowH = CARD_H * sc + 34;
+  let cy = y + 140;
+  for (const [title, list] of TEST_GROUPS()) {
+    if (!list.length) continue;
+    text(title, x + 22, cy + 6, 18, "#c9a6ff", { align: "left", weight: 800 }); cy += 16;
+    list.forEach((el, i) => {
+      if (i && i % cols === 0) cy += rowH;
+      const cx = x + 15 + cw * (i % cols + 0.5), ccy = cy + CARD_H * sc / 2 + 4;
+      const r = testRarity(el, testPick.lvl), key = el + r;
+      let c = testCards.get(key); if (!c) { c = new Card(el, r); c.noLabel = true; testCards.set(key, c); }
+      c.t += dt; c.evolveAt = -1; c.x = c.hx = cx; c.y = c.hy = ccy; c.scale = sc; c.draw();
+      text(EL[el].name, cx, ccy + CARD_H * sc / 2 + 16, 14, PARCH, { weight: 700, outline: 4 });
+      testBtns.push(makeBtn("", cx - cw / 2 + 4, ccy - CARD_H * sc / 2, cw - 8, CARD_H * sc + 22, () => testGive(el)));
+    });
+    cy += rowH + 6;
+  }
+  btn.testClose.x = x + w - btn.testClose.w - 14; btn.testClose.y = y + 12; drawBtn(btn.testClose);
+}
 function resetAllProgress() {
   if (resetArmed <= 0) { resetArmed = 3; playUi("ui_pick"); return; }   // first tap arms it, second tap within 3 s resets
   try { localStorage.removeItem("arcane-fusion-save"); } catch (e) {}
@@ -4629,6 +4718,7 @@ function openCardInfo(el) {
 function effectLines(d) {
   const L = [];
   if (d.multishot) L.push(`Fires ${d.multishot} shots at once`);
+  if (d.beam) L.push(`Lightning streams into ${d.beam} enemies nonstop`);
   if (d.chain) L.push(`Lightning chains to ${d.chain} enemies`);
   if (d.pierce) L.push(d.pierce >= 99 ? "Pierces through every enemy" : `Pierces ${d.pierce} enemies`);
   if (d.splash) L.push(d.splash >= 1000 ? "Hits every enemy on the field" : `Area damage (radius ${d.splash})`);
@@ -4671,14 +4761,14 @@ function drawCardInfo(dt) {
   const forms = d.special ? [SPECIAL] : d.legendCard ? [LEGEND_R] : d.myth ? [MYTH] : d.tier === 3 ? [EPIC] : [0, 1, 2];
   const formName = r => r <= 2 ? `V${r + 1}` : RARITY_NAMES[r];
   line();
-  text(forms.length > 1 ? "Damage per hit" : "Damage per hit", x + 30, ry, 22, INK, { align: "left", weight: 700 });
-  text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(damageOf(el, r))).join("   "), x + w - 30, ry, 22, "#b4441f", { align: "right", weight: 700 });
+  text(d.beam ? "Damage per stream /s" : "Damage per hit", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(d.beam ? damageOf(el, r) * rateOf(el, r) * BEAM_SHARE : damageOf(el, r))).join("   "), x + w - 30, ry, 22, "#b4441f", { align: "right", weight: 700 });
   ry += 44; line();
   text("Attack speed", x + 30, ry, 22, INK, { align: "left", weight: 700 });
   text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + rateOf(el, r).toFixed(1)).join("   ") + " /s", x + w - 30, ry, 22, "#2f6fb4", { align: "right", weight: 700 });
   ry += 44; line();
   text("Damage per second", x + 30, ry, 22, INK, { align: "left", weight: 700 });
-  text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(damageOf(el, r) * rateOf(el, r) * (d.multishot || 1))).join("   "), x + w - 30, ry, 22, "#7a3fb0", { align: "right", weight: 700 });
+  text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(damageOf(el, r) * rateOf(el, r) * (d.beam ? BEAM_SHARE * d.beam : d.multishot || 1))).join("   "), x + w - 30, ry, 22, "#7a3fb0", { align: "right", weight: 700 });
   ry += 44; line();
   text("Element", x + 30, ry, 22, INK, { align: "left", weight: 700 });
   text(d.parts.map(p => EL[p].name).join(" + "), x + w - 30, ry, 22, INK, { align: "right", weight: 600 });
@@ -5172,6 +5262,7 @@ function frame(now) {
   if (reviveOffer && state !== "title") drawReviveOffer();
   if (missionsOpen && state === "title") drawMissions(dt);
   if (speedOffer && state !== "title") drawSpeedOffer();
+  if (testPick && state !== "title") drawTestPicker(dt);
   if (settingsOpen) drawSettings();
   if (shopToast && state !== "title") drawShopToast(dt);
   if (state !== "title") { updateAdSim(dt); if (adSim) drawAdSim(); }
