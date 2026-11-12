@@ -4318,6 +4318,7 @@ function drawHomeUi() {
 // ------------------------------------------------------------ Merge & Fusion guide (illustrated)
 // Shown once after the first cleared wave, even when the tutorial was skipped. It can't be skipped the first time.
 // Each page shows real cards in little equations: [A] + [B] = [C].
+const EPIC_RECIPES = RECIPE_LIST.filter(r => EL[r[2]].tier === 3);   // the 11 Epic fusions
 const GUIDE = [
   { t: "Card Levels", show: [["fire", 0, "V1 = Common"], ["fire", 1, "V2 = Uncommon"], ["fire", 2, "V3 = Rare"]],
     b: "Every card has a level, shown at the top of the card. V1 is Common (grey), V2 is Uncommon (green) and V3 is Rare (blue). Higher levels hit much harder: a V3 does almost 3x the damage of a V1." },
@@ -4331,8 +4332,13 @@ const GUIDE = [
     b: "These are all the Next element fusions. Every Next element has its own power: clouds, magma pools, chain lightning, roots, slows and knockback." },
   { t: "Level Up Next Elements", eq: [[["steam", 0], ["steam", 0], ["steam", 1]], [["steam", 1], ["steam", 1], ["steam", 2]]],
     b: "Next elements level up the same way: two of the same element and level make one level higher, up to V3 (Rare)." },
-  { t: "Epic Cards", eq: [[["steam", 2], ["lightning", 2], ["storm", EPIC]]],
-    b: "Fuse two DIFFERENT Next elements, BOTH at V3, to create a powerful Epic card. There are 11 Epic cards to discover. Every recipe is in the Spellbook. Epic cards have a single form and don't merge with each other." },
+  { t: "Epic Cards", eq: [[["steam", 2], ["lightning", 2], ["storm", EPIC]], [["steam", 1], ["lightning", 1], "x"], [["steam", 2], ["steam", 2], "x"]],
+    labels: [["Both V3 (Rare): it works!", "#9cff9c"], ["V2 cards: level them to V3 first", "#ff8a7a"], ["Same element: V3 is already the max", "#ff8a7a"]],
+    b: "To make an Epic card, fuse two DIFFERENT Next elements that are BOTH V3 (Rare). V1 or V2 Next elements can't become Epic, so merge them up to V3 first. Epic cards have a single form and don't merge with each other." },
+  { t: "Epic Recipes (1/2)", recipes: EPIC_RECIPES.slice(0, 6), rIn: 2, rOut: EPIC,
+    b: "Every Epic recipe uses two V3 (Rare) Next elements. Here are the first six." },
+  { t: "Epic Recipes (2/2)", recipes: EPIC_RECIPES.slice(6), rIn: 2, rOut: EPIC,
+    b: "And the other five. All recipes are also written in the Spellbook." },
   { t: "Myth: Fusion Chamber", eq: [[["storm", EPIC], ["blizzard", EPIC], ["grove", EPIC], ["phoenix", MYTH]]], note: "3 Epics: 35%   4 Epics: 60%   5 Epics: 85%",
     b: "Tap Chamber and put 3 to 5 Epic cards on the altars, then tap Fuse for a chance to create the Myth Phoenix. More Epic cards give a better chance. If it fails, all those cards are lost!" },
   { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["phoenix", LEGEND]]], note: "Each Myth +6%   each Epic +2%   up to 30%",
@@ -4363,9 +4369,9 @@ function gCard(el, r, slot, x, y, sc, dt, glow = 0) {
 }
 function glyph(s, x, y, size, col) { text(s, x, y, size, col, { weight: 900, outline: 6, baseline: "middle" }); }
 // [A] + [B] (+ [C]) = [result] ; result "x" draws a red cross instead (no match).
-function drawEquation(eq, cy, dt, pageT, slot0) {
+function drawEquation(eq, cy, dt, pageT, slot0, maxH = 999) {
   const n = eq.length, panelW = W - 100, symW = 46;
-  const sc = Math.min(1.05, (panelW - symW * (n - 1)) / (n * CARD_W));
+  const sc = Math.min(1.05, (panelW - symW * (n - 1)) / (n * CARD_W), maxH / CARD_H);
   const cw = CARD_W * sc, total = n * cw + (n - 1) * symW;
   let x = W / 2 - total / 2 + cw / 2;
   const pulse = 0.5 + 0.5 * Math.sin(pageT * 4);
@@ -4406,7 +4412,12 @@ function drawGuide(dt) {
   }
   if (pg.eq) {
     const rows = pg.eq.length, avail = bottom - top - (pg.note ? 60 : 0), rowH = Math.min(230, avail / rows), y0 = top + (avail - rowH * rows) / 2;
-    pg.eq.forEach((eq, i) => drawEquation(eq, y0 + rowH * (i + 0.5), dt, g.t, i * 10));
+    const lab = pg.labels ? 30 : 0;
+    pg.eq.forEach((eq, i) => {
+      const cy = y0 + rowH * (i + 0.5) - lab / 2;
+      drawEquation(eq, cy, dt, g.t, i * 10, rowH - lab - 30);
+      if (pg.labels) { const [txt, col] = pg.labels[i], sc = Math.min(1.05, (rowH - lab - 30) / CARD_H); text(txt, W / 2, cy + CARD_H * sc / 2 + 26, 20, col, { weight: 800, outline: 5 }); }
+    });
     if (pg.note) {
       rrect(px + 40, bottom - 52, pw - 80, 44, 22); ctx.fillStyle = "rgba(242,193,78,0.18)"; ctx.fill();
       text(pg.note, W / 2, bottom - 23, 21, GOLD, { weight: 800 });
@@ -4417,12 +4428,13 @@ function drawGuide(dt) {
     const rowH = (bottom - top) / 6, sc = Math.min(0.62, (rowH - 8) / CARD_H), cw = CARD_W * sc, gap = 54;
     pg.recipes.forEach(([a, b2, c], i) => {
       const cy = top + rowH * (i + 0.5), x0 = W / 2 - (cw * 1.5 + gap) - 60;
-      gCard(a, 0, 100 + i * 3, x0, cy, sc, dt);
+      gCard(a, pg.rIn || 0, 100 + i * 3, x0, cy, sc, dt);
       glyph("+", x0 + cw / 2 + gap / 2, cy, 30, PARCH);
-      gCard(b2, 0, 101 + i * 3, x0 + cw + gap, cy, sc, dt);
+      gCard(b2, pg.rIn || 0, 101 + i * 3, x0 + cw + gap, cy, sc, dt);
       glyph("=", x0 + cw * 1.5 + gap * 1.5, cy, 30, GOLD);
-      gCard(c, 0, 102 + i * 3, x0 + (cw + gap) * 2, cy, sc, dt, 0.5);
-      text(EL[c].name, x0 + (cw + gap) * 2 + cw / 2 + 18, cy + 8, 24, EL[c].color, { align: "left", weight: 900, outline: 6 });
+      gCard(c, pg.rOut || 0, 102 + i * 3, x0 + (cw + gap) * 2, cy, sc, dt, 0.5);
+      const nc = EL[c].color, lum = (parseInt(nc.slice(1, 3), 16) * 3 + parseInt(nc.slice(3, 5), 16) * 6 + parseInt(nc.slice(5, 7), 16)) / 10;
+      text(EL[c].name, x0 + (cw + gap) * 2 + cw / 2 + 18, cy + 8, 24, lum < 120 ? shade(nc, 0.55) : nc, { align: "left", weight: 900, outline: 6 });   // dark colors brightened to stay readable
     });
   }
   if (pg.flow) {
