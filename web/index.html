@@ -216,7 +216,7 @@ const levelNeed = el => levelOf(el) >= MAX_LEVEL ? 0 : LEVEL_NEED[levelOf(el) - 
 const cardKnown = el => EL[el].tier === 1 || (EL[el].special ? !!save.specials[el] : !!save.discovered[el]);
 const canUpgrade = el => cardKnown(el) && levelOf(el) < MAX_LEVEL && copiesOf(el) >= levelNeed(el);
 function summonOnce() {
-  save.pity = (save.pity || 0) + 1; profile().pulls = (profile().pulls || 0) + 1;   // the caller (doSummon) pays the gems
+  save.pity = (save.pity || 0) + 1; track("summon"); profile().pulls = (profile().pulls || 0) + 1;   // the caller (doSummon) pays the gems
   const r = Math.random(); let el, acc = SPECIAL_RATE;
   if (save.pity >= PITY || r < acc) { el = pickOne(SPECIALS); save.pity = 0; }
   else if (r < (acc += MAIN_RATE)) el = pickOne(BASE);
@@ -232,7 +232,7 @@ function summonOnce() {
 }
 function upgradeCard(el) {
   if (!canUpgrade(el)) return false;
-  save.copies[el] = copiesOf(el) - levelNeed(el); save.levels[el] = levelOf(el) + 1; writeSave();
+  save.copies[el] = copiesOf(el) - levelNeed(el); save.levels[el] = levelOf(el) + 1; track("upgrade"); writeSave();
   return true;
 }
 function discover(el) { if (save.discovered[el]) return false; save.discovered[el] = true; writeSave(); return true; }
@@ -450,7 +450,7 @@ function sfxUnlock() {
   try {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     const ac = new AC(); Sfx.ctx = ac;
-    Sfx.master = ac.createGain(); Sfx.master.gain.value = 0.32; Sfx.master.connect(ac.destination);
+    Sfx.master = ac.createGain(); Sfx.master.gain.value = 0.32 * (typeof settings !== "undefined" ? settings.vol : 1); Sfx.master.connect(ac.destination);
     const buf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     Sfx.noise = buf;
@@ -919,7 +919,7 @@ class Enemy {
   update(dt) {
     if (this.dead) return;
     this.flash = Math.max(0, this.flash - dt * 6);
-    if (this.burnT > 0) { this.burnT -= dt; this.takeDamage(this.burnDps * dt); if (this.dead) return; }
+    if (this.burnT > 0) { this.burnT -= dt; this.takeDamage(this.burnDps * dt, this.burnSrc, this.burnCol); if (this.dead) return; }
     if (this.stunT > 0) { this.stunT -= dt; this.attacking = false; return; }   // frozen: no moving, no attacking
     this.t += dt;
     if (this.slowT > 0) this.slowT -= dt; else this.slowMult = 1;
@@ -932,10 +932,13 @@ class Enemy {
       this.attacking = true; this.y = limit; damageCastle(this.dps * dt);
     }
   }
-  takeDamage(a) {
+  takeDamage(a, src, color) {
     if (this.dead) return;
+    const dealt = Math.min(a, Math.max(0, this.hp));
     this.hp -= a; if (a >= 1) this.flash = 1;
-    if (this.hp <= 0) { this.dead = true; onEnemyKilled(this); }
+    const killed = this.hp <= 0;
+    noteDamage(src, dealt, killed, color);
+    if (killed) { this.dead = true; onEnemyKilled(this); }
   }
   slow(mult, dur) { if (this.isBoss) mult = lerp(mult, 1, 0.5); this.slowMult = Math.min(this.slowMult, mult); this.slowT = Math.max(this.slowT, dur); }
   // Stuns (roots and Freeze) and knockbacks only work CC_LIMIT times on each enemy.
@@ -1348,7 +1351,7 @@ const LAVA_COLS = [[255, 220, 120], [255, 120, 40], [200, 50, 20], [80, 20, 10]]
 let parts = [];
 const MAX_PARTS = 1500;
 function addPart(p) {
-  if (parts.length >= MAX_PARTS) return;
+  if (parts.length >= (settings.lite ? 350 : MAX_PARTS)) return;
   parts.push(Object.assign({ t: 0, life: 0.5, vx: 0, vy: 0, g: 0, drag: 0, size: 4, rot: 0, vr: 0, grow: 0, a: 1, kind: "glow" }, p));
 }
 function updateParts(dt) {
@@ -1667,7 +1670,7 @@ class Zone {
     for (const e of enemies.slice()) {
       if (e.dead) continue;
       if (Math.hypot(e.x - this.x, e.y - this.y) <= this.radius + e.size * 0.5) {
-        e.takeDamage(this.dps * dt);
+        e.takeDamage(this.dps * dt, this.src, this.color);
         if (this.slowAmt > 0 && !e.dead) e.slow(this.slowAmt, 0.3);
         if (this.burnAmt > 0 && !e.dead) e.burn(this.burnAmt, 1);
       }
@@ -1792,7 +1795,7 @@ function clearBoard() {
 }
 function startRun() {
   clearBoard();
-  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
@@ -1815,7 +1818,7 @@ function waveCleared(w) {
   const bonus = 4 + w; gold += bonus; wavesCleared++;
   if (wavesCleared > save.best) save.best = wavesCleared;
   const lvlBefore = playerLevel().lvl;
-  profile().waves = (profile().waves || 0) + 1;
+  profile().waves = (profile().waves || 0) + 1; track("wave");
   fxs.push(new Fx("text", { x: W / 2, y: HUD_H + 150, text: `+${XP_PER_WAVE} XP`, color: "#9cff9c", size: 28, duration: 1.4 }));
   const lvlNow = playerLevel().lvl;
   if (lvlNow > lvlBefore) fxs.push(new Fx("text", { x: W / 2, y: HUD_H + 200, text: `LEVEL UP!  Lv ${lvlNow}`, color: GOLD, size: 36, duration: 2 }));
@@ -1849,7 +1852,7 @@ function spawnEnemy(kind, wave) {
 }
 function damageCastle(a) {
   if (state !== "wave") return;
-  castleHp -= a; wallFlash = 1;
+  castleHp -= a; wallFlash = 1; buzz(25);
   if (castleHp <= 0) {
     castleHp = 0;
     if (!reviveUsed && !reviveOffer) { reviveOffer = { t: REVIVE_TIME }; cancelDrag(); spell = null; paused = false; }
@@ -1876,7 +1879,7 @@ async function watchAdToRevive() {
   for (let i = 0; i < 8; i++) fxs.push(new Fx("burst", { x: 60 + i * 86, y: (FRONT_Y + WALL_Y) / 2, color: "#fff2b0", radius: 90, duration: 0.7 }));
   addPart({ add: true, kind: "ring", x: W / 2, y: FRONT_Y, rgb: "255,240,180", size: 30, grow: 700, w: 14, sq: 0.5, life: 0.9 });
   shakeT = 0.4; shakeAmp = 8;
-  showBanner("REVIVED!", GOLD); playSfx("phoenix", "atk");
+  showBanner("REVIVED!", GOLD); playSfx("phoenix", "atk"); buzz(200);
 }
 function drawReviveOffer() {
   const r = reviveOffer, k = Math.max(0, r.t) / REVIVE_TIME;
@@ -1916,6 +1919,8 @@ function deathFx(e) {
 }
 function onEnemyKilled(e) {
   enemies = enemies.filter(x => x !== e);
+  track("kill"); track("kill_" + e.look); if (e.isBoss) { track("boss"); buzz(120); }
+  if (!e.noGold) track("gold", e.gold);
   deathFx(e); playDeath(e);
   if (e.noGold) fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: "0", color: "#9a9590", size: 20, duration: 0.8 }));
   else {
@@ -1964,19 +1969,19 @@ function applyHit(el, r, x, y, enemy) {
     hitEnemy(enemy, el, r, dmg);
     impactFx(el, x, y, r, 0);
   }
-  if (d.cloud) { const z = new Zone(x, y, d.cloud, d.cloud_dps * rm, 2.5, d.color); z.slowAmt = d.cloud_slow || 0; zones.push(z); }
-  if (d.puddle) { const z = new Zone(x, y, d.puddle, d.puddle_dps * rm, 3, d.color); z.burnAmt = 2 * rm; zones.push(z); }
+  if (d.cloud) { const z = new Zone(x, y, d.cloud, d.cloud_dps * rm, 2.5, d.color); z.src = statKey(el, r); z.slowAmt = d.cloud_slow || 0; zones.push(z); }
+  if (d.puddle) { const z = new Zone(x, y, d.puddle, d.puddle_dps * rm, 3, d.color); z.src = statKey(el, r); z.burnAmt = 2 * rm; zones.push(z); }
 }
 function hitEnemy(e, el, r, dmg) {
   const d = EL[el], mult = elementMult(el, e.resist, e.flying), amount = dmg * mult, rm = RARITY_DMG[r];
-  const x = e.x, y = e.y;
-  if (d.burn) e.burn(d.burn * rm, 2.5);
+  const x = e.x, y = e.y, src = statKey(el, r);
+  if (d.burn) { e.burnSrc = src; e.burnCol = d.color; e.burn(d.burn * rm, 2.5); }
   if (d.slow) e.slow(d.slow, 2);
   if (d.root) e.root(d.root);
   if (d.knock) e.knock(d.knock);
-  e.takeDamage(amount);
+  e.takeDamage(amount, src, d.color);
   const col = mult > 1.01 ? "#ffe34a" : mult < 0.99 ? "#a89878" : PARCH;
-  fxs.push(new Fx("text", { x: x + rand(-14, 14), y: y - 30, text: String(Math.round(amount)), color: col, size: 18, duration: 0.8 }));
+  if (settings.dmgNums) fxs.push(new Fx("text", { x: x + rand(-14, 14), y: y - 30, text: String(Math.round(amount)), color: col, size: 18, duration: 0.8 }));
 }
 
 // ------------------------------------------------------------ Shop & merging
@@ -2082,6 +2087,7 @@ function sell(row, i) {
 }
 function applyMerge(card, res) {
   const changed = res.element !== card.element;
+  track(changed ? "fusion" : "merge"); if (changed && EL[res.element].tier === 3) track("epic");
   card.element = res.element; card.rarity = res.rarity; card.cooldown = 0.3; card.scale = 1.35;
   if (changed && EL[res.element].tier === 3) card.evolveAt = card.t;
   const col = EL[res.element].color;
@@ -2152,7 +2158,7 @@ function updateFusion(dt) {
       const word = f.legend ? "LEGEND" : "MYTH";
       fxs.push(new Fx("burst", { x: c.x, y: c.y, color: RARITY_COLORS[f.rarity], radius: 180, duration: 0.8 }));
       fxs.push(new Fx("burst", { x: c.x, y: c.y, color: f.legend ? "#ff6a3c" : GOLD, radius: 120, duration: 0.7 }));
-      showBanner(`${word} ${EL[f.el].name.toUpperCase()} CREATED!`, RARITY_COLORS[f.rarity]);
+      showBanner(`${word} ${EL[f.el].name.toUpperCase()} CREATED!`, RARITY_COLORS[f.rarity]); track(f.legend ? "legend" : "myth");
       discover(f.el);
       showInfo(`Success (${f.chance}% chance)! Close the Chamber to put your ${f.legend ? "Legend" : "Myth"} card on the board.`);
     } else {
@@ -2392,6 +2398,7 @@ function castSpell() {
   if (gold < sp.cost) { showInfo(`Not enough gold: ${sp.name} costs ${sp.cost}.`); return; }
   if (spell.match === "heal" && castleHp >= CASTLE_MAX) { showInfo("The castle is already at full HP."); return; }
   gold -= sp.cost;
+  track("spell"); track("spell_" + spell.match);
   if (spell.match === "meteor") castMeteor();
   if (spell.match === "freeze") castFreeze();
   if (spell.match === "heal") castHeal();
@@ -2453,7 +2460,7 @@ function updateDoom(dt) {
     const u = d.t - DOOM_HIT, radius = Math.max(0, u - DOOM_STOP) * 1500;
     for (const e of d.victims) if (!e.dead && (Math.hypot(e.x - d.tx, (e.y - d.ty) / 0.55) < radius || u > 1)) {
       e.noGold = true;   // Doom kills drop no gold, so the 200 gold isn't paid back
-      e.takeDamage(e.hp + 1);
+      e.takeDamage(e.hp + 1, "Doom", "#ff3d2e");
       fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#ff6a2a", radius: e.size * 3, duration: 0.5 }));
     }
   }
@@ -2632,7 +2639,7 @@ function updateMeteors(dt) {
     m.t += dt;
     if (m.t >= m.dur && !m.done) {
       m.done = true;
-      for (const e of enemies.slice()) if (!e.dead && Math.hypot(e.x - m.tx, e.y - m.ty) <= 100 + e.size) { e.burn(25, 3); e.takeDamage(m.dmg); }
+      for (const e of enemies.slice()) if (!e.dead && Math.hypot(e.x - m.tx, e.y - m.ty) <= 100 + e.size) { e.burnSrc = "Meteor"; e.burnCol = "#ff6a2a"; e.burn(25, 3); e.takeDamage(m.dmg, "Meteor", "#ff6a2a"); }
       fxs.push(new Fx("burst", { x: m.tx, y: m.ty, color: "#ff6a2a", radius: 130, duration: 0.5 }));
       fxs.push(new Fx("burst", { x: m.tx, y: m.ty, color: "#ffe27a", radius: 80, duration: 0.4 }));
       const z = new Zone(m.tx, m.ty, 70, 20, 2.5, "#ff5a1f"); z.burnAmt = 10; zones.push(z);
@@ -2736,6 +2743,17 @@ const btn = {
   bioClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { bioOpen = false; }, 26),
   revive: Object.assign(makeBtn("Watch ad: Revive", W / 2 - 200, 0, 400, 92, () => watchAdToRevive(), 30), { fill: "#ffcd50", fillDown: "#e0a830" }),
   reviveNo: makeBtn("No thanks", W / 2 - 120, 0, 240, 64, () => { reviveOffer = null; gameOver(); }, 24),
+  settingsBtn: makeBtn("Settings", 516, 14, 190, 58, () => { settingsOpen = true; playUi("ui_pick"); }, 24),
+  settingsClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { settingsOpen = false; }, 26),
+  volDown: makeBtn("-", 0, 0, 66, 56, () => changeVolume(-0.2), 32),
+  volUp: makeBtn("+", 0, 0, 66, 56, () => changeVolume(0.2), 32),
+  missions: Object.assign(makeBtn("Missions", 14, 520, 160, 60, () => { missionsOpen = true; missionsTab = 0; achScroll = 0; playUi("ui_pick"); }, 22), { fill: "#9cff9c", fillDown: "#6cd66c" }),
+  missionsClose: makeBtn("Close", W / 2 - 110, 0, 220, 64, () => { missionsOpen = false; }, 24),
+  tabDaily: makeBtn("Daily Missions", 0, 0, 300, 60, () => { missionsTab = 0; }, 22),
+  tabAch: makeBtn("Achievements", 0, 0, 300, 60, () => { missionsTab = 1; achScroll = 0; }, 22),
+  speed: makeBtn("1x", W - 124, HUD_H + 14, 110, 60, () => tapSpeed(), 26),
+  speedBuy: Object.assign(makeBtn("Buy", 0, 0, 260, 84, () => { if (!shopBusy) buyProduct(SPEED_PRODUCT).then(() => { if (save.speed2x) { speedOffer = false; gameSpeed = 2; save.speedOn = true; writeSave(); } }); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  speedNo: makeBtn("Not now", 0, 0, 200, 84, () => { speedOffer = false; }, 24),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: makeBtn("", 14, 372, 112, 112, () => openShop()),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
@@ -2751,7 +2769,7 @@ const btn = {
   revealAgain: Object.assign(makeBtn("Again", 320, 1150, 330, 86, () => { summonReveal = null; doSummon(1); }, 26), { fill: "#c9a6ff", fillDown: "#a982e8" }),
   lobbySound: makeBtn("Sound: On", 516, 14, 190, 58, () => { setMuted(!Sfx.muted); if (!Sfx.muted) playUi("ui_pick"); }, 24),
   resume: makeBtn("Resume", 180, 560, 360, 80, () => { paused = false; }),
-  sound: makeBtn("Sound: On", 180, 960, 360, 80, () => { setMuted(!Sfx.muted); if (!Sfx.muted) playSfx("fire", "atk"); }),
+  sound: makeBtn("Settings", 180, 960, 360, 80, () => { settingsOpen = true; }),
   pauseBook: makeBtn("Spellbook", 180, 660, 360, 80, () => openBook()),
   // Restart asks for a second tap within 3 seconds, so a run is never thrown away by accident.
   restart: makeBtn("Restart", 180, 760, 360, 80, () => {
@@ -2795,6 +2813,9 @@ function chamberDrop(d, p) {
   if (other) { const b = slotPos(d.from, d.index); other.setHome(b.x, b.y); }
 }
 function visibleButtons() {
+  if (settingsOpen) return settingsButtons();
+  if (speedOffer) return shopBusy ? [] : [btn.speedBuy, btn.speedNo];
+  if (missionsOpen) return [btn.missionsClose, btn.tabDaily, btn.tabAch, ...missionBtns];
   if (guide) return guideButtons();
   if (tut) return tutBlocking() ? [btn.tutNext, btn.tutSkip] : [btn.tutSkip, ...baseButtons()];
   return baseButtons();
@@ -2813,15 +2834,15 @@ function baseButtons() {
     if (summonReveal) return summonDone() ? [btn.revealOk, btn.revealAgain] : [];
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
-    const top = [btn.bio, btn.lobbySound, btn.gemPill];
-    if (lobbyPage === 0) return [btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, ...top];
+    const top = [btn.bio, btn.settingsBtn, btn.gemPill];
+    if (lobbyPage === 0) return [btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
     return [...visibleUpgradeBtns(), ...top];
   }
   if (state === "gameover") return [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
   const list = [btn.chamber, btn.pause, btn.reroll, storagePage === 0 ? btn.storNext : btn.storPrev];
-  if (!drag) list.push(btn.next, btn.spell);
+  if (!drag) list.push(btn.next, btn.spell, btn.speed);
   return list;
 }
 function drawBtn(b, disabled = false) {
@@ -2907,6 +2928,7 @@ canvas.addEventListener("pointerup", pointerUp);
 canvas.addEventListener("pointercancel", () => { cancelDrag(); bookDrag = null; if (lobbySwipe?.btn) lobbySwipe.btn.down = false; lobbySwipe = null; });
 canvas.addEventListener("wheel", ev => {
   if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); }
+  else if (state === "title" && missionsOpen) { achScroll += ev.deltaY; ev.preventDefault(); }
   else if (state === "title" && lobbyPage === -1) { cardsScroll = clamp(cardsScroll + ev.deltaY, 0, cardsMaxScroll()); ev.preventDefault(); }
 }, { passive: false });
 document.addEventListener("keydown", ev => {
@@ -2918,6 +2940,7 @@ document.addEventListener("keydown", ev => {
 function update(dt) {
   updateSpell(dt);
   if (spell) dt *= SPELL_SLOWMO;   // slow motion while drawing / choosing a spell
+  if (gameSpeed === 2 && !spell && !reviveOffer && !speedOffer && (state === "wave" || state === "break")) dt *= 2;   // 2x speed
   const doomDt = dt;
   if (doom && !doom.hit) dt *= 0.3;   // the battle slows down while the Doom meteor falls
   time += dt;
@@ -2926,7 +2949,7 @@ function update(dt) {
   updateStorage(dt); updateShopTap(dt); updateRevive(dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer) return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || settingsOpen) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt); spellCd = Math.max(0, spellCd - dt);
   speedT = Math.max(0, speedT - dt);
@@ -3129,7 +3152,7 @@ function drawWorld() {
   }
 
   for (const z of zones) z.draw();
-  EN_DETAIL = enemies.length <= 18;
+  EN_DETAIL = !settings.lite && enemies.length <= 18;
   for (const e of enemies) e.draw();
   if (chamberOpen) {
     // Frozen battle shots and effects stay underneath the Chamber panel.
@@ -3188,7 +3211,7 @@ function drawHud() {
     btn.spell.label = spellCd > 0 ? `Spell ${Math.ceil(spellCd)}s` : "Spell";
     drawBtn(btn.spell, spellCd > 0);
     if (spellCd > 0) { const b = btn.spell; rrect(b.x + 10, b.y + b.h - 12, (b.w - 20) * (1 - spellCd / SPELL_COOLDOWN), 6, 3); ctx.fillStyle = "#c9a6ff"; ctx.fill(); }
-    drawBtn(btn.next, callCd > 0);
+    drawBtn(btn.next, callCd > 0); drawSpeedButton();
     // Cooldown bar along the bottom of the button.
     if (callCd > 0) {
       const b = btn.next; rrect(b.x + 10, b.y + b.h - 12, (b.w - 20) * (1 - callCd / CALL_COOLDOWN), 6, 3); ctx.fillStyle = GOLD; ctx.fill();
@@ -3272,18 +3295,19 @@ function drawOverlays() {
   if (state === "title") {
     if (!bookOpen) drawLobbyUi();
   } else if (state === "gameover" && !bookOpen) {
-    dim(0.7);
-    text("The Castle", W / 2, 470, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
-    text("Has Fallen!", W / 2, 540, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
+    dim(0.78);
+    const gy = Math.max(150, H / 2 - 560);
+    text("The Castle Has Fallen!", W / 2, gy, 46, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
     const n = wavesCleared;
-    text(`You cleared ${n} wave${n === 1 ? "" : "s"}.`, W / 2, 610, 30, PARCH, { outline: 8 });
-    text(`Best: ${save.best}` + (runGems ? `   ·   +${runGems} gem${runGems > 1 ? "s" : ""}` : ""), W / 2, 660, 26, GOLD, { outline: 8 });
+    text(`You cleared ${n} wave${n === 1 ? "" : "s"}.`, W / 2, gy + 56, 28, PARCH, { outline: 8 });
+    text(`Best: ${save.best}` + (runGems ? `   ·   +${runGems} gem${runGems > 1 ? "s" : ""}` : ""), W / 2, gy + 96, 24, GOLD, { outline: 8 });
+    const rb = drawDamageReport(gy + 130);
+    btn.again.y = rb + 40; btn.title.y = rb + 144;
     drawBtn(btn.again); drawBtn(btn.title);
   } else if (paused && !bookOpen) {
     dim(0.6);
     text("Paused", W / 2, 480, 60, PARCH, { font: DISPLAY, weight: 900, outline: 12 });
     btn.restart.label = restartArmed > 0 ? "Tap again to restart" : "Restart";
-    btn.sound.label = Sfx.muted ? "Sound: Off" : "Sound: On";
     drawBtn(btn.resume); drawBtn(btn.pauseBook); drawBtn(btn.restart); drawBtn(btn.quit); drawBtn(btn.sound);
     if (restartArmed > 0) text("Your current run will be lost.", W / 2, 1075, 22, "#ff9a8a", { outline: 6 });
   }
@@ -3454,7 +3478,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
-function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; }
+function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -3549,7 +3573,8 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
-  if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || bioOpen || guide || tutBlocking()) return;   // no swiping under a popup
+  if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || bioOpen || guide || settingsOpen || tutBlocking()) return;
+  if (missionsOpen) { if (missionsTab === 1) { const dy = p.y - s.y0; if (Math.abs(dy) > 10) { s.vscroll = true; if (s.btn) s.btn.down = false; achScroll = (s.scroll0 ?? (s.scroll0 = achScroll)) - dy; } } return; }   // no swiping under a popup
   const dy = p.y - s.y0;
   if (!s.moved && !s.vscroll) {
     if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
@@ -4026,6 +4051,247 @@ function drawBio() {
   }
 }
 
+// ------------------------------------------------------------ Settings (kept apart from the save, so a progress reset keeps them)
+const settings = { vol: 1, vibrate: true, dmgNums: true, lite: false };
+try { Object.assign(settings, JSON.parse(localStorage.getItem("arcane-fusion-settings") || "{}")); } catch (e) {}
+if (Sfx.muted && settings.vol > 0 && localStorage.getItem("arcane-fusion-settings") === null) settings.vol = 0;   // old mute setting
+function saveSettings() { try { localStorage.setItem("arcane-fusion-settings", JSON.stringify(settings)); } catch (e) {} applySettings(); }
+function applySettings() {
+  Sfx.muted = settings.vol <= 0;
+  if (Sfx.master) Sfx.master.gain.value = 0.32 * settings.vol;
+}
+let lastBuzz = 0;
+function buzz(ms) {
+  if (!settings.vibrate || !navigator.vibrate) return;
+  const now = performance.now(); if (now - lastBuzz < 250) return; lastBuzz = now;
+  try { navigator.vibrate(ms); } catch (e) {}
+}
+let settingsOpen = false;
+const settingRows = [
+  { key: "vol", label: "Sound effects", kind: "vol" },
+  { key: "vibrate", label: "Vibration", kind: "bool", note: "Buzz when the castle is hit and when bosses fall" },
+  { key: "dmgNums", label: "Damage numbers", kind: "bool", note: "Numbers above enemies when they are hit" },
+  { key: "lite", label: "Battery saver", kind: "bool", note: "Fewer effects, smoother on older phones" },
+];
+function drawSettings() {
+  dim(0.75);
+  const x = 40, w = W - 80, h = 760, y = Math.max(90, H / 2 - h / 2);
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  text("Settings", W / 2, y + 64, 44, INK, { font: DISPLAY, weight: 900 });
+  settingRows.forEach((r, i) => {
+    const ry = y + 130 + i * 130;
+    ctx.fillStyle = "rgba(42,26,18,0.12)"; ctx.fillRect(x + 28, ry - 20, w - 56, 2);
+    text(r.label, x + 32, ry + 24, 26, INK, { align: "left", weight: 800 });
+    if (r.kind === "vol") {
+      const bx = x + 32, bw = w - 64 - 180, by = ry + 56;
+      rrect(bx, by, bw, 18, 9); ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fill();
+      if (settings.vol > 0) { rrect(bx, by, bw * settings.vol, 18, 9); ctx.fillStyle = "#6cc56a"; ctx.fill(); }
+      text(settings.vol <= 0 ? "Off" : `${Math.round(settings.vol * 100)}%`, x + w - 32, ry + 24, 24, "#6b3a22", { align: "right", weight: 800 });
+      btn.volDown.y = btn.volUp.y = ry + 40; btn.volDown.x = x + w - 172; btn.volUp.x = x + w - 92; drawBtn(btn.volDown); drawBtn(btn.volUp);
+    } else {
+      const b = settingToggles[r.key]; b.x = x + w - 152; b.y = ry; b.label = settings[r.key] ? "On" : "Off";
+      b.fill = settings[r.key] ? "#6cc56a" : "#c9b89a"; b.fillDown = b.fill; drawBtn(b);
+      text(r.note, x + 32, ry + 66, 17, "#6b3a22", { align: "left", weight: 600 });
+    }
+  });
+  text("Music: coming soon", W / 2, y + h - 130, 19, "#8a6a4a", { weight: 600 });
+  btn.settingsClose.y = y + h - 100; drawBtn(btn.settingsClose);
+}
+const settingToggles = {};
+for (const r of settingRows) if (r.kind === "bool") settingToggles[r.key] = makeBtn("On", 0, 0, 120, 60, () => { settings[r.key] = !settings[r.key]; saveSettings(); playUi("ui_pick"); }, 24);
+const settingsButtons = () => [btn.settingsClose, btn.volDown, btn.volUp, ...Object.values(settingToggles)];
+function changeVolume(d) { settings.vol = clamp(Math.round((settings.vol + d) * 5) / 5, 0, 1); saveSettings(); if (settings.vol > 0) playUi("ui_pick"); }
+
+// ------------------------------------------------------------ Lifetime counters, daily missions, achievements
+// Every event of interest calls track(type, n). It feeds the lifetime stats (achievements) and today's missions.
+let metaDirty = false;
+function track(type, n = 1) {
+  const st = (save.stats = save.stats || {}); st[type] = (st[type] || 0) + n;
+  const m = dailyMissions();
+  for (const it of m.list) { const def = MISSION_POOL.find(d => d.id === it.id); if (def && def.ev === type && !it.claimed) it.prog = Math.min(def.n, (it.prog || 0) + n); }
+  metaDirty = true;
+}
+setInterval(() => { if (metaDirty) { metaDirty = false; writeSave(); } }, 2000);
+const MISSION_POOL = [
+  { id: "w10", ev: "wave", n: 10, gems: 30, t: "Clear 10 waves" },
+  { id: "w25", ev: "wave", n: 25, gems: 50, t: "Clear 25 waves" },
+  { id: "k150", ev: "kill", n: 150, gems: 30, t: "Defeat 150 enemies" },
+  { id: "k400", ev: "kill", n: 400, gems: 50, t: "Defeat 400 enemies" },
+  { id: "boss", ev: "boss", n: 1, gems: 50, t: "Defeat a boss" },
+  { id: "fus5", ev: "fusion", n: 5, gems: 30, t: "Fuse 5 new element cards" },
+  { id: "lvl10", ev: "merge", n: 10, gems: 30, t: "Level up 10 cards by merging" },
+  { id: "sp3", ev: "spell", n: 3, gems: 30, t: "Cast 3 spells" },
+  { id: "frz2", ev: "spell_freeze", n: 2, gems: 40, t: "Cast Freeze 2 times" },
+  { id: "met3", ev: "spell_meteor", n: 3, gems: 30, t: "Cast Meteor 3 times" },
+  { id: "g300", ev: "gold", n: 300, gems: 30, t: "Earn 300 gold from enemies" },
+  { id: "sum1", ev: "summon", n: 1, gems: 30, t: "Summon a card" },
+  { id: "sl60", ev: "kill_slime", n: 60, gems: 30, t: "Defeat 60 slimes" },
+  { id: "epic", ev: "epic", n: 1, gems: 60, t: "Create an Epic card" },
+];
+const MISSION_BONUS = 50;   // extra gems for finishing all three daily missions
+function dailyMissions() {
+  const day = todayKey(), m = save.missions;
+  if (m && m.day === day) return m;
+  // Pick three different missions for today (same picks all day).
+  let seed = [...day].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) >>> 0;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+  const pool = MISSION_POOL.slice(), list = [];
+  while (list.length < 3) list.push({ id: pool.splice(Math.floor(rnd() * pool.length), 1)[0].id, prog: 0, claimed: false });
+  save.missions = { day, list, bonus: false };
+  return save.missions;
+}
+const statOf = k => (save.stats && save.stats[k]) || 0;
+// Achievements: lifetime goals. value() reads the progress.
+const ACHIEVEMENTS = [
+  { id: "wave10", t: "First Steps", d: "Clear 10 waves", n: 10, gems: 50, value: () => statOf("wave") },
+  { id: "wave100", t: "Veteran", d: "Clear 100 waves", n: 100, gems: 150, value: () => statOf("wave") },
+  { id: "wave500", t: "Castle Guardian", d: "Clear 500 waves", n: 500, gems: 400, value: () => statOf("wave") },
+  { id: "stage2", t: "Into the Desert", d: "Reach stage 2 in one run", n: 1, gems: 100, value: () => save.best >= STAGE_LEN ? 1 : 0 },
+  { id: "stage4", t: "Unstoppable", d: "Reach stage 4 in one run", n: 1, gems: 300, value: () => save.best >= STAGE_LEN * 3 ? 1 : 0 },
+  { id: "kill500", t: "Monster Hunter", d: "Defeat 500 enemies", n: 500, gems: 50, value: () => statOf("kill") },
+  { id: "kill5k", t: "Slayer", d: "Defeat 5,000 enemies", n: 5000, gems: 200, value: () => statOf("kill") },
+  { id: "kill20k", t: "Army Breaker", d: "Defeat 20,000 enemies", n: 20000, gems: 500, value: () => statOf("kill") },
+  { id: "boss1", t: "Kingslayer", d: "Defeat a boss", n: 1, gems: 100, value: () => statOf("boss") },
+  { id: "boss10", t: "Crown Collector", d: "Defeat 10 bosses", n: 10, gems: 300, value: () => statOf("boss") },
+  { id: "disc6", t: "Apprentice Alchemist", d: "Discover 6 fusions", n: 6, gems: 100, value: () => RECIPE_LIST.filter(r => save.discovered[r[2]]).length },
+  { id: "disc17", t: "Master Alchemist", d: "Discover all 17 fusions", n: 17, gems: 500, value: () => RECIPE_LIST.filter(r => save.discovered[r[2]]).length },
+  { id: "epic1", t: "Epic!", d: "Create an Epic card", n: 1, gems: 100, value: () => statOf("epic") },
+  { id: "myth1", t: "Mythmaker", d: "Create a Myth card", n: 1, gems: 300, value: () => statOf("myth") },
+  { id: "legend1", t: "Legendary", d: "Create a Legend card", n: 1, gems: 1000, value: () => statOf("legend") },
+  { id: "spell10", t: "Spellcaster", d: "Cast 10 spells", n: 10, gems: 50, value: () => statOf("spell") },
+  { id: "spell100", t: "Archmage", d: "Cast 100 spells", n: 100, gems: 200, value: () => statOf("spell") },
+  { id: "doom1", t: "Doombringer", d: "Cast Doom", n: 1, gems: 150, value: () => statOf("spell_doom") },
+  { id: "sum10", t: "Summoner", d: "Summon 10 times", n: 10, gems: 50, value: () => statOf("summon") },
+  { id: "sum100", t: "Grand Summoner", d: "Summon 100 times", n: 100, gems: 200, value: () => statOf("summon") },
+  { id: "up1", t: "Stronger", d: "Upgrade a card", n: 1, gems: 50, value: () => statOf("upgrade") },
+  { id: "lv5", t: "Maxed Out", d: "Upgrade any card to Lv 5", n: 1, gems: 300, value: () => UPGRADABLE.some(el => levelOf(el) >= MAX_LEVEL) ? 1 : 0 },
+];
+const achDone = a => a.value() >= a.n;
+const achClaimed = a => !!(save.ach && save.ach[a.id]);
+function missionsClaimable() {
+  const m = dailyMissions();
+  return m.list.some(it => !it.claimed && it.prog >= MISSION_POOL.find(d => d.id === it.id).n) || (!m.bonus && m.list.every(it => it.claimed)) || ACHIEVEMENTS.some(a => achDone(a) && !achClaimed(a));
+}
+function giveGems(n, label) { save.gems += n; writeSave(); shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; playUi("ui_sell"); }
+let missionsOpen = false, missionsTab = 0, achScroll = 0, missionBtns = [];
+function drawMissions(dt) {
+  dim(0.75);
+  const x = 24, w = W - 48, h = Math.min(H - 140, 1080), y = (H - h) / 2;
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  // Tabs.
+  btn.tabDaily.x = x + 24; btn.tabAch.x = x + w / 2 + 4; btn.tabDaily.y = btn.tabAch.y = y + 22; btn.tabDaily.w = btn.tabAch.w = w / 2 - 28;
+  btn.tabDaily.fill = missionsTab === 0 ? GOLD : "#e9d3a6"; btn.tabAch.fill = missionsTab === 1 ? GOLD : "#e9d3a6";
+  drawBtn(btn.tabDaily); drawBtn(btn.tabAch);
+  missionBtns = [];
+  const row = (rx, ry, rw, title, desc, prog, n, gems, claimed, id, onClaim) => {
+    const done = prog >= n;
+    rrect(rx, ry, rw, 112, 16); ctx.fillStyle = claimed ? "#e6dcc4" : done ? "#eaffd8" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    text(title, rx + 18, ry + 36, 23, claimed ? "#8a7a60" : INK, { align: "left", weight: 800 });
+    if (desc) text(desc, rx + 18, ry + 62, 17, "#6b3a22", { align: "left", weight: 600 });
+    const bx = rx + 18, bw = rw - 300, by = ry + 78;
+    rrect(bx, by, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fill();
+    rrect(bx, by, Math.max(16, bw * Math.min(1, prog / n)), 16, 8); ctx.fillStyle = done ? "#6cc56a" : "#c9a6ff"; ctx.fill();
+    text(`${fmtNum(Math.min(prog, n))} / ${fmtNum(n)}`, bx + bw + 10, by + 14, 16, "#6b3a22", { align: "left", weight: 700 });
+    drawGem(rx + rw - 132, ry + 34, 12); text(`${gems}`, rx + rw - 116, ry + 42, 22, INK, { align: "left", weight: 800 });
+    if (claimed) text("Claimed", rx + rw - 76, ry + 88, 18, "#2f8f3f", { weight: 800 });
+    else if (done) {
+      const b = Object.assign(makeBtn("Claim", rx + rw - 136, ry + 58, 120, 46, onClaim, 20), { fill: "#6cc56a", fillDown: "#4fa84d" });
+      if (missionPress === id) b.down = true;
+      b.pid = id; missionBtns.push(b); drawBtn(b);
+    }
+  };
+  const top = y + 110;
+  if (missionsTab === 0) {
+    const m = dailyMissions();
+    text("New missions every day", W / 2, top + 10, 20, "#6b3a22", { weight: 700 });
+    m.list.forEach((it, i) => {
+      const def = MISSION_POOL.find(d => d.id === it.id);
+      row(x + 24, top + 34 + i * 128, w - 48, def.t, "", it.prog || 0, def.n, def.gems, it.claimed, "m" + i, () => { if (!it.claimed && it.prog >= def.n) { it.claimed = true; giveGems(def.gems); } });
+    });
+    const all = m.list.every(it => it.claimed);
+    row(x + 24, top + 34 + 3 * 128 + 20, w - 48, "Daily bonus", "Finish all three missions", m.list.filter(it => it.claimed).length, 3, MISSION_BONUS, m.bonus, "mb", () => { if (all && !m.bonus) { m.bonus = true; giveGems(MISSION_BONUS); } });
+    const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), s2 = Math.max(0, Math.floor((mid - now) / 1000));
+    text(`New missions in ${Math.floor(s2 / 3600)}h ${String(Math.floor(s2 / 60) % 60).padStart(2, "0")}m`, W / 2, top + 34 + 4 * 128 + 60, 19, "#8a6a4a", { weight: 600 });
+  } else {
+    // Scrollable achievements list (claimable first, then in progress, then claimed).
+    const list = ACHIEVEMENTS.slice().sort((a, b) => ((achDone(b) && !achClaimed(b)) - (achDone(a) && !achClaimed(a))) || (achClaimed(a) - achClaimed(b)));
+    const viewTop = top, viewH = y + h - 110 - top, total = list.length * 124;
+    achScroll = clamp(achScroll, 0, Math.max(0, total - viewH));
+    ctx.save(); ctx.beginPath(); ctx.rect(x + 10, viewTop, w - 20, viewH); ctx.clip();
+    list.forEach((a, i) => {
+      const ry = viewTop + i * 124 - achScroll; if (ry < viewTop - 120 || ry > viewTop + viewH) return;
+      row(x + 24, ry, w - 48, a.t, a.d, a.value(), a.n, a.gems, achClaimed(a), "a" + a.id, () => { if (achDone(a) && !achClaimed(a)) { (save.ach = save.ach || {})[a.id] = true; giveGems(a.gems); } });
+    });
+    ctx.restore();
+    missionBtns = missionBtns.filter(b => b.y > viewTop && b.y + b.h < viewTop + viewH);
+    const done = ACHIEVEMENTS.filter(achClaimed).length;
+    text(`${done} / ${ACHIEVEMENTS.length} achievements`, W / 2, y + h - 88, 18, "#6b3a22", { weight: 700 });
+  }
+  btn.missionsClose.y = y + h - 76; drawBtn(btn.missionsClose);
+}
+let missionPress = null;
+
+// ------------------------------------------------------------ Damage report (this run)
+let runStats = { dmg: {}, kills: {} };
+const statKey = (el, r) => (r <= 2 ? `V${r + 1} ` : "") + EL[el].name;
+const statColor = {};
+function noteDamage(src, dealt, killed, color) {
+  if (!src) return;
+  runStats.dmg[src] = (runStats.dmg[src] || 0) + dealt;
+  if (killed) runStats.kills[src] = (runStats.kills[src] || 0) + 1;
+  if (color) statColor[src] = color;
+}
+function drawDamageReport(top) {
+  const keys = Object.keys(runStats.dmg).sort((a, b) => runStats.dmg[b] - runStats.dmg[a]).slice(0, 6);
+  const bottom = top + 150 + Math.max(1, keys.length) * 52;
+  const x = 40, w = W - 80, h = bottom - top;
+  rrect(x, top, w, h, 20); ctx.fillStyle = "rgba(20,12,30,0.85)"; ctx.fill(); ctx.strokeStyle = GOLD; ctx.lineWidth = 3; ctx.stroke();
+  text("Damage Report", W / 2, top + 40, 28, GOLD, { font: DISPLAY, weight: 900 });
+  if (!keys.length) { text("No damage dealt this run.", W / 2, top + h / 2 + 10, 20, PARCH, { weight: 600 }); return bottom; }
+  const max = runStats.dmg[keys[0]], total = Object.values(runStats.dmg).reduce((a, b) => a + b, 0), kills = Object.values(runStats.kills).reduce((a, b) => a + b, 0);
+  text("Damage", x + w - 150, top + 70, 15, hexA(PARCH, 0.7), { align: "right", weight: 700 });
+  text("Kills", x + w - 24, top + 70, 15, hexA(PARCH, 0.7), { align: "right", weight: 700 });
+  const rowH = 52;
+  keys.forEach((k, i) => {
+    const ry = top + 84 + i * rowH, col = statColor[k] || PARCH, frac = runStats.dmg[k] / max;
+    rrect(x + 20, ry + 4, (w - 200) * frac, rowH - 12, 6); ctx.fillStyle = hexA(col.startsWith("#") ? col : "#f3e3c3", 0.35); ctx.fill();
+    text(`${i + 1}. ${k}`, x + 30, ry + rowH / 2 + 4, 20, col, { align: "left", weight: 800, outline: 4 });
+    text(fmtNum(Math.round(runStats.dmg[k])), x + w - 150, ry + rowH / 2 + 4, 20, PARCH, { align: "right", weight: 800 });
+    text(fmtNum(runStats.kills[k] || 0), x + w - 24, ry + rowH / 2 + 4, 20, PARCH, { align: "right", weight: 800 });
+  });
+  text(`Total: ${fmtNum(Math.round(total))} damage, ${fmtNum(kills)} kills`, W / 2, bottom - 22, 18, hexA(PARCH, 0.85), { weight: 700 });
+  return bottom;
+}
+
+// ------------------------------------------------------------ 2x speed (bought once for $0.99, then a toggle)
+let gameSpeed = 1, speedOffer = false;
+const SPEED_PRODUCT = { id: "speed_2x", speed: true, price: "$0.99", name: "2x Speed" };
+function tapSpeed() {
+  if (!save.speed2x) { speedOffer = true; cancelDrag(); playUi("ui_pick"); return; }
+  gameSpeed = gameSpeed === 1 ? 2 : 1; save.speedOn = gameSpeed === 2; metaDirty = true; playUi("ui_pick");
+}
+function drawSpeedOffer() {
+  dim(0.72);
+  const w = 560, h = 420, x = W / 2 - w / 2, y = H / 2 - h / 2;
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  text("2x Speed", W / 2, y + 66, 44, INK, { font: DISPLAY, weight: 900 });
+  text("Play the battle twice as fast.", W / 2, y + 120, 23, "#4a2c1c", { weight: 700 });
+  text("Buy once, then switch 1x / 2x any time.", W / 2, y + 156, 20, "#6b3a22", { weight: 600 });
+  if (storeIsTest()) text("Test mode: nothing is charged.", W / 2, y + 196, 18, "#c0392b", { weight: 700 });
+  btn.speedBuy.label = shopBusy ? "..." : `Buy ${SPEED_PRODUCT.price}`;
+  btn.speedBuy.x = x + 34; btn.speedNo.x = x + w - 34 - btn.speedNo.w; btn.speedBuy.y = btn.speedNo.y = y + h - 120;
+  drawBtn(btn.speedBuy); drawBtn(btn.speedNo);
+}
+function drawSpeedButton() {
+  const b = btn.speed, owned = !!save.speed2x, on = gameSpeed === 2;
+  b.label = owned ? (on ? "2x" : "1x") : "2x"; b.fill = on ? GOLD : "#e9d3a6"; b.fillDown = b.fill;
+  drawBtn(b);
+  // Fast-forward arrows, and a padlock while it isn't bought.
+  const ax = b.x + b.w - 30, ay = b.y + b.h / 2;
+  for (const o of [0, 11]) poly([[ax - 8 + o, ay - 9], [ax + 3 + o, ay], [ax - 8 + o, ay + 9]], INK, null);
+  if (!owned) { const lx = b.x + 18, ly = b.y + 18; circle(lx, ly, 13, INK); circle(lx, ly, 10.5, GOLD); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(lx, ly - 2, 4, Math.PI, 0); ctx.stroke(); ctx.fillStyle = INK; ctx.fillRect(lx - 5, ly - 2, 10, 8); }
+}
+
 // ------------------------------------------------------------ Daily reward
 // A 7-day cycle of free gems. Each new calendar day you open the game moves you one day forward
 // (missing a day does not reset it); after day 7 it starts again at day 1.
@@ -4145,6 +4411,7 @@ const storeIsTest = () => typeof window.nativePurchase !== "function";
 let shopOpen = false, shopConfirm = null, shopBusy = false, shopToast = null;
 function openShop() { shopOpen = true; shopConfirm = null; playUi("ui_pick"); }
 function grantProduct(pr) {
+  if (pr.speed) { save.speed2x = true; writeSave(); playUi("ui_sell"); showBanner("2x Speed unlocked!", GOLD); shopToast = { text: "2x Speed unlocked!", color: GOLD, t: 0 }; return; }
   if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; }
   else {
     const el = pr.special, isNew = !save.specials[el];
@@ -4430,7 +4697,7 @@ function drawLobbyUi() {
   }
   // Fixed top bar: profile, gems, Sound, and page dots.
   drawBioPill();
-  btn.lobbySound.label = Sfx.muted ? "Sound: Off" : "Sound: On"; drawBtn(btn.lobbySound);
+  drawBtn(btn.settingsBtn);
   // Gem counter: grows with the number; "+" opens the shop.
   ctx.font = `700 28px ${FONT}`;
   const gTxt = fmtNum(save.gems), pw = Math.min(240, Math.max(132, ctx.measureText(gTxt).width + 100)), gx0 = Math.max(btn.bio.x + btn.bio.w + 10, W / 2 - pw / 2 + 20);
@@ -4472,7 +4739,8 @@ function drawHomeUi() {
   btn.play.size = 40 + Math.sin(lobbyT * 3) * 1.5;
   drawBtn(btn.play);
   // Daily reward (red dot when it is waiting) and Help (replays the tutorial).
-  drawBtn(btn.help); drawBtn(btn.mergeGuide);
+  drawBtn(btn.help); drawBtn(btn.mergeGuide); drawBtn(btn.missions);
+  if (missionsClaimable()) { const b = btn.missions; circle(b.x + b.w - 6, b.y + 6, 11 + Math.sin(lobbyT * 6) * 1.5, "#e0533f"); ring(b.x + b.w - 6, b.y + 6, 11, INK, 2); }
   // Spellbook icon on the left, above the Shop.
   const bk = BOOK_ICON[bookHasNew() ? "spellbook_notify" : "spellbook"], bb = btn.titleBook, bp = bb.down ? 0.92 : 1;
   if (bk && bk.ready) { const sz = bb.w * bp; ctx.drawImage(bk.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, bb.x + (bb.w - sz) / 2, bb.y + (bb.h - sz) / 2, sz, sz); }
@@ -4705,7 +4973,7 @@ function tutCheck() {
   if (tut) { const st = tutStep(); if (st.wait && st.wait()) tutNext(); return; }
   const seen = k => save.tut[k];
   if (state === "title") {
-    const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen && !bioOpen;
+    const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen && !bioOpen && !missionsOpen && !settingsOpen;
     if (!seen("lobby") && calm) tutStart("lobby");
     else if (seen("lobby") && calm && !dailyShownThisSession && dailyReady()) { dailyShownThisSession = true; dailyOpen = true; }
     return;
@@ -4797,6 +5065,10 @@ function frame(now) {
   tutCheck(); if (tut) drawTut(dt);
   if (guide) drawGuide(dt);
   if (reviveOffer && state !== "title") drawReviveOffer();
+  if (missionsOpen && state === "title") drawMissions(dt);
+  if (speedOffer && state !== "title") drawSpeedOffer();
+  if (settingsOpen) drawSettings();
+  if (shopToast && state !== "title") drawShopToast(dt);
   if (state !== "title") { updateAdSim(dt); if (adSim) drawAdSim(); }
   if (fadeIn > 0) { ctx.fillStyle = `rgba(10,5,15,${fadeIn / 0.5})`; ctx.fillRect(0, 0, W, H); fadeIn = Math.max(0, fadeIn - dt); }
   requestAnimationFrame(frame);
