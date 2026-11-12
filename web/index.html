@@ -100,10 +100,7 @@ const EL = {
   // Myth cards. These are not made from recipes: the Fusion Chamber creates them from Epic cards.
   // Special cards (tier 4). Never made by merging or fusing: they come from Summon (gacha) or purchases.
   // Once owned, they can show up (rarely) in the shop during runs. base = the element sprite they use.
-  solarflare: { name: "Solar Flare", tier: 4, special: true, base: "fire", color: "#ffb21f", shape: "flame", parts: ["fire"], desc: "A tiny sun bursts over a huge area and burns everything.", dmg: 26, rate: 0.8, speed: 700, splash: 120, burn: 16 },
-  tidalwave:  { name: "Tidal Wave", tier: 4, special: true, base: "water", color: "#2f8cff", shape: "drop", parts: ["water"], desc: "A crashing wave pushes back and slows a huge area.", dmg: 18, rate: 0.9, speed: 620, splash: 140, knock: 70, slow: 0.6 },
-  earthquake: { name: "Earthquake", tier: 4, special: true, base: "earth", color: "#c07a3a", shape: "rock", parts: ["earth"], desc: "The ground shakes: hits every enemy and roots them.", dmg: 14, rate: 0.45, speed: 520, splash: 2000, root: 0.6 },
-  tempest:    { name: "Tempest", tier: 4, special: true, base: "wind", color: "#5ff0c8", shape: "swirl", parts: ["wind"], desc: "Three razor gales pierce through everything.", dmg: 12, rate: 2.2, speed: 1100, pierce: 99, multishot: 3 },
+  totem:      { name: "Totem", tier: 4, special: true, totem: true, base: "earth", color: "#3fe0b0", shape: "rock", parts: ["earth"], desc: "Never attacks. Gives the cards right next to it (left and right) x2 damage. Drop another Totem on it for +1x more, with no limit.", dmg: 0, rate: 1 },
   // Legend cards: separate cards (not a Legend version of another card), created in the Legend Chamber or from Summon.
   // art = a full-card illustration instead of a frame + spirit.
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
@@ -138,8 +135,17 @@ const maxRarity = el => EL[el].special ? SPECIAL : EL[el].tier === 3 ? EPIC : V3
 // Each star doubles the card's damage. Stars add up (a 1-star + a plain card = 2 stars), up to 5 stars.
 const MAX_STARS = 5;
 const starMult = c => (c && c.stars ? 2 ** c.stars : 1);
+// Totem: a battle-row card directly left or right of the Totem gets +boost x (x2 for a fresh Totem).
+function totemMult(c) {
+  const i = rows.active.indexOf(c); if (i < 0) return 1;
+  let m = 1;
+  for (const j of [i - 1, i + 1]) { const o = rows.active[j]; if (o && o !== c && EL[o.element].totem && !(drag && drag.card === o)) m += o.boost || 1; }
+  return m;
+}
+const powerMult = c => starMult(c) * totemMult(c);
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
+  if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };   // Totem + Totem: +1x
   if (EL[aEl].special || EL[bEl].special) return null;   // Special cards never merge or fuse
   if (aEl === bEl && aR === bR && canStar(aEl, aR)) { const st = (aS || 0) + (bS || 0) + 1; return st <= MAX_STARS ? { element: aEl, rarity: aR, stars: st } : null; }
   if (aEl === bEl) return (aR === bR && aR < maxRarity(aEl)) ? { element: aEl, rarity: aR + 1 } : null;
@@ -150,6 +156,7 @@ function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
 }
 // Explains why two cards did not fuse (or returns "" when there is nothing useful to say).
 function mergeHint(a, b) {
+  if (EL[a.element].totem || EL[b.element].totem) return "A Totem never merges with other cards. Put it right next to your strongest cards!";
   if (EL[a.element].special || EL[b.element].special) return "Special cards can't merge or fuse.";
   if (a.element === b.element) {
     if (a.rarity === b.rarity && canStar(a.element, a.rarity)) return `Too many stars: together they would pass ${MAX_STARS} stars.`;
@@ -190,7 +197,7 @@ function rollRarity(wave) {
   return 0;
 }
 const randomBase = () => BASE[Math.floor(Math.random() * 4)];
-const describe = (el, r, st = 0) => `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * 2 ** st)} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
+const describe = (el, r, st = 0, boost = 1) => EL[el].totem ? `Totem x${1 + boost}: never attacks. The cards right next to it (left and right) deal x${1 + boost} damage. Drop another Totem on it for +1x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * 2 ** st)} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
 
 // ------------------------------------------------------------ Save (per-browser)
 const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {}, tut: {} };
@@ -198,6 +205,11 @@ try {
   const raw = localStorage.getItem("arcane-fusion-save");
   if (raw) Object.assign(save, JSON.parse(raw));
 } catch (e) { /* storage unavailable: play without saving */ }
+for (const old of ["solarflare", "tidalwave", "earthquake", "tempest"]) {   // the old Special cards became the Totem
+  if (save.specials && save.specials[old]) { save.specials.totem = true; delete save.specials[old]; }
+  if (save.copies && save.copies[old]) { save.copies.totem = (save.copies.totem || 0) + save.copies[old]; delete save.copies[old]; }
+  if (save.levels && save.levels[old]) { save.levels.totem = Math.max(save.levels.totem || 1, save.levels[old]); delete save.levels[old]; }
+}
 function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} }
 // ---- Summon (gacha), gems and card upgrades
 const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
@@ -209,7 +221,7 @@ const SPECIAL_RATE = 0.005, MAIN_RATE = 0.5, NEXT_RATE = 0.3, EPIC_RATE = 0.13, 
 const LEVEL_NEED = [5, 10, 20, 40], LEVEL_BONUS = 0.2, MAX_LEVEL = 5;   // copies for Lv2..Lv5, +20% damage each
 const SPECIAL_SHOP_CHANCE = 0.02;   // chance for each shop slot to offer an owned Special card
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice"];
-const SPECIALS = ["solarflare", "tidalwave", "earthquake", "tempest"];
+const SPECIALS = ["totem"];
 const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth && !EL[k].legendCard);   // the 11 Epic elements
 const MYTH_ELS = Object.keys(EL).filter(k => EL[k].myth);                       // Phoenix
 // Legend cards are separate cards (not a Legend version of a Myth card). None exist yet:
@@ -226,7 +238,7 @@ const levelNeed = el => levelOf(el) >= MAX_LEVEL ? 0 : LEVEL_NEED[levelOf(el) - 
 // A card is "open" in the Cards library once you know it: main elements always, fused cards once their recipe was
 // discovered (fusing them, or the Chamber for Phoenix), Special cards once unlocked.
 const cardKnown = el => EL[el].tier === 1 || (EL[el].special ? !!save.specials[el] : !!save.discovered[el]);
-const canUpgrade = el => cardKnown(el) && levelOf(el) < MAX_LEVEL && copiesOf(el) >= levelNeed(el);
+const canUpgrade = el => !EL[el].totem && cardKnown(el) && levelOf(el) < MAX_LEVEL && copiesOf(el) >= levelNeed(el);
 function summonOnce() {
   save.pity = (save.pity || 0) + 1; track("summon"); profile().pulls = (profile().pulls || 0) + 1;   // the caller (doSummon) pays the gems
   const r = Math.random(); let el, acc = SPECIAL_RATE;
@@ -951,9 +963,12 @@ class Card {
       circle(sx, sy, 1 + 1.2 * (0.5 + 0.5 * Math.sin(t * 3 + i * 2)), "rgba(255,255,255,0.8)");
     }
     const cy = -10 + Math.sin(t * 2.2 + this.seed) * 3;
+    if (d.totem) this.drawTotemArt(t);
+    else {
     circle(0, cy, 40, hexA(d.color, 0.35)); circle(0, cy, 28, "rgba(255,255,255,0.12)");
     if (!drawSprite(d.base, 0, cy, 72, t + this.seed, V3)) poly(radialPoly(0, cy, 26, d.shape, t, this.seed), d.color, INK, 3);
-    for (let i = 0; i < 4; i++) {   // orbiting sparkles
+    }
+    if (!d.totem) for (let i = 0; i < 4; i++) {   // orbiting sparkles
       const a = t * 1.6 + i * Math.PI / 2, sx = Math.cos(a) * 42, sy = cy + Math.sin(a) * 28, k = 3 + Math.sin(t * 5 + i) * 1.2;
       ctx.strokeStyle = `hsl(${(t * 120 + i * 90) % 360},100%,80%)`; ctx.lineWidth = 1.8; ctx.beginPath();
       ctx.moveTo(sx - k, sy); ctx.lineTo(sx + k, sy); ctx.moveTo(sx, sy - k); ctx.lineTo(sx, sy + k); ctx.stroke();
@@ -961,12 +976,40 @@ class Card {
     if (!this.noLabel) text("SPECIAL", 0, -hh + 21, 10, "#ffffff", { weight: 700, outline: 4, outlineColor: CI });
     rrect(-hw + 10, hh - 36, CARD_W - 20, 25, 12); ctx.fillStyle = "rgba(255,255,255,0.92)"; ctx.fill(); ctx.strokeStyle = CI; ctx.lineWidth = 2; ctx.stroke();
     text(d.name, 0, hh - 23, d.name.length > 10 ? 13 : 15, CI, { weight: 700, baseline: "middle" });
+    if (d.totem) {   // its power: x2, x3, ...
+      const bx = hw - 12, by = -hh + 14, pul = 0.5 + 0.5 * Math.sin(t * 4);
+      circle(bx, by, 17 + pul, "rgba(63,224,176,0.35)"); circle(bx, by, 14, GOLD); ring(bx, by, 14, INK, 2.5);
+      const lab = `x${1 + (this.boost || 1)}`;
+      text(lab, bx, by + 1, lab.length > 3 ? 11 : 14, INK, { weight: 900, baseline: "middle" });
+    }
     if (this.inShop) {
       const ty = hh + 4;
       rrect(-34, ty - 13, 68, 26, 13); ctx.fillStyle = this.isFree ? "#6cc56a" : (this.affordable ? GOLD : "#c46a5a"); ctx.fill();
       ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
       text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
     }
+  }
+  // ---- The Totem: a carved totem pole (thunderbird with spread wings, owl, bear) glowing with spirit light.
+  drawTotemArt(t) {
+    const cy = -3 + Math.sin(t * 1.6) * 1.5, K = 0.78;   // pole fits between the SPECIAL label and the name plate
+    // Spirit glow behind the pole.
+    const g = ctx.createRadialGradient(0, cy, 6, 0, cy, 60);
+    g.addColorStop(0, `rgba(80,240,190,${0.45 + 0.15 * Math.sin(t * 3)})`); g.addColorStop(1, "rgba(80,240,190,0)");
+    ctx.fillStyle = g; ctx.fillRect(-56, cy - 62, 112, 124);
+    // Rising spirit wisps.
+    for (let i = 0; i < 6; i++) {
+      const k = (t * 0.7 + i / 6) % 1, x = Math.sin(i * 2.3 + t * 2) * 22, y = cy + 40 - k * 100;
+      circle(x, y, 2.6 * (1 - k) + 0.6, `rgba(150,255,220,${0.8 * (1 - k)})`);
+    }
+    drawCached("totem_pole", 110, 110, drawTotemPole, 0, cy, K);
+    // Glowing eyes (they blink in turn).
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const eyes = [[-6, -33, 2.4], [6, -33, 2.4], [-9, -9, 3.6], [9, -9, 3.6], [-9, 17, 2.6], [9, 17, 2.6]];
+    eyes.forEach(([ex, ey, r], i) => {
+      const on = 0.55 + 0.45 * Math.sin(t * 3 - Math.floor(i / 2) * 1.4);
+      circle(ex * K, cy + ey * K, r * K * 2.4, `rgba(90,255,200,${0.35 * on})`); circle(ex * K, cy + ey * K, r * K, `rgba(220,255,240,${0.9 * on})`);
+    });
+    ctx.restore();
   }
   // ---- Legend card extras: golden god-rays, orbiting orbs of light, and a shine sweeping across the card.
   drawLegendRays(hw, hh, t, theme) {
@@ -2365,8 +2408,8 @@ function fireCard(c) {
   c.kick = 1;
   playSfx(c.element, "atk");
   const ox = c.x, oy = c.y - 60;
-  if (d.chain) { chain(c.element, c.rarity, ox, oy, targets[0], d.chain, starMult(c)); return; }
-  for (let i = 0; i < shots; i++) { const pr = new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]); pr.sm = starMult(c); projectiles.push(pr); }
+  if (d.chain) { chain(c.element, c.rarity, ox, oy, targets[0], d.chain, powerMult(c)); return; }
+  for (let i = 0; i < shots; i++) { const pr = new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]); pr.sm = powerMult(c); projectiles.push(pr); }
 }
 function chain(el, r, ox, oy, first, count, sm = 1) {
   const dmg = damageOf(el, r) * sm, hit = new Set(), pts = [[ox, oy]];
@@ -2397,7 +2440,7 @@ function updateBeam(c, dt) {
   }
   if (!c.beams.length) return;
   if (c.beamT > 0.22) { c.beamT = 0; playSfx(c.element, "hit"); c.kick = 0.6; }
-  const per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * BEAM_SHARE * starMult(c), src = statKey(c.element, c.rarity);
+  const per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * BEAM_SHARE * powerMult(c), src = statKey(c.element, c.rarity);
   for (const b of c.beams) {
     const e = b.e, amt = per * dt * elementMult(c.element, e.resist, e.flying);
     if (d.slow) e.slow(d.slow, 0.3);
@@ -2414,6 +2457,42 @@ function soulReleaseFx(x, y) {
   addPart({ kind: "smoke", x, y: y - 6, vy: -60, life: 0.9, size: 14, grow: 1.4, col: "#6a2aa8", a: 0.4 });
   const now = performance.now();
   if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running" && now - lastWail > 180) { lastWail = now; try { sTone("sine", 280, 1050, 0.6, 0.11); sTone("triangle", 420, 1250, 0.6, 0.05, 0.05); } catch (e) {} }
+}
+// The Totem pole picture, centred on the origin (about 96 x 92). Drawn once into a cached sprite.
+function drawTotemPole() {
+  const WOOD = "#a8703f", DARK = "#6b4226", TEAL = "#2fc7a0", RED = "#d8443a", lw = 2.2;
+  const shape = (pts, fill) => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = lw; ctx.lineJoin = "round"; ctx.stroke(); };
+  // Thunderbird wings (behind the head).
+  for (const sx of [-1, 1]) {
+    shape([[sx * 8, -36], [sx * 46, -46], [sx * 44, -38], [sx * 38, -36], [sx * 42, -30], [sx * 34, -28], [sx * 36, -22], [sx * 8, -24]], TEAL);
+    ctx.strokeStyle = "rgba(20,60,50,0.6)"; ctx.lineWidth = 1.4; ctx.beginPath();
+    ctx.moveTo(sx * 14, -33); ctx.lineTo(sx * 40, -42); ctx.moveTo(sx * 14, -29); ctx.lineTo(sx * 36, -33); ctx.stroke();
+    shape([[sx * 8, -34], [sx * 22, -38], [sx * 22, -30], [sx * 8, -27]], RED);
+  }
+  // Pole body (three stacked blocks).
+  const block = (y0, y1, wTop, wBot) => {
+    shape([[-wTop, y0], [wTop, y0], [wBot, y1], [-wBot, y1]], WOOD);
+    ctx.fillStyle = "rgba(60,30,10,0.25)"; ctx.fillRect(wBot - 6, y0 + 2, 5, y1 - y0 - 4);   // shaded side
+  };
+  block(-24, 4, 16, 17); block(4, 44, 19, 20);
+  // Top: thunderbird head with a hooked beak and a crest.
+  shape([[-12, -24], [-14, -38], [-8, -46], [8, -46], [14, -38], [12, -24]], WOOD);
+  shape([[-6, -46], [-2, -54], [2, -48], [6, -55], [8, -46]], RED);
+  shape([[-5, -28], [5, -28], [0, -16]], "#f2b632");
+  for (const sx of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sx * 6, -33, 4.2, 3.4, 0, 0, Math.PI * 2); ctx.fillStyle = "#1a1030"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.stroke(); }
+  // Middle: owl with big ringed eyes.
+  for (const sx of [-1, 1]) { circle(sx * 9, -9, 7, TEAL); ring(sx * 9, -9, 7, INK, 2); circle(sx * 9, -9, 4.6, "#1a1030"); }
+  shape([[-3, -4], [3, -4], [0, 3]], "#f2b632");
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-14, -19); ctx.lineTo(-4, -16); ctx.moveTo(14, -19); ctx.lineTo(4, -16); ctx.stroke();
+  // Bottom: grumpy bear with teeth.
+  for (const sx of [-1, 1]) { shape([[sx * 15, 6], [sx * 21, 2], [sx * 21, 12]], DARK); }
+  ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(-15, 11); ctx.lineTo(-4, 15); ctx.moveTo(15, 11); ctx.lineTo(4, 15); ctx.stroke();
+  for (const sx of [-1, 1]) { circle(sx * 9, 17, 4, "#1a1030"); }
+  shape([[-12, 26], [12, 26], [10, 37], [-10, 37]], "#3a1a12");
+  ctx.fillStyle = "#f4ecd8"; for (let i = 0; i < 4; i++) { ctx.fillRect(-10 + i * 5.5, 26, 3.6, 4); ctx.fillRect(-9 + i * 5.2, 33, 3.4, 4); }
+  // Painted bands.
+  ctx.fillStyle = RED; ctx.fillRect(-17, 2, 34, 4); ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.strokeRect(-17, 2, 34, 4);
+  ctx.fillStyle = TEAL; ctx.fillRect(-20, 40, 40, 4); ctx.strokeRect(-20, 40, 40, 4);
 }
 // A small cartoon skull (Hades' orbs and his soul shots). r = radius of the cranium.
 function drawSkullIcon(x, y, r, alpha = 1, glowA = 0.8) {
@@ -2530,7 +2609,7 @@ function updateLance(c, dt) {
   if (c.lanceAng === undefined) c.lanceAng = want;
   let da = want - c.lanceAng; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
   c.lanceAng += clamp(da, -LANCE_TURN * dt, LANCE_TURN * dt);
-  const dx = Math.cos(c.lanceAng), dy = Math.sin(c.lanceAng), per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * starMult(c), src = statKey(c.element, c.rarity);
+  const dx = Math.cos(c.lanceAng), dy = Math.sin(c.lanceAng), per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * powerMult(c), src = statKey(c.element, c.rarity);
   c.lanceT = (c.lanceT || 0) + dt;
   if (c.lanceT > 0.4) { c.lanceT = 0; playSfx("water", "hit"); }
   for (const e of live) {
@@ -2550,6 +2629,39 @@ function updateLance(c, dt) {
     addPart({ kind: "drop", x: ox + dx * k - dy * side * d.lance * 0.5, y: oy + dy * k + dx * side * d.lance * 0.5, vx: -dy * side * sp + dx * 120, vy: dx * side * sp + dy * 120, g: 300, life: rand(0.3, 0.6), size: rand(1.8, 3.5), col: "#bfeeff" });
   }
   if (Math.random() < dt * 30) { const k = rand(40, 700); addPart({ kind: "bubble", x: ox + dx * k + rand(-12, 12), y: oy + dy * k + rand(-12, 12), vx: rand(-20, 20), vy: rand(-30, 10), life: 0.6, size: rand(2, 5), col: "rgba(230,250,255,0.9)", rot: rand(0, 9) }); }
+}
+// Spirit energy flowing from a Totem in the battle row to the cards right next to it, with an xN badge on each.
+function totemArc(x0, y0, x1, y1, t, boost) {
+  const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 46;
+  ctx.save(); ctx.lineCap = "round";
+  ctx.strokeStyle = "rgba(63,224,176,0.35)"; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+  ctx.setLineDash([10, 12]); ctx.lineDashOffset = -t * 60;
+  ctx.strokeStyle = "rgba(200,255,235,0.95)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+  ctx.setLineDash([]);
+  for (let i = 0; i < 3; i++) {   // spirit orbs riding the stream
+    const k = (t * 0.9 + i / 3) % 1, u = 1 - k;
+    const x = u * u * x0 + 2 * u * k * mx + k * k * x1, y = u * u * y0 + 2 * u * k * my + k * k * y1;
+    circle(x, y, 7, "rgba(63,224,176,0.35)"); circle(x, y, 3.5, "#eafff8");
+  }
+  ctx.restore();
+}
+function drawTotemLinks() {
+  if (state !== "wave" && state !== "break") return;
+  rows.active.forEach((tc, i) => {
+    if (!tc || !EL[tc.element].totem || tc.dragging) return;
+    for (const j of [i - 1, i + 1]) {
+      const o = rows.active[j]; if (!o || o.dragging) continue;
+      const top = -CARD_H / 2 - 4;
+      totemArc(tc.x, tc.y + top + 8, o.x, o.y + top + 8, time + i, tc.boost || 1);
+      // Teal glow around the boosted card and its xN badge.
+      const pul = 0.5 + 0.5 * Math.sin(time * 4 + j);
+      rrect(o.x - CARD_W / 2 - 5, o.y - CARD_H / 2 - 5, CARD_W + 10, CARD_H + 10, 14);
+      ctx.strokeStyle = `rgba(63,224,176,${0.45 + 0.35 * pul})`; ctx.lineWidth = 3.5; ctx.stroke();
+      const lab = `x${1 + (tc.boost || 1)}`, bx = o.x + CARD_W / 2 - 6, by = o.y + top + 4, bw = 18 + lab.length * 9;
+      rrect(bx - bw / 2, by - 13, bw, 26, 13); ctx.fillStyle = "#1d5c4c"; ctx.fill(); ctx.strokeStyle = "#7dffd8"; ctx.lineWidth = 2; ctx.stroke();
+      text(lab, bx, by + 1, 17, "#eafff8", { weight: 900, baseline: "middle" });
+    }
+  });
 }
 function drawLances() {
   for (const c of rows.active) {
@@ -2745,6 +2857,8 @@ function toggleShopLock(i) {
 }
 function shopTapBuy(i) {
   if (!rows.shop[i]) return;
+  const tot = EL[rows.shop[i].element].totem && totemOnBoard(rows.shop[i]);
+  if (tot) { for (const r of ["active", "storage"]) { const k = rows[r].indexOf(tot); if (k >= 0 && buy(i, r, k)) { playUi("ui_place"); return; } } return; }   // a tapped Totem powers up yours
   const slot = firstFree();
   if (!slot) { showInfo("No free slot! Drag it onto a matching card to fuse it."); rows.shop[i].shake = 1; }
   else if (buy(i, slot[0], slot[1])) playUi("ui_place");
@@ -2799,8 +2913,11 @@ function updateStorage(dt) {
     storageEdgeT += dt; if (storageEdgeT > 0.45) { setStoragePage(1 - storagePage); storageEdgeT = 0; }
   } else storageEdgeT = 0;
 }
+// Only one Totem may be on the board (battle and storage rows). Returns it, or null.
+const totemOnBoard = except => [...rows.active, ...rows.storage].find(c => c && c !== except && EL[c.element].totem) || null;
 function buy(si, row, i) {
   const card = rows.shop[si]; if (!card) return false;
+  if (EL[card.element].totem && !rows[row][i] && totemOnBoard(card)) { showInfo("Only 1 Totem on the board! Drop this one onto your Totem for +1x."); card.shake = 1; return false; }
   const cost = freeCard ? 0 : card.price;
   if (gold < cost) { showInfo(`Not enough gold! This card costs ${cost}.`); card.shake = 1; return false; }
   const other = rows[row][i];
@@ -2809,6 +2926,7 @@ function buy(si, row, i) {
     const s = slotPos(row, i); card.setHome(s.x, s.y);
   } else {
     const res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
+  if (res && res.totem) res.boost = (card.boost || 1) + (other.boost || 1);
     if (!res) { showInfo(mergeHint(card, other) || `${cardName(card)} can't fuse with ${cardName(other)}.`); card.shake = 1; return false; }
     rows.shop[si] = null; applyMerge(other, res);
   }
@@ -2837,6 +2955,16 @@ function powerUp(card) {
   buzz(60);
 }
 function applyMerge(card, res) {
+  if (res.totem) {
+    card.boost = res.boost; card.cooldown = 0.3; card.scale = 1.4; track("merge");
+    fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: "#3fe0b0", radius: 110, duration: 0.45 }));
+    fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: GOLD, radius: 70, duration: 0.35 }));
+    for (let i = 0; i < 3; i++) addPart({ add: true, kind: "ring", x: card.hx, y: card.hy + 30, rgb: "90,240,190", size: 24 + i * 14, grow: 200 + i * 80, w: 5 - i, sq: 0.45, life: 0.5 + i * 0.12 });
+    fxs.push(new Fx("text", { x: card.hx, y: card.hy - 90, text: `Totem x${1 + card.boost}!`, color: "#7dffd8", size: 30, duration: 1.1 }));
+    if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sTone("triangle", 196, 196, 0.5, 0.14); sTone("triangle", 294, 294, 0.5, 0.1, 0.1); sTone("sine", 588, 588, 0.6, 0.08, 0.2); sNoise(0.4, 0.3, "lowpass", 400, 80, 0.8); }
+    showInfo(describe(card.element, card.rarity, 0, card.boost));
+    return;
+  }
   if (res.stars) {
     track("merge");
     card.stars = res.stars; card.cooldown = 0.3; card.scale = 1.35; card.starPop = 1;
@@ -2870,6 +2998,7 @@ function moveCard(fr, fi, tr, ti) {
   if (!card) return "";
   if (!other) { rows[fr][fi] = null; rows[tr][ti] = card; const s = slotPos(tr, ti); card.setHome(s.x, s.y); return "move"; }
   const res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
+  if (res && res.totem) res.boost = (card.boost || 1) + (other.boost || 1);
   if (res) { rows[fr][fi] = null; applyMerge(other, res); return "merge"; }
   const hint = mergeHint(card, other);
   if (hint) showInfo(hint);
@@ -3659,7 +3788,7 @@ canvas.addEventListener("pointerdown", ev => {
   drag = { card, from: s[0], index: s[1], ox: card.x - p.x, oy: card.y - p.y, px: p.x, py: p.y, moved: false };
   playUi("ui_pick");
   card.dragging = true;
-  showInfo(describe(card.element, card.rarity, card.stars));
+  showInfo(describe(card.element, card.rarity, card.stars, card.boost));
 });
 canvas.addEventListener("pointermove", ev => {
   const p = toLogical(ev); pointer = p;
@@ -3733,7 +3862,7 @@ function update(dt) {
       else if (sp.left > 0) { sp.left--; spawnEnemy(pickKind(sp.wave), sp.wave); }
     }
     for (const c of rows.active) {
-      if (!c || (drag && drag.card === c)) continue;
+      if (!c || (drag && drag.card === c) || EL[c.element].totem) continue;   // a Totem never attacks
       if (EL[c.element].beam) { updateBeam(c, dt * (speedT > 0 ? SPEED_MULT : 1)); continue; }
       if (EL[c.element].lance) { updateLance(c, dt * (speedT > 0 ? SPEED_MULT : 1)); continue; }
       c.cooldown -= dt * (speedT > 0 ? SPEED_MULT : 1);
@@ -3959,7 +4088,7 @@ function drawWorld() {
     drawChamber();
   }
   for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W))) c.draw();
-  if (!chamberOpen) { drawStorageNav(); drawShopLocks(); }
+  if (!chamberOpen) { drawStorageNav(); drawShopLocks(); drawTotemLinks(); }
   if (!chamberOpen) { drawParts(); for (const p of projectiles) p.draw(); drawLances(); drawBeams(); }
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
@@ -4770,6 +4899,8 @@ const testRarity = (el, lvl) => EL[el].special ? SPECIAL : EL[el].legendCard ? L
 function testGive(el) {
   const slot = firstFree();
   if (!slot) { showInfo("No free slot. Sell or merge a card first."); playSfx("ash", "hit"); return; }
+  const had = EL[el].totem && totemOnBoard(null);
+  if (had) { had.boost = (had.boost || 1) + 1; had.scale = 1.4; showInfo(describe(el, SPECIAL, 0, had.boost)); return; }
   const c = new Card(el, testRarity(el, testPick.lvl)); rows[slot[0]][slot[1]] = c;
   const q = slotPos(slot[0], slot[1]); c.setHome(q.x, q.y, true); c.scale = 1.35;
   if (EL[el].tier === 3 && c.rarity === EPIC) c.evolveAt = c.t;
@@ -5368,13 +5499,13 @@ function drawShop(dt) {
     }
     priceTag(b.x + tw - 132, b.y + th - 52 + press, 116, pr.price);
   });
-  // Special cards: 4 tiles.
+  // Special cards (centred).
   const sy = y + 192 + 3 * (th + 14) + 30;
   text("Special Cards", x + 24, sy, 26, INK, { align: "left", weight: 800 });
   text("Unlock it for runs, or +1 copy if you own it", x + w - 24, sy, 16, "#6b3a22", { align: "right", weight: 600 });
   const sw = (w - 70) / 4, sh = 272;
   specialTiles.forEach((b, i) => {
-    b.x = x + 20 + i * (sw + 10); b.y = sy + 16; b.w = sw; b.h = sh;
+    const n = specialTiles.length; b.x = x + w / 2 - (n * sw + (n - 1) * 10) / 2 + i * (sw + 10); b.y = sy + 16; b.w = sw; b.h = sh;
     const press = b.down ? 3 : 0, owned = save.specials[b.pr.special];
     rrect(b.x, b.y + press, sw, sh, 16); ctx.fillStyle = b.down ? "#e2cfa6" : "#2a1d40"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
     const c = b.card; c.t += dt; c.x = c.hx = b.x + sw / 2; c.y = c.hy = b.y + 96 + press; c.scale = 1.1; c.draw();
@@ -5438,7 +5569,7 @@ function effectLines(d) {
 }
 function howToGet(el) {
   const d = EL[el];
-  if (d.special) return "Summon only. Once unlocked it can appear in the shop (rare).";
+  if (d.special) return "Summon (guaranteed by pull 100) or the Shop. Once unlocked it can appear in the battle shop (rare).";
   if (d.legendCard) return "Fusion Chamber with a Myth card on an altar (Legend chance), or Summon (1.5%).";
   if (d.myth) return "Fusion Chamber: fuse 3 or more Epic cards.";
   const r = RECIPE_LIST.find(x => x[2] === el);
@@ -5457,9 +5588,9 @@ function drawCardInfo(dt) {
   const tx = x + 232;
   text(d.name, tx, y + 74, d.name.length > 10 ? 34 : 40, INK, { align: "left", font: DISPLAY, weight: 900 });
   text(group, tx, y + 108, 21, RARITY_COLORS[showRarity(el)] === "#B8BEC8" ? "#6b3a22" : shade(RARITY_COLORS[showRarity(el)], -0.25), { align: "left", weight: 700 });
-  text(locked ? "Locked" : `Level ${lvl}` + (lvl > 1 ? `  (+${Math.round((lm - 1) * 100)}% damage)` : ""), tx, y + 146, 23, locked ? "#a05050" : lvl > 1 ? "#2f8f3f" : INK, { align: "left", weight: 700 });
+  text(locked ? "Locked" : d.totem ? "Unlocked" : `Level ${lvl}` + (lvl > 1 ? `  (+${Math.round((lm - 1) * 100)}% damage)` : ""), tx, y + 146, 23, locked ? "#a05050" : lvl > 1 ? "#2f8f3f" : INK, { align: "left", weight: 700 });
   const need = levelNeed(el);
-  if (!locked) text(need ? `${copiesOf(el)} / ${need} copies to Lv ${lvl + 1} (+${Math.round(lvl * LEVEL_BONUS * 100)}%)` : "Max level", tx, y + 178, 18, "#6b3a22", { align: "left", weight: 600 });
+  if (!locked && !d.totem) text(need ? `${copiesOf(el)} / ${need} copies to Lv ${lvl + 1} (+${Math.round(lvl * LEVEL_BONUS * 100)}%)` : "Max level", tx, y + 178, 18, "#6b3a22", { align: "left", weight: 600 });
   wrapInk(d.desc, tx, y + 214, w - 250, 19, 24);
   // Stats table.
   let ry = y + 316;
@@ -5467,6 +5598,13 @@ function drawCardInfo(dt) {
   const forms = d.special ? [SPECIAL] : d.legendCard ? [LEGEND_R] : d.myth ? [MYTH] : d.tier === 3 ? [EPIC] : [0, 1, 2];
   const formName = r => r <= 2 ? `V${r + 1}` : RARITY_NAMES[r];
   line();
+  if (d.totem) {
+    for (const [k, v, col] of [["Attack", "Never attacks", "#b4441f"], ["Boost", "x2 damage to the card left and right", "#2f8f3f"], ["Combine", "+1x per Totem, no limit", "#7a3fb0"]]) {
+      text(k, x + 30, ry, 22, INK, { align: "left", weight: 700 }); text(v, x + w - 30, ry, 20, col, { align: "right", weight: 700 }); ry += 44; line();
+    }
+    text("Limit", x + 30, ry, 22, INK, { align: "left", weight: 700 }); text("1 Totem on the board", x + w - 30, ry, 20, INK, { align: "right", weight: 600 });
+    ry += 44; line();
+  } else {
   text(d.beam ? "Damage per stream /s" : d.lance ? "Beam damage /s (each enemy)" : "Damage per hit", x + 30, ry, 22, INK, { align: "left", weight: 700 });
   text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(d.beam ? damageOf(el, r) * rateOf(el, r) * BEAM_SHARE : d.lance ? damageOf(el, r) * rateOf(el, r) : damageOf(el, r))).join("   "), x + w - 30, ry, 22, "#b4441f", { align: "right", weight: 700 });
   ry += 44; line();
@@ -5484,6 +5622,7 @@ function drawCardInfo(dt) {
   if (!fx.length) text("None", x + w - 30, ry, 20, "#6b3a22", { align: "right", weight: 600 });
   fx.forEach((f, i) => text(f, x + w - 30, ry + i * 28, 19, "#6b3a22", { align: "right", weight: 600 }));
   ry += Math.max(1, fx.length) * 28 + 18; line();
+  }
   text("How to get", x + 30, ry, 22, INK, { align: "left", weight: 700 });
   wrapInk(howToGet(el), x + 30, ry + 30, w - 60, 19, 24, "left");
   btn.closeInfo.y = btn.infoUpgrade.y = y + h - 96;
@@ -5698,6 +5837,9 @@ const GUIDE = [
   { t: "MAX POWER: 5 Stars", eq: [[["zeus", LEGEND, 4], ["zeus", LEGEND, 0], ["zeus", LEGEND, 5]]], labels: [["4 stars + one more copy = 5 stars!", "#ffd84a"]], labelDy: 18,
     note: "5 stars = 32x damage + a golden power aura",
     b: "When a Myth or Legend card reaches 5 stars it unlocks MAX POWER: it bursts into a blazing golden aura with lightning and rising energy, so everyone can see it's your strongest card. It deals 32x its normal damage!" },
+  { t: "Special Card: Totem", row: [["fire", 2, "No boost", "#ff8a7a"], ["zeus", LEGEND, "x2", "#7dffd8"], ["totem", SPECIAL, "TOTEM", "#ffd84a"], ["poseidon", LEGEND, "x2", "#7dffd8"], ["wind", 2, "No boost", "#ff8a7a"]],
+    note: "Drop a Totem on your Totem: +1x  (x2 > x3 > x4 ... no limit)",
+    b: "The Totem never attacks. Put it in the battle row: the cards RIGHT NEXT to it (left and right) deal x2 damage. Cards further away get nothing, so put your strongest cards beside it. Only 1 Totem can be on the board, but every extra Totem you drop on it adds +1x." },
   { t: "The Road to Legend", flow: [["fire", 0], ["fire", 1], ["fire", 2], ["steam", 2], ["storm", EPIC], ["phoenix", MYTH], ["zeus", LEGEND]],
     b: "Main V1 > V2 > V3, fuse into Next elements, level them to V3, fuse two into an Epic, fuse Epics into a Myth, and a Myth into a Legend. Good luck, summoner!" },
 ];
@@ -5778,6 +5920,17 @@ function drawGuide(dt) {
       rrect(px + 40, bottom - 52, pw - 80, 44, 22); ctx.fillStyle = "rgba(242,193,78,0.18)"; ctx.fill();
       text(pg.note, W / 2, bottom - 23, 21, GOLD, { weight: 800 });
     }
+  }
+  if (pg.row) {
+    // A battle row: cards side by side with a label under each, and the Totem's energy streams to its neighbours.
+    const n = pg.row.length, sc = Math.min(1.0, (pw - 40) / (n * CARD_W * 1.08)), cw = CARD_W * sc, gap = (pw - 40 - n * cw) / (n - 1), cy = mid - 10;
+    const xs = pg.row.map((_, i) => px + 20 + cw / 2 + i * (cw + gap));
+    pg.row.forEach(([el, r], i) => gCard(el, r, 300 + i, xs[i], cy, sc, dt, 0));
+    const ti = pg.row.findIndex(it => EL[it[0]].totem), top = cy - CARD_H * sc / 2 + 4;
+    for (const j of [ti - 1, ti + 1]) if (pg.row[j]) totemArc(xs[ti], top, xs[j], top, g.t, 1);
+    pg.row.forEach(([, , lab, col], i) => text(lab, xs[i], cy + CARD_H * sc / 2 + 30, 20, col, { weight: 900, outline: 5 }));
+    rrect(px + 40, bottom - 52, pw - 80, 44, 22); ctx.fillStyle = "rgba(63,224,176,0.18)"; ctx.fill();
+    text(pg.note, W / 2, bottom - 23, 20, "#7dffd8", { weight: 800 });
   }
   if (pg.recipes) {
     // One fusion per row, big enough to read: [A] + [B] = [C] with the result's name.
