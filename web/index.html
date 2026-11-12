@@ -257,6 +257,11 @@ function shade(hex, k) { // k<0 darken, k>0 lighten
   r = Math.round(lerp(r, t, f)); g = Math.round(lerp(g, t, f)); b = Math.round(lerp(b, t, f));
   return `rgb(${r},${g},${b})`;
 }
+function mixHexToHex(a, b, k) {
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+  const c = sh => Math.round(lerp((x >> sh) & 255, (y >> sh) & 255, k));
+  return "#" + [c(16), c(8), c(0)].map(v => v.toString(16).padStart(2, "0")).join("");
+}
 function mixHex(a, b, k) {
   const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
   const c = s => Math.round(lerp((x >> s) & 255, (y >> s) & 255, k));
@@ -880,6 +885,11 @@ const KINDS = {
   purpleSlime: { name: "Glowy Purple Slime", look: "slime", glow: true, heavy: true, resist: "wind", hp: 100, speed: 30, size: 27, gold: 3, dps: 11, color: "#b36bff" },
   kingSlime:   { name: "King Slime", look: "slime", king: true, boss: true, hp: 1500, speed: 14, size: 58, gold: 50, dps: 50, color: "#8a4fe0" },
 };
+// Reusable gradients for enemy art (they are drawn in each enemy's own coordinates, so they can be shared).
+const GRAD_CACHE = new Map();
+// Fine decorations are skipped when many enemies are on screen, to keep the frame rate smooth.
+let EN_DETAIL = true;
+function gradPut(k, g) { if (GRAD_CACHE.size > 600) GRAD_CACHE.clear(); GRAD_CACHE.set(k, g); }
 const CC_LIMIT = 10;   // each enemy can be knocked back 10 times and stunned 10 times, then it is immune
 class Enemy {
   constructor(kind, wave, x, y) {
@@ -940,15 +950,21 @@ class Enemy {
   draw() {
     const s = this.size, t = this.t;
     ctx.save(); ctx.translate(this.x, this.y);
+    if (this.isBoss) this.drawBossAura(s, t);
     ellipse(0, s * 0.85, s * 0.95, s * 0.28, "rgba(0,0,0,0.32)");
+    // Lunge at the wall while attacking; squash when hit.
+    if (this.attacking) ctx.translate(0, Math.max(0, Math.sin(t * 9)) * s * 0.12);
+    const hit = this.flash; ctx.scale(1 + hit * 0.12, 1 - hit * 0.1);
     const step = this.attacking ? 5 : 8;
     const cy = this.look === "slime" ? 0 : -Math.abs(Math.sin(t * step)) * s * 0.12;
-    const body = this.stunT > 0 ? mixHex(this.color, "#bfefff", 0.6) : this.slowT > 0 ? mixHex(this.color, "#9fdcff", 0.45) : this.color;
+    const body = this.stunT > 0 ? mixHexToHex(this.color, "#bfefff", 0.6) : this.slowT > 0 ? mixHexToHex(this.color, "#9fdcff", 0.45) : this.color;
     if (this.look === "slime") this.drawSlime(s, t, body);
-    else if (this.look === "boar") this.drawBoar(s, t, cy, body);
-    else if (this.look === "goblin") this.drawGoblin(s, t, cy, body);
-    else if (this.look === "mummy") this.drawMummy(s, t, cy, body);
-    else if (this.look === "orc") this.drawOrc(s, t, cy, body);
+    else { ctx.save(); ctx.translate(0, cy);   // drawn at cy = 0 so their gradients can be cached
+      if (this.look === "boar") this.drawBoar(s, t, 0, body);
+      else if (this.look === "goblin") this.drawGoblin(s, t, 0, body);
+      else if (this.look === "mummy") this.drawMummy(s, t, 0, body);
+      else if (this.look === "orc") this.drawOrc(s, t, 0, body);
+      ctx.restore(); }
     if (this.king) this.drawCrown(s, cy - s * (this.look === "slime" ? 0.95 : 1.0));
     // Status effects.
     if (this.burnT > 0) for (let i = 0; i < 3; i++) {
@@ -972,6 +988,19 @@ class Enemy {
     }
     ctx.restore();
   }
+  // Bosses stand on a turning ring of red runes with embers rising.
+  drawBossAura(s, t) {
+    ctx.save(); ctx.translate(0, s * 0.85); ctx.scale(1, 0.35);
+    const pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    const g = ctx.createRadialGradient(0, 0, s * 0.4, 0, 0, s * 1.9); g.addColorStop(0, `rgba(255,60,40,${0.25 + 0.15 * pulse})`); g.addColorStop(1, "rgba(255,60,40,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, s * 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.rotate(t * 0.6); ctx.strokeStyle = `rgba(255,90,60,${0.6 + 0.3 * pulse})`; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(0, 0, s * 1.55, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, s * 1.35, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; ctx.save(); ctx.rotate(a); ctx.translate(s * 1.45, 0); ctx.beginPath(); ctx.moveTo(-5, -6); ctx.lineTo(5, 0); ctx.lineTo(-5, 6); ctx.stroke(); ctx.restore(); }
+    ctx.restore();
+    for (let i = 0; i < 6; i++) { const k = (t * 0.5 + i / 6) % 1, ex = Math.sin(i * 2.4 + t) * s * 1.1; circle(ex, s * 0.8 - k * s * 2.2, 2.5 + (i % 2), `rgba(255,${120 + i * 15},60,${0.8 * (1 - k)})`); }
+  }
   face(x, y, r, look = 0.6, white = "#fffaf0", angry = true) {
     pieEye(x - r * 1.25, y, r, 0, look, false, white);
     pieEye(x + r * 1.25, y, r, 0, look, false, white);
@@ -981,91 +1010,311 @@ class Enemy {
       ctx.moveTo(x + r * 2.3, y - r * 1.5); ctx.lineTo(x + r * 0.4, y - r * 0.9); ctx.stroke();
     }
   }
+  // ---- Detailed enemy art. Every body part is shaded with gradients and outlined in ink.
+  // Helpers (local to enemies): gradient fills, outlined shapes.
+  lw() { return Math.max(2, this.size * 0.11); }
+  rad(x, y, r, c) { if (!EN_DETAIL) return c; const key = `r${x.toFixed(1)},${y.toFixed(1)},${r.toFixed(1)},${c}`; let g = GRAD_CACHE.get(key); if (g) return g; g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.08, x, y, r * 1.05); g.addColorStop(0, shade(c, 0.35)); g.addColorStop(0.55, c); g.addColorStop(1, shade(c, -0.35)); gradPut(key, g); return g; }
+  lin(y0, y1, c0, c1) { if (!EN_DETAIL) return c1; const key = `l${y0.toFixed(1)},${y1.toFixed(1)},${c0},${c1}`; let g = GRAD_CACHE.get(key); if (g) return g; g = ctx.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, c0); g.addColorStop(1, c1); gradPut(key, g); return g; }
+  shapeFill(fill, w) { ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = w ?? this.lw(); ctx.lineJoin = "round"; ctx.stroke(); }
+  // Eyes that can glow (dark creatures) with angry brows.
+  eyes(x, y, r, iris = "#fffaf0", glow = null) {
+    if (glow && EN_DETAIL) { ctx.save(); ctx.globalCompositeOperation = "lighter"; for (const sd of [-1, 1]) { const key = `e${(x + sd * r * 1.25).toFixed(1)},${y.toFixed(1)},${r.toFixed(1)},${glow}`; let g = GRAD_CACHE.get(key); if (!g) { g = ctx.createRadialGradient(x + sd * r * 1.25, y, 0, x + sd * r * 1.25, y, r * 2.6); g.addColorStop(0, hexA(glow, 0.55)); g.addColorStop(1, hexA(glow, 0)); gradPut(key, g); } ctx.fillStyle = g; ctx.fillRect(x + sd * r * 1.25 - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2); } ctx.restore(); }
+    const blink = ((this.t + this.x * 0.01) % 4.1) < 0.1;
+    this.face(x, y, r, blink ? 0 : 0.6, iris, true);
+    if (blink) for (const sd of [-1, 1]) { ctx.strokeStyle = INK; ctx.lineWidth = Math.max(2, r * 0.4); ctx.beginPath(); ctx.moveTo(x + sd * r * 1.25 - r, y); ctx.lineTo(x + sd * r * 1.25 + r, y); ctx.stroke(); }
+  }
   drawCrown(s, y) {
-    const w = s * 0.55;
-    poly([[-w, y + s * 0.12], [-w * 0.95, y - s * 0.38], [-w * 0.45, y - s * 0.12], [0, y - s * 0.5], [w * 0.45, y - s * 0.12], [w * 0.95, y - s * 0.38], [w, y + s * 0.12]], GOLD, INK, 3);
-    circle(0, y - s * 0.02, s * 0.07, "#e0533f");
+    const w = s * 0.6, t = this.t;
+    ctx.beginPath();
+    ctx.moveTo(-w, y + s * 0.14); ctx.lineTo(-w * 1.02, y - s * 0.36); ctx.lineTo(-w * 0.5, y - s * 0.1); ctx.lineTo(-w * 0.25, y - s * 0.48);
+    ctx.lineTo(0, y - s * 0.16); ctx.lineTo(w * 0.25, y - s * 0.48); ctx.lineTo(w * 0.5, y - s * 0.1); ctx.lineTo(w * 1.02, y - s * 0.36); ctx.lineTo(w, y + s * 0.14); ctx.closePath();
+    const g = ctx.createLinearGradient(0, y - s * 0.5, 0, y + s * 0.15); g.addColorStop(0, "#fff1a8"); g.addColorStop(0.5, "#f2c14e"); g.addColorStop(1, "#b07a1e");
+    this.shapeFill(g, 3);
+    ctx.fillStyle = "#b07a1e"; ctx.fillRect(-w, y + s * 0.02, w * 2, s * 0.06);
+    for (const [jx, c] of [[-w * 0.55, "#4fb8ff"], [0, "#e0533f"], [w * 0.55, "#5cc36a"]]) { circle(jx, y + s * 0.04, s * 0.075, c); ring(jx, y + s * 0.04, s * 0.075, INK, 1.5); circle(jx - s * 0.02, y + s * 0.02, s * 0.025, "rgba(255,255,255,0.8)"); }
+    for (const px of [-w * 1.02, -w * 0.25, w * 0.25, w * 1.02]) circle(px, px === -w * 0.25 || px === w * 0.25 ? y - s * 0.5 : y - s * 0.38, s * 0.05, "#fff6c8");
+    // Glint sweeping across.
+    const k = ((t * 0.6) % 2.2) - 0.6;
+    if (k > -0.2 && k < 1.2) { ctx.save(); ctx.beginPath(); ctx.rect(-w, y - s * 0.5, w * 2, s * 0.64); ctx.clip(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = "rgba(255,255,230,0.5)"; ctx.beginPath(); const gx = -w + k * w * 2; ctx.moveTo(gx - 4, y - s * 0.5); ctx.lineTo(gx + 6, y - s * 0.5); ctx.lineTo(gx - 2, y + s * 0.14); ctx.lineTo(gx - 12, y + s * 0.14); ctx.fill(); ctx.restore(); }
   }
   drawSlime(s, t, body) {
-    const sq = Math.sin(t * (this.attacking ? 9 : 6));
-    const sx = 1 + 0.1 * sq, sy = 1 - 0.1 * sq;
-    if (this.glow) {
+    const sq = Math.sin(t * (this.attacking ? 10 : 6)), sx = 1 + 0.1 * sq, sy = 1 - 0.1 * sq, dark = this.kind === "darkSlime";
+    const wob = Math.sin(t * 3.3) * s * 0.05;
+    if (this.glow || this.king) {
       const pulse = 0.5 + 0.5 * Math.sin(t * 4);
-      circle(0, -s * 0.1, s * (1.55 + 0.1 * pulse), hexA(this.color, 0.16));
-      circle(0, -s * 0.1, s * 1.25, hexA(this.color, 0.22));
+      const g = ctx.createRadialGradient(0, -s * 0.1, s * 0.3, 0, -s * 0.1, s * (1.7 + 0.15 * pulse));
+      g.addColorStop(0, hexA(this.color, 0.35)); g.addColorStop(1, hexA(this.color, 0));
+      ctx.fillStyle = g; ctx.fillRect(-s * 2, -s * 2, s * 4, s * 4);
+    }
+    if (dark && EN_DETAIL) {
+      // Shadowy tendrils creeping out of its base.
+      ctx.strokeStyle = "rgba(40,20,60,0.55)"; ctx.lineCap = "round";
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI + 0.1, len = s * (0.8 + 0.25 * Math.sin(t * 3 + i));
+        ctx.lineWidth = s * 0.12; ctx.beginPath(); ctx.moveTo(Math.cos(a) * s * 0.8, s * 0.6);
+        ctx.quadraticCurveTo(Math.cos(a) * (s + len * 0.5), s * 0.75 + Math.sin(t * 4 + i) * s * 0.2, Math.cos(a) * (s + len), s * 0.7 + Math.sin(a) * s * 0.3); ctx.stroke();
+      }
     }
     ctx.save(); ctx.translate(0, s * 0.6); ctx.scale(sx, sy); ctx.translate(0, -s * 0.6);
-    ctx.beginPath(); ctx.moveTo(-s * 1.05, s * 0.6);
-    ctx.quadraticCurveTo(-s * 1.1, -s * 0.95, 0, -s * 0.95);
-    ctx.quadraticCurveTo(s * 1.1, -s * 0.95, s * 1.05, s * 0.6);
-    ctx.quadraticCurveTo(0, s * 0.85, -s * 1.05, s * 0.6); ctx.closePath();
-    ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = s > 30 ? 4 : 3; ctx.lineJoin = "round"; ctx.stroke();
-    if (this.glow) { ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.beginPath(); ctx.ellipse(0, -s * 0.1, s * 0.6, s * 0.45, 0, 0, Math.PI * 2); ctx.fill(); }
-    ellipse(-s * 0.45, -s * 0.5, s * 0.2, s * 0.12, "rgba(255,255,255,0.55)");
-    const dark = this.kind === "darkSlime";
-    this.face(0, -s * 0.1, s * 0.2, 0.6, dark ? "#ff6b6b" : "#fffaf0", this.kind !== "slime");
-    ring(0, s * 0.15, s * 0.22, INK, 2.5, 0.3, Math.PI - 0.3);
+    const path = () => {
+      ctx.beginPath(); ctx.moveTo(-s * 1.05, s * 0.6);
+      ctx.bezierCurveTo(-s * 1.2, -s * 0.2, -s * 0.7, -s * 1.0 + wob, 0, -s * 1.0 + wob);
+      ctx.bezierCurveTo(s * 0.7, -s * 1.0 + wob, s * 1.2, -s * 0.2, s * 1.05, s * 0.6);
+      // Gooey bottom edge with two drips.
+      const d1 = s * (0.18 + 0.08 * Math.sin(t * 2.2)), d2 = s * (0.14 + 0.08 * Math.sin(t * 2.7 + 1));
+      ctx.quadraticCurveTo(s * 0.7, s * 0.82, s * 0.5, s * 0.78); ctx.quadraticCurveTo(s * 0.45, s * 0.78 + d1 * 2, s * 0.35, s * 0.78);
+      ctx.quadraticCurveTo(0, s * 0.9, -s * 0.3, s * 0.8); ctx.quadraticCurveTo(-s * 0.38, s * 0.8 + d2 * 2, -s * 0.48, s * 0.8);
+      ctx.quadraticCurveTo(-s * 0.8, s * 0.82, -s * 1.05, s * 0.6); ctx.closePath();
+    };
+    path();
+    const gk = `s${s},${body}`; let g = GRAD_CACHE.get(gk);
+    if (!g) { g = ctx.createRadialGradient(-s * 0.35, -s * 0.5, s * 0.1, 0, 0, s * 1.2); g.addColorStop(0, shade(body, 0.45)); g.addColorStop(0.5, body); g.addColorStop(1, shade(body, -0.4)); gradPut(gk, g); }
+    ctx.save(); ctx.globalAlpha = 0.95; ctx.fillStyle = g; ctx.fill(); ctx.restore();
+    // Inside the jelly: a darker core, swallowed bits and rising bubbles.
+    ctx.save(); path(); ctx.clip();
+    if (this.king) {
+      const pulse = 0.6 + 0.4 * Math.sin(t * 3);
+      const cg = ctx.createRadialGradient(0, s * 0.25, 0, 0, s * 0.25, s * 0.45); cg.addColorStop(0, `rgba(255,240,255,${pulse})`); cg.addColorStop(0.4, hexA("#ff8af0", 0.7 * pulse)); cg.addColorStop(1, "rgba(255,138,240,0)");
+      ctx.fillStyle = cg; ctx.fillRect(-s, -s * 0.3, s * 2, s * 1.2);
+      poly([[0, s * 0.02], [s * 0.15, s * 0.25], [0, s * 0.48], [-s * 0.15, s * 0.25]], "#ff8af0", INK, 2);
+    } else {
+      circle(s * 0.15, s * 0.3, s * 0.24, hexA(shade(body, -0.45), 0.45));
+      ctx.save(); ctx.translate(-s * 0.45, s * 0.35); ctx.rotate(0.6 + Math.sin(t) * 0.2); ctx.fillStyle = "rgba(255,250,235,0.55)"; ctx.fillRect(-s * 0.12, -s * 0.03, s * 0.24, s * 0.06); ctx.restore();   // a swallowed bone
+    }
+    if (EN_DETAIL) {
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const by = s * 0.6 - ((t * s * 0.35 + i * s * 0.37) % (s * 1.4)), bx = (-0.6 + i * 0.3) * s + Math.sin(t * 2 + i) * s * 0.06, br = s * (0.05 + 0.025 * (i % 3));
+        ctx.moveTo(bx + br, by); ctx.arc(bx, by, br, 0, Math.PI * 2);
+      }
+      ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    // Rim light on the right side.
+    ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = s * 0.08;
+    ctx.beginPath(); ctx.arc(-s * 0.15, s * 0.1, s * 1.05, -0.9, 0.35); ctx.stroke();
+    ctx.restore();
+    path(); ctx.strokeStyle = INK; ctx.lineWidth = s > 30 ? 4 : 3; ctx.lineJoin = "round"; ctx.stroke();
+    // Shine.
+    ctx.save(); ctx.translate(-s * 0.48, -s * 0.52); ctx.rotate(-0.6);
+    ellipse(0, 0, s * 0.24, s * 0.12, "rgba(255,255,255,0.75)"); ctx.restore();
+    circle(-s * 0.18, -s * 0.72, s * 0.05, "rgba(255,255,255,0.8)");
+    // Face.
+    const iris = dark ? "#ff6b6b" : this.glow ? "#fffaf0" : "#fffaf0";
+    this.eyes(0, -s * 0.12, s * 0.2, iris, dark ? "#ff3b3b" : this.glow ? this.color : null);
+    if (this.attacking) {
+      ellipse(0, s * 0.22, s * 0.24, s * 0.16 + Math.abs(sq) * s * 0.06, INK);
+      ellipse(0, s * 0.3, s * 0.12, s * 0.06, "#ff7a8a");
+    } else {
+      ring(0, s * 0.14, s * 0.22, INK, 2.5, 0.3, Math.PI - 0.3);
+      if (this.kind !== "slime") for (const sd of [-1, 1]) poly([[sd * s * 0.1, s * 0.33], [sd * s * 0.05, s * 0.43], [sd * s * 0.01, s * 0.34]], "#fffaf0", INK, 1);
+    }
+    if (this.glow && EN_DETAIL) for (let i = 0; i < 3; i++) {   // sparkles around glowing slimes
+      const a = t * 1.4 + i * 2.1, px = Math.cos(a) * s * 1.2, py = -s * 0.2 + Math.sin(a * 1.3) * s * 0.7, k = 2 + 1.5 * Math.sin(t * 6 + i);
+      ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px - k, py); ctx.lineTo(px + k, py); ctx.moveTo(px, py - k); ctx.lineTo(px, py + k); ctx.stroke();
+    }
     ctx.restore();
   }
   drawBoar(s, t, cy, body) {
-    // Legs.
-    const lg = Math.sin(t * 16) * s * 0.12;
-    ctx.fillStyle = shade(body, -0.35);
-    for (const [lx, o] of [[-0.7, lg], [-0.3, -lg], [0.3, lg], [0.7, -lg]]) ctx.fillRect(lx * s - 3, cy + s * 0.45 + o, 6, s * 0.35);
-    ellipse(0, cy + s * 0.15, s * 1.15, s * 0.62, shade(body, -0.15));
-    ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(0, cy + s * 0.15, s * 1.15, s * 0.62, 0, 0, Math.PI * 2); ctx.stroke();
-    for (const sd of [-1, 1]) poly([[sd * s * 0.45, cy - s * 0.55], [sd * s * 0.8, cy - s * 1.0], [sd * s * 0.85, cy - s * 0.4]], shade(body, -0.25), INK, 2);
-    circle(0, cy - s * 0.15, s * 0.68, body); ring(0, cy - s * 0.15, s * 0.68, INK, 3);
-    this.face(0, cy - s * 0.38, s * 0.15);
-    ellipse(0, cy + s * 0.12, s * 0.36, s * 0.24, "#e8a0a0");
-    ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(0, cy + s * 0.12, s * 0.36, s * 0.24, 0, 0, Math.PI * 2); ctx.stroke();
-    circle(-s * 0.12, cy + s * 0.12, s * 0.06, INK); circle(s * 0.12, cy + s * 0.12, s * 0.06, INK);
-    for (const sd of [-1, 1]) poly([[sd * s * 0.3, cy + s * 0.28], [sd * s * 0.55, cy - s * 0.05], [sd * s * 0.42, cy + s * 0.32]], "#fffaf0", INK, 1.5);
+    const run = t * 17, lg = Math.sin(run) * s * 0.14, lw = this.lw();
+    // Dust kicked up behind it (it runs downward, so behind is up).
+    if (EN_DETAIL) for (let i = 0; i < 3; i++) { const k = ((t * 2.2 + i / 3) % 1); circle((i - 1) * s * 0.5, cy - s * (0.7 + k * 0.7), s * (0.18 + k * 0.25), `rgba(170,140,100,${0.35 * (1 - k)})`); }
+    // Legs with hooves.
+    for (const [lx, o] of [[-0.72, lg], [-0.32, -lg], [0.32, lg], [0.72, -lg]]) {
+      rrect(lx * s - s * 0.1, cy + s * 0.4 + o, s * 0.2, s * 0.38, s * 0.06); this.shapeFill(shade(body, -0.35), 2);
+      rrect(lx * s - s * 0.11, cy + s * 0.68 + o, s * 0.22, s * 0.12, s * 0.04); this.shapeFill("#2e221c", 2);
+    }
+    // Body with a bristly mane of spikes along the back.
+    ctx.beginPath(); const n = 9;
+    for (let i = 0; i <= n; i++) { const a = Math.PI + (i / n) * Math.PI, r = i % 2 ? s * 1.25 : s * 1.0; const px = Math.cos(a) * r * 1.05, py = cy + s * 0.05 + Math.sin(a) * r * 0.62; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.closePath(); this.shapeFill(shade(body, -0.45), lw);
+    ctx.beginPath(); ctx.ellipse(0, cy + s * 0.15, s * 1.12, s * 0.62, 0, 0, Math.PI * 2); this.shapeFill(this.rad(0, cy + s * 0.1, s * 1.1, shade(body, -0.1)), lw);
+    // Fur strokes.
+    if (EN_DETAIL) { ctx.strokeStyle = hexA("#2a1a12", 0.35); ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let i = 0; i < 7; i++) { const fx = (-0.8 + i * 0.27) * s; ctx.moveTo(fx, cy + s * 0.35); ctx.lineTo(fx + s * 0.06, cy + s * 0.55); }
+    ctx.stroke(); }
+    // Ears.
+    for (const sd of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(sd * s * 0.35, cy - s * 0.55); ctx.lineTo(sd * s * 0.85, cy - s * 1.05 + Math.sin(t * 9 + sd) * s * 0.04); ctx.lineTo(sd * s * 0.78, cy - s * 0.35); ctx.closePath(); this.shapeFill(shade(body, -0.25), 2.5);
+      ctx.beginPath(); ctx.moveTo(sd * s * 0.45, cy - s * 0.52); ctx.lineTo(sd * s * 0.76, cy - s * 0.88); ctx.lineTo(sd * s * 0.7, cy - s * 0.45); ctx.closePath(); ctx.fillStyle = "#d98a8a"; ctx.fill();
+    }
+    // Head.
+    ctx.beginPath(); ctx.arc(0, cy - s * 0.15, s * 0.7, 0, Math.PI * 2); this.shapeFill(this.rad(0, cy - s * 0.15, s * 0.7, body), lw);
+    // Scar across one eye.
+    this.eyes(0, cy - s * 0.38, s * 0.15, "#fff3c4", this.attacking ? "#ff4040" : null);
+    ctx.strokeStyle = "#5a2a1e"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(s * 0.05, cy - s * 0.62); ctx.lineTo(s * 0.38, cy - s * 0.18); ctx.stroke();
+    // Snout and nostrils that snort steam.
+    ctx.beginPath(); ctx.ellipse(0, cy + s * 0.12, s * 0.4, s * 0.27, 0, 0, Math.PI * 2); this.shapeFill(this.rad(0, cy + s * 0.12, s * 0.4, "#e8a0a0"), 2.5);
+    ellipse(-s * 0.13, cy + s * 0.13, s * 0.07, s * 0.09, INK); ellipse(s * 0.13, cy + s * 0.13, s * 0.07, s * 0.09, INK);
+    const puff = (t * 1.4) % 1;
+    if (puff < 0.6) for (const sd of [-1, 1]) circle(sd * s * (0.18 + puff * 0.5), cy + s * (0.3 + puff * 0.5), s * (0.08 + puff * 0.2), `rgba(255,255,255,${0.55 * (1 - puff / 0.6)})`);
+    // Big curved tusks.
+    for (const sd of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(sd * s * 0.26, cy + s * 0.32); ctx.quadraticCurveTo(sd * s * 0.62, cy + s * 0.3, sd * s * 0.62, cy - s * 0.12);
+      ctx.quadraticCurveTo(sd * s * 0.5, cy + s * 0.18, sd * s * 0.18, cy + s * 0.22); ctx.closePath(); this.shapeFill(this.lin(cy - s * 0.1, cy + s * 0.3, "#fffaf0", "#d8ccb0"), 1.8);
+    }
   }
   drawGoblin(s, t, cy, body) {
-    if (this.king) poly([[-s * 0.8, cy - s * 0.2], [s * 0.8, cy - s * 0.2], [s * 1.0, cy + s * 0.95], [-s * 1.0, cy + s * 0.95]], "#b8333a", INK, 3);
-    poly([[-s * 0.55, cy + s * 0.25], [s * 0.55, cy + s * 0.25], [s * 0.65, cy + s * 0.85], [-s * 0.65, cy + s * 0.85]], "#8a5a3b", INK, 2.5);
-    for (const sd of [-1, 1]) poly([[sd * s * 0.45, cy - s * 0.4], [sd * s * 1.35, cy - s * 0.75], [sd * s * 0.55, cy - s * 0.05]], shade(body, -0.1), INK, 2.5);
-    circle(0, cy - s * 0.3, s * 0.62, body); ring(0, cy - s * 0.3, s * 0.62, INK, 3);
-    this.face(0, cy - s * 0.42, s * 0.15, 0.6, "#fff6a8");
-    poly([[-s * 0.08, cy - s * 0.3], [0, cy - s * 0.05], [s * 0.12, cy - s * 0.28]], shade(body, -0.2), INK, 1.5);
-    ring(0, cy - s * 0.1, s * 0.24, INK, 2.5, 0.35, Math.PI - 0.35);
-    poly([[-s * 0.1, cy + s * 0.12], [-s * 0.04, cy + s * 0.02], [0, cy + s * 0.13]], "#fffaf0", null);
+    const lw = this.lw(), walk = Math.sin(t * 9) * s * 0.1;
+    if (this.king) {
+      // Flowing royal cape behind.
+      ctx.beginPath(); ctx.moveTo(-s * 0.7, cy - s * 0.3); ctx.lineTo(s * 0.7, cy - s * 0.3);
+      for (let i = 0; i <= 6; i++) { const px = s * (1.05 - i * 0.35), py = cy + s * 1.0 + Math.sin(t * 5 + i) * s * 0.07; ctx.lineTo(px, py); }
+      ctx.closePath(); this.shapeFill(this.lin(cy - s * 0.3, cy + s, "#d8424a", "#7a1c22"), 3);
+    }
+    // Legs and pointy shoes.
+    for (const sd of [-1, 1]) {
+      const o = sd * walk;
+      rrect(sd * s * 0.28 - s * 0.1, cy + s * 0.6 + o, s * 0.2, s * 0.3, s * 0.06); this.shapeFill(shade(body, -0.3), 2);
+      ctx.beginPath(); ctx.moveTo(sd * s * 0.14, cy + s * 0.86 + o); ctx.lineTo(sd * s * 0.56, cy + s * 0.92 + o); ctx.lineTo(sd * s * 0.46, cy + s * 0.78 + o); ctx.lineTo(sd * s * 0.2, cy + s * 0.78 + o); ctx.closePath(); this.shapeFill("#5a3a26", 2);
+    }
+    // Leather tunic, belt and buckle, a patch.
+    ctx.beginPath(); ctx.moveTo(-s * 0.55, cy + s * 0.2); ctx.lineTo(s * 0.55, cy + s * 0.2); ctx.lineTo(s * 0.7, cy + s * 0.75); ctx.lineTo(-s * 0.7, cy + s * 0.75); ctx.closePath();
+    this.shapeFill(this.lin(cy + s * 0.2, cy + s * 0.75, "#a06a44", "#6a4228"), lw);
+    ctx.fillStyle = "#3a2418"; ctx.fillRect(-s * 0.62, cy + s * 0.46, s * 1.24, s * 0.1);
+    rrect(-s * 0.09, cy + s * 0.43, s * 0.18, s * 0.16, 2); this.shapeFill("#f2c14e", 1.5);
+    rrect(s * 0.18, cy + s * 0.25, s * 0.2, s * 0.16, 2); this.shapeFill("#8a6a3b", 1.2);
+    if (EN_DETAIL) ctx.strokeStyle = "rgba(255,240,200,0.6)", ctx.setLineDash([2, 2]);
+    if (EN_DETAIL) ctx.lineWidth = 1; ctx.strokeRect(s * 0.2, cy + s * 0.27, s * 0.16, s * 0.12); ctx.setLineDash([]);
+    if (this.king) for (let i = 0; i < 5; i++) circle((i - 2) * s * 0.13, cy + s * 0.25 + Math.abs(i - 2) * -s * 0.03, s * 0.05, "#f2c14e");
+    // Arm with a dagger that slashes when attacking.
+    ctx.save(); ctx.translate(s * 0.55, cy + s * 0.3);
+    ctx.rotate(this.attacking ? -0.4 + Math.sin(t * 14) * 0.9 : Math.sin(t * 3) * 0.12);
+    ctx.strokeStyle = INK; ctx.lineWidth = s * 0.22; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(s * 0.3, s * 0.22); ctx.stroke();
+    ctx.strokeStyle = body; ctx.lineWidth = s * 0.14; ctx.stroke();
+    if (this.king) { ctx.strokeStyle = "#8a5a2a"; ctx.lineWidth = s * 0.08; ctx.beginPath(); ctx.moveTo(s * 0.3, s * 0.5); ctx.lineTo(s * 0.34, -s * 0.6); ctx.stroke(); circle(s * 0.34, -s * 0.66, s * 0.13, "#ff8af0"); ring(s * 0.34, -s * 0.66, s * 0.13, INK, 2); }
+    else {
+      ctx.beginPath(); ctx.moveTo(s * 0.28, s * 0.2); ctx.lineTo(s * 0.36, -s * 0.38); ctx.lineTo(s * 0.44, s * 0.2); ctx.closePath();
+      this.shapeFill(this.lin(-s * 0.4, s * 0.2, "#ffffff", "#9aa3b5"), 1.5);
+      ctx.fillStyle = "#5a3a26"; ctx.fillRect(s * 0.27, s * 0.18, s * 0.18, s * 0.08);
+    }
+    ctx.restore();
+    // Long ears with a gold earring.
+    for (const sd of [-1, 1]) {
+      const flick = Math.sin(t * 5 + sd) * s * 0.04;
+      ctx.beginPath(); ctx.moveTo(sd * s * 0.42, cy - s * 0.45); ctx.lineTo(sd * s * 1.4, cy - s * 0.82 + flick); ctx.lineTo(sd * s * 0.52, cy - s * 0.05); ctx.closePath();
+      this.shapeFill(this.rad(sd * s * 0.8, cy - s * 0.4, s * 0.6, shade(body, -0.1)), 2.5);
+      ctx.beginPath(); ctx.moveTo(sd * s * 0.5, cy - s * 0.38); ctx.lineTo(sd * s * 1.15, cy - s * 0.68 + flick); ctx.lineTo(sd * s * 0.56, cy - s * 0.15); ctx.closePath(); ctx.fillStyle = hexA("#c85a6a", 0.55); ctx.fill();
+    }
+    ring(-s * 0.98, cy - s * 0.5, s * 0.08, "#f2c14e", 2.5);
+    // Head.
+    ctx.beginPath(); ctx.arc(0, cy - s * 0.3, s * 0.62, 0, Math.PI * 2); this.shapeFill(this.rad(0, cy - s * 0.3, s * 0.62, body), lw);
+    // A red bandana (non-kings).
+    if (!this.king) {
+      ctx.save(); ctx.beginPath(); ctx.arc(0, cy - s * 0.3, s * 0.62, 0, Math.PI * 2); ctx.clip();
+      ctx.fillStyle = this.lin(cy - s * 1.0, cy - s * 0.55, "#e0533f", "#a8302a"); ctx.fillRect(-s, cy - s * 1.0, s * 2, s * 0.42);
+      for (let i = 0; i < 4; i++) circle((-0.45 + i * 0.3) * s, cy - s * 0.75, s * 0.04, "#fffaf0");
+      ctx.restore();
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-s * 0.6, cy - s * 0.58); ctx.lineTo(s * 0.6, cy - s * 0.58); ctx.stroke();
+      for (const k of [0, 1]) { ctx.beginPath(); ctx.moveTo(s * 0.55, cy - s * 0.65); ctx.lineTo(s * (0.9 + k * 0.1), cy - s * (0.75 - k * 0.25) + Math.sin(t * 8 + k) * s * 0.06); ctx.lineTo(s * 0.58, cy - s * 0.55); ctx.closePath(); this.shapeFill("#c8402e", 1.5); }
+    }
+    // Warts, a hooked nose, yellow eyes and jagged teeth.
+    circle(-s * 0.36, cy - s * 0.12, s * 0.04, shade(body, -0.3)); circle(s * 0.3, cy - s * 0.52, s * 0.03, shade(body, -0.3));
+    this.eyes(0, cy - s * 0.4, s * 0.15, "#fff06a", this.attacking ? "#ffe34a" : null);
+    ctx.beginPath(); ctx.moveTo(-s * 0.06, cy - s * 0.3); ctx.quadraticCurveTo(s * 0.12, cy - s * 0.28, s * 0.04, cy - s * 0.08); ctx.lineTo(-s * 0.08, cy - s * 0.14); ctx.closePath(); this.shapeFill(shade(body, -0.15), 1.5);
+    ctx.beginPath(); ctx.moveTo(-s * 0.26, cy - s * 0.02); ctx.quadraticCurveTo(0, cy + s * (this.attacking ? 0.22 : 0.1), s * 0.26, cy - s * 0.02); ctx.closePath(); this.shapeFill("#3a1a1a", 2);
+    for (const [tx, d] of [[-0.14, 1], [0.12, 1]]) poly([[tx * s - s * 0.05, cy - s * 0.01], [tx * s, cy + s * 0.08 * d], [tx * s + s * 0.05, cy - s * 0.01]], "#fffaf0", null);
   }
   drawMummy(s, t, cy, body) {
+    const lw = this.lw(), sh = Math.sin(t * 3) * s * 0.05;
+    // Sand trickling down.
+    if (EN_DETAIL) for (let i = 0; i < 6; i++) { const k = ((t * 0.9 + i / 6) % 1); circle((i - 2.5) * s * 0.2, cy + s * (0.6 + k * 0.5), s * 0.035, `rgba(214,190,140,${0.8 * (1 - k)})`); }
+    // Shuffling legs.
+    for (const sd of [-1, 1]) { rrect(sd * s * 0.28 - s * 0.14, cy + s * 0.55 + sd * sh, s * 0.28, s * 0.35, s * 0.08); this.shapeFill(shade(body, -0.15), 2); }
+    // Arms reaching forward, wrapped in bandages.
     for (const sd of [-1, 1]) {
-      const reach = Math.sin(t * 3 + sd) * s * 0.06;
-      poly([[sd * s * 0.6, cy - s * 0.05], [sd * s * 0.95, cy + s * 0.25 + reach], [sd * s * 0.85, cy + s * 0.45 + reach], [sd * s * 0.55, cy + s * 0.3]], shade(body, -0.08), INK, 2);
+      const reach = Math.sin(t * 3 + sd) * s * 0.07;
+      ctx.beginPath(); ctx.moveTo(sd * s * 0.58, cy - s * 0.1); ctx.lineTo(sd * s * 1.0, cy + s * 0.2 + reach); ctx.lineTo(sd * s * 0.92, cy + s * 0.5 + reach); ctx.lineTo(sd * s * 0.55, cy + s * 0.3); ctx.closePath();
+      this.shapeFill(shade(body, -0.08), 2);
+      ctx.strokeStyle = hexA(INK, 0.3); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(sd * s * 0.7, cy + s * 0.05); ctx.lineTo(sd * s * 0.95, cy + s * 0.35 + reach); ctx.stroke();
+      // Fingers.
+      for (let f = 0; f < 3; f++) circle(sd * s * (0.94 + f * 0.04), cy + s * (0.48 + f * 0.05) + reach, s * 0.05, shade(body, -0.12));
     }
-    rrect(-s * 0.65, cy - s * 0.95, s * 1.3, s * 1.75, s * 0.5);
-    ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    // Body.
+    rrect(-s * 0.65, cy - s * 0.95, s * 1.3, s * 1.75, s * 0.5); this.shapeFill(this.lin(cy - s, cy + s * 0.8, shade(body, 0.15), shade(body, -0.25)), lw);
+    // Criss-cross bandage wraps with shading.
     ctx.save(); rrect(-s * 0.65, cy - s * 0.95, s * 1.3, s * 1.75, s * 0.5); ctx.clip();
-    ctx.strokeStyle = hexA(INK, 0.35); ctx.lineWidth = 2; ctx.beginPath();
-    for (let i = 0; i < 7; i++) { const y = cy - s * 0.8 + i * s * 0.26; ctx.moveTo(-s, y + (i % 2 ? 4 : -2)); ctx.lineTo(s, y + (i % 2 ? -3 : 4)); }
-    ctx.stroke(); ctx.restore();
-    ctx.fillStyle = INK; ctx.fillRect(-s * 0.5, cy - s * 0.5, s * 1.0, s * 0.22);
-    circle(-s * 0.2, cy - s * 0.39, s * 0.08, "#ffcf4a"); circle(s * 0.2, cy - s * 0.39, s * 0.05, "#ffcf4a");
-    const tail = Math.sin(t * 4) * 5;
-    ctx.strokeStyle = body; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(s * 0.5, cy + s * 0.1); ctx.lineTo(s * 0.9 + tail, cy + s * 0.5); ctx.stroke();
+    for (let i = 0; i < 8; i += EN_DETAIL ? 1 : 2) {
+      const y = cy - s * 0.85 + i * s * 0.24, tilt = (i % 2 ? 1 : -1) * s * 0.12;
+      ctx.beginPath(); ctx.moveTo(-s, y - tilt); ctx.lineTo(s, y + tilt); ctx.lineTo(s, y + tilt + s * 0.1); ctx.lineTo(-s, y - tilt + s * 0.1); ctx.closePath();
+      ctx.fillStyle = i % 2 ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.18)"; ctx.fill();
+      ctx.strokeStyle = hexA(INK, 0.3); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-s, y - tilt); ctx.lineTo(s, y + tilt); ctx.stroke();
+    }
+    if (this.heavy) { ctx.strokeStyle = hexA(INK, 0.5); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-s * 0.3, cy + s * 0.1); ctx.lineTo(-s * 0.15, cy + s * 0.3); ctx.lineTo(-s * 0.3, cy + s * 0.45); ctx.stroke(); }
+    ctx.restore();
+    // Dark eye slit with glowing eyes.
+    rrect(-s * 0.5, cy - s * 0.55, s * 1.0, s * 0.24, s * 0.1); this.shapeFill("#1c1210", 2);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (const [ex, er] of [[-0.2, 0.09], [0.2, 0.06]]) { const key = `m${ex},${s}`; let g = GRAD_CACHE.get(key); if (!g) { g = ctx.createRadialGradient(ex * s, cy - s * 0.43, 0, ex * s, cy - s * 0.43, s * 0.3); g.addColorStop(0, "rgba(255,210,80,0.7)"); g.addColorStop(1, "rgba(255,160,0,0)"); gradPut(key, g); } ctx.fillStyle = g; ctx.fillRect(ex * s - s * 0.3, cy - s * 0.73, s * 0.6, s * 0.6); }
+    ctx.restore();
+    circle(-s * 0.2, cy - s * 0.43, s * 0.09, "#ffcf4a"); circle(s * 0.2, cy - s * 0.43, s * 0.06, "#ffcf4a");
+    // Scarab amulet glowing on the chest.
+    const pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    circle(0, cy + s * 0.05, s * (0.22 + 0.04 * pulse), hexA("#3fe0c8", 0.25 * pulse));
+    ctx.beginPath(); ctx.ellipse(0, cy + s * 0.05, s * 0.16, s * 0.2, 0, 0, Math.PI * 2); this.shapeFill("#f2c14e", 2);
+    ctx.beginPath(); ctx.ellipse(0, cy + s * 0.06, s * 0.1, s * 0.13, 0, 0, Math.PI * 2); this.shapeFill(this.rad(0, cy + s * 0.06, s * 0.13, "#2fbfa8"), 1.5);
+    // Loose bandage strips flapping.
+    for (const [ox, oy, ph] of [[0.5, -0.75, 0], [-0.55, 0.3, 2]]) {
+      ctx.strokeStyle = INK; ctx.lineWidth = s * 0.14; ctx.lineCap = "round";
+      const path = () => { ctx.beginPath(); ctx.moveTo(ox * s, cy + oy * s); ctx.bezierCurveTo(ox * s + Math.sign(ox) * s * 0.3, cy + oy * s + Math.sin(t * 6 + ph) * s * 0.15, ox * s + Math.sign(ox) * s * 0.5, cy + (oy + 0.25) * s + Math.sin(t * 6 + ph + 1) * s * 0.2, ox * s + Math.sign(ox) * s * 0.75, cy + (oy + 0.4) * s + Math.sin(t * 6 + ph + 2) * s * 0.18); };
+      path(); ctx.stroke(); ctx.strokeStyle = shade(body, 0.05); ctx.lineWidth = s * 0.09; path(); ctx.stroke();
+    }
   }
   drawOrc(s, t, cy, body) {
+    const lw = this.lw(), walk = Math.sin(t * 8) * s * 0.08;
     if (this.king) {
-      ctx.strokeStyle = "#6b4a2e"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(s * 0.9, cy + s * 0.9); ctx.lineTo(s * 1.15, cy - s * 0.7); ctx.stroke();
-      poly([[s * 1.15, cy - s * 0.7], [s * 1.6, cy - s * 0.95], [s * 1.55, cy - s * 0.3], [s * 1.1, cy - s * 0.35]], "#c9ccd6", INK, 2.5);
+      // Fur cape.
+      ctx.beginPath(); ctx.moveTo(-s * 0.95, cy - s * 0.2); ctx.lineTo(s * 0.95, cy - s * 0.2);
+      for (let i = 0; i <= 10; i++) { const px = s * (1.1 - i * 0.22), py = cy + s * (i % 2 ? 0.95 : 1.1) + Math.sin(t * 4 + i) * s * 0.04; ctx.lineTo(px, py); }
+      ctx.closePath(); this.shapeFill(this.lin(cy - s * 0.2, cy + s * 1.1, "#8a7a6a", "#4a3e34"), 3);
     }
-    poly([[-s * 0.85, cy + s * 0.1], [s * 0.85, cy + s * 0.1], [s * 0.7, cy + s * 0.9], [-s * 0.7, cy + s * 0.9]], "#6b4a2e", INK, 3);
+    // Legs.
+    for (const sd of [-1, 1]) { rrect(sd * s * 0.32 - s * 0.16, cy + s * 0.7 + sd * walk, s * 0.32, s * 0.3, s * 0.08); this.shapeFill("#4a3324", 2); }
+    // Weapon: a spiked club (a huge axe for the king) that swings when attacking.
+    ctx.save(); ctx.translate(s * 0.82, cy + s * 0.3);
+    ctx.rotate(this.attacking ? -1.1 + Math.abs(Math.sin(t * 7)) * 1.6 : -0.2 + Math.sin(t * 2) * 0.08);
+    ctx.strokeStyle = INK; ctx.lineWidth = s * 0.16; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, s * 0.3); ctx.lineTo(0, -s * 0.9); ctx.stroke();
+    ctx.strokeStyle = "#7a5432"; ctx.lineWidth = s * 0.1; ctx.stroke();
+    if (this.king) {
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, -s * 0.95); ctx.quadraticCurveTo(sd * s * 0.75, -s * 1.2, sd * s * 0.6, -s * 0.45); ctx.quadraticCurveTo(sd * s * 0.3, -s * 0.6, 0, -s * 0.55); ctx.closePath(); this.shapeFill(this.lin(-s * 1.2, -s * 0.45, "#f2f4fa", "#8a90a0"), 2.5); }
+      circle(0, -s * 0.75, s * 0.09, "#e0533f"); ring(0, -s * 0.75, s * 0.09, INK, 1.5);
+    } else {
+      ctx.beginPath(); ctx.ellipse(0, -s * 0.85, s * 0.2, s * 0.32, 0, 0, Math.PI * 2); this.shapeFill(this.rad(0, -s * 0.85, s * 0.3, "#8a5a32"), 2.5);
+      for (let i = 0; i < 5; i++) { const a = i * 1.26, px = Math.cos(a) * s * 0.2, py = -s * 0.85 + Math.sin(a) * s * 0.32; poly([[px, py], [px + Math.cos(a) * s * 0.12, py + Math.sin(a) * s * 0.12], [px + Math.cos(a + 0.5) * s * 0.05, py + Math.sin(a + 0.5) * s * 0.05]], "#d8dce6", INK, 1.2); }
+    }
+    ctx.restore();
+    // Torso: chainmail under leather straps, a skull belt buckle.
+    ctx.beginPath(); ctx.moveTo(-s * 0.85, cy + s * 0.05); ctx.lineTo(s * 0.85, cy + s * 0.05); ctx.lineTo(s * 0.72, cy + s * 0.85); ctx.lineTo(-s * 0.72, cy + s * 0.85); ctx.closePath();
+    this.shapeFill(this.lin(cy, cy + s * 0.85, "#8a8f9c", "#5a5f6c"), lw);
+    if (EN_DETAIL) {
+      ctx.save(); ctx.clip(); ctx.strokeStyle = "rgba(30,30,40,0.35)"; ctx.lineWidth = 1; ctx.beginPath();
+      for (let yy = 0; yy < 6; yy++) for (let xx = 0; xx < 9; xx++) { const ax = -s * 0.85 + xx * s * 0.2 + (yy % 2) * s * 0.1, ay = cy + s * (0.12 + yy * 0.14); ctx.moveTo(ax + s * 0.07, ay); ctx.arc(ax, ay, s * 0.07, 0, Math.PI); }
+      ctx.stroke(); ctx.restore();
+    }
+    ctx.strokeStyle = "#5a3a22"; ctx.lineWidth = s * 0.14; ctx.beginPath(); ctx.moveTo(-s * 0.7, cy + s * 0.1); ctx.lineTo(s * 0.55, cy + s * 0.75); ctx.stroke();
+    ctx.fillStyle = "#3a2418"; ctx.fillRect(-s * 0.72, cy + s * 0.62, s * 1.44, s * 0.14);
+    circle(0, cy + s * 0.69, s * 0.12, "#eae4d4"); ring(0, cy + s * 0.69, s * 0.12, INK, 1.5);
+    circle(-s * 0.04, cy + s * 0.67, s * 0.025, INK); circle(s * 0.04, cy + s * 0.67, s * 0.025, INK);
+    // Spiked shoulder pauldrons.
     for (const sd of [-1, 1]) {
-      circle(sd * s * 0.8, cy + s * 0.15, s * 0.3, "#9aa0ad"); ring(sd * s * 0.8, cy + s * 0.15, s * 0.3, INK, 2.5);
-      if (this.king) poly([[sd * s * 0.75, cy - s * 0.1], [sd * s * 0.95, cy - s * 0.45], [sd * s * 1.0, cy - s * 0.05]], "#e9e4d6", INK, 2);
+      ctx.beginPath(); ctx.arc(sd * s * 0.82, cy + s * 0.12, s * 0.34, Math.PI, 0); ctx.closePath();
+      this.shapeFill(this.rad(sd * s * 0.82, cy, s * 0.34, "#a8aebb"), 2.5);
+      for (const k of [-0.5, 0, 0.5]) poly([[sd * s * 0.82 + k * s * 0.3 - s * 0.06, cy - s * 0.12 + Math.abs(k) * s * 0.12], [sd * s * 0.82 + k * s * 0.38, cy - s * 0.42 + Math.abs(k) * s * 0.18], [sd * s * 0.82 + k * s * 0.3 + s * 0.06, cy - s * 0.12 + Math.abs(k) * s * 0.12]], "#eae4d4", INK, 1.5);
     }
-    rrect(-s * 0.62, cy - s * 0.85, s * 1.24, s * 1.05, s * 0.4);
-    ctx.fillStyle = body; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-    // Iron helmet.
-    ctx.beginPath(); ctx.moveTo(-s * 0.66, cy - s * 0.45); ctx.quadraticCurveTo(0, cy - s * 1.25, s * 0.66, cy - s * 0.45); ctx.closePath();
-    ctx.fillStyle = "#8f95a3"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-    this.face(0, cy - s * 0.3, s * 0.13, 0.6, "#ffcf4a");
-    ring(0, cy, s * 0.26, INK, 3, Math.PI + 0.4, Math.PI * 2 - 0.4);
-    for (const sd of [-1, 1]) poly([[sd * s * 0.22, cy + s * 0.08], [sd * s * 0.3, cy - s * 0.22], [sd * s * 0.12, cy + s * 0.06]], "#fffaf0", INK, 1.5);
+    // Head.
+    rrect(-s * 0.62, cy - s * 0.85, s * 1.24, s * 1.05, s * 0.4); this.shapeFill(this.rad(0, cy - s * 0.35, s * 0.8, body), lw);
+    // War paint.
+    ctx.fillStyle = "rgba(200,40,40,0.8)";
+    for (const sd of [-1, 1]) for (let i = 0; i < 2; i++) ctx.fillRect(sd * s * 0.35 - s * 0.06, cy - s * (0.2 - i * 0.1), s * 0.12 * (i ? 0.7 : 1), s * 0.05);
+    // Horned helmet with a nose guard.
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * s * 0.45, cy - s * 0.75); ctx.quadraticCurveTo(sd * s * 1.15, cy - s * 0.85, sd * s * 1.0, cy - s * 1.45); ctx.quadraticCurveTo(sd * s * 0.85, cy - s * 1.0, sd * s * 0.3, cy - s * 0.95); ctx.closePath(); this.shapeFill(this.lin(cy - s * 1.45, cy - s * 0.75, "#fffaf0", "#c8b898"), 2); }
+    ctx.beginPath(); ctx.moveTo(-s * 0.66, cy - s * 0.45); ctx.quadraticCurveTo(0, cy - s * 1.3, s * 0.66, cy - s * 0.45); ctx.closePath();
+    this.shapeFill(this.lin(cy - s * 1.2, cy - s * 0.45, "#c0c6d2", "#6a707e"), 3);
+    if (EN_DETAIL) for (let i = 0; i < 5; i++) circle((i - 2) * s * 0.24, cy - s * 0.5 - Math.cos((i - 2) * 0.55) * s * 0.06, s * 0.035, "#e8ecf4");
+    rrect(-s * 0.06, cy - s * 0.55, s * 0.12, s * 0.32, 2); this.shapeFill("#8a90a0", 1.5);
+    // Glowing eyes, a frown and big tusks.
+    this.eyes(0, cy - s * 0.3, s * 0.13, "#ffcf4a", this.attacking || this.king ? "#ff8a3a" : null);
+    ring(0, cy + s * 0.02, s * 0.26, INK, 3, Math.PI + 0.4, Math.PI * 2 - 0.4);
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * s * 0.14, cy + s * 0.1); ctx.quadraticCurveTo(sd * s * 0.34, cy + s * 0.04, sd * s * 0.32, cy - s * 0.26); ctx.quadraticCurveTo(sd * s * 0.24, cy - s * 0.02, sd * s * 0.06, cy + s * 0.06); ctx.closePath(); this.shapeFill(this.lin(cy - s * 0.26, cy + s * 0.1, "#fffaf0", "#d8ccb0"), 1.5); }
   }
 }
 
@@ -1588,8 +1837,27 @@ function damageCastle(a) {
   castleHp -= a; wallFlash = 1;
   if (castleHp <= 0) { castleHp = 0; gameOver(); }
 }
+// Each kind breaks apart in its own way, and a little spirit floats up.
+function deathFx(e) {
+  const s = e.size, burst = (n, f) => { for (let i = 0; i < n; i++) { const a = rand(0, Math.PI * 2); f(Math.cos(a), Math.sin(a)); } }, big = e.isBoss ? 3 : 1;
+  if (e.look === "slime") {
+    burst(14 * big, (cx, cy) => { const sp = rand(120, 300); addPart({ kind: "drop", x: e.x, y: e.y, vx: cx * sp, vy: -Math.abs(cy) * sp - 80, g: 900, life: rand(0.5, 0.8), size: rand(3, 6) * (e.isBoss ? 1.6 : 1), col: e.color }); });
+    addPart({ kind: "ring", x: e.x, y: e.y + s * 0.6, size: s * 0.5, grow: s * 1.4, w: 6, sq: 0.35, life: 0.45, col: e.color });
+  } else if (e.look === "mummy") {
+    burst(16 * big, (cx, cy) => { const sp = rand(60, 220); addPart({ kind: "grain", x: e.x, y: e.y, vx: cx * sp, vy: cy * sp - 60, g: 500, life: rand(0.5, 0.9), size: rand(2, 4), col: Math.random() < 0.5 ? "#e8dcc0" : "#c8b48a" }); });
+    burst(6, (cx, cy) => addPart({ kind: "smoke", x: e.x + cx * 8, y: e.y + cy * 8, vx: cx * 60, vy: -40, life: 0.8, size: s * 0.4, grow: 1.5, col: "#d9c8a0", a: 0.5 }));
+  } else {
+    burst(8 * big, (cx, cy) => addPart({ kind: "smoke", x: e.x + cx * 6, y: e.y + cy * 6, vx: cx * 90, vy: cy * 60 - 30, drag: 2, life: 0.7, size: s * 0.45, grow: 1.4, col: "#f2ece0", a: 0.7 }));
+    burst(10 * big, (cx, cy) => { const sp = rand(100, 260); addPart({ add: true, kind: "spark", x: e.x, y: e.y, vx: cx * sp, vy: cy * sp, drag: 4, life: 0.35, size: 2.5, rgb: "255,240,200", len: 0.04 }); });
+    burst(5 * big, (cx, cy) => { const sp = rand(140, 300); addPart({ kind: "chunk", x: e.x, y: e.y, vx: cx * sp, vy: -Math.abs(cy) * sp - 120, g: 1100, life: 0.7, size: rand(3, 5), col: shade(e.color, -0.2), rot: rand(0, 6), vr: rand(-12, 12) }); });
+  }
+  // Spirit wisp.
+  addPart({ add: true, kind: "glow", x: e.x, y: e.y - s * 0.3, vy: -70, life: 1, size: s * 0.45 * (e.isBoss ? 1.6 : 1), grow: -0.5, rgb: "235,245,255", a: 0.6 });
+  if (e.isBoss) { shakeT = Math.max(shakeT, 0.5); shakeAmp = 12; addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "255,200,120", size: 20, grow: 260, w: 10, sq: 0.6, life: 0.6 }); }
+}
 function onEnemyKilled(e) {
   enemies = enemies.filter(x => x !== e);
+  deathFx(e);
   if (e.noGold) fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: "0", color: "#9a9590", size: 20, duration: 0.8 }));
   else {
     gold += e.gold;
@@ -2747,6 +3015,7 @@ function drawWorld() {
   }
 
   for (const z of zones) z.draw();
+  EN_DETAIL = enemies.length <= 18;
   for (const e of enemies) e.draw();
   if (chamberOpen) {
     // Frozen battle shots and effects stay underneath the Chamber panel.
