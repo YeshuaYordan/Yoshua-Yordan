@@ -1935,6 +1935,7 @@ function hitEnemy(e, el, r, dmg) {
 // ------------------------------------------------------------ Shop & merging
 function refreshShop() {
   for (let i = 0; i < SHOP_N; i++) {
+    if (rows.shop[i] && rows.shop[i].locked) continue;   // a locked card stays until it is bought
     // Owned Special cards sometimes show up instead of a main element card.
     const owned = SPECIALS.filter(id => save.specials[id]);
     let c;
@@ -1943,6 +1944,41 @@ function refreshShop() {
     c.inShop = true; c.price = priceOf(c.element, c.rarity);
     const s = slotPos("shop", i); c.setHome(s.x, s.y, true); c.y += 200;
     rows.shop[i] = c;
+  }
+}
+// ---- Shop lock: double-tap a shop card to keep it through rerolls and new waves (only one at a time).
+const DOUBLE_TAP = 0.28;
+let shopTap = null;   // { index, t } a single tap waiting to see if a second tap follows
+function toggleShopLock(i) {
+  const c = rows.shop[i]; if (!c) return;
+  const lock = !c.locked;
+  for (const o of rows.shop) if (o) o.locked = false;
+  c.locked = lock; c.scale = 1.15; playUi(lock ? "ui_place" : "ui_pick");
+  showInfo(lock ? `${cardName(c)} locked: it stays in the shop until you buy it. Double-tap again to unlock.` : "Card unlocked.");
+}
+function shopTapBuy(i) {
+  if (!rows.shop[i]) return;
+  const slot = firstFree();
+  if (!slot) { showInfo("No free slot! Drag it onto a matching card to fuse it."); rows.shop[i].shake = 1; }
+  else if (buy(i, slot[0], slot[1])) playUi("ui_place");
+}
+function updateShopTap(dt) {
+  if (!shopTap) return;
+  shopTap.t += dt;
+  if (shopTap.t >= DOUBLE_TAP) { const i = shopTap.index; shopTap = null; shopTapBuy(i); }
+}
+// Gold frame and padlock on the locked shop card.
+function drawShopLocks() {
+  for (const c of rows.shop) {
+    if (!c || !c.locked || c.dragging) continue;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 4);
+    rrect(c.x - CARD_W / 2 - 6, c.y - CARD_H / 2 - 6, CARD_W + 12, CARD_H + 36, 14);   // reaches around the price tag
+    ctx.strokeStyle = `rgba(242,193,78,${0.7 + 0.3 * pulse})`; ctx.lineWidth = 5; ctx.stroke();
+    const lx = c.x + CARD_W / 2 - 6, ly = c.y - CARD_H / 2 + 4;
+    circle(lx, ly, 19, INK); circle(lx, ly, 16, GOLD);
+    ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(lx, ly - 3, 6, Math.PI, 0); ctx.stroke();
+    rrect(lx - 8, ly - 3, 16, 12, 3); ctx.fillStyle = INK; ctx.fill();
+    circle(lx, ly + 2, 2, GOLD);
   }
 }
 function reroll() {
@@ -2796,9 +2832,9 @@ function pointerUp(ev) {
   if (chamberOpen) { chamberDrop(d, p); return; }
   if (!d.moved) {
     if (d.from === "shop") {
-      const slot = firstFree();
-      if (!slot) { showInfo("No free slot! Drag it onto a matching card to fuse it."); d.card.shake = 1; }
-      else if (buy(d.index, slot[0], slot[1])) playUi("ui_place");
+      // Tap = buy, double-tap = lock. Wait a moment to see if a second tap comes.
+      if (shopTap && shopTap.index === d.index) { shopTap = null; toggleShopLock(d.index); }
+      else { if (shopTap) shopTapBuy(shopTap.index); shopTap = { index: d.index, t: 0 }; }
     }
     return;
   }
@@ -2827,7 +2863,7 @@ function update(dt) {
   time += dt;
   banner.t += dt; info.t += dt;
   restartArmed = Math.max(0, restartArmed - dt);
-  updateStorage(dt);
+  updateStorage(dt); updateShopTap(dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
   if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide) return;
@@ -3042,7 +3078,7 @@ function drawWorld() {
     drawChamber();
   }
   for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W))) c.draw();
-  if (!chamberOpen) drawStorageNav();
+  if (!chamberOpen) { drawStorageNav(); drawShopLocks(); }
   if (!chamberOpen) { drawParts(); for (const p of projectiles) p.draw(); }
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
@@ -4571,7 +4607,7 @@ const TUT = {
   ],
   merge: [
     { t: "Gold", hl: () => ({ x: btn.reroll.x, y: btn.reroll.y + btn.reroll.h + 6, w: 140, h: 50 }), b: "This is your gold. Spend it on cards, shop rerolls and spells." },
-    { t: "Reroll", hl: () => btnRect(btn.reroll), b: "Don't like the shop? Reroll it for new cards. The price goes up with each reroll and resets every wave." },
+    { t: "Reroll", hl: () => btnRect(btn.reroll), b: "Double-tap a shop card to LOCK it: it stays in the shop through rerolls and new waves until you buy it (one card at a time). Don't like the shop? Reroll it for new cards. The price goes up with each reroll and resets every wave." },
     { t: "Sell", hl: () => ({ x: SELL_RECT.x - 6, y: SELL_RECT.y - 6, w: SELL_RECT.w + 12, h: SELL_RECT.h + 12 }), b: "Drag a card you don't need onto Sell to get half of its price back." },
     { t: "Elements", b: "Water beats Fire, Fire beats Wind, Wind beats Earth and Earth beats Water. Some enemies resist an element: they take half damage from it and 1.5x damage from the element that beats it. Wind is strong against flying enemies." },
   ],
