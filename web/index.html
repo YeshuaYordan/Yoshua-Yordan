@@ -1448,6 +1448,12 @@ class Enemy {
     if (this.dead) return;
     const dealt = Math.min(a, Math.max(0, this.hp));
     this.hp -= a; if (a >= 1) this.flash = 1;
+    if (this.rush) {   // Boss Break Out: 1 gold for every 2% of its HP taken off
+      this.goldAcc = (this.goldAcc || 0) + dealt / this.maxHp * BOSS_GOLD_PER_KILL;
+      const g = Math.floor(this.goldAcc);
+      if (g > 0) { this.goldAcc -= g; gold += g; this.goldShow = (this.goldShow || 0) + g; }
+      if (this.goldShow && (this.goldShow >= 5 || this.hp <= 0)) { fxs.push(new Fx("text", { x: this.x + rand(-20, 20), y: this.y - this.size - 20, text: `+${this.goldShow} g`, color: GOLD, size: 20, duration: 0.7 })); this.goldShow = 0; }
+    }
     const killed = this.hp <= 0;
     noteDamage(src, dealt, killed, color);
     if (killed) { this.dead = true; onEnemyKilled(this); }
@@ -2343,8 +2349,49 @@ function clearBoard() {
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
+// ---- Boss Break Out: a mode with only bosses. Wave N brings N bosses (max 5), each wave stronger. Every boss killed
+// gives 1 gem, and every 2% of a boss's HP you take off gives 1 gold (so a full kill = 50 gold), even if it survives.
+// After a run the mode rests for 6 hours, or only 3 hours if you beat 10+ bosses. An optional ad skips one rest.
+let bossMode = false, bossKills = 0, bossSeq = 0, bossModeOver = false, bossLastRun = 0;
+const BOSS_ROTATION = ["kingGoblin", "kingOrc", "kingSlime"];
+const BOSS_HP_MULT = 0.5, BOSS_WAVE_STEP = 3, BOSS_MAX_PER_WAVE = 5, BOSS_GOLD_PER_KILL = 50;
+const BOSS_CD_LONG = 6 * 3600e3, BOSS_CD_SHORT = 3 * 3600e3, BOSS_GOAL = 10;
+const bossReadyIn = () => Math.max(0, (save.bossReadyAt || 0) - Date.now());
+const bossAdAvailable = () => bossReadyIn() > 0 && save.bossAdFor !== save.bossReadyAt;
+function fmtTime(ms) { const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60; return `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`; }
+function startBossRun() {
+  if (bossReadyIn() > 0) return;
+  startRun(); bossMode = true; bossKills = 0; bossSeq = 0;
+  save.bossReadyAt = Date.now() + BOSS_CD_LONG; writeSave();   // leaving early can't be used to skip the rest
+  fadeIn = 0.5;
+  showBanner("BOSS BREAK OUT!", "#e0533f");
+  showInfo("Only bosses! Every boss killed = 1 gem. Hurting a boss gives gold. Buy cards, then tap Next Wave.");
+}
+// Ends a Boss Break Out run (game over or leaving): sets the rest time.
+function endBossRun() {
+  if (!bossMode) return;
+  bossMode = false;
+  save.bossBest = Math.max(save.bossBest || 0, bossKills);
+  save.bossReadyAt = Date.now() + (bossKills >= BOSS_GOAL ? BOSS_CD_SHORT : BOSS_CD_LONG);
+  writeSave();
+}
+async function watchAdForBoss() {
+  if (adBusy || !bossAdAvailable()) return;
+  adBusy = true;
+  const ok = await showRewardedAd();
+  adBusy = false;
+  if (ok) { save.bossAdFor = save.bossReadyAt; save.bossReadyAt = 0; writeSave(); shopToast = { text: "Boss Break Out is ready!", color: "#ff8a6a", t: 0 }; }
+  else shopToast = { text: "Ad not available, try later", color: "#ff9a8a", t: 0 };
+}
+function spawnRushBoss(w) {
+  const kind = BOSS_ROTATION[bossSeq++ % BOSS_ROTATION.length];
+  const e = new Enemy(kind, 1 + (w - 1) * BOSS_WAVE_STEP, rand(100, W - 100), HUD_H + 20);
+  e.hp = e.maxHp = e.hp * BOSS_HP_MULT; e.gold = 0; e.rush = true; e.wave = w; enemies.push(e);
+}
+// Map of the run: Boss Break Out changes land every wave.
+const curStage = w => bossMode ? STAGES[Math.max(0, w - 1) % STAGES.length] : stageOf(w);
 function startRun() {
-  clearBoard(); totemBuys = {};
+  clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
   gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
@@ -2356,6 +2403,12 @@ function beginWave(fromTimer = false) {
   if (state !== "break" && state !== "wave") return;
   if (callCd > 0 && !fromTimer) { showInfo(`Next wave ready in ${Math.ceil(callCd)}s.`); return; }
   wave++; state = "wave"; breakTimer = -1; callCd = CALL_COOLDOWN; rerollCost = REROLL_BASE;
+  if (bossMode) {
+    const n = Math.min(wave, BOSS_MAX_PER_WAVE);
+    spawners.push({ wave, left: n, total: n, timer: 0.6, rush: true });
+    showBanner(`Boss Wave ${wave}: ${n} boss${n > 1 ? "es" : ""}!`, "#e0533f");
+    return;
+  }
   const total = Math.min(6 + wave * 2, 70);
   spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % STAGE_LEN === 0 });
   const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
@@ -2366,6 +2419,10 @@ function beginWave(fromTimer = false) {
 }
 function waveCleared(w) {
   const bonus = 4 + w; gold += bonus; wavesCleared++;
+  if (bossMode) {
+    profile().waves = (profile().waves || 0) + 1; track("wave");
+    showBanner(`Boss wave ${w} cleared!  +${bonus} gold`, "#ff8a6a"); writeSave(); return;
+  }
   if (wavesCleared > save.best) save.best = wavesCleared;
   const lvlBefore = playerLevel().lvl;
   profile().waves = (profile().waves || 0) + 1; track("wave");
@@ -2386,6 +2443,8 @@ function toBreak() {
 }
 function gameOver() {
   state = "gameover"; cancelDrag();
+  if (bossMode) { bossLastRun = bossKills; endBossRun(); bossModeOver = true; return; }
+  bossModeOver = false;
   if (wavesCleared > save.best) save.best = wavesCleared;
   writeSave();
 }
@@ -2482,7 +2541,10 @@ function onEnemyKilled(e) {
   track("kill"); track("kill_" + e.look); if (e.isBoss) { track("boss"); buzz(120); }
   if (!e.noGold) track("gold", e.gold);
   deathFx(e); playDeath(e);
-  if (e.noGold) fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: "0", color: "#9a9590", size: 20, duration: 0.8 }));
+  if (e.rush) {   // Boss Break Out: 1 gem per boss
+    bossKills++; save.gems += 1; runGems += 1; writeSave();
+    fxs.push(new Fx("text", { x: e.x, y: e.y - 40, text: "+1 gem", color: "#7fe6ff", size: 30, duration: 1.2 }));
+  } else if (e.noGold) fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: "0", color: "#9a9590", size: 20, duration: 0.8 }));
   else {
     gold += e.gold;
     fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: `+${e.gold}`, color: GOLD, size: 22, duration: 0.8 }));
@@ -3864,6 +3926,8 @@ const btn = {
   tabFusions: makeBtn("Fusions", 120, 128, 220, 56, () => { bookTab = "fusions"; bookScroll = 0; }, 24),
   tabRunes: makeBtn("Runes", 380, 128, 220, 56, () => { bookTab = "runes"; bookScroll = 0; }, 24),
   reroll: makeBtn("Reroll", 450, 1100, 250, 96, () => reroll(), 28),
+  bossRun: Object.assign(makeBtn("BOSS BREAK OUT", 0, 0, 340, 72, () => startBossRun(), 26), { fill: "#c0392b", fillDown: "#8e2a20", font: DISPLAY, weight: 900, color: "#fff2d0", outline: 6 }),
+  bossAd: Object.assign(makeBtn("\u25B6 Ad", 0, 0, 104, 72, () => watchAdForBoss(), 22), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   play: Object.assign(makeBtn("PLAY", 210, 1140, 300, 96, () => { startRun(); fadeIn = 0.5; }, 40), { fill: GOLD, fillDown: "#d9a838", font: DISPLAY, weight: 900 }),
   titleBook: makeBtn("", 14, 232, 112, 112, () => openBook()),
   summon: Object.assign(makeBtn("x1", 184, 1130, 170, 92, () => doSummon(1), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
@@ -3984,12 +4048,12 @@ function baseButtons() {
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.bio, btn.settingsBtn, btn.gemPill];
-    if (lobbyPage === 0) return [btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, ...top];
+    if (lobbyPage === 0) return [...(bossReadyIn() > 0 ? (bossAdAvailable() ? [btn.bossAd] : []) : [btn.bossRun]), btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
     return [...visibleUpgradeBtns(), ...top];
   }
-  if (state === "gameover") return [btn.again, btn.title];
-  if (paused) return [btn.resume, btn.pauseBook, btn.restart, btn.quit, btn.sound];
+  if (state === "gameover") return bossModeOver ? [btn.title] : [btn.again, btn.title];
+  if (paused) return [btn.resume, btn.pauseBook, ...(bossMode ? [] : [btn.restart]), btn.quit, btn.sound];
   const list = [btn.chamber, btn.pause, btn.reroll, storagePage === 0 ? btn.storNext : btn.storPrev];
   if (!drag) list.push(btn.next, btn.runes, btn.spell, btn.speed, ...(TESTER_RESET ? [btn.testCards] : []));
   return list;
@@ -4001,7 +4065,7 @@ function drawBtn(b, disabled = false) {
   ctx.fillStyle = disabled ? "#8c7f6c" : (b.down ? (b.fillDown || "#cfb486") : (b.fill || "#e9d3a6")); ctx.fill();
   ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
   const lines = b.label.split("\n"), lh = b.size * 1.15;
-  lines.forEach((ln, i) => text(ln, b.x + b.w / 2, b.y + press + b.h / 2 + (i - (lines.length - 1) / 2) * lh, b.size, disabled ? hexA(INK, 0.6) : INK, { weight: b.weight || 600, font: b.font, baseline: "middle" }));
+  lines.forEach((ln, i) => text(ln, b.x + b.w / 2, b.y + press + b.h / 2 + (i - (lines.length - 1) / 2) * lh, b.size, disabled ? hexA(INK, 0.6) : (b.color || INK), { weight: b.weight || 600, font: b.font, baseline: "middle", outline: b.outline || 0 }));
 }
 
 // ------------------------------------------------------------ Input
@@ -4106,6 +4170,7 @@ function update(dt) {
     for (const sp of spawners) {
       sp.timer -= dt;
       if (sp.timer > 0) continue;
+      if (sp.rush) { if (sp.left > 0) { sp.left--; spawnRushBoss(sp.wave); } sp.timer = 2.4; continue; }
       sp.timer = Math.max(0.28, 1.2 - sp.wave * 0.035);
       if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; spawnEnemy(stageOf(sp.wave).boss, sp.wave); }
       else if (sp.left > 0) { sp.left--; spawnEnemy(pickKind(sp.wave), sp.wave); }
@@ -4242,7 +4307,7 @@ function drawCaveCrystalPulse() {
 }
 function drawBackground() {
   const w = state === "title" ? 1 : (state === "break" ? wave + 1 : wave);
-  const bg = stageOf(w).bg;
+  const bg = curStage(w).bg;
   if (bg === "sand") drawBgSand(); else if (bg === "cave") drawBgCave(); else drawBgGrass();
 }
 
@@ -4292,7 +4357,7 @@ function drawWorldStatic() {
 
 }
 function drawWorld() {
-  const bgName = stageOf(state === "break" ? wave + 1 : wave).bg;
+  const bgName = curStage(state === "break" ? wave + 1 : wave).bg;
   if (wallFlash > 0) drawWorldStatic();
   else {
     const key = bgName + H;
@@ -4359,7 +4424,8 @@ function drawHud() {
   ctx.fillStyle = "rgba(26,16,34,0.92)"; ctx.fillRect(0, 0, W, HUD_H);
   ctx.strokeStyle = shade(GOLD, -0.3); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, HUD_H); ctx.lineTo(W, HUD_H); ctx.stroke();
   if (state === "title") return;
-  text(`Wave ${waveLabel(state === "break" ? wave + 1 : wave)}`, 16, 47, 26, PARCH, { align: "left", outline: 8 });
+  if (bossMode || (state === "gameover" && bossModeOver)) text(`Boss ${state === "break" ? wave + 1 : wave}  \u2620${bossKills}`, 16, 47, 26, "#ff9a7a", { align: "left", outline: 8 });
+  else text(`Wave ${waveLabel(state === "break" ? wave + 1 : wave)}`, 16, 47, 26, PARCH, { align: "left", outline: 8 });
   // Castle HP beside the wave counter.
   const hb = { x: 186, y: 22, w: 258, h: 28 };
   const tx = 164, ty = 36;
@@ -4475,6 +4541,14 @@ function drawOverlays() {
   } else if (state === "gameover" && !bookOpen) {
     dim(0.78);
     const gy = Math.max(150, H / 2 - 560);
+    if (bossModeOver) {
+      text("The Bosses Broke Through!", W / 2, gy, 36, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
+      text(`You defeated ${bossLastRun} boss${bossLastRun === 1 ? "" : "es"}  ·  +${runGems} gem${runGems === 1 ? "" : "s"}`, W / 2, gy + 56, 28, PARCH, { outline: 8 });
+      text(`Best: ${save.bossBest || 0} bosses   ·   Next run in ${bossLastRun >= BOSS_GOAL ? "3" : "6"} hours`, W / 2, gy + 96, 22, GOLD, { outline: 8 });
+      const rb = drawDamageReport(gy + 130);
+      btn.title.y = rb + 60; drawBtn(btn.title);
+      return;
+    }
     text("The Castle Has Fallen!", W / 2, gy, 46, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
     const n = wavesCleared;
     text(`You cleared ${n} wave${n === 1 ? "" : "s"}.`, W / 2, gy + 56, 28, PARCH, { outline: 8 });
@@ -4486,7 +4560,8 @@ function drawOverlays() {
     dim(0.6);
     text("Paused", W / 2, 480, 60, PARCH, { font: DISPLAY, weight: 900, outline: 12 });
     btn.restart.label = restartArmed > 0 ? "Tap again to restart" : "Restart";
-    drawBtn(btn.resume); drawBtn(btn.pauseBook); drawBtn(btn.restart); drawBtn(btn.quit); drawBtn(btn.sound);
+    drawBtn(btn.resume); drawBtn(btn.pauseBook); if (!bossMode) drawBtn(btn.restart); drawBtn(btn.quit); drawBtn(btn.sound);
+    if (bossMode) text("Leaving ends this Boss Break Out run.", W / 2, 1075, 22, "#ff9a8a", { outline: 6 });
     if (restartArmed > 0) text("Your current run will be lost.", W / 2, 1075, 22, "#ff9a8a", { outline: 6 });
   }
   if (bookOpen) drawBook();
@@ -4656,7 +4731,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const s = Math.max(W / 1080, H / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (H - 1920 * s) / 2 }; }
-function goToLobby() { paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
+function goToLobby() { endBossRun(); paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -6016,6 +6091,23 @@ function drawLobbyUi() {
   if (shopToast) drawShopToast(dt);
 }
 
+// Lobby: the Boss Break Out button above PLAY (a timer while it rests, with an optional ad to skip the rest).
+function drawBossRunButton() {
+  const wait = bossReadyIn(), y = H - 236, b = btn.bossRun, pul = 0.5 + 0.5 * Math.sin(lobbyT * 4);
+  if (!wait) {
+    b.x = W / 2 - 170; b.y = y; b.w = 340;
+    ctx.save(); ctx.shadowColor = `rgba(255,80,40,${0.5 + 0.4 * pul})`; ctx.shadowBlur = 18 + 10 * pul; rrect(b.x, b.y, b.w, b.h, 18); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.restore();
+    drawBtn(b);
+    drawSkullIcon(b.x + 30, b.y + b.h / 2 + (b.down ? 3 : 0), 12, 1, 0.9); drawSkullIcon(b.x + b.w - 30, b.y + b.h / 2 + (b.down ? 3 : 0), 12, 1, 0.9);
+    if (save.bossBest) text(`Best: ${save.bossBest} bosses`, W / 2, y - 10, 18, "#ffb08a", { weight: 800, outline: 5 });
+  } else {
+    const ad = bossAdAvailable(), w = ad ? 228 : 340, x = W / 2 - (ad ? (w + 112) / 2 : w / 2);
+    rrect(x, y, w, 72, 18); ctx.fillStyle = "rgba(60,20,20,0.88)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
+    text("BOSS BREAK OUT", x + w / 2, y + 30, 20, "#ff9a7a", { font: DISPLAY, weight: 900, outline: 4 });
+    text(`Ready in ${fmtTime(wait)}`, x + w / 2, y + 56, 19, PARCH, { weight: 800 });
+    if (ad) { btn.bossAd.x = x + w + 8; btn.bossAd.y = y; drawBtn(btn.bossAd); }
+  }
+}
 function drawHomeUi() {
   // Soft dark band behind the title so it reads over any sky.
   const g = ctx.createLinearGradient(0, 90, 0, 330); g.addColorStop(0, "rgba(20,10,30,0.45)"); g.addColorStop(1, "rgba(20,10,30,0)");
@@ -6030,6 +6122,7 @@ function drawHomeUi() {
     const x = i < 2 ? 54 + i * 80 : W - 54 - (3 - i) * 80, y = by + Math.sin(lobbyT * 2 + i * 1.3) * 5, s = 76;
     ctx.drawImage(slot.img, (Math.floor(lobbyT * 12 + i * 3) % 12) * 128, 0, 128, 128, x - s / 2, y - s / 2, s, s);
   });
+  drawBossRunButton();
   btn.play.x = W / 2 - 150; btn.play.y = H - 140; btn.play.w = 300; btn.play.h = 96;
   btn.play.size = 40 + Math.sin(lobbyT * 3) * 1.5;
   drawBtn(btn.play);
