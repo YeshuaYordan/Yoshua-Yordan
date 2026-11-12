@@ -634,17 +634,20 @@ class Card {
   setHome(x, y, snap) { this.hx = x; this.hy = y; if (snap) { this.x = x; this.y = y; } }
   update(dt) {
     this.t += dt; this.kick = Math.max(0, this.kick - dt * 5); this.shake = Math.max(0, this.shake - dt * 3);
+    if (this.ssjFlare) this.ssjFlare = Math.max(0, this.ssjFlare - dt * 0.7);
     this.scale += (1 - this.scale) * Math.min(1, dt * 8);
     if (!this.dragging) { const k = Math.min(1, dt * 16); this.x = lerp(this.x, this.hx, k); this.y = lerp(this.y, this.hy, k); }
   }
   draw() {
     const d = EL[this.element], t = this.t, rc = RARITY_COLORS[this.rarity];
     ctx.save();
-    ctx.translate(this.x + Math.sin(t * 60) * 6 * this.shake, this.y - 8 * this.kick - (this.dragging ? 6 : 0));
+    const maxed = (this.stars || 0) >= MAX_STARS, tremble = maxed ? 0.7 + 2.5 * (this.ssjFlare || 0) : 0;   // a max-power card trembles a little
+    ctx.translate(this.x + Math.sin(t * 60) * 6 * this.shake + Math.sin(t * 83) * tremble, this.y - 8 * this.kick - (this.dragging ? 6 : 0) + Math.cos(t * 71) * tremble * 0.6);
     ctx.scale(this.scale, this.scale);
     const hw = CARD_W / 2, hh = CARD_H / 2;
+    if (maxed) this.drawPowerAura(hw, hh, t, false);
     if (d.special) { this.drawSpecial(hw, hh, t, d); ctx.restore(); return; }
-    if (d.art) { this.drawIllustrated(hw, hh, t, d); this.drawStars(hh, t); ctx.restore(); return; }
+    if (d.art) { this.drawIllustrated(hw, hh, t, d); this.drawStars(hh, t); if (maxed) this.drawPowerAura(hw, hh, t, true); ctx.restore(); return; }
     if (this.rarity === LEGEND) { this.drawLegendRays(hw, hh, t); this.drawLegendOrbit(hw, hh, t, true); }
     if (this.rarity >= MYTH) this.drawMythAura(hw, hh, t, this.rarity === LEGEND);
     else if (d.tier === 3) this.drawEpicAura(hw, hh, t);
@@ -704,6 +707,82 @@ class Card {
       text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
     }
     this.drawStars(hh, t);
+    if (maxed) this.drawPowerAura(hw, hh, t, true);
+    ctx.restore();
+  }
+  // ---- 5-star MAX POWER aura: a bursting golden flame aura (spiky, flickering, stretched upward), shockwaves at its
+  // feet, energy streaks and sparks rushing up, pebbles lifting off the ground and blue lightning crackling around it.
+  drawPowerAura(hw, hh, t, front) {
+    const fl = this.ssjFlare || 0, S = 1 + fl * 0.45;   // right after reaching 5 stars the aura flares up bigger
+    const hash = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+    if (!front) {
+      // Shockwave rings on the ground.
+      for (let i = 0; i < 2; i++) {
+        const k = (t * 1.2 + i * 0.5) % 1;
+        ctx.save(); ctx.translate(0, hh + 6); ctx.scale(1, 0.26);
+        ring(0, 0, (hw + 12) + k * 80 * S, `rgba(255,214,80,${0.6 * (1 - k)})`, 6 * (1 - k) + 1.5);
+        ctx.restore();
+      }
+      // Flame aura: three spiky layers (orange outside, gold, white-yellow inside) flickering fast, each with a bright rim.
+      // Spikes are short on the sides and tall on top, so the aura towers upward like a blazing fire.
+      const layers = [[1.0, ["255,130,0", "255,196,30"], 0.7, 0], [0.84, ["255,196,20", "255,232,100"], 0.8, 2.1], [0.68, ["255,238,140", "255,255,235"], 0.9, 4.3]];
+      const N = 38, bx = hw + 40, by = hh + 30;
+      for (const [k, [c0, c1], al, ph] of layers) {
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+          const a = -Math.PI / 2 + i / N * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), upw = Math.max(0, -sa);
+          const f = 0.5 * Math.sin(t * 26 + i * 2.7 + ph) + 0.5 * Math.sin(t * 41 + i * 1.3 + ph * 2);
+          const tip = i % 2 === 0;
+          let x = ca * bx * k * S, y = sa * by * k * S * (sa < 0 ? 1.15 : 1);
+          if (tip) { const L = (12 + 62 * upw * upw + 12 * f) * k * S; x += ca * L * 0.35 - x * 0.06; y -= L * (0.35 + 0.65 * upw) - sa * L * 0.3; }   // tongue of flame, leaning up
+          else { x *= 0.97; y *= 0.97; }
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.closePath();
+        const lg = ctx.createLinearGradient(0, -by * 2.4 * S, 0, by);
+        lg.addColorStop(0, `rgba(${c1},${0.2 * al})`); lg.addColorStop(0.3, `rgba(${c1},${al * (0.75 + 0.25 * fl)})`); lg.addColorStop(1, `rgba(${c0},${al})`);
+        ctx.fillStyle = lg; ctx.fill();
+        ctx.strokeStyle = `rgba(255,250,215,${0.55 * al + 0.3 * fl})`; ctx.lineWidth = 1.6; ctx.lineJoin = "round"; ctx.stroke();
+      }
+      // Hot white core glow (painted, not added, so it stays gold over the grass).
+      const g = ctx.createRadialGradient(0, -10, hw * 0.4, 0, -10, hh * 1.6 * S);
+      g.addColorStop(0, `rgba(255,250,210,${0.45 + 0.25 * fl + 0.08 * Math.sin(t * 17)})`); g.addColorStop(1, "rgba(255,215,90,0)");
+      ctx.fillStyle = g; ctx.fillRect(-hw * 2, -hh * 2.6, hw * 4, hh * 4);
+      return;
+    }
+    // Energy streaks rushing upward.
+    ctx.save(); ctx.lineCap = "round";
+    for (let i = 0; i < 10; i++) {
+      const k = (t * 1.7 + hash(i) ) % 1, x = -hw - 10 + hash(i + 7) * (CARD_W + 20), y = hh + 14 - k * (CARD_H + 90) * S;
+      const a = Math.sin(Math.PI * k);
+      ctx.strokeStyle = `rgba(255,236,150,${0.85 * a})`; ctx.lineWidth = 2.5 + (i % 3);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 16 + (i % 4) * 6); ctx.stroke();
+    }
+    // Ki sparks.
+    for (let i = 0; i < 8; i++) {
+      const k = (t * 1.1 + hash(i + 20)) % 1, x = (hash(i + 30) - 0.5) * (CARD_W + 30) + Math.sin(t * 6 + i) * 4, y = hh - k * (CARD_H + 60);
+      circle(x, y, 2.6 * (1 - k) + 0.8, `rgba(255,252,220,${0.9 * (1 - k)})`);
+    }
+    // Pebbles lifting off the ground.
+    for (let i = 0; i < 4; i++) {
+      const k = (t * 0.45 + i * 0.25) % 1, x = (i - 1.5) * 30 + Math.sin(t * 3 + i * 2) * 3, y = hh + 10 - k * 70;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 2 + i); ctx.globalAlpha = Math.min(1, (1 - k) * 2);
+      rrect(-3 - (i % 2), -2.5, 6 + (i % 2) * 2, 5, 1.5); ctx.fillStyle = "#6b5a4a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.stroke();
+      ctx.restore();
+    }
+    // Blue-white lightning crackling around the card (new bolts 10 times a second).
+    const seed = Math.floor(t * 10);
+    for (let b = 0; b < 2; b++) {
+      if (hash(seed * 3 + b) < 0.35) continue;
+      const side = hash(seed * 5 + b) < 0.5 ? -1 : 1;
+      let x = side * (hw + 4 + hash(seed + b * 9) * 10), y = -hh - 10 + hash(seed * 7 + b) * (CARD_H + 10);
+      const pts = [[x, y]];
+      for (let j = 0; j < 5; j++) { x += side * (hash(seed + j * 13 + b) - 0.3) * 14; y += (hash(seed * 11 + j + b) - 0.5) * 36; pts.push([x, y]); }
+      for (const [w, c] of [[5, "rgba(120,190,255,0.45)"], [2.2, "rgba(190,230,255,0.95)"], [1, "#ffffff"]]) {
+        ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineJoin = "round"; ctx.beginPath();
+        pts.forEach(([px, py], j) => j ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.stroke();
+      }
+    }
     ctx.restore();
   }
   // Stars (1-5) along the bottom edge of a starred Myth / Legend card, with a soft glow and a twinkle.
@@ -2741,6 +2820,22 @@ function sell(row, i) {
   playUi("ui_sell");
   fxs.push(new Fx("text", { x: c.x, y: c.y, text: `+${v} g`, color: GOLD, size: 24, duration: 0.8 }));
 }
+// A card reaching 5 stars bursts into its MAX POWER aura: flash, shockwaves, screen shake and a rising roar.
+function powerUp(card) {
+  card.ssjFlare = 1; shakeT = Math.max(shakeT, 0.7); shakeAmp = 9;
+  const x = card.hx, y = card.hy;
+  for (let i = 0; i < 3; i++) addPart({ add: true, kind: "ring", x, y: y + 20, rgb: "255,210,80", size: 30 + i * 20, grow: 320 + i * 120, w: 8 - i * 2, sq: 0.45, life: 0.6 + i * 0.15 });
+  for (let i = 0; i < 40; i++) { const a = Math.random() * Math.PI * 2, v = rand(200, 520); addPart({ add: true, kind: "glint", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, life: rand(0.5, 0.9), size: rand(4, 7), col: Math.random() < 0.3 ? "#ffffff" : "#ffd84a" }); }
+  fxs.push(new Fx("burst", { x, y, color: "#fff2a8", radius: 170, duration: 0.5 }));
+  fxs.push(new Fx("text", { x, y: y - 120, text: "MAX POWER!", color: "#ffd84a", size: 38, duration: 1.6 }));
+  if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") {
+    sNoise(1.3, 0.55, "bandpass", 180, 2600, 1.4);          // rushing energy
+    sTone("sawtooth", 70, 260, 1.2, 0.12); sTone("square", 105, 390, 1.2, 0.05, 0.05);   // rising roar
+    sNoise(0.5, 0.7, "lowpass", 900, 60, 0.8, 1.15);        // the burst
+    [[784, 1.2], [1047, 1.27], [1568, 1.34]].forEach(([f, dl]) => sTone("sine", f, f, 0.5, 0.1, dl));
+  }
+  buzz(60);
+}
 function applyMerge(card, res) {
   if (res.stars) {
     track("merge");
@@ -2755,6 +2850,7 @@ function applyMerge(card, res) {
       sTone("triangle", 2637, 2637, 0.5, 0.06, 0.28);
     }
     showInfo(describe(card.element, card.rarity, card.stars));
+    if (card.stars >= MAX_STARS) powerUp(card);
     return;
   }
   const changed = res.element !== card.element;
