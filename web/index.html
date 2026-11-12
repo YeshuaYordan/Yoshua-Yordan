@@ -2146,8 +2146,8 @@ const rows = { active: Array(SLOTS).fill(null), storage: Array(STORAGE_N).fill(n
 // Fusion Chamber: 3-5 Epic cards on the altars, a chance to become one Myth card. On failure every card is lost.
 const CHAMBER_CHANCE = { 3: 35, 4: 60, 5: 85 };
 // Legend Chamber: active as soon as a Myth card is on an altar. Myth cards are the base of a Legend; Epic cards only
-// add a little. Even five Myth cards give at most 30%.
-const LEGEND = 5, LEGEND_PER_MYTH = 6, LEGEND_PER_EPIC = 2, LEGEND_MAX = 30;
+// add a little. Five Myth cards give the maximum: 55%.
+const LEGEND = 5, LEGEND_PER_MYTH = 11, LEGEND_PER_EPIC = 5, LEGEND_MAX = 55;
 const isLegendChamber = () => rows.chamber.some(c => c && c.rarity === MYTH);
 function chamberChance() {
   const cards = rows.chamber.filter(Boolean);
@@ -4056,7 +4056,7 @@ function drawChamber() {
   const n = chamberCount();
   if (fusion) { text(fusion.t < FUSE.reveal ? "Fusing..." : "", W / 2, 470, 30, "#e3c9ff", { weight: 700, outline: 8 }); return; }
   if (n >= 3) {
-    text(`Success chance: ${chamberChance()}%${legend ? "  (max 30%)" : ""}`, W / 2, 462, 34, GOLD, { weight: 700, outline: 8 });
+    text(`Success chance: ${chamberChance()}%${legend ? `  (max ${LEGEND_MAX}%)` : ""}`, W / 2, 462, 34, GOLD, { weight: 700, outline: 8 });
     text("If it fails, every card on the altars is lost!", W / 2, 498, 20, "#ff9a8a", { outline: 5 });
   } else if (legend) {
     text(`Myth +${LEGEND_PER_MYTH}% each   Epic +${LEGEND_PER_EPIC}% each   (max ${LEGEND_MAX}%)`, W / 2, 462, 22, PARCH, { outline: 6 });
@@ -4137,7 +4137,7 @@ function bookLines() {
     "Next elements: two different main elements", "of the same level (V2 Fire + V2 Earth = V2 Lava).",
     "They level up to V3 too.", "Epic elements: two different V3 next elements.",
     "Epic cards have one form (no V1-V3).", "Fuse 3-5 Epic cards in the Chamber for", "a chance at a Myth card (fail = cards lost).",
-    "Add Myth cards to make it a Legend Chamber:", "Myth +6%, Epic +2% each, max 30% Legend."])
+    "Add Myth cards to make it a Legend Chamber:", `Myth +${LEGEND_PER_MYTH}%, Epic +${LEGEND_PER_EPIC}% each, max ${LEGEND_MAX}% Legend.`])
     L.push({ segs: [[s, INK, 22]] });
   L.push({ segs: RARITY_NAMES.flatMap((n, i) => [[n, shade(RARITY_COLORS[i], -0.3), 22, FONT, 700], [i < 5 ? " > " : "", INK, 22]]) });
   // Main elements are always known: they are what the shop sells.
@@ -5687,8 +5687,8 @@ const GUIDE = [
     b: "And the other five. All recipes are also written in the Spellbook." },
   { t: "Myth: Fusion Chamber", eq: [[["storm", EPIC], ["blizzard", EPIC], ["grove", EPIC], ["phoenix", MYTH]]], note: "3 Epics: 35%   4 Epics: 60%   5 Epics: 85%",
     b: "Tap Chamber and put 3 to 5 Epic cards on the altars, then tap Fuse for a chance to create the Myth Phoenix. More Epic cards give a better chance. If it fails, all those cards are lost!" },
-  { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["zeus", LEGEND]]], note: "Each Myth +6%   each Epic +2%   up to 30%",
-    b: "Put a Myth card on an altar to try for a LEGEND card like Zeus, the strongest in the game. Each Myth card adds 6% and each Epic adds 2%, up to 30%." },
+  { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["zeus", LEGEND]]], note: "Each Myth +11%   each Epic +5%   up to 55%",
+    b: "Put a Myth card on an altar to try for a LEGEND card like Zeus, the strongest in the game. Each Myth card adds 11% and each Epic adds 5%, up to 55%." },
   { t: "Stars: Myth & Legend", eq: [[["phoenix", MYTH, 0], ["phoenix", MYTH, 0], ["phoenix", MYTH, 1]], [["zeus", LEGEND, 1], ["zeus", LEGEND, 0], ["zeus", LEGEND, 2]]],
     labels: [["Same card + same card = 1 star", "#ffd84a"], ["1 star + one more copy = 2 stars", "#ffd84a"]], labelDy: 18, note: "Every star DOUBLES the card's damage!",
     b: "Myth and Legend cards can't level up, but they can earn STARS. Drag a card onto the exact same card (Phoenix onto Phoenix, Zeus onto Zeus) to give it a star. Add another copy to a starred card for one more star. Stars are shown at the bottom of the card." },
@@ -5861,7 +5861,7 @@ const TUT = {
   ],
   chamber: [
     { t: "An Epic card!", hl: () => btnRect(btn.chamber), b: "Open the Chamber and place 3 to 5 Epic cards on the altars to try for a Myth Phoenix: 35%, 60% or 85% chance. If it fails, all those cards are lost!" },
-    { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 6% and each Epic adds 2%, up to 30%." },
+    { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 11% and each Epic adds 5%, up to 55%." },
   ],
   boss: [
     { t: "Boss wave!", b: "Every 15th wave a boss appears. Beat it to clear the stage: you earn 20 gems for Summon, and the map changes to a new land with new enemies." },
