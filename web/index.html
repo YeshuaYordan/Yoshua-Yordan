@@ -4794,14 +4794,14 @@ function drawHomeUi() {
   drawBtn(btn.play);
   // Daily reward (red dot when it is waiting) and Help (replays the tutorial).
   drawIconBtn(GUIDE_ICON[save.tut && save.tut.lobby ? "tutorial" : "tutorial_notify"], btn.help, "Tutorial");
-  drawIconBtn(GUIDE_ICON[save.guide ? "merge_guide" : "merge_guide_notify"], btn.mergeGuide, "Merge Guide", 4);   // 3x slower
+  drawIconBtn(GUIDE_ICON[save.guide ? "merge_guide" : "merge_guide_notify"], btn.mergeGuide, "Merge Guide", 7);   // slower than the other icons
   // Missions icon on the right, above Daily.
   const mi = MISSION_ICON[missionsClaimable() ? "mission_notify" : "mission"], mb = btn.missions, mp = mb.down ? 0.92 : 1;
   if (mi && mi.ready) { const sz = mb.w * mp; ctx.drawImage(mi.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, mb.x + (mb.w - sz) / 2, mb.y + (mb.h - sz) / 2, sz, sz); }
   text("Missions", mb.x + mb.w / 2, mb.y + mb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
   // Spellbook icon on the left, above the Shop.
   const bk = BOOK_ICON[bookHasNew() ? "spellbook_notify" : "spellbook"], bb = btn.titleBook, bp = bb.down ? 0.92 : 1;
-  if (bk && bk.ready) { const sz = bb.w * bp; ctx.drawImage(bk.img, (Math.floor(lobbyT * 4) % 12) * 128, 0, 128, 128, bb.x + (bb.w - sz) / 2, bb.y + (bb.h - sz) / 2, sz, sz); }
+  if (bk && bk.ready) { const sz = bb.w * bp; ctx.drawImage(bk.img, (Math.floor(lobbyT * 7) % 12) * 128, 0, 128, 128, bb.x + (bb.w - sz) / 2, bb.y + (bb.h - sz) / 2, sz, sz); }
   text("Spellbook", bb.x + bb.w / 2, bb.y + bb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
   // Shop (cart) icon on the left.
   const sb = btn.getGems, sp = sb.down ? 0.92 : 1;
