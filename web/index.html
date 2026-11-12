@@ -213,6 +213,36 @@ for (const old of ["solarflare", "tidalwave", "earthquake", "tempest"]) {   // t
   if (save.levels && save.levels[old]) { save.levels.totem = Math.max(save.levels.totem || 1, save.levels[old]); delete save.levels[old]; }
 }
 for (const sp of ["totem", "flight"]) if (save.copies) delete save.copies[sp];   // Special cards have no copies or levels
+// ---- Trusted time (anti clock-cheat). The game remembers the latest time it has ever seen (save.maxSeen). If the
+// phone's clock goes back before it, time rewards pause until real time catches up, so moving the clock forward and
+// back gains nothing. When online it also reads the real time (the Android app can provide window.nativeNetTime,
+// otherwise the Date header of the server the game is loaded from) and uses that instead of the phone's clock.
+let netOffset = 0;
+const gameNow = () => Date.now() + netOffset;
+const CLOCK_SLACK = 5 * 60e3;
+function noteTime() { const n = gameNow(); if (!save.maxSeen || n > save.maxSeen) save.maxSeen = n; }
+const clockWentBack = () => !!save.maxSeen && gameNow() < save.maxSeen - CLOCK_SLACK;
+async function fetchNetTime() {
+  try {
+    if (typeof window.nativeNetTime === "function") { const t = Number(await window.nativeNetTime()); if (t > 0) return t; }
+    if (!/^https?:$/.test(location.protocol)) return 0;
+    const ac = typeof AbortController === "function" ? new AbortController() : null, to = ac && setTimeout(() => ac.abort(), 4000);
+    const t0 = Date.now(), r = await fetch(location.href, { method: "HEAD", cache: "no-store", signal: ac ? ac.signal : undefined });
+    if (to) clearTimeout(to);
+    const d = r.headers.get("date"), t = d ? Date.parse(d) : NaN;
+    return isFinite(t) ? t + (Date.now() - t0) / 2 : 0;
+  } catch (e) { return 0; }
+}
+async function syncTime() { const t = await fetchNetTime(); if (t > 0) netOffset = t - Date.now(); return t > 0; }
+// Call before giving anything for waiting (daily gems, Boss Break Out). Returns true when the time can be trusted.
+async function timeOk() {
+  if (navigator.onLine === false) { shopToast = { text: "Connect to the internet to claim this.", color: "#ff9a8a", t: 0 }; return false; }
+  await syncTime();
+  if (clockWentBack()) { shopToast = { text: "Your phone's clock was changed. Rewards pause until it catches up.", color: "#ff9a8a", t: 0 }; return false; }
+  noteTime(); writeSave(); return true;
+}
+syncTime().then(() => { if (!clockWentBack()) noteTime(); });
+setInterval(() => { if (!clockWentBack()) { noteTime(); writeSave(); } }, 30000);
 function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} }
 // ---- Summon (gacha), gems and card upgrades
 const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
@@ -2356,13 +2386,13 @@ let bossMode = false, bossKills = 0, bossSeq = 0, bossModeOver = false, bossLast
 const BOSS_ROTATION = ["kingGoblin", "kingOrc", "kingSlime"];
 const BOSS_HP_MULT = 0.5, BOSS_WAVE_STEP = 3, BOSS_MAX_PER_WAVE = 5, BOSS_GOLD_PER_KILL = 50;
 const BOSS_CD_LONG = 6 * 3600e3, BOSS_CD_SHORT = 3 * 3600e3, BOSS_GOAL = 10;
-const bossReadyIn = () => Math.max(0, (save.bossReadyAt || 0) - Date.now());
+const bossReadyIn = () => Math.max(0, (save.bossReadyAt || 0) - gameNow());
 const bossAdAvailable = () => bossReadyIn() > 0 && save.bossAdFor !== save.bossReadyAt;
 function fmtTime(ms) { const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60; return `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`; }
 function startBossRun() {
   if (bossReadyIn() > 0) return;
   startRun(); bossMode = true; bossKills = 0; bossSeq = 0;
-  save.bossReadyAt = Date.now() + BOSS_CD_LONG; writeSave();   // leaving early can't be used to skip the rest
+  save.bossReadyAt = gameNow() + BOSS_CD_LONG; writeSave();   // leaving early can't be used to skip the rest
   fadeIn = 0.5;
   showBanner("BOSS BREAK OUT!", "#e0533f");
   showInfo("Only bosses! Every boss killed = 1 gem. Hurting a boss gives gold. Buy cards, then tap Next Wave.");
@@ -2372,7 +2402,7 @@ function endBossRun() {
   if (!bossMode) return;
   bossMode = false;
   save.bossBest = Math.max(save.bossBest || 0, bossKills);
-  save.bossReadyAt = Date.now() + (bossKills >= BOSS_GOAL ? BOSS_CD_SHORT : BOSS_CD_LONG);
+  save.bossReadyAt = gameNow() + (bossKills >= BOSS_GOAL ? BOSS_CD_SHORT : BOSS_CD_LONG);
   writeSave();
 }
 async function watchAdForBoss() {
@@ -3943,7 +3973,7 @@ const btn = {
   guideClose: makeBtn("Close", 0, 0, 160, 72, () => { guide = null; }, 26),
   mergeGuide: makeBtn("", W - 126, 620, 112, 112, () => openGuide(false)),
   help: makeBtn("", W - 126, 496, 112, 112, () => { save.tut = {}; writeSave(); tutStart("lobby"); }),
-  dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 230, 84, () => claimDaily(1), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 230, 84, async () => { if (await timeOk()) claimDaily(1); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   dailyAd: Object.assign(makeBtn("Watch ad", 296, 0, 374, 84, () => watchAdForDaily(), 22), { fill: "#ffcd50", fillDown: "#e0a830" }),
   dailyClose: makeBtn("Close", W / 2 - 110, 0, 220, 70, () => { dailyOpen = false; }, 26),
   bio: makeBtn("", 12, 12, 232, 58, () => { bioOpen = true; playUi("ui_pick"); }),
@@ -5534,7 +5564,7 @@ function drawMissions(dt) {
     });
     const all = m.list.every(it => it.claimed);
     row(x + 24, top + 34 + 3 * 128 + 20, w - 48, "Daily bonus", "Finish all three missions", m.list.filter(it => it.claimed).length, 3, MISSION_BONUS, m.bonus, "mb", () => { if (all && !m.bonus) { m.bonus = true; giveGems(MISSION_BONUS); } });
-    const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), s2 = Math.max(0, Math.floor((mid - now) / 1000));
+    const now = new Date(gameNow()), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), s2 = Math.max(0, Math.floor((mid - now) / 1000));
     text(`New missions in ${Math.floor(s2 / 3600)}h ${String(Math.floor(s2 / 60) % 60).padStart(2, "0")}m`, W / 2, top + 34 + 4 * 128 + 60, 19, "#8a6a4a", { weight: 600 });
   } else {
     // Scrollable achievements list (claimable first, then in progress, then claimed).
@@ -5697,6 +5727,7 @@ function showRewardedAd() {
 }
 async function watchAdForDaily() {
   if (adBusy || !dailyReady()) return;
+  if (!(await timeOk())) return;
   adBusy = true;
   const ok = await showRewardedAd();
   adBusy = false;
@@ -5720,7 +5751,7 @@ function drawAdSim() {
   rrect(W / 2 - 200, H * 0.6, 400 * Math.min(1, a.t / a.dur), 14, 7); ctx.fillStyle = GOLD; ctx.fill();
 }
 let dailyOpen = false, dailyShownThisSession = false, dailyFx = 0;
-const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+const todayKey = () => { const d = new Date(gameNow()); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
 const dailyData = () => (save.daily = save.daily || { last: "", day: 0 });
 const dailyReady = () => dailyData().last !== todayKey();
 function openDaily() { dailyOpen = true; playUi("ui_pick"); }
@@ -5763,7 +5794,7 @@ function drawDaily(dt) {
     poly([[px - 8, py - 11], [px + 11, py], [px - 8, py + 11]], INK, null);
     text(adsAreTest() ? "Ads are optional. (Test mode: no real ad yet.)" : "Ads are optional.", W / 2, by + 112, 17, "#8a6a4a", { weight: 600 });
   } else {
-    const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), s = Math.max(0, Math.floor((mid - now) / 1000));
+    const now = new Date(gameNow()), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1), s = Math.max(0, Math.floor((mid - now) / 1000));
     text(`Next reward in ${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`, W / 2, by + 46, 26, "#6b3a22", { weight: 700 });
   }
   btn.dailyClose.y = by + 128; drawBtn(btn.dailyClose);
@@ -6117,8 +6148,9 @@ function drawLobbyUi() {
 // Lobby PLAY button = a two-mode slider. Swipe left on it for Boss Break Out, right for the normal game.
 // The lobby turns dark and stormy with bosses peeking through the window as it slides (lobbyBossK 0..1).
 let playMode = 0, playModeT = 0, playDrag = 0, lobbyBossK = 0, playSliderLast = 0;
-function tapPlay() {
+async function tapPlay() {
   if (playMode === 0) { startRun(); fadeIn = 0.5; return; }
+  if (!(await timeOk())) return;
   if (bossReadyIn() > 0) { btn.play.shake = 1; shopToast = { text: `Boss Break Out is resting: ${fmtTime(bossReadyIn())}`, color: "#ff9a7a", t: 0 }; return; }
   startBossRun();
 }
