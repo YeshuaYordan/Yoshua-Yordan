@@ -106,8 +106,8 @@ const EL = {
   tempest:    { name: "Tempest", tier: 4, special: true, base: "wind", color: "#5ff0c8", shape: "swirl", parts: ["wind"], desc: "Three razor gales pierce through everything.", dmg: 12, rate: 2.2, speed: 1100, pierce: 99, multishot: 3 },
   // Legend cards: separate cards (not a Legend version of another card), created in the Legend Chamber or from Summon.
   // art = a full-card illustration instead of a frame + spirit.
-  zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 32, rate: 1.2, beam: 10, slow: 0.5 },
-  hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 26, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
+  zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
+  hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 46, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
   poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
@@ -2297,7 +2297,7 @@ function updateBeam(c, dt) {
     if (d.slow) e.slow(d.slow, 0.3);
     b.acc += amt; b.pop += dt;
     e.takeDamage(amt, src, d.color);
-    if (b.pop > 0.4 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(b.acc)), color: "#ffe34a", size: 18, duration: 0.7 })); b.acc = 0; b.pop = 0; }
+    if (b.pop > 1 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(b.acc)), color: "#ffe34a", size: 18, duration: 0.7 })); b.acc = 0; b.pop = 0; }
     if (Math.random() < dt * 6) addPart({ add: true, kind: "spark", x: e.x + rand(-8, 8), y: e.y + rand(-8, 8), vx: rand(-220, 220), vy: rand(-220, 220), drag: 4, life: 0.25, size: 2, rgb: "220,235,255", len: 0.04 });
   }
 }
@@ -2435,7 +2435,7 @@ function updateLance(c, dt) {
     if (d.slow) e.slow(d.slow, 0.3);
     e.lanceAcc = (e.lanceAcc || 0) + amt; e.lanceHitT = time; e.lancePop = (e.lancePop || 0) + dt;
     e.takeDamage(amt, src, d.color);
-    if (e.lancePop > 0.4 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(e.lanceAcc)), color: "#9fe6ff", size: 18, duration: 0.7 })); e.lanceAcc = 0; e.lancePop = 0; }
+    if (e.lancePop > 1 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(e.lanceAcc)), color: "#9fe6ff", size: 18, duration: 0.7 })); e.lanceAcc = 0; e.lancePop = 0; }
     if (Math.random() < dt * 10) addPart({ kind: "drop", x: e.x, y: e.y, vx: rand(-160, 160), vy: -rand(80, 220), g: 900, life: 0.5, size: rand(2.5, 4), col: "#7fd8ff" });
   }
   // Spray along the beam.
