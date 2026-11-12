@@ -4283,13 +4283,55 @@ function drawSpeedOffer() {
   drawBtn(btn.speedBuy); drawBtn(btn.speedNo);
 }
 function drawSpeedButton() {
-  const b = btn.speed, owned = !!save.speed2x, on = gameSpeed === 2;
-  b.label = owned ? (on ? "2x" : "1x") : "2x"; b.fill = on ? GOLD : "#e9d3a6"; b.fillDown = b.fill;
-  drawBtn(b);
-  // Fast-forward arrows, and a padlock while it isn't bought.
-  const ax = b.x + b.w - 30, ay = b.y + b.h / 2;
-  for (const o of [0, 11]) poly([[ax - 8 + o, ay - 9], [ax + 3 + o, ay], [ax - 8 + o, ay + 9]], INK, null);
-  if (!owned) { const lx = b.x + 18, ly = b.y + 18; circle(lx, ly, 13, INK); circle(lx, ly, 10.5, GOLD); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(lx, ly - 2, 4, Math.PI, 0); ctx.stroke(); ctx.fillStyle = INK; ctx.fillRect(lx - 5, ly - 2, 10, 8); }
+  const b = btn.speed, owned = !!save.speed2x, on = gameSpeed === 2, t = performance.now() / 1000;
+  const press = b.down ? 3 : 0, x = b.x, y = b.y + press, w = b.w, h = b.h, r = h / 2;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 5);
+  // Charged glow behind the button while 2x is on.
+  if (on) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(x + w / 2, y + h / 2, 10, x + w / 2, y + h / 2, w * 0.85);
+    g.addColorStop(0, `rgba(255,200,60,${0.35 + 0.2 * pulse})`); g.addColorStop(1, "rgba(255,200,60,0)");
+    ctx.fillStyle = g; ctx.fillRect(x - w * 0.4, y - h * 0.8, w * 1.8, h * 2.6); ctx.restore();
+  }
+  rrect(x + 2, y + 5 - press, w, h, r); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
+  // Body: deep violet when on, slate when off.
+  const body = ctx.createLinearGradient(0, y, 0, y + h);
+  if (on) { body.addColorStop(0, "#5a2d9a"); body.addColorStop(1, "#2a1250"); }
+  else { body.addColorStop(0, "#5a5470"); body.addColorStop(1, "#2f2a40"); }
+  rrect(x, y, w, h, r); ctx.fillStyle = body; ctx.fill();
+  ctx.save(); rrect(x, y, w, h, r); ctx.clip();
+  // Speed streaks racing through (only at 2x).
+  if (on) for (let i = 0; i < 6; i++) {
+    const k = ((t * 1.8 + i * 0.37) % 1), sy = y + 10 + ((i * 17) % (h - 20)), len = 18 + (i % 3) * 8;
+    ctx.strokeStyle = `rgba(255,230,150,${0.5 * Math.sin(Math.PI * k)})`; ctx.lineWidth = 2; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(x - 20 + k * (w + 40), sy); ctx.lineTo(x - 20 + k * (w + 40) - len, sy); ctx.stroke();
+  }
+  // Glossy top.
+  const gl = ctx.createLinearGradient(0, y, 0, y + h * 0.55); gl.addColorStop(0, "rgba(255,255,255,0.28)"); gl.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gl; ctx.fillRect(x, y, w, h * 0.55);
+  // A light sweep every few seconds to catch the eye before it's bought.
+  if (!owned) { const k = (t % 3) / 0.7; if (k < 1) { const sx = x - 30 + k * (w + 60); const sg = ctx.createLinearGradient(sx - 20, 0, sx + 20, 0); sg.addColorStop(0, "rgba(255,255,255,0)"); sg.addColorStop(0.5, "rgba(255,255,255,0.55)"); sg.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = sg; ctx.fillRect(sx - 20, y, 40, h); } }
+  ctx.restore();
+  // Border: gold and pulsing when on.
+  rrect(x, y, w, h, r); ctx.lineWidth = 4; ctx.strokeStyle = on ? `rgb(255,${190 + Math.round(40 * pulse)},70)` : INK; ctx.stroke();
+  if (on) { rrect(x + 4, y + 4, w - 8, h - 8, r - 4); ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(255,240,190,0.5)"; ctx.stroke(); }
+  // "1x" / "2x" in gold.
+  const label = owned && !on ? "1x" : "2x";
+  const tg = ctx.createLinearGradient(0, y + 12, 0, y + h - 12);
+  if (on || !owned) { tg.addColorStop(0, "#fff6c8"); tg.addColorStop(0.5, "#ffd24a"); tg.addColorStop(1, "#e08a1e"); } else { tg.addColorStop(0, "#ffffff"); tg.addColorStop(1, "#c9c2d8"); }
+  text(label, x + 36, y + h / 2 + 2, 30, tg, { font: DISPLAY, weight: 900, outline: 6, baseline: "middle" });
+  // Chevrons: flowing forward at 2x, one resting chevron at 1x.
+  const cx = x + w - 34, cy = y + h / 2;
+  const chev = (px, a, col) => { ctx.save(); ctx.globalAlpha = a; ctx.beginPath(); ctx.moveTo(px - 6, cy - 11); ctx.lineTo(px + 5, cy); ctx.lineTo(px - 6, cy + 11); ctx.strokeStyle = INK; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 4.5; ctx.stroke(); ctx.restore(); };
+  if (on) for (let i = 0; i < 3; i++) { const k = ((t * 2.4 + i / 3) % 1); chev(cx - 12 + k * 26, Math.sin(Math.PI * k), "#ffd24a"); }
+  else chev(cx, 1, owned ? "#e8e2f4" : "#ffd24a");
+  // Padlock badge until it's bought.
+  if (!owned) {
+    const lx = x + 4, ly = y + 2;
+    circle(lx, ly, 14, INK); circle(lx, ly, 11.5, GOLD);
+    ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(lx, ly - 2, 4.5, Math.PI, 0); ctx.stroke();
+    ctx.fillStyle = INK; ctx.fillRect(lx - 5.5, ly - 2, 11, 8);
+  }
 }
 
 // ------------------------------------------------------------ Daily reward
