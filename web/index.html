@@ -219,7 +219,11 @@ const PITY = 100;                // a Special card is guaranteed on this pull
 // Summon rates: Main 50%, Next 30%, Epic 13%, Myth 5%, Legend 1.5% (the rest), Special 0.5%.
 const SPECIAL_RATE = 0.005, MAIN_RATE = 0.5, NEXT_RATE = 0.3, EPIC_RATE = 0.13, MYTH_RATE = 0.05;
 const LEVEL_NEED = [5, 10, 20, 40], LEVEL_BONUS = 0.2, MAX_LEVEL = 5;   // copies for Lv2..Lv5, +20% damage each
-const SPECIAL_SHOP_CHANCE = 0.02;   // chance for each shop slot to offer an owned Special card
+// Chance that a shop refresh (new wave or reroll) offers the Totem, once you own it. It drops every time you buy one
+// this run (combining doesn't matter, skipping it doesn't matter): 10% > 8% > 6% > 4% > 2.5%. Resets each run.
+const TOTEM_SHOP_CHANCES = [0.10, 0.08, 0.06, 0.04, 0.025];
+let totemBuys = 0;
+const totemShopChance = () => TOTEM_SHOP_CHANCES[Math.min(totemBuys, TOTEM_SHOP_CHANCES.length - 1)];
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice"];
 const SPECIALS = ["totem"];
 const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth && !EL[k].legendCard);   // the 11 Epic elements
@@ -2250,7 +2254,7 @@ function clearBoard() {
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 function startRun() {
-  clearBoard();
+  clearBoard(); totemBuys = 0;
   gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
@@ -2833,12 +2837,14 @@ function hitEnemy(e, el, r, dmg, sm = 1) {
 
 // ------------------------------------------------------------ Shop & merging
 function refreshShop() {
+  // An owned Special card (the Totem) may take one of the open slots: one roll per refresh, not per slot.
+  const owned = SPECIALS.filter(id => save.specials[id]);
+  const open = [...Array(SHOP_N).keys()].filter(i => !(rows.shop[i] && rows.shop[i].locked));
+  const special = owned.length && open.length && !rows.shop.some(c => c && c.locked && EL[c.element].special) && Math.random() < totemShopChance() ? pickOne(open) : -1;
   for (let i = 0; i < SHOP_N; i++) {
     if (rows.shop[i] && rows.shop[i].locked) continue;   // a locked card stays until it is bought
-    // Owned Special cards sometimes show up instead of a main element card.
-    const owned = SPECIALS.filter(id => save.specials[id]);
     let c;
-    if (owned.length && Math.random() < SPECIAL_SHOP_CHANCE) c = new Card(pickOne(owned), SPECIAL);
+    if (i === special) c = new Card(pickOne(owned), SPECIAL);
     else { const el = randomBase(); c = new Card(el, Math.min(maxRarity(el), rollRarity(Math.max(1, wave + 1)))); }
     c.inShop = true; c.price = priceOf(c.element, c.rarity);
     const s = slotPos("shop", i); c.setHome(s.x, s.y, true); c.y += 200;
@@ -2930,7 +2936,9 @@ function buy(si, row, i) {
     if (!res) { showInfo(mergeHint(card, other) || `${cardName(card)} can't fuse with ${cardName(other)}.`); card.shake = 1; return false; }
     rows.shop[si] = null; applyMerge(other, res);
   }
-  gold -= cost; freeCard = false; return true;
+  gold -= cost; freeCard = false;
+  if (EL[card.element].totem) totemBuys++;   // each Totem bought makes the next one rarer in the shop
+  return true;
 }
 function sell(row, i) {
   const c = rows[row][i], v = sellOf(c.element, c.rarity);
