@@ -2747,7 +2747,7 @@ const btn = {
   settingsClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { settingsOpen = false; }, 26),
   volDown: makeBtn("-", 0, 0, 66, 56, () => changeVolume(-0.2), 32),
   volUp: makeBtn("+", 0, 0, 66, 56, () => changeVolume(0.2), 32),
-  missions: makeBtn("", W - 126, 222, 112, 112, () => { missionsOpen = true; missionsTab = 0; achScroll = 0; playUi("ui_pick"); }),
+  missions: makeBtn("", W - 126, 248, 112, 112, () => { missionsOpen = true; missionsTab = 0; achScroll = 0; playUi("ui_pick"); }),
   missionsClose: makeBtn("Close", W / 2 - 110, 0, 220, 64, () => { missionsOpen = false; }, 24),
   tabDaily: makeBtn("Daily Missions", 0, 0, 300, 60, () => { missionsTab = 0; }, 22),
   tabAch: makeBtn("Achievements", 0, 0, 300, 60, () => { missionsTab = 1; achScroll = 0; }, 22),
