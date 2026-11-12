@@ -244,7 +244,23 @@ function discover(el) { if (save.discovered[el]) return false; save.discovered[e
 
 // ------------------------------------------------------------ Canvas & helpers
 const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+let ctx = canvas.getContext("2d");
+// Pre-drawn sprites: fn() draws once (centred on the origin, w x h logical px) into an offscreen canvas at 2x,
+// then every frame only copies the picture. Used for the costly parts of the fancy cards that never change.
+const SPR_CACHE = new Map();
+function cachedSprite(key, w, h, fn, res = 2) {
+  let sp = SPR_CACHE.get(key);
+  if (!sp) {
+    const c = document.createElement("canvas"); c.width = Math.ceil(w * res); c.height = Math.ceil(h * res);
+    const g = c.getContext("2d"), main = ctx; g.scale(res, res); g.translate(w / 2, h / 2);
+    ctx = g; try { fn(); } finally { ctx = main; }
+    sp = { c, w, h }; SPR_CACHE.set(key, sp);
+  }
+  return sp;
+}
+// Text in pre-drawn sprites must use the loaded fonts: redraw them once the fonts arrive.
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", () => SPR_CACHE.clear());
+function drawCached(key, w, h, fn, x = 0, y = 0, s = 1, res = 2) { const sp = cachedSprite(key, w, h, fn, res); ctx.drawImage(sp.c, x - w * s / 2, y - h * s / 2, w * s, h * s); }
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -686,9 +702,12 @@ class Card {
   // a winged crest with a pulsing gem on top and a gold name ribbon.
   drawLegendFrame(hw, hh, t, d) {
     const R = 10, pulse = 0.5 + 0.5 * Math.sin(t * 3);
-    // Outer glow.
-    ctx.save(); ctx.shadowColor = `rgba(255,200,80,${0.6 + 0.3 * pulse})`; ctx.shadowBlur = 14 + 6 * pulse;
-    rrect(-hw, -hh, CARD_W, CARD_H, R); ctx.strokeStyle = INK; ctx.lineWidth = 9; ctx.stroke(); ctx.restore();
+    // Outer glow and dark edge (pre-drawn once: a blur every frame is very slow on phones).
+    const gp = Math.round(pulse * 9) / 9;   // 10 pre-drawn pulse steps
+    drawCached("lf_glow" + gp, CARD_W + 70, CARD_H + 70, () => {
+      ctx.shadowColor = `rgba(255,200,80,${0.6 + 0.3 * gp})`; ctx.shadowBlur = 14 + 6 * gp;
+      rrect(-hw, -hh, CARD_W, CARD_H, R); ctx.strokeStyle = INK; ctx.lineWidth = 9; ctx.stroke();
+    }, 0, 0, 1, 1);
     // Thick gold band whose highlight slides around (a shifting metal shine).
     const sh = (t * 0.6) % 2 - 0.5;
     const fg = ctx.createLinearGradient(-hw + sh * CARD_W * 2, -hh, hw + sh * CARD_W * 2, hh);
@@ -696,7 +715,7 @@ class Card {
     rrect(-hw, -hh, CARD_W, CARD_H, R); ctx.strokeStyle = fg; ctx.lineWidth = 6; ctx.stroke();
     // Inner rune band.
     rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, R - 4); ctx.strokeStyle = "rgba(60,30,8,0.6)"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.save(); ctx.setLineDash([2, 5]); ctx.lineDashOffset = -t * 12; rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, R - 4);
+    ctx.save(); ctx.setLineDash([2, 5]); ctx.lineDashOffset = -t * 12;
     ctx.strokeStyle = `rgba(255,236,170,${0.55 + 0.35 * pulse})`; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore();
     // Two sparks racing around the border.
     const per = 2 * (CARD_W + CARD_H), pt = u => {
@@ -713,6 +732,17 @@ class Card {
       const [px, py] = pt(u); circle(px, py, 8, "rgba(255,220,120,0.35)");
     }
     ctx.restore();
+    // Corners, winged crest, gem, ribbon and the name (pre-drawn once per card).
+    const cy = -hh - 2;
+    drawCached("lf_under", CARD_W + 90, CARD_H + 80, () => this.legendFrameStatic(hw, hh, d, R, 0));
+    // The gem's pulsing light.
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const gg = ctx.createRadialGradient(0, cy - 3, 1, 0, cy - 3, 20 + 6 * pulse); gg.addColorStop(0, `rgba(140,220,255,${0.7 + 0.3 * pulse})`); gg.addColorStop(1, "rgba(140,220,255,0)");
+    ctx.fillStyle = gg; ctx.fillRect(-26, cy - 29, 52, 52); ctx.restore();
+    drawCached("lf_over_" + this.element + (this.noLabel ? "_n" : ""), CARD_W + 90, CARD_H + 80, () => this.legendFrameStatic(hw, hh, d, R, 1));
+  }
+  legendFrameStatic(hw, hh, d, R, part) {
+    if (part === 0) {
     // Jeweled corner pieces.
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy], i) => {
       ctx.save(); ctx.translate(sx * (hw - 2), sy * (hh - 2));
@@ -723,7 +753,7 @@ class Card {
       circle(-sx * 7, -sy * 7, 4.2, INK); circle(-sx * 7, -sy * 7, 3.2, gc); circle(-sx * 7 - 1, -sy * 7 - 1, 1.1, "rgba(255,255,255,0.9)");
       ctx.restore();
     });
-    // Winged crest with a pulsing gem on top.
+    // Winged crest with a gem on top.
     const cy = -hh - 2;
     for (const sx of [-1, 1]) {
       ctx.beginPath(); ctx.moveTo(sx * 8, cy + 2);
@@ -732,9 +762,9 @@ class Card {
       const wg = ctx.createLinearGradient(0, cy - 14, 0, cy + 6); wg.addColorStop(0, "#fff6c8"); wg.addColorStop(1, "#d8941e");
       ctx.fillStyle = wg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
     }
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
-    const gg = ctx.createRadialGradient(0, cy - 3, 1, 0, cy - 3, 20 + 6 * pulse); gg.addColorStop(0, `rgba(140,220,255,${0.7 + 0.3 * pulse})`); gg.addColorStop(1, "rgba(140,220,255,0)");
-    ctx.fillStyle = gg; ctx.fillRect(-26, cy - 29, 52, 52); ctx.restore();
+    return;
+    }
+    const cy = -hh - 2;
     ctx.beginPath(); ctx.moveTo(0, cy - 15); ctx.lineTo(9, cy - 3); ctx.lineTo(0, cy + 9); ctx.lineTo(-9, cy - 3); ctx.closePath();
     const jg = ctx.createLinearGradient(-9, cy - 15, 9, cy + 9); jg.addColorStop(0, "#e8fbff"); jg.addColorStop(0.5, "#5ac8ff"); jg.addColorStop(1, "#2a6ad8");
     ctx.fillStyle = jg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
@@ -835,16 +865,17 @@ class Card {
   // ---- Legend card extras: golden god-rays, orbiting orbs of light, and a shine sweeping across the card.
   drawLegendRays(hw, hh, t, theme) {
     ctx.save(); ctx.globalCompositeOperation = theme === "sea" || theme === "under" ? "source-over" : "lighter";
-    const n = 14, len = 120 + 12 * Math.sin(t * 2);
-    for (let i = 0; i < n; i++) {
-      const a = t * 0.35 + i * Math.PI * 2 / n, w = 0.09;
+    const n = 14, LEN = 132, len = 120 + 12 * Math.sin(t * 2);
+    ctx.rotate(t * 0.35);
+    drawCached("rays_" + (theme || ""), LEN * 2 + 4, LEN * 2 + 4, () => { for (let i = 0; i < n; i++) {
+      const a = i * Math.PI * 2 / n, w = 0.09, len = LEN;
       const g = ctx.createRadialGradient(0, 0, 20, 0, 0, len);
       if (theme === "sea") { g.addColorStop(0, "rgba(16,70,170,0.32)"); g.addColorStop(0.35, "rgba(90,200,255,0.22)"); g.addColorStop(1, "rgba(8,40,120,0)"); }
       else if (theme === "under") { g.addColorStop(0, "rgba(70,20,120,0.34)"); g.addColorStop(0.35, "rgba(190,110,255,0.22)"); g.addColorStop(1, "rgba(40,10,80,0)"); }
       else { g.addColorStop(0, "rgba(255,230,150,0.32)"); g.addColorStop(1, "rgba(255,200,80,0)"); }
       ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0);
       ctx.arc(0, 0, len, a - w, a + w); ctx.closePath(); ctx.fill();
-    }
+    } }, 0, 0, len / LEN);
     ctx.restore();
   }
   // Three tilted orbits with two orbs each. Orbs behind the card are drawn first (back=true), the rest in front.
@@ -912,11 +943,12 @@ class Card {
         ctx.restore();
         const [x, y, z] = at(a);
         if ((z < 0) !== back) continue;
-        const r = 5 + z * 1.3;
+        const r = 5 + z * 1.3, lv = Math.round((0.5 + 0.5 * Math.sin(t * 6 + o)) * 12);   // eye glow in 13 steps
         ctx.save(); ctx.globalCompositeOperation = "lighter";
         const g = ctx.createRadialGradient(x, y, 0, x, y, r * 3); g.addColorStop(0, "rgba(190,100,255,0.45)"); g.addColorStop(1, "rgba(190,100,255,0)");
         ctx.fillStyle = g; ctx.fillRect(x - r * 3, y - r * 3, r * 6, r * 6); ctx.restore();
-        drawSkullIcon(x, y, r, 1, 0.7 + 0.3 * Math.sin(t * 6 + o));
+        const rq = Math.round(r * 5) / 5;   // skull pre-drawn per size step, so its lines keep their exact thickness
+        drawCached("skull_orb" + rq + "_" + lv, 24, 24, () => drawSkullIcon(0, 0, rq, 1, 0.7 + 0.3 * lv / 12), x, y);
       }
     }
     ctx.restore();
@@ -927,10 +959,14 @@ class Card {
     const rx = hw + 30, ry = 20, N = 9;
     const bubble = (x, y, r, a) => {
       ctx.globalAlpha = a;
-      circle(x, y, r, "rgba(120,200,255,0.25)");
-      ring(x, y, r, "rgba(220,245,255,0.95)", Math.max(1, r * 0.22));
-      ctx.beginPath(); ctx.arc(x, y, r * 0.7, Math.PI * 1.1, Math.PI * 1.55); ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = Math.max(1, r * 0.2); ctx.stroke();
-      circle(x + r * 0.35, y + r * 0.35, r * 0.12, "rgba(255,255,255,0.7)");
+      const rq = Math.round(r * 5) / 5;   // one pre-drawn bubble per size step
+      drawCached("bubble" + rq, 24, 24, () => {
+        const r = rq;
+        circle(0, 0, r, "rgba(120,200,255,0.25)");
+        ring(0, 0, r, "rgba(220,245,255,0.95)", Math.max(1, r * 0.22));
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.7, Math.PI * 1.1, Math.PI * 1.55); ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = Math.max(1, r * 0.2); ctx.stroke();
+        circle(r * 0.35, r * 0.35, r * 0.12, "rgba(255,255,255,0.7)");
+      }, x, y);
     };
     ctx.save();
     for (const [tilt, speed, phase] of orbits) {
@@ -992,10 +1028,12 @@ class Card {
       rrect(-hw - g, -hh - g, CARD_W + g * 2, CARD_H + g * 2, 12 + g);
       ctx.fillStyle = hexA(P, 0.10 + (3 - i) * 0.05); ctx.fill();
     }
-    ctx.save();
-    ctx.shadowColor = P; ctx.shadowBlur = 14 + pulse * 10;
-    rrect(-hw - 3, -hh - 3, CARD_W + 6, CARD_H + 6, 12);
-    ctx.strokeStyle = hexA("#d9b8ff", 0.85); ctx.lineWidth = 3; ctx.stroke();
+    ctx.save(); const gp = Math.round(pulse * 9) / 9;
+    drawCached("epic_border" + gp, CARD_W + 70, CARD_H + 70, () => {
+      ctx.shadowColor = P; ctx.shadowBlur = 14 + gp * 10;
+      rrect(-hw - 3, -hh - 3, CARD_W + 6, CARD_H + 6, 12);
+      ctx.strokeStyle = hexA("#d9b8ff", 0.85); ctx.lineWidth = 3; ctx.stroke();
+    }, 0, 0, 1, 1);
     ctx.restore();
     // Sparks travelling around the card's edge.
     const per = 2 * (CARD_W + CARD_H);
@@ -1031,7 +1069,7 @@ class Card {
     };
     for (let layer = 0; layer < 3; layer++) {
       const col = (und ? ["#2a0a4a", "#7a22c8", "#e0a8ff"] : sea ? ["#0a3a9a", "#1e78d8", "#8fe0ff"] : gold ? ["#ff9a1f", "#ffd84a", "#fff6c8"] : ["#7d0012", "#c4111f", "#ff4a3a"])[layer], k = [1, 0.66, 0.38][layer], a = [0.55, 0.6, 0.7][layer];
-      ctx.fillStyle = hexA(col, a);
+      ctx.fillStyle = hexA(col, a); ctx.beginPath();   // all tongues of a layer in one shape: one fill instead of 40
       for (let i = 0; i < N; i++) {
         const [x, y, nx, ny] = edge((i + 0.5) * per / N);
         const flick = 0.6 + 0.4 * Math.sin(t * 9 + i * 1.7) * Math.sin(t * 5.3 + i * 2.9);
@@ -1039,12 +1077,12 @@ class Card {
         let dx = nx * 0.8, dy = ny * 0.8 - 0.75; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
         const bw = 7 * k + 2, px = -dy, py = dx;
         const tipX = x + dx * h + Math.sin(t * 7 + i) * 2, tipY = y + dy * h;
-        ctx.beginPath();
         ctx.moveTo(x + px * bw, y + py * bw);
         ctx.quadraticCurveTo(x + px * bw * 0.6 + dx * h * 0.6, y + py * bw * 0.6 + dy * h * 0.6, tipX, tipY);
         ctx.quadraticCurveTo(x - px * bw * 0.6 + dx * h * 0.6, y - py * bw * 0.6 + dy * h * 0.6, x - px * bw, y - py * bw);
-        ctx.closePath(); ctx.fill();
+        ctx.closePath();
       }
+      ctx.fill();
     }
     ctx.restore();
     if (sea || und) {
@@ -1061,11 +1099,13 @@ class Card {
       ctx.fillStyle = rg; ctx.fillRect(-CARD_W * 1.3, -CARD_H * 1.1, CARD_W * 2.6, CARD_H * 2.2);
       ctx.restore();
     }
-    // Hot glowing border.
-    ctx.save();
-    ctx.shadowColor = und ? "#c070ff" : sea ? "#6fd4ff" : gold ? "#ff6a2a" : "#c00018"; ctx.shadowBlur = (sea || und ? 26 : 18) + pulse * 12;
-    rrect(-hw - 2, -hh - 2, CARD_W + 4, CARD_H + 4, 11);
-    ctx.strokeStyle = hexA(und ? "#e2b8ff" : sea ? "#a8ecff" : gold ? "#ffd27a" : "#ff5a4a", 0.95); ctx.lineWidth = 3; ctx.stroke();
+    // Hot glowing border (pre-drawn; its brightness breathes).
+    ctx.save(); const gp = Math.round(pulse * 9) / 9;
+    drawCached("myth_border_" + (theme || "") + gold + gp, CARD_W + 100, CARD_H + 100, () => {
+      ctx.shadowColor = und ? "#c070ff" : sea ? "#6fd4ff" : gold ? "#ff6a2a" : "#c00018"; ctx.shadowBlur = (sea || und ? 26 : 18) + gp * 12;
+      rrect(-hw - 2, -hh - 2, CARD_W + 4, CARD_H + 4, 11);
+      ctx.strokeStyle = hexA(und ? "#e2b8ff" : sea ? "#a8ecff" : gold ? "#ffd27a" : "#ff5a4a", 0.95); ctx.lineWidth = 3; ctx.stroke();
+    }, 0, 0, 1, 1);
     ctx.restore();
     // Embers drifting upward.
     for (let i = 0; i < 12; i++) {
@@ -2294,17 +2334,23 @@ function drawSkullIcon(x, y, r, alpha = 1, glowA = 0.8) {
 // behind the card, and the fingers hang over the edge (pointing along +x). curl 0..1 grips (fingers bend toward us
 // and look shorter).
 function drawGrabHand(x, y, ang, s, curl) {
+  const lv = Math.round(clamp(curl, 0, 1) * 40);   // 41 pre-drawn finger poses
   ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
+  // Purple glow where it comes over the edge (live: it lightens whatever is behind it).
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createRadialGradient(6, 0, 2, 6, 0, 26); g.addColorStop(0, "rgba(180,90,255,0.55)"); g.addColorStop(1, "rgba(180,90,255,0)");
+  ctx.fillStyle = g; ctx.fillRect(-20, -26, 52, 52); ctx.restore();
+  drawCached("grabhand" + lv, 100, 64, () => drawGrabHandRaw(lv / 40));
+  ctx.restore();
+}
+function drawGrabHandRaw(curl) {
+  ctx.save();
   ctx.lineCap = "round";
   const bone = (x0, y0, x1, y1, w, col = "#ece2cb") => {
     ctx.strokeStyle = INK; ctx.lineWidth = w + 2.2; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
   };
   const knuckle = (cx, cy, r, col = "#f4ecd8") => { circle(cx, cy, r, col); ring(cx, cy, r, INK, 1); };
-  // Purple glow where it comes over the edge.
-  ctx.save(); ctx.globalCompositeOperation = "lighter";
-  const g = ctx.createRadialGradient(6, 0, 2, 6, 0, 26); g.addColorStop(0, "rgba(180,90,255,0.55)"); g.addColorStop(1, "rgba(180,90,255,0)");
-  ctx.fillStyle = g; ctx.fillRect(-20, -26, 52, 52); ctx.restore();
   // Wrist disappearing behind the card (dark, short).
   bone(-9, -2.5, -1, -2, 3, "#9a8f7c"); bone(-9, 2.5, -1, 2, 3, "#9a8f7c");
   for (const [cx, cy] of [[0, -3.5], [0, 0], [0, 3.5]]) knuckle(cx, cy, 2.2, "#cfc4ad");
@@ -3659,7 +3705,7 @@ function drawBgCave() {
   DECOR.crystals.forEach((c, i) => {
     const x = fx(c[0]), y = fy(c[1]), col = CRYSTAL_COLORS[i % 3], len = 16 + c[2] * 14;
     const pulse = 0.5 + 0.5 * Math.sin(time * 2 + i * 1.7);
-    circle(x, y, len * 1.8, hexA(col, 0.10 + 0.08 * pulse));
+    circle(x, y, len * 1.8, hexA(col, bgStatic ? 0.10 : 0.10 + 0.08 * pulse));
     const toward = c[0] < 0.5 ? 0 : Math.PI;
     for (let k = -2; k <= 2; k++) {
       const a = toward + k * 0.45, l = len * (1 - Math.abs(k) * 0.18);
@@ -3670,13 +3716,22 @@ function drawBgCave() {
     }
   });
 }
+function drawCaveCrystalPulse() {
+  DECOR.crystals.forEach((c, i) => {
+    const pulse = 0.5 + 0.5 * Math.sin(time * 2 + i * 1.7);
+    circle(fx(c[0]), fy(c[1]), (16 + c[2] * 14) * 1.8, hexA(CRYSTAL_COLORS[i % 3], 0.08 * pulse));
+  });
+}
 function drawBackground() {
   const w = state === "title" ? 1 : (state === "break" ? wave + 1 : wave);
   const bg = stageOf(w).bg;
   if (bg === "sand") drawBgSand(); else if (bg === "cave") drawBgCave(); else drawBgGrass();
 }
 
-function drawWorld() {
+// The parts of the battlefield that never move (ground, rampart, wall, courtyard, shop table) are painted once into
+// a picture and copied each frame. While the wall flashes red after a hit they are painted live.
+let worldCache = null, worldCacheKey = "", bgStatic = false;
+function drawWorldStatic() {
   drawBackground();
 
   // Rampart walkway (seen from above) where the battle cards stand.
@@ -3708,6 +3763,31 @@ function drawWorld() {
   ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath();
   ctx.moveTo(0, WALL_Y); ctx.lineTo(W, WALL_Y); ctx.moveTo(0, WALL_Y + WALL_H); ctx.lineTo(W, WALL_Y + WALL_H); ctx.stroke();
 
+  // Shop table.
+  ctx.fillStyle = "#5a3b28"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
+  ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 2; ctx.beginPath();
+  for (let y = SHOP_TOP + 30; y < H; y += 34) { ctx.moveTo(0, y); ctx.lineTo(W, y + 4); }
+  ctx.stroke();
+  ctx.fillStyle = "#8a5f3c"; ctx.fillRect(0, SHOP_TOP, W, 8);
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, SHOP_TOP); ctx.lineTo(W, SHOP_TOP); ctx.stroke();
+  for (let i = 0; i < SHOP_N; i++) { const p = slotPos("shop", i); slotFrame(p.x, p.y, hexA(GOLD, 0.3)); }
+
+}
+function drawWorld() {
+  const bgName = stageOf(state === "break" ? wave + 1 : wave).bg;
+  if (wallFlash > 0) drawWorldStatic();
+  else {
+    const key = bgName + H;
+    if (key !== worldCacheKey || !worldCache) {
+      worldCache = worldCache || document.createElement("canvas"); worldCache.width = W; worldCache.height = H;
+      const main = ctx; ctx = worldCache.getContext("2d"); bgStatic = true;
+      try { drawWorldStatic(); } finally { ctx = main; bgStatic = false; }
+      worldCacheKey = key;
+    }
+    ctx.drawImage(worldCache, 0, 0);
+    if (bgName === "cave") drawCaveCrystalPulse();
+  }
+
   // Rune circles under battle slots.
   for (let i = 0; i < SLOTS; i++) {
     const p = slotPos("active", i), c = rows.active[i];
@@ -3720,15 +3800,6 @@ function drawWorld() {
     slotFrame(p.x, p.y, hexA(GOLD, 0.35));
   }
   for (let i = 0; i < STORAGE_N; i++) { const p = slotPos("storage", i); if (p.x > -CARD_W && p.x < W + CARD_W) slotFrame(p.x, p.y, hexA(PARCH, 0.25)); }
-  // Shop table.
-  ctx.fillStyle = "#5a3b28"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
-  ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 2; ctx.beginPath();
-  for (let y = SHOP_TOP + 30; y < H; y += 34) { ctx.moveTo(0, y); ctx.lineTo(W, y + 4); }
-  ctx.stroke();
-  ctx.fillStyle = "#8a5f3c"; ctx.fillRect(0, SHOP_TOP, W, 8);
-  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, SHOP_TOP); ctx.lineTo(W, SHOP_TOP); ctx.stroke();
-  for (let i = 0; i < SHOP_N; i++) { const p = slotPos("shop", i); slotFrame(p.x, p.y, hexA(GOLD, 0.3)); }
-
   // Drag hints.
   if (drag) {
     if (hover && hover[0] !== "shop") {
