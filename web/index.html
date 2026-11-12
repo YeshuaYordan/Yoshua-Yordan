@@ -2639,6 +2639,7 @@ const btn = {
   bio: makeBtn("", 12, 12, 232, 58, () => { bioOpen = true; playUi("ui_pick"); }),
   bioAvatar: makeBtn("", 0, 0, 140, 140, () => nextAvatar()),
   bioName: makeBtn("Edit name", 0, 0, 170, 52, () => editName(), 20),
+  resetAll: Object.assign(makeBtn("Reset progress (test)", W / 2 - 170, 0, 340, 56, () => resetAllProgress(), 20), { fill: "#e0533f", fillDown: "#b8402f" }),
   bioClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { bioOpen = false; }, 26),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: makeBtn("", 14, 372, 112, 112, () => openShop()),
@@ -2710,7 +2711,7 @@ function baseButtons() {
   if (state === "title") {
     if (shopOpen) return shopButtons();
     if (adSim || adBusy) return [];
-    if (bioOpen) return [btn.bioAvatar, btn.bioName, btn.bioClose];
+    if (bioOpen) return [btn.bioAvatar, btn.bioName, btn.bioClose, ...(TESTER_RESET ? [btn.resetAll] : [])];
     if (dailyOpen) return dailyReady() ? [btn.dailyClaim, btn.dailyAd, btn.dailyClose] : [btn.dailyClose];
     if (cardInfo) return canUpgrade(cardInfo.el) ? [btn.closeInfo, btn.infoUpgrade] : [btn.closeInfo];
     if (summonReveal) return summonDone() ? [btn.revealOk, btn.revealAgain] : [];
@@ -3772,6 +3773,14 @@ function drawRates() {
 // Avatar (an element spirit), a name and a level from total waves cleared. Tap it for the full profile.
 const AVATARS = ["fire", "water", "earth", "wind", "lava", "steam", "lightning", "plant", "dust", "ice"];
 let bioOpen = false;
+// TEMPORARY for testers: a button in the Profile that wipes all progress. Set to false before release.
+const TESTER_RESET = true;
+let resetArmed = 0;
+function resetAllProgress() {
+  if (resetArmed <= 0) { resetArmed = 3; playUi("ui_pick"); return; }   // first tap arms it, second tap within 3 s resets
+  try { localStorage.removeItem("arcane-fusion-save"); } catch (e) {}
+  location.reload();
+}
 function profile() {
   const pr = (save.profile = save.profile || { name: "Player", avatar: "fire", waves: 0 });
   if (!pr.seeded) { pr.waves = Math.max(pr.waves || 0, save.best || 0); pr.seeded = true; }
@@ -3816,7 +3825,7 @@ function drawBioPill() {
 function drawBio() {
   const pr = profile(), lv = playerLevel();
   dim(0.72);
-  const x = 40, w = W - 80, h = 780, y = Math.max(100, H / 2 - h / 2);
+  const x = 40, w = W - 80, h = TESTER_RESET ? 850 : 780, y = Math.max(100, H / 2 - h / 2);
   rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
   text("Profile", W / 2, y + 60, 40, INK, { font: DISPLAY, weight: 900 });
   // Big avatar (tap to change) and name (tap to edit).
@@ -3847,6 +3856,11 @@ function drawBio() {
     text(b, x + w - 32, ry, 22, "#7a3fb0", { align: "right", weight: 800 });
   });
   btn.bioClose.y = y + h - 96; drawBtn(btn.bioClose);
+  if (TESTER_RESET) {
+    resetArmed = Math.max(0, resetArmed - lobbyUiDt);
+    btn.resetAll.label = resetArmed > 0 ? "Tap again to reset everything" : "Reset progress (test)";
+    btn.resetAll.y = y + h - 170; drawBtn(btn.resetAll);
+  }
 }
 
 // ------------------------------------------------------------ Daily reward
