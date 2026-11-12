@@ -134,8 +134,14 @@ const V3 = 2, EPIC = 3;
 // Epic elements have a single form (no V1-V3) and do not merge. Myth cards only come from the Fusion Chamber.
 const MYTH = 4, SPECIAL = 6, LEGEND_R = 5;
 const maxRarity = el => EL[el].special ? SPECIAL : EL[el].tier === 3 ? EPIC : V3;
-function merge(aEl, aR, bEl, bR) {
+// Stars: two identical Myth or Legend cards (same card, same rarity) combine into one card with a star.
+// Each star doubles the card's damage. Stars add up (a 1-star + a plain card = 2 stars), up to 5 stars.
+const MAX_STARS = 5;
+const starMult = c => (c && c.stars ? 2 ** c.stars : 1);
+const canStar = (el, r) => r === MYTH || r === LEGEND_R;
+function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].special || EL[bEl].special) return null;   // Special cards never merge or fuse
+  if (aEl === bEl && aR === bR && canStar(aEl, aR)) { const st = (aS || 0) + (bS || 0) + 1; return st <= MAX_STARS ? { element: aEl, rarity: aR, stars: st } : null; }
   if (aEl === bEl) return (aR === bR && aR < maxRarity(aEl)) ? { element: aEl, rarity: aR + 1 } : null;
   const res = RECIPES[rkey(aEl, bEl)];
   if (!res || aR !== bR) return null;
@@ -146,6 +152,7 @@ function merge(aEl, aR, bEl, bR) {
 function mergeHint(a, b) {
   if (EL[a.element].special || EL[b.element].special) return "Special cards can't merge or fuse.";
   if (a.element === b.element) {
+    if (a.rarity === b.rarity && canStar(a.element, a.rarity)) return `Too many stars: together they would pass ${MAX_STARS} stars.`;
     if (a.rarity !== b.rarity) return `Both ${EL[a.element].name} cards must be the same level to level up.`;
     if (EL[a.element].tier === 3) return "Epic cards have a single form. Fuse 3 or more in the Chamber for a chance at a Myth card!";
     if (a.rarity >= maxRarity(a.element)) return `${cardName(a)} is already at max level. Fuse it with a different element instead!`;
@@ -183,7 +190,7 @@ function rollRarity(wave) {
   return 0;
 }
 const randomBase = () => BASE[Math.floor(Math.random() * 4)];
-const describe = (el, r) => `${RARITY_NAMES[r]} ${EL[el].name}: ${Math.round(damageOf(el, r))} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
+const describe = (el, r, st = 0) => `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * 2 ** st)} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
 
 // ------------------------------------------------------------ Save (per-browser)
 const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {}, tut: {} };
@@ -637,7 +644,7 @@ class Card {
     ctx.scale(this.scale, this.scale);
     const hw = CARD_W / 2, hh = CARD_H / 2;
     if (d.special) { this.drawSpecial(hw, hh, t, d); ctx.restore(); return; }
-    if (d.art) { this.drawIllustrated(hw, hh, t, d); ctx.restore(); return; }
+    if (d.art) { this.drawIllustrated(hw, hh, t, d); this.drawStars(hh, t); ctx.restore(); return; }
     if (this.rarity === LEGEND) { this.drawLegendRays(hw, hh, t); this.drawLegendOrbit(hw, hh, t, true); }
     if (this.rarity >= MYTH) this.drawMythAura(hw, hh, t, this.rarity === LEGEND);
     else if (d.tier === 3) this.drawEpicAura(hw, hh, t);
@@ -696,7 +703,27 @@ class Card {
       ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
       text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
     }
+    this.drawStars(hh, t);
     ctx.restore();
+  }
+  // Stars (1-5) along the bottom edge of a starred Myth / Legend card, with a soft glow and a twinkle.
+  drawStars(hh, t) {
+    const n = this.stars || 0; if (!n) return;
+    const y = hh + 7, gap = 15, pop = this.starPop || 0;
+    this.starPop = Math.max(0, pop - 1 / 40);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(0, y, 2, 0, y, 14 + n * 9); g.addColorStop(0, `rgba(255,210,90,${0.35 + 0.1 * Math.sin(t * 3)})`); g.addColorStop(1, "rgba(255,210,90,0)");
+    ctx.fillStyle = g; ctx.fillRect(-14 - n * 9, y - 22, 28 + n * 18, 44); ctx.restore();
+    for (let i = 0; i < n; i++) {
+      const x = (i - (n - 1) / 2) * gap, k = 1 + 0.5 * pop + 0.08 * Math.sin(t * 4 + i * 1.3);
+      drawCached("star_icon", 22, 22, () => {
+        const pts = []; for (let j = 0; j < 10; j++) { const a = -Math.PI / 2 + j * Math.PI / 5, rr = j % 2 ? 3.4 : 8; pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
+        ctx.beginPath(); pts.forEach(([px, py], j) => j ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.closePath();
+        const sg = ctx.createLinearGradient(0, -8, 0, 8); sg.addColorStop(0, "#fff6c8"); sg.addColorStop(0.5, "#ffd84a"); sg.addColorStop(1, "#e08a1e");
+        ctx.fillStyle = sg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.lineJoin = "round"; ctx.stroke();
+        circle(-2, -3, 1.4, "rgba(255,255,255,0.85)");
+      }, x, y, k);
+    }
   }
   // ---- The Legend frame: a shining gold border with glowing runes, sparks racing around it, jeweled corners,
   // a winged crest with a pulsing gem on top and a gold name ribbon.
@@ -1950,7 +1977,7 @@ class Projectile {
       const dx = this.tx - this.x, dy = this.ty - this.y, l = Math.hypot(dx, dy);
       if (l <= this.speed * dt + 6) {
         this.x = this.tx; this.y = this.ty; this.dead = true;
-        applyHit(this.element, this.rarity, this.x, this.y, alive ? this.target : null); return;
+        applyHit(this.element, this.rarity, this.x, this.y, alive ? this.target : null, this.sm); return;
       }
       this.x += dx / l * this.speed * dt; this.y += dy / l * this.speed * dt; this.ang = Math.atan2(dy, dx);
     } else {
@@ -1958,7 +1985,7 @@ class Projectile {
       for (const e of enemies.slice()) {
         if (this.hit.has(e) || e.dead) continue;
         if (Math.hypot(e.x - this.x, e.y - this.y) < e.size + this.radius) {
-          this.hit.add(e); applyHit(this.element, this.rarity, this.x, this.y, e);
+          this.hit.add(e); applyHit(this.element, this.rarity, this.x, this.y, e, this.sm);
           if (--this.pierce < 0) { this.dead = true; return; }
         }
       }
@@ -2231,7 +2258,7 @@ function onEnemyKilled(e) {
     const live = enemies.filter(o => !o.dead);
     if (live.length) {
       const tgt = live.reduce((a, o) => Math.hypot(o.x - e.x, o.y - e.y) < Math.hypot(a.x - e.x, a.y - e.y) ? o : a);
-      projectiles.push(new Projectile("hades", e.soulR ?? LEGEND_R, e.x, e.y, tgt));
+      const soul = new Projectile("hades", e.soulR ?? LEGEND_R, e.x, e.y, tgt); soul.sm = e.soulSm || 1; projectiles.push(soul);
       soulReleaseFx(e.x, e.y);
       addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "190,110,255", size: 6, grow: 50, w: 4, sq: 0.6, life: 0.4 });
     }
@@ -2259,16 +2286,16 @@ function fireCard(c) {
   c.kick = 1;
   playSfx(c.element, "atk");
   const ox = c.x, oy = c.y - 60;
-  if (d.chain) { chain(c.element, c.rarity, ox, oy, targets[0], d.chain); return; }
-  for (let i = 0; i < shots; i++) projectiles.push(new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]));
+  if (d.chain) { chain(c.element, c.rarity, ox, oy, targets[0], d.chain, starMult(c)); return; }
+  for (let i = 0; i < shots; i++) { const pr = new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]); pr.sm = starMult(c); projectiles.push(pr); }
 }
-function chain(el, r, ox, oy, first, count) {
-  const dmg = damageOf(el, r), hit = new Set(), pts = [[ox, oy]];
+function chain(el, r, ox, oy, first, count, sm = 1) {
+  const dmg = damageOf(el, r) * sm, hit = new Set(), pts = [[ox, oy]];
   let cur = first;
   for (let i = 0; i < count && cur; i++) {
     hit.add(cur); pts.push([cur.x, cur.y]);
     impactFx(el, cur.x, cur.y, r, 0);
-    hitEnemy(cur, el, r, dmg * Math.pow(0.85, i));
+    hitEnemy(cur, el, r, dmg * Math.pow(0.85, i), sm);
     let best = null, bd = 190;
     for (const e of enemies) { if (hit.has(e) || e.dead) continue; const dd = Math.hypot(e.x - pts[pts.length - 1][0], e.y - pts[pts.length - 1][1]); if (dd < bd) { bd = dd; best = e; } }
     cur = best;
@@ -2291,7 +2318,7 @@ function updateBeam(c, dt) {
   }
   if (!c.beams.length) return;
   if (c.beamT > 0.22) { c.beamT = 0; playSfx(c.element, "hit"); c.kick = 0.6; }
-  const per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * BEAM_SHARE, src = statKey(c.element, c.rarity);
+  const per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * BEAM_SHARE * starMult(c), src = statKey(c.element, c.rarity);
   for (const b of c.beams) {
     const e = b.e, amt = per * dt * elementMult(c.element, e.resist, e.flying);
     if (d.slow) e.slow(d.slow, 0.3);
@@ -2424,7 +2451,7 @@ function updateLance(c, dt) {
   if (c.lanceAng === undefined) c.lanceAng = want;
   let da = want - c.lanceAng; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
   c.lanceAng += clamp(da, -LANCE_TURN * dt, LANCE_TURN * dt);
-  const dx = Math.cos(c.lanceAng), dy = Math.sin(c.lanceAng), per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity), src = statKey(c.element, c.rarity);
+  const dx = Math.cos(c.lanceAng), dy = Math.sin(c.lanceAng), per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * starMult(c), src = statKey(c.element, c.rarity);
   c.lanceT = (c.lanceT || 0) + dt;
   if (c.lanceT > 0.4) { c.lanceT = 0; playSfx("water", "hit"); }
   for (const e of live) {
@@ -2588,23 +2615,23 @@ function drawBeams() {
     ctx.restore();
   }
 }
-function applyHit(el, r, x, y, enemy) {
+function applyHit(el, r, x, y, enemy, sm = 1) {
   playSfx(el, "hit");
-  const d = EL[el], dmg = damageOf(el, r), splash = d.splash || 0, rm = RARITY_DMG[r];
+  const d = EL[el], dmg = damageOf(el, r) * sm, splash = d.splash || 0, rm = RARITY_DMG[r] * sm;
   if (splash > 0) {
-    for (const e of enemies.slice()) if (!e.dead && Math.hypot(e.x - x, e.y - y) <= splash + e.size) hitEnemy(e, el, r, e === enemy ? dmg : dmg * 0.6);
+    for (const e of enemies.slice()) if (!e.dead && Math.hypot(e.x - x, e.y - y) <= splash + e.size) hitEnemy(e, el, r, e === enemy ? dmg : dmg * 0.6, sm);
     impactFx(el, x, y, r, splash);
   } else if (enemy && !enemy.dead) {
-    hitEnemy(enemy, el, r, dmg);
+    hitEnemy(enemy, el, r, dmg, sm);
     impactFx(el, x, y, r, 0);
   }
   if (d.cloud) { const z = new Zone(x, y, d.cloud, d.cloud_dps * rm, 2.5, d.color); z.src = statKey(el, r); z.slowAmt = d.cloud_slow || 0; zones.push(z); }
   if (d.puddle) { const z = new Zone(x, y, d.puddle, d.puddle_dps * rm, 3, d.color); z.src = statKey(el, r); z.burnAmt = 2 * rm; zones.push(z); }
 }
-function hitEnemy(e, el, r, dmg) {
-  const d = EL[el], mult = elementMult(el, e.resist, e.flying), amount = dmg * mult, rm = RARITY_DMG[r];
+function hitEnemy(e, el, r, dmg, sm = 1) {
+  const d = EL[el], mult = elementMult(el, e.resist, e.flying), amount = dmg * mult, rm = RARITY_DMG[r] * sm;
   const x = e.x, y = e.y, src = statKey(el, r);
-  if (d.burn) { e.burnSrc = src; e.burnCol = d.color; e.soulR = r; e.burn(d.burn * rm, 2.5); }
+  if (d.burn) { e.burnSrc = src; e.burnCol = d.color; e.soulR = r; e.soulSm = sm; e.burn(d.burn * rm, 2.5); }
   if (d.slow) e.slow(d.slow, 2);
   if (d.root) e.root(d.root);
   if (d.knock) e.knock(d.knock);
@@ -2702,7 +2729,7 @@ function buy(si, row, i) {
     rows.shop[si] = null; rows[row][i] = card; card.inShop = false;
     const s = slotPos(row, i); card.setHome(s.x, s.y);
   } else {
-    const res = merge(card.element, card.rarity, other.element, other.rarity);
+    const res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
     if (!res) { showInfo(mergeHint(card, other) || `${cardName(card)} can't fuse with ${cardName(other)}.`); card.shake = 1; return false; }
     rows.shop[si] = null; applyMerge(other, res);
   }
@@ -2715,6 +2742,21 @@ function sell(row, i) {
   fxs.push(new Fx("text", { x: c.x, y: c.y, text: `+${v} g`, color: GOLD, size: 24, duration: 0.8 }));
 }
 function applyMerge(card, res) {
+  if (res.stars) {
+    track("merge");
+    card.stars = res.stars; card.cooldown = 0.3; card.scale = 1.35; card.starPop = 1;
+    const col = EL[card.element].color;
+    fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: "#ffd84a", radius: 100, duration: 0.4 }));
+    fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: col, radius: 70, duration: 0.35 }));
+    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2; addPart({ add: true, kind: "glint", x: card.hx, y: card.hy + CARD_H / 2, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220 - 60, life: 0.6, size: 5, col: "#ffe680" }); }
+    fxs.push(new Fx("text", { x: card.hx, y: card.hy - 86, text: `${"\u2605".repeat(card.stars)}  x${2 ** card.stars} damage!`, color: "#ffd84a", size: 26, duration: 1.1 }));
+    if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") {   // bright rising chime
+      [[880, 0], [1175, 0.07], [1568, 0.14], [2093, 0.21]].forEach(([f, dl]) => sTone("sine", f, f, 0.32, 0.11, dl));
+      sTone("triangle", 2637, 2637, 0.5, 0.06, 0.28);
+    }
+    showInfo(describe(card.element, card.rarity, card.stars));
+    return;
+  }
   const changed = res.element !== card.element;
   track(changed ? "fusion" : "merge"); if (changed && EL[res.element].tier === 3) track("epic");
   card.element = res.element; card.rarity = res.rarity; card.cooldown = 0.3; card.scale = 1.35;
@@ -2731,7 +2773,7 @@ function moveCard(fr, fi, tr, ti) {
   const card = rows[fr][fi], other = rows[tr][ti];
   if (!card) return "";
   if (!other) { rows[fr][fi] = null; rows[tr][ti] = card; const s = slotPos(tr, ti); card.setHome(s.x, s.y); return "move"; }
-  const res = merge(card.element, card.rarity, other.element, other.rarity);
+  const res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
   if (res) { rows[fr][fi] = null; applyMerge(other, res); return "merge"; }
   const hint = mergeHint(card, other);
   if (hint) showInfo(hint);
@@ -3520,7 +3562,7 @@ canvas.addEventListener("pointerdown", ev => {
   drag = { card, from: s[0], index: s[1], ox: card.x - p.x, oy: card.y - p.y, px: p.x, py: p.y, moved: false };
   playUi("ui_pick");
   card.dragging = true;
-  showInfo(describe(card.element, card.rarity));
+  showInfo(describe(card.element, card.rarity, card.stars));
 });
 canvas.addEventListener("pointermove", ev => {
   const p = toLogical(ev); pointer = p;
@@ -3804,7 +3846,7 @@ function drawWorld() {
   if (drag) {
     if (hover && hover[0] !== "shop") {
       const hp = slotPos(hover[0], hover[1]), other = rows[hover[0]][hover[1]];
-      const ok = !other || other === drag.card || !!merge(drag.card.element, drag.card.rarity, other.element, other.rarity);
+      const ok = !other || other === drag.card || !!merge(drag.card.element, drag.card.rarity, other.element, other.rarity, drag.card.stars, other.stars);
       rrect(hp.x - CARD_W / 2 - 8, hp.y - CARD_H / 2 - 8, CARD_W + 16, CARD_H + 16, 16);
       ctx.strokeStyle = ok ? "#6cc56a" : "#e0533f"; ctx.lineWidth = 4; ctx.stroke();
     }
