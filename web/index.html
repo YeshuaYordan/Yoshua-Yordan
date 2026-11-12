@@ -776,9 +776,9 @@ class Card {
     if (d.theme === "under") {
       // Skeleton hands reaching from behind the card, fingers curling over its edge as if trying to take it.
       const creep = k => Math.sin(t * 0.9 + k) * 4, curl = k => 0.25 + 0.45 * (0.5 + 0.5 * Math.sin(t * 1.6 + k));
-      drawBoneHand(-hw - 12 + creep(0) * 0.6, hh * 0.38, -0.12, 0.7, curl(0), 1);
-      drawBoneHand(hw + 12 - creep(2) * 0.6, -hh * 0.18, Math.PI + 0.1, 0.7, curl(2), -1);
-      drawBoneHand(hw * 0.4, hh + 10 - creep(4) * 0.4, -Math.PI / 2 - 0.15, 0.6, curl(4), 1);
+      // Two hands come over the top edge from behind, fingers hanging down onto the card.
+      drawGrabHand(-hw * 0.52, -hh - 4 + creep(0) * 0.5, Math.PI / 2 + 0.12, 0.88, curl(0));
+      drawGrabHand(hw * 0.52, -hh - 4 + creep(2) * 0.5, Math.PI / 2 - 0.12, 0.88, curl(2));
     }
     this.drawLegendOrbit(hw, hh, t, false, d.theme);
   }
@@ -2240,6 +2240,45 @@ function drawSkullIcon(x, y, r, alpha = 1, glowA = 0.8) {
   // Nose.
   ctx.beginPath(); ctx.moveTo(0, r * 0.32); ctx.lineTo(-r * 0.1, r * 0.5); ctx.lineTo(r * 0.1, r * 0.5); ctx.closePath(); ctx.fillStyle = "#1a0b26"; ctx.fill();
   circle(-r * 0.35, -r * 0.45, r * 0.16, "rgba(255,255,255,0.6)");
+  ctx.restore();
+}
+// A skeleton hand reaching over the card's edge from behind: we see the back of the hand, the wrist fades away
+// behind the card, and the fingers hang over the edge (pointing along +x). curl 0..1 grips (fingers bend toward us
+// and look shorter).
+function drawGrabHand(x, y, ang, s, curl) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.scale(s, s);
+  ctx.lineCap = "round";
+  const bone = (x0, y0, x1, y1, w, col = "#ece2cb") => {
+    ctx.strokeStyle = INK; ctx.lineWidth = w + 2.2; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  };
+  const knuckle = (cx, cy, r, col = "#f4ecd8") => { circle(cx, cy, r, col); ring(cx, cy, r, INK, 1); };
+  // Purple glow where it comes over the edge.
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createRadialGradient(6, 0, 2, 6, 0, 26); g.addColorStop(0, "rgba(180,90,255,0.55)"); g.addColorStop(1, "rgba(180,90,255,0)");
+  ctx.fillStyle = g; ctx.fillRect(-20, -26, 52, 52); ctx.restore();
+  // Wrist disappearing behind the card (dark, short).
+  bone(-9, -2.5, -1, -2, 3, "#9a8f7c"); bone(-9, 2.5, -1, 2, 3, "#9a8f7c");
+  for (const [cx, cy] of [[0, -3.5], [0, 0], [0, 3.5]]) knuckle(cx, cy, 2.2, "#cfc4ad");
+  // Back of the hand: four metacarpals fanning out to big knuckles.
+  const fy = [-7, -2.4, 2.4, 7], len = [0.8, 1, 0.95, 0.75];
+  fy.forEach(y0 => bone(1.5, y0 * 0.35, 11, y0, 2.6));
+  fy.forEach((y0, i) => {
+    knuckle(11, y0, 2.3);
+    let px = 11, py = y0, a = y0 * 0.03;
+    [8, 6.5, 5].forEach((L, k) => {
+      a += Math.sin(i * 2.1 + k) * 0.04;
+      const l = L * len[i] * (1 - curl * (0.22 + k * 0.18));   // bending toward us makes them look shorter
+      const nx = px + Math.cos(a) * l, ny = py + Math.sin(a) * l;
+      bone(px, py, nx, ny, 2.2 - k * 0.3); knuckle(nx, ny, 1.6 - k * 0.2); px = nx; py = ny;
+    });
+    // Claw tip.
+    ctx.fillStyle = "#ece2cb"; ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(px, py - 1.3); ctx.lineTo(px + 3.6 * (1 - curl * 0.5), py); ctx.lineTo(px, py + 1.3); ctx.closePath(); ctx.fill(); ctx.stroke();
+  });
+  // Thumb along the side.
+  let tx = 3, ty = 6, ta = 0.7;
+  [6, 5].forEach((L, k) => { ta -= 0.25 + curl * 0.2; const nx = tx + Math.cos(ta) * L, ny = ty + Math.sin(ta) * L; bone(tx, ty, nx, ny, 2.3 - k * 0.4); knuckle(nx, ny, 1.5); tx = nx; ty = ny; });
   ctx.restore();
 }
 // A skeleton hand: wrist at the origin, fingers pointing along +x. curl 0..1 bends the fingers (gripping).
