@@ -542,6 +542,16 @@ function playDoorSlide() {
   sNoise(0.18, 0.4, "lowpass", 500, 90, 0.7, dur - 0.06);
 }
 const SOUNDS = {
+  // Zeus: atk = a thunder crack and rumble when a bolt locks on, hit = the constant electric crackle.
+  thunder: {
+    atk() { sNoise(0.07, 0.8, "highpass", 5000, 2500, 0.7); sNoise(0.12, 0.6, "bandpass", 3000, 900, 1.5, 0.02); sNoise(0.7, 0.55, "lowpass", 700, 60, 0.8, 0.04); sTone("sawtooth", 160, 38, 0.4, 0.18, 0.02); },
+    hit() { for (let i = 0; i < 4; i++) sNoise(0.035, 0.28, "bandpass", 2500 + Math.random() * 4000, 1800 + Math.random() * 2500, 5, i * 0.045); sTone("square", 85 + Math.random() * 25, 70, 0.18, 0.05); },
+  },
+  // Hades: atk = ghostly whoosh, hit = dark thud with a wail.
+  soul: {
+    atk() { sNoise(0.38, 0.32, "bandpass", 500, 1700, 3); sTone("sine", 380, 880, 0.36, 0.13); sTone("triangle", 190, 420, 0.36, 0.07, 0.02); },
+    hit() { sTone("sine", 260, 90, 0.28, 0.32); sNoise(0.22, 0.4, "lowpass", 1100, 120); sTone("sine", 720, 480, 0.45, 0.06, 0.06); sTone("sine", 735, 495, 0.45, 0.05, 0.06); },
+  },
   fire:  { atk: () => sNoise(0.2, 0.5, "bandpass", 500, 2600, 1.2),
            hit: () => { sNoise(0.14, 0.45, "lowpass", 3200, 700); sTone("sine", 150, 60, 0.12, 0.25); } },
   water: { atk: () => sTone("sine", 950, 280, 0.13, 0.35),
@@ -575,7 +585,7 @@ const SOUND_OF = {
   lava: "magma", steam: "hiss", lightning: "zap", plant: "plant", dust: "dust", ice: "ice",
   storm: "zap", blizzard: "ice", obsidian: "magma", grove: "plant", wildfire: "blaze",
   geyser: "geyser", ash: "hiss", magmabloom: "magma", frostveil: "hiss", aurora: "zap", sandstorm: "dust",
-  phoenix: "phoenix", zeus: "bolt",
+  phoenix: "phoenix", zeus: "thunder", hades: "soul",
 };
 // Plays an element's "atk" or "hit" sound, with limits so a full board never turns into noise.
 function playSfx(el, kind) {
@@ -1206,6 +1216,14 @@ class Enemy {
       const cursed = this.burnCol === "#a64dff";   // Hades' curse burns purple
       circle(fx, fy, 3.5, cursed ? "#a64dff" : "#ff7a2f"); circle(fx, fy, 1.8, cursed ? "#f0d0ff" : "#ffe34a");
     }
+    if (this.burnT > 0 && this.burnCol === "#a64dff") {
+      // Cursed by Hades: a wreath of purple soul-fire and a little skull floating above.
+      ctx.save();
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + t * 2, fx = Math.cos(a) * s * 0.9, fy = cy + Math.sin(a) * s * 0.35 + s * 0.35, h = s * (0.35 + 0.15 * Math.sin(t * 12 + i));
+        ctx.fillStyle = "rgba(150,50,240,0.7)"; ctx.beginPath(); ctx.moveTo(fx - 4, fy); ctx.quadraticCurveTo(fx, fy - h * 2, fx + 4, fy); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+      drawSkullIcon(0, cy - s * 1.25 - 6 + Math.sin(t * 4) * 3, Math.max(5, s * 0.22), 0.9, 0.9);
+    }
     if (this.rootT > 0) for (let i = 0; i < 4; i++) ring((i - 1.5) * s * 0.5, s * 0.75, s * 0.25, "#3e9b48", 3, Math.PI, Math.PI * 2);
     if (this.stunT > 0) {
       // Frozen in a block of ice.
@@ -1565,6 +1583,7 @@ const VFX_STYLE = {
   lightning: "bolt", storm: "bolt", aurora: "bolt",
 };
 const VFX_SCALE = 1.35;   // how big shots look compared with their hit size
+const SOUL_COLS = [[255, 240, 255], [220, 150, 255], [150, 60, 230], [50, 10, 90]];
 const FIRE_COLS = [[255, 250, 210], [255, 205, 80], [255, 110, 40], [140, 40, 30]];
 const SUN_COLS = [[255, 255, 235], [255, 236, 120], [255, 170, 40], [255, 90, 20]];
 const LAVA_COLS = [[255, 220, 120], [255, 120, 40], [200, 50, 20], [80, 20, 10]];
@@ -1651,6 +1670,13 @@ function emitTrail(pr, dt) {
   const n = rate => { pr.emit[rate] = (pr.emit[rate] || 0) + dt * rate; const c = Math.floor(pr.emit[rate]); pr.emit[rate] -= c; return c; };
   const back = (sp, j = 40) => ({ vx: -dx * sp + rand(-j, j), vy: -dy * sp + rand(-j, j) });
   const rgb = rgbOf(pr.color);
+  if (st === "soul") {
+    // Purple soul-fire pouring off the skull, ghostly wisps and sparks.
+    for (let i = n(90); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 140)), life: rand(0.28, 0.5), size: R * rand(0.6, 1.05), grow: -0.6, cols: SOUL_COLS, a: 0.85 });
+    for (let i = n(14); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(30, 20), life: 0.8, size: R * 0.5, grow: 1.6, col: "#7a2ad0", a: 0.35 });
+    for (let i = n(18); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, ...back(rand(60, 160), 90), life: rand(0.3, 0.6), size: 2, cols: SOUL_COLS, len: 0.04 });
+    return;
+  }
   if (st === "fire" || st === "phoenix") {
     for (let i = n(st === "phoenix" ? 110 : 80); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-3, 3), y: by + rand(-3, 3), ...back(rand(40, 140)), life: rand(0.25, 0.42), size: R * rand(0.7, 1.1), grow: -0.6, cols: FIRE_COLS, a: 0.8 });
     for (let i = n(14); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, ...back(rand(60, 160), 90), life: rand(0.3, 0.6), size: 2, cols: FIRE_COLS, len: 0.04 });
@@ -1705,12 +1731,17 @@ function drawShotHead(pr) {
   ctx.save(); ctx.translate(pr.x, pr.y);
   const glow = (r, c) => { const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, `rgba(${c},0.6)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); };
   if (st === "soul") {
-    ctx.globalCompositeOperation = "lighter"; glow(R * 3.2, "180,90,255"); ctx.globalCompositeOperation = "source-over";
+    glow(R * 3.6, "160,60,255");
+    // Two ghostly wisps spiraling around the skull.
+    for (let k = 0; k < 2; k++) { const a = t * 9 + k * Math.PI; circle(Math.cos(a) * R * 1.5, Math.sin(a) * R * 0.9, R * 0.45, "rgba(190,120,255,0.75)"); }
+    // Crown of soul-fire on top of the skull.
+    for (let k = -2; k <= 2; k++) { const h = R * (1.2 + 0.5 * Math.sin(t * 20 + k * 1.7)); ctx.fillStyle = "rgba(150,50,240,0.8)"; ctx.beginPath(); ctx.moveTo(k * R * 0.32 - R * 0.22, -R * 0.6); ctx.quadraticCurveTo(k * R * 0.32, -R * 0.6 - h * 1.2, k * R * 0.32 + R * 0.22, -R * 0.6); ctx.closePath(); ctx.fill(); }
+    ctx.globalCompositeOperation = "source-over";
     // Ghostly wisp tail behind the skull.
     ctx.save(); ctx.rotate(pr.ang); ctx.globalAlpha = 0.7;
     ctx.beginPath(); ctx.moveTo(-R * 0.4, -R * 0.9); ctx.quadraticCurveTo(-R * 2.4, -R * 0.6 + Math.sin(t * 14) * R * 0.5, -R * 3.4, Math.sin(t * 11) * R * 0.6);
     ctx.quadraticCurveTo(-R * 2.4, R * 0.6 + Math.sin(t * 13) * R * 0.5, -R * 0.4, R * 0.9); ctx.closePath(); ctx.fillStyle = "rgba(170,90,255,0.7)"; ctx.fill(); ctx.restore();
-    drawSkullIcon(0, 0, R * 0.95, 1, 0.9); ctx.restore(); return;
+    drawSkullIcon(0, 0, R * 1.05, 1, 0.9 + 0.1 * Math.sin(t * 12)); ctx.restore(); return;
   }
   if (st === "fire" || st === "phoenix" || st === "sun") {
     ctx.globalCompositeOperation = "source-over";
@@ -1792,6 +1823,14 @@ function impactFx(el, x, y, r, area) {
   const burst = (count, f) => { for (let i = 0; i < count; i++) { const a = rand(0, Math.PI * 2); f(Math.cos(a), Math.sin(a), i); } };
   const ringFx = (col, size, grow, w, sq = 0.55, add = true, life = 0.45) => addPart(add ? { add: true, kind: "ring", x, y, rgb: col, size, grow, w, sq, life } : { kind: "ring", x, y, col, size, grow, w, sq, life });
   addPart({ add: true, kind: "glow", x, y, life: 0.16, size: 26 * P + A * 0.3, grow: 0.3, rgb: "255,255,240", a: 0.9 });
+  if (st === "soul") {
+    // Purple soul burst: flames, a ghostly shockwave and rising spirits.
+    burst(Math.round(20 * P), (cx, cy) => { const sp = rand(60, 240) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp - 40, drag: 3, life: rand(0.35, 0.6), size: rand(9, 16) * P, grow: -0.4, cols: SOUL_COLS, a: 0.85 }); });
+    burst(14, (cx, cy) => { const sp = rand(180, 420); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 4, life: rand(0.3, 0.5), size: 2.4, cols: SOUL_COLS, len: 0.04 }); });
+    ringFx("190,110,255", 8, 70 * P, 7); ringFx("255,230,255", 4, 40 * P, 3, 0.55, true, 0.3);
+    for (let i = 0; i < 3; i++) addPart({ add: true, kind: "glow", x: x + rand(-14, 14), y, vx: rand(-20, 20), vy: -rand(70, 140), life: 0.8, size: 9, grow: -0.3, rgb: "220,170,255", a: 0.6 });
+    return;
+  }
   if (A > 0) ringFx(rgb, A * 0.3, A * 0.75, 7, 0.55);
   if (st === "fire" || st === "phoenix" || st === "sun") {
     const cols = st === "sun" ? SUN_COLS : FIRE_COLS, k = st === "fire" ? 1 : 1.4;
@@ -2153,6 +2192,7 @@ function onEnemyKilled(e) {
     if (live.length) {
       const tgt = live.reduce((a, o) => Math.hypot(o.x - e.x, o.y - e.y) < Math.hypot(a.x - e.x, a.y - e.y) ? o : a);
       projectiles.push(new Projectile("hades", e.soulR ?? LEGEND_R, e.x, e.y, tgt));
+      soulReleaseFx(e.x, e.y);
       addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "190,110,255", size: 6, grow: 50, w: 4, sq: 0.6, life: 0.4 });
     }
   }
@@ -2207,10 +2247,10 @@ function updateBeam(c, dt) {
   if (c.beams.length < d.beam) {
     const taken = new Set(c.beams.map(b => b.e));
     const free = enemies.filter(e => !e.dead && !taken.has(e)).sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y));
-    for (const e of free.slice(0, d.beam - c.beams.length)) { c.beams.push({ e, acc: 0, pop: 0 }); impactFx(c.element, e.x, e.y, c.rarity, 0); }
+    for (const e of free.slice(0, d.beam - c.beams.length)) { c.beams.push({ e, acc: 0, pop: 0, strike: 1 }); impactFx(c.element, e.x, e.y, c.rarity, 0); playSfx(c.element, "atk"); }
   }
   if (!c.beams.length) return;
-  if (c.beamT > 0.35) { c.beamT = 0; playSfx(c.element, "hit"); c.kick = 0.6; }
+  if (c.beamT > 0.22) { c.beamT = 0; playSfx(c.element, "hit"); c.kick = 0.6; }
   const per = damageOf(c.element, c.rarity) * rateOf(c.element, c.rarity) * BEAM_SHARE, src = statKey(c.element, c.rarity);
   for (const b of c.beams) {
     const e = b.e, amt = per * dt * elementMult(c.element, e.resist, e.flying);
@@ -2220,6 +2260,14 @@ function updateBeam(c, dt) {
     if (b.pop > 0.4 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(b.acc)), color: "#ffe34a", size: 18, duration: 0.7 })); b.acc = 0; b.pop = 0; }
     if (Math.random() < dt * 6) addPart({ add: true, kind: "spark", x: e.x + rand(-8, 8), y: e.y + rand(-8, 8), vx: rand(-220, 220), vy: rand(-220, 220), drag: 4, life: 0.25, size: 2, rgb: "220,235,255", len: 0.04 });
   }
+}
+// A freed soul: a rising ghost wail and a purple spirit flying up from the corpse.
+let lastWail = 0;
+function soulReleaseFx(x, y) {
+  for (let i = 0; i < 10; i++) addPart({ add: true, kind: "glow", x: x + rand(-10, 10), y: y + rand(-6, 6), vx: rand(-30, 30), vy: -rand(80, 180), drag: 1.5, life: rand(0.5, 0.9), size: rand(6, 11), grow: -0.5, cols: SOUL_COLS, a: 0.8 });
+  addPart({ kind: "smoke", x, y: y - 6, vy: -60, life: 0.9, size: 14, grow: 1.4, col: "#6a2aa8", a: 0.4 });
+  const now = performance.now();
+  if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running" && now - lastWail > 180) { lastWail = now; try { sTone("sine", 280, 1050, 0.6, 0.11); sTone("triangle", 420, 1250, 0.6, 0.05, 0.05); } catch (e) {} }
 }
 // A small cartoon skull (Hades' orbs and his soul shots). r = radius of the cranium.
 function drawSkullIcon(x, y, r, alpha = 1, glowA = 0.8) {
@@ -2440,21 +2488,57 @@ function drawLances() {
   }
 }
 // Jagged lightning from the card to each locked enemy, re-drawn many times a second so it crackles.
+// Zeus' lightning: forked, flickering bolts with strike flashes, crackling orbs on the targets and an electric
+// halo around the card.
+function boltPath(x0, y0, x1, y1, n, jag) {
+  const pts = [[x0, y0]], nx = -(y1 - y0), ny = x1 - x0, nl = Math.hypot(nx, ny) || 1;
+  for (let i = 1; i < n; i++) { const k = i / n, o = rand(-jag, jag) * Math.sin(Math.PI * k); pts.push([lerp(x0, x1, k) + nx / nl * o, lerp(y0, y1, k) + ny / nl * o]); }
+  pts.push([x1, y1]); return pts;
+}
+function strokePath(pts) { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); }
 function drawBeams() {
   for (const c of rows.active) {
     if (!c || !c.beams || !c.beams.length || (drag && drag.card === c) || state !== "wave") continue;
-    const ox = c.x, oy = c.y - CARD_H / 2 + 10;
-    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    const ox = c.x, oy = c.y - CARD_H / 2 + 10, t = time;
+    ctx.save(); ctx.lineJoin = "round"; ctx.lineCap = "round";
     for (const b of c.beams) {
-      const e = b.e, pts = [[ox, oy]], n = 7;
-      for (let i = 1; i < n; i++) { const k = i / n; pts.push([lerp(ox, e.x, k) + rand(-14, 14), lerp(oy, e.y, k) + rand(-14, 14)]); }
-      pts.push([e.x, e.y]);
-      for (const [w, col] of [[14, "rgba(255,216,74,0.18)"], [6, "rgba(160,200,255,0.6)"], [2.2, "rgba(255,255,255,0.95)"]]) {
-        ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+      const e = b.e, dist = Math.hypot(e.x - ox, e.y - oy);
+      b.strike = Math.max(0, (b.strike || 0) - 0.08);
+      if (Math.random() < 0.04) b.strike = 1;                                  // random bright strikes
+      const flash = b.strike, main = boltPath(ox, oy, e.x, e.y, 12, Math.min(26, dist * 0.08));
+      // Wide glow, colored halo, then the white-hot core; thicker during a strike.
+      for (const [w, col] of [[22 + 16 * flash, `rgba(255,200,60,${0.22 + 0.2 * flash})`], [9 + 6 * flash, `rgba(70,140,255,${0.7 + 0.25 * flash})`], [2.6 + 2.4 * flash, "rgba(255,255,255,0.97)"]]) {
+        ctx.strokeStyle = col; ctx.lineWidth = w; strokePath(main);
       }
-      circle(e.x, e.y, 10 + Math.random() * 6, "rgba(200,225,255,0.35)");
+      // Forks branching off the main bolt.
+      for (let f = 0; f < 3; f++) {
+        if (Math.random() < 0.35) continue;
+        const i = 2 + Math.floor(Math.random() * (main.length - 4)), [fx, fy] = main[i], a = Math.atan2(e.y - oy, e.x - ox) + rand(-1.2, 1.2), l = rand(20, 55);
+        const fork = boltPath(fx, fy, fx + Math.cos(a) * l, fy + Math.sin(a) * l, 4, 8);
+        ctx.strokeStyle = "rgba(70,140,255,0.7)"; ctx.lineWidth = 4; strokePath(fork);
+        ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 1.4; strokePath(fork);
+      }
+      // A second thin strand wrapped around the first.
+      ctx.strokeStyle = "rgba(255,210,70,0.85)"; ctx.lineWidth = 1.8; strokePath(boltPath(ox, oy, e.x, e.y, 9, Math.min(34, dist * 0.1)));
+      // Crackling electric orb on the target.
+      const r = e.size * (0.9 + 0.3 * Math.random()) + 6 * flash;
+      let g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, r * 1.8);
+      g.addColorStop(0, `rgba(240,248,255,${0.6 + 0.3 * flash})`); g.addColorStop(0.5, "rgba(80,140,255,0.35)"); g.addColorStop(1, "rgba(80,140,255,0)");
+      ctx.fillStyle = g; ctx.fillRect(e.x - r * 1.8, e.y - r * 1.8, r * 3.6, r * 3.6);
+      ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = 1.6;
+      for (let k = 0; k < 3; k++) {
+        const a0 = Math.random() * Math.PI * 2, pts = [];
+        for (let q = 0; q <= 4; q++) { const a = a0 + q * 0.5, rr = r * (0.8 + Math.random() * 0.5); pts.push([e.x + Math.cos(a) * rr, e.y + Math.sin(a) * rr]); }
+        strokePath(pts);
+      }
     }
-    circle(ox, oy, 14 + Math.random() * 4, "rgba(255,230,140,0.45)");
+    // Electric halo around Zeus' card.
+    const pulse = 0.6 + 0.4 * Math.random();
+    let g = ctx.createRadialGradient(ox, oy, 4, ox, oy, 46);
+    g.addColorStop(0, `rgba(255,250,220,${0.85 * pulse})`); g.addColorStop(0.4, "rgba(255,200,60,0.4)"); g.addColorStop(1, "rgba(255,200,60,0)");
+    ctx.fillStyle = g; ctx.fillRect(ox - 46, oy - 46, 92, 92);
+    ctx.strokeStyle = "rgba(255,215,80,0.95)"; ctx.lineWidth = 1.8;
+    for (let k = 0; k < 4; k++) { const a = Math.random() * Math.PI * 2; strokePath(boltPath(ox, oy, ox + Math.cos(a) * rand(24, 44), oy + Math.sin(a) * rand(24, 44), 4, 6)); }
     ctx.restore();
   }
 }
