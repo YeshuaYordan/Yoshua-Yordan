@@ -2123,41 +2123,104 @@ function updateLance(c, dt) {
     if (Math.abs(rx * dy - ry * dx) > d.lance / 2 + e.size * 0.6) continue;
     const amt = per * dt * c.lanceOn * elementMult(c.element, e.resist, e.flying);
     if (d.slow) e.slow(d.slow, 0.3);
-    e.lanceAcc = (e.lanceAcc || 0) + amt; e.lancePop = (e.lancePop || 0) + dt;
+    e.lanceAcc = (e.lanceAcc || 0) + amt; e.lanceHitT = time; e.lancePop = (e.lancePop || 0) + dt;
     e.takeDamage(amt, src, d.color);
     if (e.lancePop > 0.4 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(e.lanceAcc)), color: "#9fe6ff", size: 18, duration: 0.7 })); e.lanceAcc = 0; e.lancePop = 0; }
     if (Math.random() < dt * 10) addPart({ kind: "drop", x: e.x, y: e.y, vx: rand(-160, 160), vy: -rand(80, 220), g: 900, life: 0.5, size: rand(2.5, 4), col: "#7fd8ff" });
   }
   // Spray along the beam.
+  for (let n = Math.floor(dt * 40 + Math.random()); n > 0; n--) {   // foam flung off the edges
+    const k = rand(30, 650), side = Math.random() < 0.5 ? -1 : 1, sp = rand(80, 220);
+    addPart({ kind: "drop", x: ox + dx * k - dy * side * d.lance * 0.5, y: oy + dy * k + dx * side * d.lance * 0.5, vx: -dy * side * sp + dx * 120, vy: dx * side * sp + dy * 120, g: 300, life: rand(0.3, 0.6), size: rand(1.8, 3.5), col: "#bfeeff" });
+  }
   if (Math.random() < dt * 30) { const k = rand(40, 700); addPart({ kind: "bubble", x: ox + dx * k + rand(-12, 12), y: oy + dy * k + rand(-12, 12), vx: rand(-20, 20), vy: rand(-30, 10), life: 0.6, size: rand(2, 5), col: "rgba(230,250,255,0.9)", rot: rand(0, 9) }); }
 }
 function drawLances() {
   for (const c of rows.active) {
     if (!c || !EL[c.element].lance || !c.lanceOn || (drag && drag.card === c) || state !== "wave") continue;
     const d = EL[c.element], [ox, oy] = lanceOrigin(c), a = c.lanceAng, on = c.lanceOn, t = time, w = d.lance;
+    const L = 1000, STEP = 20;
+    // Width along the beam: surges of water rush outward and swell it as they pass.
+    const surge = x => { let k = 0; for (let i = 0; i < 3; i++) { const sx = ((t * 520 + i * 380) % 1140) - 20, dd = (x - sx) / 70; k += Math.exp(-dd * dd); } return k; };
+    const half = x => w * (0.5 + 0.12 * Math.sin(x * 0.02 - t * 9) + 0.22 * surge(x)) * Math.min(1, 0.55 + x / 120);
     ctx.save(); ctx.beginPath(); ctx.rect(0, HUD_H, W, FRONT_Y - HUD_H + 60); ctx.clip();
     ctx.translate(ox, oy); ctx.rotate(a);
-    const L = LANCE_LEN, wob = 1 + 0.08 * Math.sin(t * 18);
-    // Body of the beam: deep blue edges, bright cyan inside, white core.
-    let g = ctx.createLinearGradient(0, -w, 0, w);
-    g.addColorStop(0, "rgba(40,120,255,0)"); g.addColorStop(0.25, `rgba(40,130,255,${0.5 * on})`); g.addColorStop(0.5, `rgba(150,235,255,${0.9 * on})`);
-    g.addColorStop(0.75, `rgba(40,130,255,${0.5 * on})`); g.addColorStop(1, "rgba(40,120,255,0)");
-    ctx.fillStyle = g; ctx.fillRect(0, -w * wob, L, w * 2 * wob);
-    ctx.fillStyle = `rgba(255,255,255,${0.85 * on})`; ctx.fillRect(0, -w * 0.12, L, w * 0.24);
-    // Flowing ripples along the beam.
-    ctx.strokeStyle = `rgba(230,250,255,${0.6 * on})`; ctx.lineWidth = 2.5; ctx.lineCap = "round";
-    for (let i = 0; i < 2; i++) {
-      ctx.beginPath();
-      for (let x = 0; x <= 900; x += 18) { const y = Math.sin(x * 0.045 - t * 14 + i * Math.PI) * w * 0.33; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-      ctx.stroke();
+    const edge = sgn => { ctx.moveTo(0, 0); for (let x = 0; x <= L; x += STEP) ctx.lineTo(x, sgn * half(x)); };
+    const bodyPath = () => { ctx.beginPath(); ctx.moveTo(0, -half(0)); for (let x = STEP; x <= L; x += STEP) ctx.lineTo(x, -half(x)); for (let x = L; x >= 0; x -= STEP) ctx.lineTo(x, half(x)); ctx.closePath(); };
+    // 1. Wide glowing aura.
+    ctx.globalCompositeOperation = "lighter";
+    let g = ctx.createLinearGradient(0, -w * 1.6, 0, w * 1.6);
+    g.addColorStop(0, "rgba(30,120,255,0)"); g.addColorStop(0.5, `rgba(60,170,255,${0.35 * on})`); g.addColorStop(1, "rgba(30,120,255,0)");
+    if (!settings.lite) { ctx.fillStyle = g; ctx.fillRect(0, -w * 1.6, L, w * 3.2); }
+    ctx.globalCompositeOperation = "source-over";
+    // 2. Back half of the spiral streams (behind the beam body).
+    const helix = (front) => {
+      // Each strand is drawn as one path per pass: the parts facing us are bright, the parts behind are dark.
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      for (const [lw, col] of front ? [[6, `rgba(120,215,255,${0.6 * on})`], [2.6, `rgba(240,252,255,${0.95 * on})`]] : [[3, `rgba(30,90,200,${0.6 * on})`]]) {
+        ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath();
+        for (let s2 = 0; s2 < 2; s2++) {
+          let pen = false;
+          for (let x = 0; x <= L; x += STEP) {
+            const ph = x * 0.035 - t * 16 + s2 * Math.PI, z = Math.cos(ph), y = Math.sin(ph) * half(x) * 1.15;
+            if ((z > 0) === front) { pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; } else pen = false;
+          }
+        }
+        ctx.stroke();
+      }
+    };
+    helix(false);
+    // 3. Beam body: deep blue edges to bright cyan, with an outline.
+    bodyPath();
+    g = ctx.createLinearGradient(0, -w * 0.75, 0, w * 0.75);
+    g.addColorStop(0, `rgba(20,90,220,${0.85 * on})`); g.addColorStop(0.3, `rgba(70,180,255,${0.9 * on})`); g.addColorStop(0.5, `rgba(190,245,255,${0.95 * on})`);
+    g.addColorStop(0.7, `rgba(70,180,255,${0.9 * on})`); g.addColorStop(1, `rgba(20,90,220,${0.85 * on})`);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.save(); ctx.clip();
+    // Flowing caustic light inside the water.
+    ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+    for (let i = 0; i < (settings.lite ? 0 : 9); i++) {
+      const lane = ((i * 37) % 11) / 10 - 0.5, sp = 380 + (i % 4) * 90, len = 40 + (i % 5) * 18;
+      const x = ((t * sp + i * 97) % (L + len)) - len;
+      ctx.strokeStyle = `rgba(220,250,255,${0.45 * on})`; ctx.lineWidth = 2 + (i % 3);
+      ctx.beginPath(); ctx.moveTo(x, lane * w * 0.8); ctx.quadraticCurveTo(x + len / 2, lane * w * 0.8 + Math.sin(t * 8 + i) * 6, x + len, lane * w * 0.8); ctx.stroke();
     }
-    ctx.setLineDash([14, 22]); ctx.lineDashOffset = -t * 420; ctx.strokeStyle = `rgba(255,255,255,${0.7 * on})`; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, w * 0.5); ctx.lineTo(L, w * 0.5); ctx.moveTo(0, -w * 0.5); ctx.lineTo(L, -w * 0.5); ctx.stroke(); ctx.setLineDash([]);
+    // Surge flashes.
+    for (let i = 0; i < 3; i++) {
+      const sx = ((t * 520 + i * 380) % 1140) - 20, sg = ctx.createRadialGradient(sx, 0, 0, sx, 0, w);
+      sg.addColorStop(0, `rgba(255,255,255,${0.55 * on})`); sg.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = sg; ctx.fillRect(sx - w, -w, w * 2, w * 2);
+    }
     ctx.restore();
-    // Splash where it leaves the card.
-    g = ctx.createRadialGradient(ox, oy, 2, ox, oy, w * 1.3);
-    g.addColorStop(0, `rgba(255,255,255,${0.9 * on})`); g.addColorStop(0.5, `rgba(120,220,255,${0.5 * on})`); g.addColorStop(1, "rgba(120,220,255,0)");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ox, oy, w * 1.3 * (0.9 + 0.1 * Math.sin(t * 20)), 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(10,50,140,${0.8 * on})`; ctx.lineWidth = 2.5; ctx.beginPath(); edge(-1); edge(1); ctx.stroke();
+    // White-hot core.
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = `rgba(255,255,255,${0.9 * on})`; ctx.lineWidth = w * 0.18; ctx.lineCap = "round";
+    ctx.beginPath(); for (let x = 0; x <= L; x += STEP) { const y = Math.sin(x * 0.05 - t * 22) * 2; x ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke();
+    ctx.globalCompositeOperation = "source-over";
+    // 4. Front half of the spiral streams.
+    helix(true);
+    ctx.restore();
+    // 5. Vortex where the beam leaves the card.
+    ctx.save(); ctx.translate(ox, oy); ctx.globalCompositeOperation = "lighter";
+    g = ctx.createRadialGradient(0, 0, 2, 0, 0, w * 1.5);
+    g.addColorStop(0, `rgba(255,255,255,${on})`); g.addColorStop(0.4, `rgba(120,220,255,${0.6 * on})`); g.addColorStop(1, "rgba(60,150,255,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, w * 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.rotate(t * 7); ctx.lineCap = "round";
+    for (let i = 0; i < 4; i++) {
+      ctx.rotate(Math.PI / 2); ctx.strokeStyle = `rgba(210,245,255,${0.75 * on})`; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(0, 0, w * (0.55 + 0.15 * Math.sin(t * 6 + i)), 0, 1.3); ctx.stroke();
+    }
+    ctx.restore();
+    // 6. Ripple rings on every enemy the beam is touching.
+    for (const e of enemies) {
+      if (e.dead || !e.lanceHitT || time - e.lanceHitT > 0.1) continue;
+      const k = (t * 2.5 + e.x * 0.01) % 1;
+      ctx.save(); ctx.translate(e.x, e.y); ctx.scale(1, 0.55);
+      ctx.strokeStyle = `rgba(200,240,255,${0.8 * (1 - k)})`; ctx.lineWidth = 3 * (1 - k) + 1;
+      ctx.beginPath(); ctx.arc(0, 0, e.size * (0.8 + k * 1.4), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
   }
 }
 // Jagged lightning from the card to each locked enemy, re-drawn many times a second so it crackles.
