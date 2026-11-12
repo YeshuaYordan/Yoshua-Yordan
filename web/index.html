@@ -670,6 +670,71 @@ class Card {
     }
     ctx.restore();
   }
+  // ---- The Legend frame: a shining gold border with glowing runes, sparks racing around it, jeweled corners,
+  // a winged crest with a pulsing gem on top and a gold name ribbon.
+  drawLegendFrame(hw, hh, t, d) {
+    const R = 10, pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    // Outer glow.
+    ctx.save(); ctx.shadowColor = `rgba(255,200,80,${0.6 + 0.3 * pulse})`; ctx.shadowBlur = 14 + 6 * pulse;
+    rrect(-hw, -hh, CARD_W, CARD_H, R); ctx.strokeStyle = INK; ctx.lineWidth = 9; ctx.stroke(); ctx.restore();
+    // Thick gold band whose highlight slides around (a shifting metal shine).
+    const sh = (t * 0.6) % 2 - 0.5;
+    const fg = ctx.createLinearGradient(-hw + sh * CARD_W * 2, -hh, hw + sh * CARD_W * 2, hh);
+    fg.addColorStop(0, "#b07a1e"); fg.addColorStop(0.35, "#f2b632"); fg.addColorStop(0.5, "#fff6c8"); fg.addColorStop(0.65, "#f2b632"); fg.addColorStop(1, "#8a5a14");
+    rrect(-hw, -hh, CARD_W, CARD_H, R); ctx.strokeStyle = fg; ctx.lineWidth = 6; ctx.stroke();
+    // Inner rune band.
+    rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, R - 4); ctx.strokeStyle = "rgba(60,30,8,0.6)"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.save(); ctx.setLineDash([2, 5]); ctx.lineDashOffset = -t * 12; rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, R - 4);
+    ctx.strokeStyle = `rgba(255,236,170,${0.55 + 0.35 * pulse})`; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore();
+    // Two sparks racing around the border.
+    const per = 2 * (CARD_W + CARD_H), pt = u => {
+      let p = ((u % 1) + 1) % 1 * per;
+      if (p < CARD_W) return [-hw + p, -hh]; p -= CARD_W;
+      if (p < CARD_H) return [hw, -hh + p]; p -= CARD_H;
+      if (p < CARD_W) return [hw - p, hh]; p -= CARD_W;
+      return [-hw, hh - p];
+    };
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (const off of [0, 0.5]) {
+      const u = t * 0.22 + off;
+      for (let k = 10; k >= 0; k--) { const [px, py] = pt(u - k * 0.008); circle(px, py, 3.2 - k * 0.22, `rgba(255,245,200,${0.85 * (1 - k / 11)})`); }
+      const [px, py] = pt(u); circle(px, py, 8, "rgba(255,220,120,0.35)");
+    }
+    ctx.restore();
+    // Jeweled corner pieces.
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy], i) => {
+      ctx.save(); ctx.translate(sx * (hw - 2), sy * (hh - 2));
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-sx * 22, 0); ctx.lineTo(-sx * 14, -sy * 7); ctx.lineTo(-sx * 7, -sy * 14); ctx.lineTo(0, -sy * 22); ctx.closePath();
+      ctx.fillStyle = "#f2c14e"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-sx * 4, -sy * 4); ctx.lineTo(-sx * 16, -sy * 2); ctx.moveTo(-sx * 4, -sy * 4); ctx.lineTo(-sx * 2, -sy * 16); ctx.strokeStyle = "#fff1a8"; ctx.lineWidth = 1.2; ctx.stroke();
+      const gc = ["#e0533f", "#4fb8ff", "#5cc36a", "#c47aff"][i];
+      circle(-sx * 7, -sy * 7, 4.2, INK); circle(-sx * 7, -sy * 7, 3.2, gc); circle(-sx * 7 - 1, -sy * 7 - 1, 1.1, "rgba(255,255,255,0.9)");
+      ctx.restore();
+    });
+    // Winged crest with a pulsing gem on top.
+    const cy = -hh - 2;
+    for (const sx of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(sx * 8, cy + 2);
+      ctx.quadraticCurveTo(sx * 22, cy - 14, sx * 38, cy - 12); ctx.lineTo(sx * 30, cy - 6); ctx.lineTo(sx * 40, cy - 2); ctx.lineTo(sx * 28, cy + 1); ctx.lineTo(sx * 34, cy + 6);
+      ctx.quadraticCurveTo(sx * 18, cy + 6, sx * 8, cy + 6); ctx.closePath();
+      const wg = ctx.createLinearGradient(0, cy - 14, 0, cy + 6); wg.addColorStop(0, "#fff6c8"); wg.addColorStop(1, "#d8941e");
+      ctx.fillStyle = wg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    }
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const gg = ctx.createRadialGradient(0, cy - 3, 1, 0, cy - 3, 20 + 6 * pulse); gg.addColorStop(0, `rgba(140,220,255,${0.7 + 0.3 * pulse})`); gg.addColorStop(1, "rgba(140,220,255,0)");
+    ctx.fillStyle = gg; ctx.fillRect(-26, cy - 29, 52, 52); ctx.restore();
+    ctx.beginPath(); ctx.moveTo(0, cy - 15); ctx.lineTo(9, cy - 3); ctx.lineTo(0, cy + 9); ctx.lineTo(-9, cy - 3); ctx.closePath();
+    const jg = ctx.createLinearGradient(-9, cy - 15, 9, cy + 9); jg.addColorStop(0, "#e8fbff"); jg.addColorStop(0.5, "#5ac8ff"); jg.addColorStop(1, "#2a6ad8");
+    ctx.fillStyle = jg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, cy - 15); ctx.lineTo(-3, cy - 3); ctx.lineTo(0, cy + 9); ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1; ctx.stroke();
+    // Gold name ribbon.
+    const ry = hh - 15, rw = Math.max(64, Math.min(CARD_W - 6, d.name.length * 11 + 34));
+    ctx.beginPath(); ctx.moveTo(-rw / 2, ry - 10); ctx.lineTo(rw / 2, ry - 10); ctx.lineTo(rw / 2 + 8, ry); ctx.lineTo(rw / 2, ry + 10); ctx.lineTo(-rw / 2, ry + 10); ctx.lineTo(-rw / 2 - 8, ry); ctx.closePath();
+    const rg = ctx.createLinearGradient(0, ry - 10, 0, ry + 10); rg.addColorStop(0, "#5a2d9a"); rg.addColorStop(1, "#2a1250");
+    ctx.fillStyle = rg; ctx.fill(); ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 2.5; ctx.stroke();
+    if (!this.noLabel) text("LEGEND", 0, -hh + 18, 9, "#fff6c8", { weight: 800, outline: 4, outlineColor: CI });
+    text(d.name, 0, ry + 1, 15, "#ffe08a", { font: DISPLAY, weight: 900, outline: 4, outlineColor: CI, baseline: "middle" });
+  }
   // ---- Full-art cards (Legend): the illustration fills the whole card, under a gold frame, with Legend effects.
   drawIllustrated(hw, hh, t, d) {
     this.drawLegendRays(hw, hh, t); this.drawLegendOrbit(hw, hh, t, true);
@@ -695,19 +760,12 @@ class Card {
     }
     ctx.globalCompositeOperation = "source-over";
     // Darken the bottom for the name.
-    const g = ctx.createLinearGradient(0, hh - 44, 0, hh); g.addColorStop(0, "rgba(20,12,30,0)"); g.addColorStop(1, "rgba(20,12,30,0.85)");
+    const g = ctx.createLinearGradient(0, hh - 44, 0, hh); g.addColorStop(0, "rgba(20,12,30,0)"); g.addColorStop(1, "rgba(20,12,30,0.55)");
     ctx.fillStyle = g; ctx.fillRect(-hw, hh - 44, CARD_W, 44);
     ctx.restore();
     this.drawLegendShimmer(hw, hh, t);
-    // Gold frame.
-    rrect(-hw, -hh, CARD_W, CARD_H, 10);
-    const fg = ctx.createLinearGradient(-hw, -hh, hw, hh); fg.addColorStop(0, "#fff1a8"); fg.addColorStop(0.5, "#f2b632"); fg.addColorStop(1, "#b07a1e");
-    ctx.strokeStyle = INK; ctx.lineWidth = 7; ctx.stroke(); ctx.strokeStyle = fg; ctx.lineWidth = 4; ctx.stroke();
-    rrect(-hw + 5, -hh + 5, CARD_W - 10, CARD_H - 10, 7); ctx.strokeStyle = "rgba(255,240,190,0.55)"; ctx.lineWidth = 1.2; ctx.stroke();
-    for (const [cx, cy] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]]) { ctx.save(); ctx.translate(cx * 0.93, cy * 0.94); ctx.rotate(Math.PI / 4); ctx.fillStyle = "#f2c14e"; ctx.fillRect(-4.5, -4.5, 9, 9); ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.strokeRect(-4.5, -4.5, 9, 9); ctx.restore(); }
+    this.drawLegendFrame(hw, hh, t, d);
     this.drawLegendOrbit(hw, hh, t, false);
-    if (!this.noLabel) text("LEGEND", 0, -hh + 16, 10, "#fff6c8", { weight: 800, outline: 4, outlineColor: CI });
-    text(d.name, 0, hh - 15, 17, "#ffe08a", { font: DISPLAY, weight: 900, outline: 5, outlineColor: CI, baseline: "middle" });
   }
   // ---- Special cards: animated rainbow frame, starry inside, the element's top sprite.
   drawSpecial(hw, hh, t, d) {
@@ -764,9 +822,9 @@ class Card {
   }
   // Three tilted orbits with two orbs each. Orbs behind the card are drawn first (back=true), the rest in front.
   drawLegendOrbit(hw, hh, t, back) {
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
     const orbits = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]];
-    const rx = hw + 30, ry = 20;
+    const rx = hw + 30, ry = 20, TRAIL = 1.5, SEG = 22;
     for (const [tilt, speed, phase] of orbits) {
       const ct = Math.cos(tilt), st = Math.sin(tilt);
       const at = a => { const x = Math.cos(a) * rx, y = Math.sin(a) * ry; return [x * ct - y * st, x * st + y * ct, Math.sin(a)]; };
@@ -774,21 +832,27 @@ class Card {
         // Faint orbit path.
         ctx.beginPath();
         for (let k = 0; k <= 48; k++) { const [x, y] = at(k / 48 * Math.PI * 2); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-        ctx.strokeStyle = "rgba(255,225,140,0.16)"; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.strokeStyle = "rgba(255,225,140,0.14)"; ctx.lineWidth = 1.2; ctx.stroke();
       }
       for (const o of [0, Math.PI]) {
-        const a = t * speed + phase + o;
-        const [x, y, z] = at(a);
-        // z < 0 means the orb is passing behind the card.
-        if ((z < 0) !== back) continue;
-        for (let k = 8; k >= 1; k--) {
-          const [tx, ty] = at(a - Math.sign(speed) * k * 0.07);
-          circle(tx, ty, 4 - k * 0.35, `rgba(255,215,120,${0.28 * (1 - k / 9)})`);
+        const a = t * speed + phase + o, dir = Math.sign(speed);
+        // Comet tail: segments along the orbit behind the orb, thinning and fading. Each piece is drawn in the
+        // pass (behind / in front of the card) that matches its own depth.
+        for (let k = SEG; k >= 1; k--) {
+          const a0 = a - dir * TRAIL * k / SEG, a1 = a - dir * TRAIL * (k - 1) / SEG;
+          const [x0, y0, z0] = at(a0), [x1, y1] = at(a1);
+          if ((z0 < 0) !== back) continue;
+          const f = 1 - k / SEG;
+          ctx.strokeStyle = `rgba(255,${200 + Math.round(40 * f)},${110 + Math.round(90 * f)},${0.55 * f * f})`; ctx.lineWidth = 1 + 5.5 * f;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+          if (k % 4 === 0) circle(x0 + Math.sin(t * 9 + k) * 2, y0 + Math.cos(t * 7 + k) * 2, 1.2, `rgba(255,250,220,${0.6 * f})`);   // sparkles in the tail
         }
-        const s = 4.5 + z * 1.5 + Math.sin(t * 8 + o) * 0.8;
-        circle(x, y, s * 3.2, "rgba(255,190,80,0.18)");
-        circle(x, y, s * 1.8, "rgba(255,230,160,0.45)");
-        circle(x, y, s, "#fffaf0");
+        const [x, y, z] = at(a);
+        if ((z < 0) !== back) continue;
+        const s2 = 4.5 + z * 1.5 + Math.sin(t * 8 + o) * 0.8;
+        circle(x, y, s2 * 3.4, "rgba(255,190,80,0.2)");
+        circle(x, y, s2 * 1.9, "rgba(255,230,160,0.5)");
+        circle(x, y, s2, "#fffaf0");
       }
     }
     ctx.restore();
