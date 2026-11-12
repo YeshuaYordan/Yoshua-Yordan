@@ -212,6 +212,7 @@ for (const old of ["solarflare", "tidalwave", "earthquake", "tempest"]) {   // t
   if (save.copies && save.copies[old]) { save.copies.totem = (save.copies.totem || 0) + save.copies[old]; delete save.copies[old]; }
   if (save.levels && save.levels[old]) { save.levels.totem = Math.max(save.levels.totem || 1, save.levels[old]); delete save.levels[old]; }
 }
+for (const sp of ["totem", "flight"]) if (save.copies) delete save.copies[sp];   // Special cards have no copies or levels
 function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} }
 // ---- Summon (gacha), gems and card upgrades
 const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
@@ -246,17 +247,18 @@ const levelNeed = el => levelOf(el) >= MAX_LEVEL ? 0 : LEVEL_NEED[levelOf(el) - 
 const cardKnown = el => EL[el].tier === 1 || (EL[el].special ? !!save.specials[el] : !!save.discovered[el]);
 const canUpgrade = el => !EL[el].totem && cardKnown(el) && levelOf(el) < MAX_LEVEL && copiesOf(el) >= levelNeed(el);
 function summonOnce() {
-  save.pity = (save.pity || 0) + 1; track("summon"); profile().pulls = (profile().pulls || 0) + 1;   // the caller (doSummon) pays the gems
+  const unowned = SPECIALS.filter(e => !save.specials[e]);   // Special cards have no levels: each can be won only once
+  save.pity = unowned.length ? (save.pity || 0) + 1 : 0; track("summon"); profile().pulls = (profile().pulls || 0) + 1;   // the caller (doSummon) pays the gems
   const r = Math.random(); let el, acc = SPECIAL_RATE;
-  if (save.pity >= PITY || r < acc) { el = pickOne(SPECIALS); save.pity = 0; }
+  if (unowned.length && (save.pity >= PITY || r < acc)) { el = pickOne(unowned); save.pity = 0; }   // all owned: this roll becomes a Main copy
   else if (r < (acc += MAIN_RATE)) el = pickOne(BASE);
   else if (r < (acc += NEXT_RATE)) el = pickOne(NEXT_ELS);
   else if (r < (acc += EPIC_RATE)) el = pickOne(EPIC_ELS);
   else if (r < (acc += MYTH_RATE)) el = pickOne(MYTH_ELS);
   else el = pickOne(LEGEND_ELS.length ? LEGEND_ELS : MYTH_ELS);   // Legend slot
   const isNew = !!EL[el].special && !save.specials[el];
-  if (isNew) save.specials[el] = true;           // first copy unlocks it for the shop
-  else save.copies[el] = copiesOf(el) + 1;       // later copies count towards upgrades
+  if (EL[el].special) save.specials[el] = true;  // a Special card is unlocked once, for good
+  else save.copies[el] = copiesOf(el) + 1;       // copies count towards upgrades
   writeSave();
   return { el, isNew };
 }
@@ -4959,6 +4961,7 @@ function drawSummonUi() {
   // Cost and pity counter above the button.
   const left = PITY - (save.pity || 0);
   if (summonMsgT > 0) text(summonMsg, W / 2, H - 176, 21, GOLD, { outline: 6 });
+  else if (SPECIALS.every(e => save.specials[e])) text("All Special cards collected!", W / 2, H - 176, 22, "#e3c9ff", { outline: 6 });
   else text(`Special card guaranteed in ${left} pull${left === 1 ? "" : "s"}`, W / 2, H - 176, 22, "#e3c9ff", { outline: 6 });
 }
 // ---- Summon: x1 or x10 (x10 is 10% off). The card on the altar gathers light, spins, then bursts into the result(s).
@@ -5121,15 +5124,20 @@ function drawRates() {
     ["Epic element copy", "13%", `${EPIC_ELS.length} Epic elements: ${(13 / EPIC_ELS.length).toFixed(2)}% each`],
     ["Myth card copy", "5%", "Phoenix"],
     ["Legend card copy", "1.5%", LEGEND_ELS.length ? `${LEGEND_ELS.length} Legend cards` : "Legend cards coming soon. Until then: a Phoenix copy"],
-    ["Special card", "0.5%", "Solar Flare, Tidal Wave, Earthquake, Tempest: 0.125% each"],
+    ["Special card", "0.5%", "Fight or Flight, only ones you don't own yet (each is won once)"],
   ];
   rows.forEach(([a, b, c], i) => {
     const ry = y + 126 + i * 78;
     text(a, x + 30, ry, 25, INK, { align: "left", weight: 700 }); text(b, x + w - 30, ry, 25, "#7a3fb0", { align: "right", weight: 700 });
     text(c, x + 30, ry + 30, 17, "#6b3a22", { align: "left", weight: 500 });
   });
+  if (SPECIALS.every(e => save.specials[e])) {
+    text("You own every Special card!", W / 2, y + 596, 20, INK, { weight: 600 });
+    text("The Special roll now gives a Main element copy instead.", W / 2, y + 624, 18, "#6b3a22", { weight: 500 });
+  } else {
   text(`Pity: a Special card is guaranteed by pull ${PITY}.`, W / 2, y + 596, 20, INK, { weight: 600 });
   text(`You have pulled ${save.pity || 0} time${save.pity === 1 ? "" : "s"} since your last Special.`, W / 2, y + 624, 18, "#6b3a22", { weight: 500 });
+  }
   btn.closeRates.y = y + h - 90 + 10; drawBtn(btn.closeRates);
 }
 
@@ -5686,9 +5694,9 @@ function grantProduct(pr) {
   if (pr.speed) { save.speed2x = true; writeSave(); playUi("ui_sell"); showBanner("2x Speed unlocked!", GOLD); shopToast = { text: "2x Speed unlocked!", color: GOLD, t: 0 }; return; }
   if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; }
   else {
-    const el = pr.special, isNew = !save.specials[el];
-    if (isNew) save.specials[el] = true; else save.copies[el] = copiesOf(el) + 1;
-    shopToast = { text: isNew ? `${EL[el].name} unlocked!` : `${EL[el].name} +1 copy`, color: "#ff8af0", t: 0 };
+    const el = pr.special;
+    save.specials[el] = true;   // Special cards are bought once, for good
+    shopToast = { text: `${EL[el].name} unlocked!`, color: "#ff8af0", t: 0 };
   }
   writeSave(); playUi("ui_sell");
 }
@@ -5711,7 +5719,7 @@ const specialTiles = SPECIALS.map(el => {
 function shopPanel() { const h = 1120; return { x: 24, y: Math.max(96, H / 2 - h / 2), w: W - 48, h }; }
 function shopButtons() {
   if (shopConfirm) return shopBusy ? [] : [btn.shopBuy, btn.shopCancel];
-  return [btn.shopClose, ...gemTiles, ...specialTiles];
+  return [btn.shopClose, ...gemTiles, ...specialTiles.filter(b => !save.specials[b.pr.special])];   // owned Specials can't be bought again
 }
 function priceTag(x, y, w, label) {
   rrect(x, y, w, 40, 20); ctx.fillStyle = "#6cc56a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
@@ -5750,15 +5758,18 @@ function drawShop(dt) {
   // Special cards (centred).
   const sy = y + 192 + 3 * (th + 14) + 30;
   text("Special Cards", x + 24, sy, 26, INK, { align: "left", weight: 800 });
-  text("Unlock it for runs, or +1 copy if you own it", x + w - 24, sy, 16, "#6b3a22", { align: "right", weight: 600 });
+  text("Each one can be bought only once", x + w - 24, sy, 16, "#6b3a22", { align: "right", weight: 600 });
   const sw = (w - 70) / 4, sh = 272;
   specialTiles.forEach((b, i) => {
     const n = specialTiles.length; b.x = x + w / 2 - (n * sw + (n - 1) * 10) / 2 + i * (sw + 10); b.y = sy + 16; b.w = sw; b.h = sh;
     const press = b.down ? 3 : 0, owned = save.specials[b.pr.special];
     rrect(b.x, b.y + press, sw, sh, 16); ctx.fillStyle = b.down ? "#e2cfa6" : "#2a1d40"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
     const c = b.card; c.t += dt; c.x = c.hx = b.x + sw / 2; c.y = c.hy = b.y + 96 + press; c.scale = 1.1; c.draw();
-    text(owned ? "Owned" : "New!", b.x + sw / 2, b.y + 200 + press, 18, owned ? "#c9a6ff" : "#ffe34a", { weight: 800, outline: 4 });
-    priceTag(b.x + 10, b.y + sh - 54 + press, sw - 20, b.pr.price);
+    if (!owned) text("New!", b.x + sw / 2, b.y + 200 + press, 18, "#ffe34a", { weight: 800, outline: 4 });
+    if (owned) {   // bought once, for good
+      rrect(b.x + 10, b.y + sh - 54, sw - 20, 42, 21); ctx.fillStyle = "#5a4a6a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+      text("\u2713 Owned", b.x + sw / 2, b.y + sh - 33, 20, "#e3d4ff", { weight: 800, baseline: "middle" });
+    } else priceTag(b.x + 10, b.y + sh - 54 + press, sw - 20, b.pr.price);
   });
   btn.shopClose.y = y + h - 92; drawBtn(btn.shopClose);
   if (shopConfirm) drawShopConfirm();
@@ -5767,7 +5778,7 @@ function drawShopConfirm() {
   const pr = shopConfirm, w = 520, h = 330, x = W / 2 - w / 2, y = H / 2 - h / 2;
   dim(0.55);
   rrect(x, y, w, h, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
-  const what = pr.gems ? `${fmtNum(pr.gems + pr.bonus)} gems` : (save.specials[pr.special] ? `${pr.name} (+1 copy)` : `${pr.name} (unlock)`);
+  const what = pr.gems ? `${fmtNum(pr.gems + pr.bonus)} gems` : `${pr.name} (unlock)`;
   text("Buy", W / 2, y + 62, 30, "#6b3a22", { weight: 700 });
   text(what, W / 2, y + 112, what.length > 18 ? 32 : 40, INK, { font: DISPLAY, weight: 900 });
   text(`for ${pr.price}?`, W / 2, y + 158, 30, INK, { weight: 700 });
