@@ -1745,6 +1745,9 @@ let chamberOpen = false;
 let restartArmed = 0; // seconds left to confirm Restart in the pause menu
 let enemies = [], projectiles = [], zones = [], fxs = [];
 let gold = 0, castleHp = CASTLE_MAX, wave = 0, state = "title", breakTimer = -1, runGems = 0;
+// One revive per run: when the castle falls, watching an ad (within 6 s) clears the field and restores the castle.
+const REVIVE_TIME = 6;
+let reviveOffer = null, reviveUsed = false;
 // Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
 const CALL_COOLDOWN = 5;
 let spawners = [], callCd = 0, wavesCleared = 0, rerollCost = REROLL_BASE, freeCard = true;
@@ -1789,7 +1792,7 @@ function clearBoard() {
 }
 function startRun() {
   clearBoard();
-  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
@@ -1847,7 +1850,51 @@ function spawnEnemy(kind, wave) {
 function damageCastle(a) {
   if (state !== "wave") return;
   castleHp -= a; wallFlash = 1;
-  if (castleHp <= 0) { castleHp = 0; gameOver(); }
+  if (castleHp <= 0) {
+    castleHp = 0;
+    if (!reviveUsed && !reviveOffer) { reviveOffer = { t: REVIVE_TIME }; cancelDrag(); spell = null; paused = false; }
+    else if (!reviveOffer) gameOver();
+  }
+}
+// The revive offer counts down in real time; the battle is frozen meanwhile.
+function updateRevive(realDt) {
+  if (!reviveOffer || adSim || adBusy) return;
+  reviveOffer.t -= realDt;
+  if (reviveOffer.t <= 0) { reviveOffer = null; gameOver(); }
+}
+async function watchAdToRevive() {
+  if (!reviveOffer || adBusy) return;
+  adBusy = true;
+  const ok = await showRewardedAd();
+  adBusy = false;
+  if (!reviveOffer) return;
+  if (!ok) { showInfo("Ad not available."); reviveOffer = null; gameOver(); return; }
+  reviveOffer = null; reviveUsed = true;
+  // Every enemy on the field dies (no gold), the castle is fully restored, and the run goes on.
+  for (const e of enemies.slice()) if (!e.dead) { e.noGold = true; e.takeDamage(e.hp + 1); }
+  castleHp = CASTLE_MAX; wallFlash = 0;
+  for (let i = 0; i < 8; i++) fxs.push(new Fx("burst", { x: 60 + i * 86, y: (FRONT_Y + WALL_Y) / 2, color: "#fff2b0", radius: 90, duration: 0.7 }));
+  addPart({ add: true, kind: "ring", x: W / 2, y: FRONT_Y, rgb: "255,240,180", size: 30, grow: 700, w: 14, sq: 0.5, life: 0.9 });
+  shakeT = 0.4; shakeAmp = 8;
+  showBanner("REVIVED!", GOLD); playSfx("phoenix", "atk");
+}
+function drawReviveOffer() {
+  const r = reviveOffer, k = Math.max(0, r.t) / REVIVE_TIME;
+  dim(0.72);
+  text("The castle", W / 2, H * 0.3, 54, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
+  text("is falling!", W / 2, H * 0.3 + 64, 54, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
+  // Countdown ring.
+  const cx = W / 2, cy = H * 0.5, R = 70;
+  circle(cx, cy, R + 8, "rgba(0,0,0,0.45)");
+  ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = k > 0.33 ? GOLD : "#e0533f"; ctx.lineCap = "round"; ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke();
+  text(String(Math.ceil(Math.max(0, r.t))), cx, cy + 2, 64, PARCH, { font: DISPLAY, weight: 900, outline: 10, baseline: "middle" });
+  text("Watch an ad to clear the field and restore the castle.", W / 2, H * 0.5 + 120, 21, PARCH, { weight: 600, outline: 6 });
+  text("You can only revive once per run.", W / 2, H * 0.5 + 150, 19, hexA(PARCH, 0.75), { weight: 600, outline: 5 });
+  btn.revive.y = H * 0.5 + 190; drawBtn(btn.revive, adBusy);
+  const px = btn.revive.x + 34, py = btn.revive.y + btn.revive.h / 2;
+  poly([[px - 9, py - 13], [px + 13, py], [px - 9, py + 13]], INK, null);
+  btn.reviveNo.y = btn.revive.y + btn.revive.h + 20; drawBtn(btn.reviveNo);
 }
 // Each kind breaks apart in its own way, and a little spirit floats up.
 function deathFx(e) {
@@ -2677,6 +2724,8 @@ const btn = {
   bioName: makeBtn("Edit name", 0, 0, 170, 52, () => editName(), 20),
   resetAll: Object.assign(makeBtn("Reset progress (test)", W / 2 - 170, 0, 340, 56, () => resetAllProgress(), 20), { fill: "#e0533f", fillDown: "#b8402f" }),
   bioClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { bioOpen = false; }, 26),
+  revive: Object.assign(makeBtn("Watch ad: Revive", W / 2 - 200, 0, 400, 92, () => watchAdToRevive(), 30), { fill: "#ffcd50", fillDown: "#e0a830" }),
+  reviveNo: makeBtn("No thanks", W / 2 - 120, 0, 240, 64, () => { reviveOffer = null; gameOver(); }, 24),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: makeBtn("", 14, 372, 112, 112, () => openShop()),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
@@ -2741,6 +2790,7 @@ function visibleButtons() {
   return baseButtons();
 }
 function baseButtons() {
+  if (reviveOffer) return adSim || adBusy ? [] : [btn.revive, btn.reviveNo];
   if (bookOpen) return [btn.closeBook, btn.tabFusions, btn.tabRunes];
   if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
@@ -2863,10 +2913,10 @@ function update(dt) {
   time += dt;
   banner.t += dt; info.t += dt;
   restartArmed = Math.max(0, restartArmed - dt);
-  updateStorage(dt); updateShopTap(dt);
+  updateStorage(dt); updateShopTap(dt); updateRevive(dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide) return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt);
   speedT = Math.max(0, speedT - dt);
@@ -4734,6 +4784,8 @@ function frame(now) {
   drawOverlays(); drawFilm();
   tutCheck(); if (tut) drawTut(dt);
   if (guide) drawGuide(dt);
+  if (reviveOffer && state !== "title") drawReviveOffer();
+  if (state !== "title") { updateAdSim(dt); if (adSim) drawAdSim(); }
   if (fadeIn > 0) { ctx.fillStyle = `rgba(10,5,15,${fadeIn / 0.5})`; ctx.fillRect(0, 0, W, H); fadeIn = Math.max(0, fadeIn - dt); }
   requestAnimationFrame(frame);
 }
