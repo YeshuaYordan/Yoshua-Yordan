@@ -743,9 +743,12 @@ class Card {
     const art = CARD_ILLUS[d.art];
     ctx.save(); rrect(-hw, -hh, CARD_W, CARD_H, 10); ctx.clip();
     if (art && art.ready) {
-      // A slow breathing zoom keeps the picture alive.
-      const z = 1.03 + 0.03 * Math.sin(t * 0.8);
-      ctx.drawImage(art.img, -hw * z, -hh * z + 2, CARD_W * z, CARD_H * z);
+      // The picture drifts slowly up, down, left and right (and breathes a little). It is drawn larger than the
+      // card and the drift never exceeds that extra margin, so the edges never show inside the frame.
+      const z = 1.16 + 0.02 * Math.sin(t * 0.8);
+      const mx = (z - 1) / 2 * CARD_W * 0.9, my = (z - 1) / 2 * CARD_H * 0.9;
+      const px = Math.sin(t * 0.55) * mx, py = Math.sin(t * 0.41 + 1.3) * my;
+      ctx.drawImage(art.img, -hw * z + px, -hh * z + py, CARD_W * z, CARD_H * z);
     } else { ctx.fillStyle = "#2a2440"; ctx.fillRect(-hw, -hh, CARD_W, CARD_H); }
     // Flickering lightning sparks over the art.
     ctx.globalCompositeOperation = "lighter";
