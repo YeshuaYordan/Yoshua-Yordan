@@ -3552,9 +3552,8 @@ function drawSummonScene() {
   // 5. Badges behind the pillars, 6. pillars, 7. badges in front.
   badge("earth", 250, 700, 130, 0); badge("wind", 830, 700, 130, 1);
   if (G.g_pillars.ready) ctx.drawImage(G.g_pillars.img, 0, 0, 1080, 1920);
-  // On tall phones the sides are cropped: keep the front badges fully on screen.
-  const visL = -v.ox / v.s, visR = (W - v.ox) / v.s;
-  badge("fire", Math.max(110, visL + 92), 1010, 170, 2); badge("water", Math.min(970, visR - 92), 1010, 170, 3);
+  // Fire and Water float centered above the two front pillars (pillar centers x 110 and 970, tops near y 1140).
+  badge("fire", 110, 1075, 85, 2); badge("water", 970, 1075, 85, 3);
   // 8. Sparks rising from the circle.
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   for (let i = 0; i < 26; i++) {
