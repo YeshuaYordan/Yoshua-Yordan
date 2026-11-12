@@ -6187,6 +6187,10 @@ function drawPlaySlider() {
   rrect(W / 2 - 112, dy - 15, 224, 30, 15); ctx.fillStyle = "rgba(20,10,30,0.72)"; ctx.fill();
   for (let i = 0; i < 2; i++) { const on = Math.abs(pos - i) < 0.5; circle(W / 2 + (i - 0.5) * 22, dy, 7, INK); circle(W / 2 + (i - 0.5) * 22, dy, 4.5, on ? (i ? "#ff6a4a" : GOLD) : hexA(PARCH, 0.5)); }
   const ha = 0.55 + 0.35 * Math.sin(lobbyT * 3);
+  if (pos < 0.5 && !wait) {   // Boss Break Out is ready: a bouncing red "!" above the Boss hint
+    const ex = W / 2 + 62, ey = dy - 26 - Math.abs(Math.sin(lobbyT * 4)) * 5;
+    circle(ex, ey, 12, INK); circle(ex, ey, 10, "#e0533f"); text("!", ex, ey + 1, 17, "#fff", { weight: 900, baseline: "middle" });
+  }
   text(pos < 0.5 ? "Boss ›" : "‹ Play", W / 2 + (pos < 0.5 ? 66 : -66), dy + 6, 17, pos < 0.5 ? `rgba(255,150,120,${ha})` : `rgba(255,224,140,${ha})`, { weight: 800 });
   if (pos > 0.5) {
     if (!wait && save.bossBest) text(`Best: ${save.bossBest} bosses`, W / 2, dy - 26, 18, "#ffb08a", { weight: 800, outline: 5 });
