@@ -5694,6 +5694,9 @@ const GUIDE = [
   { t: "Stacking Stars", eq: [[["hades", LEGEND, 2], ["hades", LEGEND, 2], ["hades", LEGEND, 5]], [["phoenix", MYTH, 5], ["phoenix", MYTH, 0], "x"]],
     labels: [["2 stars + 2 stars = 5 stars (stars add up, +1)", "#9cff9c"], ["5 stars is the maximum", "#ff8a7a"]], labelDy: 18, note: "\u2605 x2   \u2605\u2605 x4   \u2605\u2605\u2605 x8   \u2605\u2605\u2605\u2605 x16   \u2605\u2605\u2605\u2605\u2605 x32",
     b: "Starred cards combine too: their stars add up, plus one for the merge, up to 5 stars. A 5-star card deals 32x damage! Enemies keep getting stronger, so stars keep your best cards in the fight. In the Chamber a starred card counts as a normal card." },
+  { t: "MAX POWER: 5 Stars", eq: [[["zeus", LEGEND, 4], ["zeus", LEGEND, 0], ["zeus", LEGEND, 5]]], labels: [["4 stars + one more copy = 5 stars!", "#ffd84a"]], labelDy: 18,
+    note: "5 stars = 32x damage + a golden power aura",
+    b: "When a Myth or Legend card reaches 5 stars it unlocks MAX POWER: it bursts into a blazing golden aura with lightning and rising energy, so everyone can see it's your strongest card. It deals 32x its normal damage!" },
   { t: "The Road to Legend", flow: [["fire", 0], ["fire", 1], ["fire", 2], ["steam", 2], ["storm", EPIC], ["phoenix", MYTH], ["zeus", LEGEND]],
     b: "Main V1 > V2 > V3, fuse into Next elements, level them to V3, fuse two into an Epic, fuse Epics into a Myth, and a Myth into a Legend. Good luck, summoner!" },
 ];
@@ -5725,16 +5728,17 @@ function drawEquation(eq, cy, dt, pageT, slot0, maxH = 999) {
   const sc = Math.min(1.05, (panelW - symW * (n - 1)) / (n * CARD_W), maxH / CARD_H);
   const cw = CARD_W * sc, total = n * cw + (n - 1) * symW;
   let x = W / 2 - total / 2 + cw / 2;
-  const pulse = 0.5 + 0.5 * Math.sin(pageT * 4);
+  const pulse = 0.5 + 0.5 * Math.sin(pageT * 4), signs = [];
   eq.forEach((item, i) => {
     const last = i === n - 1;
     if (last && item === "x") {
       circle(x, cy, 34, "#e0533f"); ring(x, cy, 34, INK, 4);
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(x - 14, cy - 14); ctx.lineTo(x + 14, cy + 14); ctx.moveTo(x + 14, cy - 14); ctx.lineTo(x - 14, cy + 14); ctx.stroke();
     } else gCard(item[0], item[1], slot0 + i, x, cy, sc * (last ? 1 + 0.05 * pulse : 1), dt, last ? 0.6 + 0.4 * pulse : 0, item[2] || 0);
-    if (!last) glyph(i === n - 2 ? (eq[n - 1] === "x" ? "?" : "=") : "+", x + cw / 2 + symW / 2, cy, 40, i === n - 2 ? GOLD : PARCH);
+    if (!last) signs.push([i === n - 2 ? (eq[n - 1] === "x" ? "?" : "=") : "+", x + cw / 2 + symW / 2, i === n - 2 ? GOLD : PARCH]);
     x += cw + symW;
   });
+  for (const [g, gx, col] of signs) glyph(g, gx, cy, 40, col);   // signs on top, so a card's aura never hides them
 }
 function drawGuide(dt) {
   const g = guide; g.t += dt;
