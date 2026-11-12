@@ -107,7 +107,7 @@ const EL = {
   // Legend cards: separate cards (not a Legend version of another card), created in the Legend Chamber or from Summon.
   // art = a full-card illustration instead of a frame + spirit.
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 32, rate: 1.2, beam: 10, slow: 0.5 },
-  poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
+  poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
 // Element tiers:
@@ -738,8 +738,9 @@ class Card {
   }
   // ---- Full-art cards (Legend): the illustration fills the whole card, under a gold frame, with Legend effects.
   drawIllustrated(hw, hh, t, d) {
-    this.drawLegendRays(hw, hh, t); this.drawLegendOrbit(hw, hh, t, true);
-    this.drawMythAura(hw, hh, t, true);
+    // theme "sea" (Poseidon): deep-sea blue light and water-bubble orbs instead of gold.
+    this.drawLegendRays(hw, hh, t, d.theme); this.drawLegendOrbit(hw, hh, t, true, d.theme);
+    this.drawMythAura(hw, hh, t, true, d.theme);
     rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 10); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
     const art = CARD_ILLUS[d.art];
     ctx.save(); rrect(-hw, -hh, CARD_W, CARD_H, 10); ctx.clip();
@@ -771,7 +772,7 @@ class Card {
     ctx.restore();
     this.drawLegendShimmer(hw, hh, t);
     this.drawLegendFrame(hw, hh, t, d);
-    this.drawLegendOrbit(hw, hh, t, false);
+    this.drawLegendOrbit(hw, hh, t, false, d.theme);
   }
   // ---- Special cards: animated rainbow frame, starry inside, the element's top sprite.
   drawSpecial(hw, hh, t, d) {
@@ -814,20 +815,22 @@ class Card {
     }
   }
   // ---- Legend card extras: golden god-rays, orbiting orbs of light, and a shine sweeping across the card.
-  drawLegendRays(hw, hh, t) {
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
+  drawLegendRays(hw, hh, t, theme) {
+    ctx.save(); ctx.globalCompositeOperation = theme === "sea" ? "source-over" : "lighter";
     const n = 14, len = 120 + 12 * Math.sin(t * 2);
     for (let i = 0; i < n; i++) {
       const a = t * 0.35 + i * Math.PI * 2 / n, w = 0.09;
       const g = ctx.createRadialGradient(0, 0, 20, 0, 0, len);
-      g.addColorStop(0, "rgba(255,230,150,0.32)"); g.addColorStop(1, "rgba(255,200,80,0)");
+      if (theme === "sea") { g.addColorStop(0, "rgba(16,70,170,0.32)"); g.addColorStop(1, "rgba(8,40,120,0)"); }
+      else { g.addColorStop(0, "rgba(255,230,150,0.32)"); g.addColorStop(1, "rgba(255,200,80,0)"); }
       ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0);
       ctx.arc(0, 0, len, a - w, a + w); ctx.closePath(); ctx.fill();
     }
     ctx.restore();
   }
   // Three tilted orbits with two orbs each. Orbs behind the card are drawn first (back=true), the rest in front.
-  drawLegendOrbit(hw, hh, t, back) {
+  drawLegendOrbit(hw, hh, t, back, theme) {
+    if (theme === "sea") return this.drawBubbleOrbit(hw, hh, t, back);
     ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
     const orbits = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]];
     const rx = hw + 30, ry = 20, TRAIL = 1.5, SEG = 22;
@@ -859,6 +862,46 @@ class Card {
         circle(x, y, s2 * 3.4, "rgba(255,190,80,0.2)");
         circle(x, y, s2 * 1.9, "rgba(255,230,160,0.5)");
         circle(x, y, s2, "#fffaf0");
+      }
+    }
+    ctx.restore();
+  }
+  // Sea version of the orbiting orbs: shiny water bubbles, each trailing a stream of smaller bubbles.
+  drawBubbleOrbit(hw, hh, t, back) {
+    const orbits = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]];
+    const rx = hw + 30, ry = 20, N = 9;
+    const bubble = (x, y, r, a) => {
+      ctx.globalAlpha = a;
+      circle(x, y, r, "rgba(120,200,255,0.25)");
+      ring(x, y, r, "rgba(220,245,255,0.95)", Math.max(1, r * 0.22));
+      ctx.beginPath(); ctx.arc(x, y, r * 0.7, Math.PI * 1.1, Math.PI * 1.55); ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = Math.max(1, r * 0.2); ctx.stroke();
+      circle(x + r * 0.35, y + r * 0.35, r * 0.12, "rgba(255,255,255,0.7)");
+    };
+    ctx.save();
+    for (const [tilt, speed, phase] of orbits) {
+      const ct = Math.cos(tilt), st = Math.sin(tilt);
+      const at = a => { const x = Math.cos(a) * rx, y = Math.sin(a) * ry; return [x * ct - y * st, x * st + y * ct, Math.sin(a)]; };
+      if (back) {
+        ctx.globalAlpha = 1; ctx.beginPath();
+        for (let k = 0; k <= 48; k++) { const [x, y] = at(k / 48 * Math.PI * 2); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+        ctx.strokeStyle = "rgba(140,210,255,0.16)"; ctx.lineWidth = 1.2; ctx.stroke();
+      }
+      for (const o of [0, Math.PI]) {
+        const a = t * speed + phase + o, dir = Math.sign(speed);
+        // Trail of little bubbles that wobble and shrink behind the big one.
+        for (let k = N; k >= 1; k--) {
+          const [x, y, z] = at(a - dir * k * 0.13);
+          if ((z < 0) !== back) continue;
+          const f = 1 - k / (N + 1);
+          bubble(x + Math.sin(t * 6 + k * 1.7 + o) * 2.5, y + Math.cos(t * 5 + k * 2.3) * 2.5, 1.2 + 3 * f, 0.25 + 0.6 * f);
+        }
+        const [x, y, z] = at(a);
+        if ((z < 0) !== back) continue;
+        const r = 5.5 + z * 1.5 + Math.sin(t * 7 + o) * 0.6;
+        ctx.globalAlpha = 1;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.6); g.addColorStop(0, "rgba(90,180,255,0.35)"); g.addColorStop(1, "rgba(90,180,255,0)");
+        ctx.fillStyle = g; ctx.fillRect(x - r * 2.6, y - r * 2.6, r * 5.2, r * 5.2);
+        bubble(x, y, r, 1);
       }
     }
     ctx.restore();
@@ -912,15 +955,16 @@ class Card {
     }
   }
   // Myth cards: soft fire licking every side of the card, a hot glow and embers floating up.
-  drawMythAura(hw, hh, t, gold = false) {
+  drawMythAura(hw, hh, t, gold = false, theme) {
+    const sea = theme === "sea";
     const pulse = 0.5 + 0.5 * Math.sin(t * 4);
     ctx.save();
     // Legend fire glows additively (gold light); Myth fire is painted normally so its deep red stays deep.
-    ctx.globalCompositeOperation = gold ? "lighter" : "source-over";
+    ctx.globalCompositeOperation = gold && !sea ? "lighter" : "source-over";   // deep sea blue is painted, so it stays deep
     for (let i = 4; i >= 0; i--) {
       const g = 4 + i * 6 + pulse * 4;
       rrect(-hw - g, -hh - g, CARD_W + g * 2, CARD_H + g * 2, 12 + g);
-      ctx.fillStyle = hexA(gold ? (i > 2 ? "#ffb21f" : "#ffe27a") : (i > 2 ? "#7a0010" : "#b0101c"), 0.09 + (4 - i) * 0.03); ctx.fill();
+      ctx.fillStyle = hexA(sea ? (i > 2 ? "#0a3a9a" : "#1e78d8") : gold ? (i > 2 ? "#ffb21f" : "#ffe27a") : (i > 2 ? "#7a0010" : "#b0101c"), 0.09 + (4 - i) * 0.03); ctx.fill();
     }
     // Flame tongues all around the edge, leaning upward like real fire.
     const per = 2 * (CARD_W + CARD_H), N = 40;
@@ -931,7 +975,7 @@ class Card {
       d -= CARD_W; return [-hw, hh - d, -1, 0];
     };
     for (let layer = 0; layer < 3; layer++) {
-      const col = (gold ? ["#ff9a1f", "#ffd84a", "#fff6c8"] : ["#7d0012", "#c4111f", "#ff4a3a"])[layer], k = [1, 0.66, 0.38][layer], a = [0.55, 0.6, 0.7][layer];
+      const col = (sea ? ["#0a3a9a", "#1e78d8", "#8fe0ff"] : gold ? ["#ff9a1f", "#ffd84a", "#fff6c8"] : ["#7d0012", "#c4111f", "#ff4a3a"])[layer], k = [1, 0.66, 0.38][layer], a = [0.55, 0.6, 0.7][layer];
       ctx.fillStyle = hexA(col, a);
       for (let i = 0; i < N; i++) {
         const [x, y, nx, ny] = edge((i + 0.5) * per / N);
