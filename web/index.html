@@ -6155,7 +6155,7 @@ function drawPlaySlider() {
   rrect(W / 2 - 112, dy - 15, 224, 30, 15); ctx.fillStyle = "rgba(20,10,30,0.72)"; ctx.fill();
   for (let i = 0; i < 2; i++) { const on = Math.abs(pos - i) < 0.5; circle(W / 2 + (i - 0.5) * 22, dy, 7, INK); circle(W / 2 + (i - 0.5) * 22, dy, 4.5, on ? (i ? "#ff6a4a" : GOLD) : hexA(PARCH, 0.5)); }
   const ha = 0.55 + 0.35 * Math.sin(lobbyT * 3);
-  text(pos < 0.5 ? "‹ Boss" : "Play ›", W / 2 + (pos < 0.5 ? -66 : 66), dy + 6, 17, pos < 0.5 ? `rgba(255,150,120,${ha})` : `rgba(255,224,140,${ha})`, { weight: 800 });
+  text(pos < 0.5 ? "Boss ›" : "‹ Play", W / 2 + (pos < 0.5 ? 66 : -66), dy + 6, 17, pos < 0.5 ? `rgba(255,150,120,${ha})` : `rgba(255,224,140,${ha})`, { weight: 800 });
   if (pos > 0.5) {
     if (!wait && save.bossBest) text(`Best: ${save.bossBest} bosses`, W / 2, dy - 26, 18, "#ffb08a", { weight: 800, outline: 5 });
     if (wait && bossAdAvailable()) { const a = btn.bossAd; a.w = 240; a.h = 56; a.x = W / 2 - 120; a.y = dy - 82; a.label = "▶ Watch ad: play now"; a.size = 20; drawBtn(a); }
