@@ -100,7 +100,8 @@ const EL = {
   // Myth cards. These are not made from recipes: the Fusion Chamber creates them from Epic cards.
   // Special cards (tier 4). Never made by merging or fusing: they come from Summon (gacha) or purchases.
   // Once owned, they can show up (rarely) in the shop during runs. base = the element sprite they use.
-  totem:      { name: "Totem", tier: 4, special: true, totem: true, base: "earth", color: "#3fe0b0", shape: "rock", parts: ["earth"], desc: "Never attacks. Gives the cards right next to it (left and right) x2 damage. Drop another Totem on it for +1x more, with no limit.", dmg: 0, rate: 1 },
+  totem:      { name: "Fight", tier: 4, special: true, totem: "dmg", base: "fire", color: "#ff4a2a", shape: "flame", parts: ["fire"], desc: "War totem. Never attacks. The cards right next to it (left and right) deal x2 damage. Drop another Fight on it for +1x more, with no limit.", dmg: 0, rate: 1 },
+  flight:     { name: "Flight", tier: 4, special: true, totem: "spd", base: "wind", color: "#5fd8ff", shape: "swirl", parts: ["wind"], desc: "Sky totem. Never attacks. The cards right next to it (left and right) attack x2 faster. Drop another Flight on it for +1x more, with no limit.", dmg: 0, rate: 1 },
   // Legend cards: separate cards (not a Legend version of another card), created in the Legend Chamber or from Summon.
   // art = a full-card illustration instead of a frame + spirit.
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
@@ -135,14 +136,15 @@ const maxRarity = el => EL[el].special ? SPECIAL : EL[el].tier === 3 ? EPIC : V3
 // Each star doubles the card's damage. Stars add up (a 1-star + a plain card = 2 stars), up to 5 stars.
 const MAX_STARS = 5;
 const starMult = c => (c && c.stars ? 2 ** c.stars : 1);
-// Totem: a battle-row card directly left or right of the Totem gets +boost x (x2 for a fresh Totem).
-function totemMult(c) {
+// Totems: a battle-row card directly left or right of a totem gets +boost x (x2 for a fresh one).
+// kind "dmg" = Fight (damage), "spd" = Flight (attack speed).
+function totemMult(c, kind = "dmg") {
   const i = rows.active.indexOf(c); if (i < 0) return 1;
   let m = 1;
-  for (const j of [i - 1, i + 1]) { const o = rows.active[j]; if (o && o !== c && EL[o.element].totem && !(drag && drag.card === o)) m += o.boost || 1; }
+  for (const j of [i - 1, i + 1]) { const o = rows.active[j]; if (o && o !== c && EL[o.element].totem === kind && !(drag && drag.card === o)) m += o.boost || 1; }
   return m;
 }
-const powerMult = c => starMult(c) * totemMult(c);
+const powerMult = c => starMult(c) * totemMult(c, "dmg");
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };   // Totem + Totem: +1x
@@ -156,7 +158,7 @@ function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
 }
 // Explains why two cards did not fuse (or returns "" when there is nothing useful to say).
 function mergeHint(a, b) {
-  if (EL[a.element].totem || EL[b.element].totem) return "A Totem never merges with other cards. Put it right next to your strongest cards!";
+  if (EL[a.element].totem || EL[b.element].totem) return "Totems never merge with other cards. Put them right next to your strongest cards!";
   if (EL[a.element].special || EL[b.element].special) return "Special cards can't merge or fuse.";
   if (a.element === b.element) {
     if (a.rarity === b.rarity && canStar(a.element, a.rarity)) return `Too many stars: together they would pass ${MAX_STARS} stars.`;
@@ -197,7 +199,7 @@ function rollRarity(wave) {
   return 0;
 }
 const randomBase = () => BASE[Math.floor(Math.random() * 4)];
-const describe = (el, r, st = 0, boost = 1) => EL[el].totem ? `Totem x${1 + boost}: never attacks. The cards right next to it (left and right) deal x${1 + boost} damage. Drop another Totem on it for +1x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * 2 ** st)} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
+const describe = (el, r, st = 0, boost = 1) => EL[el].totem ? `${EL[el].name} x${1 + boost}: never attacks. The cards right next to it (left and right) ${EL[el].totem === "spd" ? `attack x${1 + boost} faster` : `deal x${1 + boost} damage`}. Drop another ${EL[el].name} on it for +1x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * 2 ** st)} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
 
 // ------------------------------------------------------------ Save (per-browser)
 const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {}, tut: {} };
@@ -222,10 +224,10 @@ const LEVEL_NEED = [5, 10, 20, 40], LEVEL_BONUS = 0.2, MAX_LEVEL = 5;   // copie
 // Chance that a shop refresh (new wave or reroll) offers the Totem, once you own it. It drops every time you buy one
 // this run (combining doesn't matter, skipping it doesn't matter): 10% > 8% > 6% > 4% > 2.5%. Resets each run.
 const TOTEM_SHOP_CHANCES = [0.10, 0.08, 0.06, 0.04, 0.025];
-let totemBuys = 0;
-const totemShopChance = () => TOTEM_SHOP_CHANCES[Math.min(totemBuys, TOTEM_SHOP_CHANCES.length - 1)];
+let totemBuys = {};   // per totem: how many were bought this run
+const totemShopChance = el => TOTEM_SHOP_CHANCES[Math.min(totemBuys[el] || 0, TOTEM_SHOP_CHANCES.length - 1)];
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice"];
-const SPECIALS = ["totem"];
+const SPECIALS = ["totem", "flight"];
 const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth && !EL[k].legendCard);   // the 11 Epic elements
 const MYTH_ELS = Object.keys(EL).filter(k => EL[k].myth);                       // Phoenix
 // Legend cards are separate cards (not a Legend version of a Myth card). None exist yet:
@@ -662,6 +664,7 @@ class Card {
     ctx.scale(this.scale, this.scale);
     const hw = CARD_W / 2, hh = CARD_H / 2;
     if (maxed) this.drawPowerAura(hw, hh, t, false);
+    if (d.totem) { this.drawTotemCard(hw, hh, t, d); ctx.restore(); return; }
     if (d.special) { this.drawSpecial(hw, hh, t, d); ctx.restore(); return; }
     if (d.art) { this.drawIllustrated(hw, hh, t, d); this.drawStars(hh, t); if (maxed) this.drawPowerAura(hw, hh, t, true); ctx.restore(); return; }
     if (this.rarity === LEGEND) { this.drawLegendRays(hw, hh, t); this.drawLegendOrbit(hw, hh, t, true); }
@@ -967,12 +970,9 @@ class Card {
       circle(sx, sy, 1 + 1.2 * (0.5 + 0.5 * Math.sin(t * 3 + i * 2)), "rgba(255,255,255,0.8)");
     }
     const cy = -10 + Math.sin(t * 2.2 + this.seed) * 3;
-    if (d.totem) this.drawTotemArt(t);
-    else {
     circle(0, cy, 40, hexA(d.color, 0.35)); circle(0, cy, 28, "rgba(255,255,255,0.12)");
     if (!drawSprite(d.base, 0, cy, 72, t + this.seed, V3)) poly(radialPoly(0, cy, 26, d.shape, t, this.seed), d.color, INK, 3);
-    }
-    if (!d.totem) for (let i = 0; i < 4; i++) {   // orbiting sparkles
+    for (let i = 0; i < 4; i++) {   // orbiting sparkles
       const a = t * 1.6 + i * Math.PI / 2, sx = Math.cos(a) * 42, sy = cy + Math.sin(a) * 28, k = 3 + Math.sin(t * 5 + i) * 1.2;
       ctx.strokeStyle = `hsl(${(t * 120 + i * 90) % 360},100%,80%)`; ctx.lineWidth = 1.8; ctx.beginPath();
       ctx.moveTo(sx - k, sy); ctx.lineTo(sx + k, sy); ctx.moveTo(sx, sy - k); ctx.lineTo(sx, sy + k); ctx.stroke();
@@ -980,12 +980,6 @@ class Card {
     if (!this.noLabel) text("SPECIAL", 0, -hh + 21, 10, "#ffffff", { weight: 700, outline: 4, outlineColor: CI });
     rrect(-hw + 10, hh - 36, CARD_W - 20, 25, 12); ctx.fillStyle = "rgba(255,255,255,0.92)"; ctx.fill(); ctx.strokeStyle = CI; ctx.lineWidth = 2; ctx.stroke();
     text(d.name, 0, hh - 23, d.name.length > 10 ? 13 : 15, CI, { weight: 700, baseline: "middle" });
-    if (d.totem) {   // its power: x2, x3, ...
-      const bx = hw - 12, by = -hh + 14, pul = 0.5 + 0.5 * Math.sin(t * 4);
-      circle(bx, by, 17 + pul, "rgba(63,224,176,0.35)"); circle(bx, by, 14, GOLD); ring(bx, by, 14, INK, 2.5);
-      const lab = `x${1 + (this.boost || 1)}`;
-      text(lab, bx, by + 1, lab.length > 3 ? 11 : 14, INK, { weight: 900, baseline: "middle" });
-    }
     if (this.inShop) {
       const ty = hh + 4;
       rrect(-34, ty - 13, 68, 26, 13); ctx.fillStyle = this.isFree ? "#6cc56a" : (this.affordable ? GOLD : "#c46a5a"); ctx.fill();
@@ -993,27 +987,121 @@ class Card {
       text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
     }
   }
-  // ---- The Totem: a carved totem pole (thunderbird with spread wings, owl, bear) glowing with spirit light.
-  drawTotemArt(t) {
-    const cy = -3 + Math.sin(t * 1.6) * 1.5, K = 0.78;   // pole fits between the SPECIAL label and the name plate
-    // Spirit glow behind the pole.
-    const g = ctx.createRadialGradient(0, cy, 6, 0, cy, 60);
-    g.addColorStop(0, `rgba(80,240,190,${0.45 + 0.15 * Math.sin(t * 3)})`); g.addColorStop(1, "rgba(80,240,190,0)");
-    ctx.fillStyle = g; ctx.fillRect(-56, cy - 62, 112, 124);
-    // Rising spirit wisps.
-    for (let i = 0; i < 6; i++) {
-      const k = (t * 0.7 + i / 6) % 1, x = Math.sin(i * 2.3 + t * 2) * 22, y = cy + 40 - k * 100;
-      circle(x, y, 2.6 * (1 - k) + 0.6, `rgba(150,255,220,${0.8 * (1 - k)})`);
+  // ---- Totem cards (Fight / Flight): a carved totem frame with a crest and a name plaque, a living backdrop,
+  // the totem pole itself and an aura (war flames for Fight, swirling wind and feathers for Flight).
+  drawTotemCard(hw, hh, t, d) {
+    const kind = d.totem, th = TOTEM_THEME[kind], fight = kind === "dmg", pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    // ---- Aura behind the card.
+    if (fight) {
+      for (let layer = 0; layer < 2; layer++) {
+        ctx.beginPath();
+        const N = 26, k = layer ? 0.8 : 1;
+        for (let i = 0; i < N; i++) {
+          const a = -Math.PI / 2 + i / N * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), upw = Math.max(0, -sa);
+          const f = 0.5 * Math.sin(t * 13 + i * 2.1 + layer) + 0.5 * Math.sin(t * 21 + i * 1.3);
+          const tip = i % 2 === 0, r = tip ? 1.12 + 0.06 * f + 0.22 * upw * upw : 1.0;
+          ctx.lineTo(ca * (hw + 8) * r * k + (tip ? 0 : 0), sa * (hh + 8) * r * k - (tip ? (6 + 5 * f) * (0.4 + upw) : 0));
+        }
+        ctx.closePath(); ctx.fillStyle = layer ? `rgba(255,170,60,${0.55 + 0.2 * pulse})` : `rgba(220,40,20,${0.45 + 0.2 * pulse})`; ctx.fill();
+      }
+    } else {
+      ctx.save(); ctx.lineCap = "round";
+      for (let i = 0; i < 3; i++) {   // wind rings swirling around the card
+        const a0 = t * (1.6 + i * 0.4) + i * 2.1;
+        ctx.save(); ctx.rotate(-0.25 + i * 0.25); ctx.scale(1, 0.42);
+        ctx.strokeStyle = `rgba(200,245,255,${0.55 - i * 0.12})`; ctx.lineWidth = 4 - i;
+        ctx.beginPath(); ctx.arc(0, 0, hw + 22 + i * 6, a0, a0 + 2.2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, hw + 22 + i * 6, a0 + Math.PI, a0 + Math.PI + 1.6); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
+      const g = ctx.createRadialGradient(0, 0, hw * 0.6, 0, 0, hh * 1.5);
+      g.addColorStop(0, `rgba(140,225,255,${0.35 + 0.15 * pulse})`); g.addColorStop(1, "rgba(140,225,255,0)");
+      ctx.fillStyle = g; ctx.fillRect(-hw * 2, -hh * 1.8, hw * 4, hh * 3.6);
     }
-    drawCached("totem_pole", 110, 110, drawTotemPole, 0, cy, K);
-    // Glowing eyes (they blink in turn).
-    ctx.save(); ctx.globalCompositeOperation = "lighter";
-    const eyes = [[-6, -33, 2.4], [6, -33, 2.4], [-9, -9, 3.6], [9, -9, 3.6], [-9, 17, 2.6], [9, 17, 2.6]];
-    eyes.forEach(([ex, ey, r], i) => {
-      const on = 0.55 + 0.45 * Math.sin(t * 3 - Math.floor(i / 2) * 1.4);
-      circle(ex * K, cy + ey * K, r * K * 2.4, `rgba(90,255,200,${0.35 * on})`); circle(ex * K, cy + ey * K, r * K, `rgba(220,255,240,${0.9 * on})`);
-    });
+    // Outer glow (pre-drawn in 10 pulse steps) and drop shadow.
+    const gp = Math.round(pulse * 9) / 9;
+    drawCached("tglow_" + kind + gp, CARD_W + 70, CARD_H + 70, () => {
+      ctx.shadowColor = `rgba(${th.rgb},${0.6 + 0.35 * gp})`; ctx.shadowBlur = 14 + 8 * gp;
+      rrect(-hw, -hh, CARD_W, CARD_H, 12); ctx.strokeStyle = INK; ctx.lineWidth = 9; ctx.stroke();
+    }, 0, 0, 1, 1);
+    rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 12); ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fill();
+    // ---- Backdrop inside the card.
+    ctx.save(); rrect(-hw, -hh, CARD_W, CARD_H, 12); ctx.clip();
+    drawCached("tbg_" + kind, CARD_W + 4, CARD_H + 4, () => totemBackdrop(kind, hw, hh));
+    if (fight) {
+      const g = ctx.createRadialGradient(0, 4, 4, 0, 4, 70); g.addColorStop(0, `rgba(255,120,40,${0.35 + 0.2 * Math.sin(t * 5)})`); g.addColorStop(1, "rgba(255,80,20,0)");
+      ctx.fillStyle = g; ctx.fillRect(-hw, -hh, CARD_W, CARD_H);
+      for (let i = 0; i < 8; i++) { const k = (t * 0.55 + i / 8) % 1; circle(-hw + 10 + ((i * 41) % 92) + Math.sin(t * 3 + i) * 4, hh - 30 - k * 110, 2.2 * (1 - k) + 0.6, `rgba(255,${150 + 80 * (1 - k) | 0},60,${0.9 * (1 - k)})`); }
+    } else {
+      for (let i = 0; i < 3; i++) {   // clouds drifting by
+        const x = ((t * (9 + i * 4) + i * 50) % (CARD_W + 60)) - hw - 30, y = -hh + 22 + i * 30;
+        ctx.globalAlpha = 0.55 - i * 0.1; for (const [dx, dy, r] of [[0, 0, 9], [9, -3, 11], [19, 0, 8], [9, 4, 9]]) circle(x + dx, y + dy, r, "#ffffff"); ctx.globalAlpha = 1;
+      }
+    }
+    // ---- The totem pole (wings / axes animate).
+    const cy = -6 + Math.sin(t * 1.7) * 1.5, K = 0.86;
+    ctx.save(); ctx.translate(0, cy); ctx.scale(K, K);
+    if (fight) {
+      const sw = Math.sin(t * 2.2) * 0.06;
+      for (const sx of [-1, 1]) { ctx.save(); ctx.translate(0, 6); ctx.rotate(sx * (0.58 + sw)); drawCached("taxe", 40, 84, drawTotemAxe, 0, -22); ctx.restore(); }
+    } else {
+      const flap = Math.sin(t * 3.2) * 0.22;
+      for (const sx of [-1, 1]) { ctx.save(); ctx.translate(sx * 10, -30); ctx.scale(sx * 0.82, 0.82); ctx.rotate(-0.15 - flap); drawCached("twing2", 64, 56, () => { ctx.translate(-26, 4); drawTotemWing(); }, 26, -4); ctx.restore(); }
+    }
+    drawCached("tpole_" + kind, 100, 110, () => drawTotemPole2(kind));
+    // Glowing eyes.
+    ctx.globalCompositeOperation = "lighter";
+    for (const [ex, ey, r] of th.eyes) {
+      const on = 0.6 + 0.4 * Math.sin(t * 4 + ey * 0.1);
+      circle(ex, ey, r * 2.6, `rgba(${th.rgb},${0.45 * on})`); circle(ex, ey, r, `rgba(255,255,240,${0.95 * on})`);
+    }
     ctx.restore();
+    ctx.restore();   // end of the backdrop clip
+    // ---- Frame: animated gold / silver band, runes and sparks; the carved parts are pre-drawn.
+    const sh = (t * 0.6) % 2 - 0.5, fg = ctx.createLinearGradient(-hw + sh * CARD_W * 2, -hh, hw + sh * CARD_W * 2, hh);
+    th.trim.forEach((c, i) => fg.addColorStop(i / (th.trim.length - 1), c));
+    rrect(-hw, -hh, CARD_W, CARD_H, 12); ctx.strokeStyle = fg; ctx.lineWidth = 6; ctx.stroke();
+    ctx.save(); ctx.setLineDash([3, 6]); ctx.lineDashOffset = -t * 14; rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, 8);
+    ctx.strokeStyle = `rgba(${th.rgb},${0.6 + 0.35 * pulse})`; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+    drawCached("tframe_" + kind, CARD_W + 70, CARD_H + 80, () => totemFrameStatic(kind, hw, hh));
+    // Two sparks racing around the border.
+    const per = 2 * (CARD_W + CARD_H), pt = u => {
+      let q = ((u % 1) + 1) % 1 * per;
+      if (q < CARD_W) return [-hw + q, -hh]; q -= CARD_W;
+      if (q < CARD_H) return [hw, -hh + q]; q -= CARD_H;
+      if (q < CARD_W) return [hw - q, hh]; q -= CARD_W;
+      return [-hw, hh - q];
+    };
+    for (const off of [0, 0.5]) {
+      const u = t * 0.25 + off;
+      for (let k = 8; k >= 0; k -= 2) { const [px, py] = pt(u - k * 0.009); circle(px, py, 3.2 - k * 0.25, `rgba(${th.sparkRgb},${0.9 * (1 - k / 9)})`); }
+    }
+    // Crest emblem glow pulse.
+    const cyc = -hh - 6;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const eg = ctx.createRadialGradient(0, cyc, 2, 0, cyc, 24 + 6 * pulse); eg.addColorStop(0, `rgba(${th.rgb},${0.55 + 0.3 * pulse})`); eg.addColorStop(1, `rgba(${th.rgb},0)`);
+    ctx.fillStyle = eg; ctx.fillRect(-32, cyc - 32, 64, 64); ctx.restore();
+    drawCached("tcrest_" + kind, 90, 60, () => totemCrest(kind), 0, cyc);
+    // ---- Front particles: embers / feathers.
+    if (fight) {
+      for (let i = 0; i < 5; i++) { const k = (t * 0.8 + i / 5) % 1, x = (i - 2) * 22 + Math.sin(t * 4 + i) * 5, y = -hh - 4 - k * 50; circle(x, y, 2.4 * (1 - k) + 0.6, `rgba(255,${190 * (1 - k) + 60 | 0},60,${0.95 * (1 - k)})`); }
+    } else {
+      for (let i = 0; i < 4; i++) {
+        const k = (t * 0.22 + i / 4) % 1, x = -hw + 8 + ((i * 37) % 96) + Math.sin(t * 2 + i * 2) * 10, y = -hh - 10 + k * (CARD_H + 30);
+        ctx.save(); ctx.globalAlpha = Math.min(1, Math.sin(Math.PI * k) * 1.6); drawFeather(x, y, 11, Math.sin(t * 2.5 + i) * 0.8 + 0.4, "#ffffff", th.main); ctx.restore();
+      }
+    }
+    // ---- Power badge (x2, x3 ...).
+    const bx = hw - 10, by = -hh + 16, lab = `x${1 + (this.boost || 1)}`;
+    drawCached("tbadge_" + kind, 40, 40, () => totemBadgeShape(kind), bx, by);
+    text(lab, bx, by + 1, lab.length > 3 ? 11 : 14, fight ? "#fff6e0" : "#06324a", { weight: 900, baseline: "middle", outline: fight ? 3 : 0, outlineColor: "#3a0a0a" });
+    if (this.inShop) {
+      const ty = hh + 4;
+      rrect(-34, ty - 13, 68, 26, 13); ctx.fillStyle = this.isFree ? "#6cc56a" : (this.affordable ? GOLD : "#c46a5a"); ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+      text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
+    }
   }
   // ---- Legend card extras: golden god-rays, orbiting orbs of light, and a shine sweeping across the card.
   drawLegendRays(hw, hh, t, theme) {
@@ -2254,7 +2342,7 @@ function clearBoard() {
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 function startRun() {
-  clearBoard(); totemBuys = 0;
+  clearBoard(); totemBuys = {};
   gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
@@ -2462,41 +2550,190 @@ function soulReleaseFx(x, y) {
   const now = performance.now();
   if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running" && now - lastWail > 180) { lastWail = now; try { sTone("sine", 280, 1050, 0.6, 0.11); sTone("triangle", 420, 1250, 0.6, 0.05, 0.05); } catch (e) {} }
 }
-// The Totem pole picture, centred on the origin (about 96 x 92). Drawn once into a cached sprite.
-function drawTotemPole() {
-  const WOOD = "#a8703f", DARK = "#6b4226", TEAL = "#2fc7a0", RED = "#d8443a", lw = 2.2;
-  const shape = (pts, fill) => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = lw; ctx.lineJoin = "round"; ctx.stroke(); };
-  // Thunderbird wings (behind the head).
-  for (const sx of [-1, 1]) {
-    shape([[sx * 8, -36], [sx * 46, -46], [sx * 44, -38], [sx * 38, -36], [sx * 42, -30], [sx * 34, -28], [sx * 36, -22], [sx * 8, -24]], TEAL);
-    ctx.strokeStyle = "rgba(20,60,50,0.6)"; ctx.lineWidth = 1.4; ctx.beginPath();
-    ctx.moveTo(sx * 14, -33); ctx.lineTo(sx * 40, -42); ctx.moveTo(sx * 14, -29); ctx.lineTo(sx * 36, -33); ctx.stroke();
-    shape([[sx * 8, -34], [sx * 22, -38], [sx * 22, -30], [sx * 8, -27]], RED);
+// ---- Totem looks. Fight: blood-red war totem with gold, horns and crossed axes. Flight: sky totem with silver,
+// a white eagle with flapping wings and drifting feathers.
+const TOTEM_THEME = {
+  dmg: { main: "#ff4a2a", light: "#ffc27a", rgb: "255,90,40", sparkRgb: "255,230,170", trim: ["#7a4a10", "#f2b632", "#fff2b0", "#f2b632", "#7a4a10"],
+    eyes: [[-6, -33, 2.4], [6, -33, 2.4], [-8, -6, 2.6], [8, -6, 2.6]] },
+  spd: { main: "#4fc8ff", light: "#bff0ff", rgb: "120,220,255", sparkRgb: "235,250,255", trim: ["#4a7aa8", "#cfeaff", "#ffffff", "#cfeaff", "#4a7aa8"],
+    eyes: [[-5, -36, 2.2], [5, -36, 2.2], [-8, -4, 3.2], [8, -4, 3.2]] },
+};
+function totemBackdrop(kind, hw, hh) {
+  if (kind === "dmg") {
+    const g = ctx.createRadialGradient(0, 0, 6, 0, 0, 90); g.addColorStop(0, "#8a1c0c"); g.addColorStop(0.6, "#3e0a08"); g.addColorStop(1, "#160404");
+    ctx.fillStyle = g; ctx.fillRect(-hw - 2, -hh - 2, CARD_W + 4, CARD_H + 4);
+    ctx.strokeStyle = "rgba(255,90,40,0.18)"; ctx.lineWidth = 5; ctx.lineCap = "round";   // claw marks
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(-hw + 6 + i * 9, -hh + 18 + i * 4); ctx.lineTo(-hw + 30 + i * 9, -hh + 60 + i * 4); ctx.stroke(); }
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(hw - 6 - i * 9, hh - 70 + i * 4); ctx.lineTo(hw - 26 - i * 9, hh - 36 + i * 4); ctx.stroke(); }
+  } else {
+    const g = ctx.createLinearGradient(0, -hh, 0, hh); g.addColorStop(0, "#d8f4ff"); g.addColorStop(0.45, "#5fb8ef"); g.addColorStop(1, "#1a4f94");
+    ctx.fillStyle = g; ctx.fillRect(-hw - 2, -hh - 2, CARD_W + 4, CARD_H + 4);
+    ctx.fillStyle = "rgba(255,255,255,0.16)";   // sun rays
+    for (let i = 0; i < 5; i++) { const a = -0.9 + i * 0.32; ctx.beginPath(); ctx.moveTo(-hw, -hh); ctx.lineTo(-hw + Math.cos(a - 0.06) * 220, -hh + Math.sin(a - 0.06) * 220 + 120); ctx.lineTo(-hw + Math.cos(a + 0.06) * 220, -hh + Math.sin(a + 0.06) * 220 + 120); ctx.closePath(); ctx.fill(); }
   }
-  // Pole body (three stacked blocks).
-  const block = (y0, y1, wTop, wBot) => {
-    shape([[-wTop, y0], [wTop, y0], [wBot, y1], [-wBot, y1]], WOOD);
-    ctx.fillStyle = "rgba(60,30,10,0.25)"; ctx.fillRect(wBot - 6, y0 + 2, 5, y1 - y0 - 4);   // shaded side
-  };
-  block(-24, 4, 16, 17); block(4, 44, 19, 20);
-  // Top: thunderbird head with a hooked beak and a crest.
-  shape([[-12, -24], [-14, -38], [-8, -46], [8, -46], [14, -38], [12, -24]], WOOD);
-  shape([[-6, -46], [-2, -54], [2, -48], [6, -55], [8, -46]], RED);
-  shape([[-5, -28], [5, -28], [0, -16]], "#f2b632");
-  for (const sx of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sx * 6, -33, 4.2, 3.4, 0, 0, Math.PI * 2); ctx.fillStyle = "#1a1030"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.stroke(); }
-  // Middle: owl with big ringed eyes.
-  for (const sx of [-1, 1]) { circle(sx * 9, -9, 7, TEAL); ring(sx * 9, -9, 7, INK, 2); circle(sx * 9, -9, 4.6, "#1a1030"); }
-  shape([[-3, -4], [3, -4], [0, 3]], "#f2b632");
-  ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-14, -19); ctx.lineTo(-4, -16); ctx.moveTo(14, -19); ctx.lineTo(4, -16); ctx.stroke();
-  // Bottom: grumpy bear with teeth.
-  for (const sx of [-1, 1]) { shape([[sx * 15, 6], [sx * 21, 2], [sx * 21, 12]], DARK); }
-  ctx.strokeStyle = INK; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(-15, 11); ctx.lineTo(-4, 15); ctx.moveTo(15, 11); ctx.lineTo(4, 15); ctx.stroke();
-  for (const sx of [-1, 1]) { circle(sx * 9, 17, 4, "#1a1030"); }
-  shape([[-12, 26], [12, 26], [10, 37], [-10, 37]], "#3a1a12");
-  ctx.fillStyle = "#f4ecd8"; for (let i = 0; i < 4; i++) { ctx.fillRect(-10 + i * 5.5, 26, 3.6, 4); ctx.fillRect(-9 + i * 5.2, 33, 3.4, 4); }
-  // Painted bands.
-  ctx.fillStyle = RED; ctx.fillRect(-17, 2, 34, 4); ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.strokeRect(-17, 2, 34, 4);
-  ctx.fillStyle = TEAL; ctx.fillRect(-20, 40, 40, 4); ctx.strokeRect(-20, 40, 40, 4);
+  ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(-hw - 2, hh - 40, CARD_W + 4, 42);   // darker bottom for the plaque
+}
+function drawTotemAxe() {   // a battle axe, handle along -y, head at the top (origin = middle of the handle)
+  ctx.lineCap = "round";
+  ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(0, 34); ctx.lineTo(0, -30); ctx.stroke();
+  ctx.strokeStyle = "#7a4a22"; ctx.lineWidth = 3.6; ctx.beginPath(); ctx.moveTo(0, 34); ctx.lineTo(0, -30); ctx.stroke();
+  for (const y of [10, 20]) { ctx.strokeStyle = "#c0392b"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-2, y); ctx.lineTo(2, y + 2); ctx.stroke(); }
+  const g = ctx.createLinearGradient(-14, -36, 14, -16); g.addColorStop(0, "#f4f4f8"); g.addColorStop(0.5, "#a8b0bc"); g.addColorStop(1, "#5a6270");
+  ctx.beginPath(); ctx.moveTo(0, -34); ctx.quadraticCurveTo(16, -40, 15, -24); ctx.quadraticCurveTo(12, -18, 0, -20); ctx.quadraticCurveTo(-12, -18, -15, -24); ctx.quadraticCurveTo(-16, -40, 0, -34); ctx.closePath();
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(13, -33); ctx.quadraticCurveTo(14, -27, 12, -23); ctx.stroke();
+}
+function drawTotemWing() {   // a big feathered wing pointing to +x (origin = shoulder)
+  const feathers = 7;
+  for (let i = feathers - 1; i >= 0; i--) {
+    const a = -0.55 + i * 0.16, L = 30 + (feathers - i) * 2.4;
+    ctx.save(); ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(0, -3); ctx.quadraticCurveTo(L * 0.6, -7, L, 0); ctx.quadraticCurveTo(L * 0.6, 5, 0, 3); ctx.closePath();
+    ctx.fillStyle = i % 2 ? "#eaf6ff" : "#ffffff"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(L * 0.7, -3); ctx.quadraticCurveTo(L * 0.85, -3, L, 0); ctx.quadraticCurveTo(L * 0.85, 3, L * 0.7, 3); ctx.closePath(); ctx.fillStyle = "#4fb8ff"; ctx.fill();
+    ctx.restore();
+  }
+  ctx.beginPath(); ctx.ellipse(8, 0, 12, 7, -0.2, 0, Math.PI * 2); ctx.fillStyle = "#cfe6f5"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.stroke();
+}
+function drawTotemPole2(kind) {
+  const P = (pts, fill, lw = 2.2) => poly(pts, fill, INK, lw);
+  const block = (y0, y1, wT, wB, fill) => { P([[-wT, y0], [wT, y0], [wB, y1], [-wB, y1]], fill); ctx.fillStyle = "rgba(0,0,0,0.22)"; ctx.fillRect(wB - 6, y0 + 2, 5, y1 - y0 - 4); };
+  if (kind === "dmg") {
+    const WOOD = "#a85a2c", RED = "#e8382a", GOLDC = "#f2b632", IVORY = "#f2e6c8";
+    // Horns.
+    for (const sx of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(sx * 10, -45); ctx.quadraticCurveTo(sx * 36, -44, sx * 42, -62); ctx.quadraticCurveTo(sx * 34, -36, sx * 12, -31); ctx.closePath();
+      ctx.fillStyle = IVORY; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = "rgba(120,90,60,0.5)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(sx * 20, -44); ctx.lineTo(sx * 22, -40); ctx.moveTo(sx * 25, -50); ctx.lineTo(sx * 28, -47); ctx.stroke();
+    }
+    block(-20, 10, 18, 19, WOOD); block(10, 46, 20, 22, "#8a4424");
+    // War mask head.
+    P([[-15, -20], [-17, -40], [-8, -48], [8, -48], [17, -40], [15, -20]], WOOD);
+    P([[-15, -36], [15, -36], [13, -30], [-13, -30]], RED, 1.6);   // war paint band over the eyes
+    for (const sx of [-1, 1]) { P([[sx * 3, -35], [sx * 11, -36], [sx * 9, -30], [sx * 3, -31]], "#1a0606", 1.4); }
+    P([[-9, -26], [9, -26], [7, -21], [-7, -21]], "#2a0a06", 1.6);
+    ctx.fillStyle = "#f4ecd8"; for (let i = 0; i < 4; i++) ctx.fillRect(-7 + i * 4, -26, 2.6, 3);
+    for (const sx of [-1, 1]) P([[sx * 6, -26], [sx * 4, -18], [sx * 3, -26]], "#f4ecd8", 1);   // fangs
+    // Middle: snarling wolf.
+    for (const sx of [-1, 1]) P([[sx * 10, -20], [sx * 19, -30], [sx * 18, -16]], WOOD);
+    for (const sx of [-1, 1]) { P([[sx * 3, -9], [sx * 13, -11], [sx * 12, -3], [sx * 4, -3]], "#1a0606", 1.4); }
+    P([[-4, -1], [4, -1], [0, 4]], "#1a0606", 1.4);
+    P([[-10, 4], [10, 4], [7, 9], [-7, 9]], RED, 1.6);
+    ctx.strokeStyle = GOLDC; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-17, -15); ctx.lineTo(-12, -13); ctx.moveTo(17, -15); ctx.lineTo(12, -13); ctx.stroke();
+    // Bands and base carvings.
+    P([[-19, 8], [19, 8], [19, 13], [-19, 13]], GOLDC, 1.6);
+    for (const sx of [-1, 1]) { ring(sx * 9, 28, 6, "#f2b632", 2.4); ring(sx * 9, 28, 2.6, "#f2b632", 2); }
+    P([[-5, 20], [5, 20], [0, 38]], RED, 1.6);
+    P([[-23, 42], [23, 42], [23, 47], [-23, 47]], GOLDC, 1.6);
+  } else {
+    const WOOD = "#e8e0cc", SHADE = "#c9bea4", BLUE = "#3fa8ef", CYAN = "#9ff0ff";
+    block(-24, 8, 16, 18, WOOD); block(8, 46, 19, 22, SHADE);
+    // Eagle head with a white crest and a hooked beak.
+    P([[-12, -24], [-14, -40], [-6, -50], [6, -50], [14, -40], [12, -24]], "#ffffff");
+    for (const sx of [-1, 1]) P([[sx * 6, -50], [sx * 12, -58], [sx * 13, -47]], "#ffffff", 1.6);
+    P([[0, -51], [3, -60], [-3, -60]], "#ffffff", 1.6);
+    P([[-5, -32], [5, -32], [3, -24], [0, -18], [-2, -25]], "#f2b632");
+    for (const sx of [-1, 1]) P([[sx * 2, -38], [sx * 9, -39], [sx * 8, -34], [sx * 2, -34]], "#0a2a4a", 1.4);
+    // Middle: owl of the winds, big ringed eyes.
+    for (const sx of [-1, 1]) { circle(sx * 8, -4, 7, BLUE); ring(sx * 8, -4, 7, INK, 2); circle(sx * 8, -4, 4.4, "#0a2a4a"); }
+    P([[-3, 1], [3, 1], [0, 7]], "#f2b632", 1.4);
+    ctx.strokeStyle = BLUE; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-15, -17); ctx.quadraticCurveTo(0, -12, 15, -17); ctx.stroke();
+    // Wind swirls carved on the base.
+    for (const sx of [-1, 1]) { ctx.strokeStyle = BLUE; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(sx * 9, 26, 6, 0, Math.PI * 1.5); ctx.stroke(); ctx.beginPath(); ctx.arc(sx * 9, 26, 2.5, 0, Math.PI * 1.5); ctx.stroke(); }
+    P([[-18, 6], [18, 6], [18, 11], [-18, 11]], BLUE, 1.6);
+    P([[-23, 42], [23, 42], [23, 47], [-23, 47]], CYAN, 1.6);
+    // Tail feathers hanging from the base.
+    for (const sx of [-1, 1]) drawFeather(sx * 22, 30, 16, sx > 0 ? 1.2 : 1.94, "#ffffff", BLUE);
+  }
+}
+// A feather: shaft pointing along angle a from (x, y), length len, with a coloured tip.
+function drawFeather(x, y, len, a, col, tip) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+  ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(len * 0.5, -len * 0.28, len, 0); ctx.quadraticCurveTo(len * 0.5, len * 0.28, 0, 0); ctx.closePath();
+  ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(len * 0.65, -len * 0.16); ctx.quadraticCurveTo(len * 0.85, -len * 0.12, len, 0); ctx.quadraticCurveTo(len * 0.85, len * 0.12, len * 0.65, len * 0.16); ctx.closePath(); ctx.fillStyle = tip; ctx.fill();
+  ctx.strokeStyle = "rgba(42,26,18,0.6)"; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(len, 0); ctx.stroke();
+  ctx.restore();
+}
+// Crossed swords (Fight) or a wing (Flight), centred on the origin, about 2r wide.
+function drawTotemEmblem(kind, r) {
+  if (kind === "dmg") {
+    for (const sx of [-1, 1]) {
+      ctx.save(); ctx.rotate(sx * 0.75);
+      poly([[-r * 0.12, -r], [r * 0.12, -r], [r * 0.12, r * 0.45], [-r * 0.12, r * 0.45]], "#e8ecf4", INK, 1.4);
+      poly([[-r * 0.12, -r], [0, -r * 1.2], [r * 0.12, -r]], "#e8ecf4", INK, 1.2);
+      poly([[-r * 0.4, r * 0.45], [r * 0.4, r * 0.45], [r * 0.4, r * 0.58], [-r * 0.4, r * 0.58]], "#f2b632", INK, 1.2);
+      poly([[-r * 0.09, r * 0.58], [r * 0.09, r * 0.58], [r * 0.09, r * 0.95], [-r * 0.09, r * 0.95]], "#7a3e22", INK, 1.2);
+      ctx.restore();
+    }
+  } else {
+    ctx.save(); ctx.translate(-r * 0.55, r * 0.15);
+    for (let i = 4; i >= 0; i--) { ctx.save(); ctx.rotate(-0.95 + i * 0.28); poly([[0, -r * 0.1], [r * (1.05 + (4 - i) * 0.06), 0], [0, r * 0.1]], i % 2 ? "#eaf6ff" : "#ffffff", INK, 1.2); ctx.restore(); }
+    circle(0, 0, r * 0.22, "#cfe6f5"); ring(0, 0, r * 0.22, INK, 1.2);
+    ctx.restore();
+  }
+}
+function totemCrest(kind) {   // the medallion on top of the card, flanked by horns or wings
+  const fight = kind === "dmg";
+  if (fight) {
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sx * 12, 4); ctx.quadraticCurveTo(sx * 34, 2, sx * 36, -16); ctx.quadraticCurveTo(sx * 28, -4, sx * 12, -4); ctx.closePath(); ctx.fillStyle = "#f2e6c8"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke(); }
+    poly([[0, -18], [16, -11], [14, 8], [0, 18], [-14, 8], [-16, -11]], "#5a1208", INK, 2.4);
+    poly([[0, -14], [12, -8], [10, 6], [0, 14], [-10, 6], [-12, -8]], "#f2b632", null);
+    poly([[0, -11], [9, -6], [8, 4], [0, 11], [-8, 4], [-9, -6]], "#8a1c0c", null);
+  } else {
+    for (const sx of [-1, 1]) { ctx.save(); ctx.translate(sx * 12, 0); ctx.scale(sx * 0.62, 0.62); ctx.rotate(-0.25); drawTotemWing(); ctx.restore(); }
+    circle(0, 0, 17, "#0a2a4a"); ring(0, 0, 17, INK, 2.4); ring(0, 0, 14.5, "#cfeaff", 2.4); circle(0, 0, 12, "#1a5a9a");
+  }
+  drawTotemEmblem(kind, 9);
+}
+function totemFrameStatic(kind, hw, hh) {
+  const fight = kind === "dmg", th = TOTEM_THEME[kind];
+  rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, 8); ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1.5; ctx.stroke();
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
+    ctx.save(); ctx.translate(sx * (hw - 2), sy * (hh - 2));
+    if (fight) {   // gold fang corners with a ruby
+      poly([[0, 0], [-sx * 22, 0], [-sx * 13, -sy * 6], [-sx * 6, -sy * 13], [0, -sy * 22]], "#f2c14e", INK, 2);
+      poly([[sx * 2, sy * 2], [sx * 10, sy * 9], [sx * 4, sy * 4]], "#f2e6c8", INK, 1.2);
+      circle(-sx * 7, -sy * 7, 4.2, INK); circle(-sx * 7, -sy * 7, 3.2, "#e0301e"); circle(-sx * 7 - 1, -sy * 7 - 1, 1.1, "rgba(255,255,255,0.9)");
+    } else {       // silver corners with two little feathers and an aquamarine
+      poly([[0, 0], [-sx * 20, 0], [-sx * 12, -sy * 5], [-sx * 5, -sy * 12], [0, -sy * 20]], "#dfeefa", INK, 2);
+      drawFeather(sx * 1, sy * 1, 12, Math.atan2(sy, sx) - 0.3, "#ffffff", "#3fa8ef");
+      drawFeather(sx * 1, sy * 1, 12, Math.atan2(sy, sx) + 0.3, "#ffffff", "#3fa8ef");
+      circle(-sx * 7, -sy * 7, 4.2, INK); circle(-sx * 7, -sy * 7, 3.2, "#5fe0ff"); circle(-sx * 7 - 1, -sy * 7 - 1, 1.1, "rgba(255,255,255,0.9)");
+    }
+    ctx.restore();
+  });
+  // Side ornaments: gold studs (Fight) / hanging bead-and-feather charms (Flight).
+  for (const sx of [-1, 1]) {
+    if (fight) for (const y of [-14, 0, 14]) { circle(sx * hw, y, 4, INK); circle(sx * hw, y, 3, "#f2c14e"); circle(sx * hw - 0.8, y - 0.8, 1, "#fff6c8"); }
+    else { circle(sx * (hw + 1), -8, 3.4, INK); circle(sx * (hw + 1), -8, 2.5, "#5fe0ff"); drawFeather(sx * (hw + 1), -5, 18, Math.PI / 2 + sx * 0.12, "#ffffff", "#3fa8ef"); }
+  }
+  // Name plaque.
+  const py = hh - 18, pw = CARD_W - 18;
+  rrect(-pw / 2, py - 12, pw, 24, 7);
+  const g = ctx.createLinearGradient(0, py - 12, 0, py + 12);
+  if (fight) { g.addColorStop(0, "#8a1c0c"); g.addColorStop(1, "#3a0806"); } else { g.addColorStop(0, "#2a7ac8"); g.addColorStop(1, "#0a2a5a"); }
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = fight ? "#f2c14e" : "#dff2ff"; ctx.lineWidth = 2.4; ctx.stroke();
+  for (const sx of [-1, 1]) { circle(sx * (pw / 2 - 6), py, 2.2, fight ? "#f2c14e" : "#dff2ff"); }
+  text(fight ? "FIGHT" : "FLIGHT", 0, py + 1, 17, fight ? "#ffe08a" : "#ffffff", { font: DISPLAY, weight: 900, outline: 4, outlineColor: fight ? "#2a0404" : "#06243f", baseline: "middle" });
+}
+function totemBadgeShape(kind) {
+  if (kind === "dmg") {   // red-gold shield
+    poly([[0, -15], [14, -10], [12, 6], [0, 16], [-12, 6], [-14, -10]], "#f2b632", INK, 2.4);
+    poly([[0, -11], [10, -7], [9, 4], [0, 12], [-9, 4], [-10, -7]], "#b01c10", null);
+  } else {                // sky diamond with little wings
+    for (const sx of [-1, 1]) drawFeather(sx * 9, 0, 10, sx > 0 ? -0.2 : Math.PI + 0.2, "#ffffff", "#3fa8ef");
+    poly([[0, -15], [13, 0], [0, 15], [-13, 0]], "#dff4ff", INK, 2.4);
+    poly([[0, -11], [9, 0], [0, 11], [-9, 0]], "#9fe6ff", null);
+  }
+}
+// A small boost badge for a boosted card: emblem + "x2" in the totem's colours.
+function drawBoostBadge(x, y, kind, mult) {
+  const fight = kind === "dmg", lab = `x${mult}`, bw = 34 + lab.length * 9;
+  rrect(x - bw / 2, y - 14, bw, 28, 14); ctx.fillStyle = fight ? "#5a1208" : "#0a3a6a"; ctx.fill();
+  ctx.strokeStyle = fight ? "#f2c14e" : "#bff0ff"; ctx.lineWidth = 2.2; ctx.stroke();
+  ctx.save(); ctx.translate(x - bw / 2 + 14, y); drawTotemEmblem(kind, 7.5); ctx.restore();
+  text(lab, x + 8, y + 1, 16, fight ? "#ffe08a" : "#eafcff", { weight: 900, baseline: "middle" });
 }
 // A small cartoon skull (Hades' orbs and his soul shots). r = radius of the cranium.
 function drawSkullIcon(x, y, r, alpha = 1, glowA = 0.8) {
@@ -2635,17 +2872,17 @@ function updateLance(c, dt) {
   if (Math.random() < dt * 30) { const k = rand(40, 700); addPart({ kind: "bubble", x: ox + dx * k + rand(-12, 12), y: oy + dy * k + rand(-12, 12), vx: rand(-20, 20), vy: rand(-30, 10), life: 0.6, size: rand(2, 5), col: "rgba(230,250,255,0.9)", rot: rand(0, 9) }); }
 }
 // Spirit energy flowing from a Totem in the battle row to the cards right next to it, with an xN badge on each.
-function totemArc(x0, y0, x1, y1, t, boost) {
-  const mx = (x0 + x1) / 2, my = Math.min(y0, y1) - 46;
+function totemArc(x0, y0, x1, y1, t, kind = "dmg") {
+  const th = TOTEM_THEME[kind], mx = (x0 + x1) / 2, my = Math.min(y0, y1) - (kind === "dmg" ? 46 : 60);
   ctx.save(); ctx.lineCap = "round";
-  ctx.strokeStyle = "rgba(63,224,176,0.35)"; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+  ctx.strokeStyle = `rgba(${th.rgb},0.4)`; ctx.lineWidth = 9; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
   ctx.setLineDash([10, 12]); ctx.lineDashOffset = -t * 60;
-  ctx.strokeStyle = "rgba(200,255,235,0.95)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+  ctx.strokeStyle = `rgba(${th.sparkRgb},0.95)`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
   ctx.setLineDash([]);
   for (let i = 0; i < 3; i++) {   // spirit orbs riding the stream
     const k = (t * 0.9 + i / 3) % 1, u = 1 - k;
     const x = u * u * x0 + 2 * u * k * mx + k * k * x1, y = u * u * y0 + 2 * u * k * my + k * k * y1;
-    circle(x, y, 7, "rgba(63,224,176,0.35)"); circle(x, y, 3.5, "#eafff8");
+    circle(x, y, 7, `rgba(${th.rgb},0.4)`); circle(x, y, 3.5, "#fffaf0");
   }
   ctx.restore();
 }
@@ -2653,17 +2890,16 @@ function drawTotemLinks() {
   if (state !== "wave" && state !== "break") return;
   rows.active.forEach((tc, i) => {
     if (!tc || !EL[tc.element].totem || tc.dragging) return;
+    const kind = EL[tc.element].totem, th = TOTEM_THEME[kind];
     for (const j of [i - 1, i + 1]) {
-      const o = rows.active[j]; if (!o || o.dragging) continue;
+      const o = rows.active[j]; if (!o || o.dragging || EL[o.element].totem) continue;
       const top = -CARD_H / 2 - 4;
-      totemArc(tc.x, tc.y + top + 8, o.x, o.y + top + 8, time + i, tc.boost || 1);
-      // Teal glow around the boosted card and its xN badge.
-      const pul = 0.5 + 0.5 * Math.sin(time * 4 + j);
+      totemArc(tc.x, tc.y + top + 8, o.x, o.y + top + 8, time + i, kind);
+      // Glow around the boosted card and its badge (damage: top right, speed: top left).
+      const pul = 0.5 + 0.5 * Math.sin(time * 4 + j + (kind === "spd" ? 1.5 : 0));
       rrect(o.x - CARD_W / 2 - 5, o.y - CARD_H / 2 - 5, CARD_W + 10, CARD_H + 10, 14);
-      ctx.strokeStyle = `rgba(63,224,176,${0.45 + 0.35 * pul})`; ctx.lineWidth = 3.5; ctx.stroke();
-      const lab = `x${1 + (tc.boost || 1)}`, bx = o.x + CARD_W / 2 - 6, by = o.y + top + 4, bw = 18 + lab.length * 9;
-      rrect(bx - bw / 2, by - 13, bw, 26, 13); ctx.fillStyle = "#1d5c4c"; ctx.fill(); ctx.strokeStyle = "#7dffd8"; ctx.lineWidth = 2; ctx.stroke();
-      text(lab, bx, by + 1, 17, "#eafff8", { weight: 900, baseline: "middle" });
+      ctx.strokeStyle = `rgba(${th.rgb},${0.45 + 0.35 * pul})`; ctx.lineWidth = 3.5; ctx.stroke();
+      drawBoostBadge(o.x + (kind === "dmg" ? 1 : -1) * (CARD_W / 2 - 18), o.y + top + 2, kind, totemMult(o, kind));
     }
   });
 }
@@ -2837,14 +3073,16 @@ function hitEnemy(e, el, r, dmg, sm = 1) {
 
 // ------------------------------------------------------------ Shop & merging
 function refreshShop() {
-  // An owned Special card (the Totem) may take one of the open slots: one roll per refresh, not per slot.
-  const owned = SPECIALS.filter(id => save.specials[id]);
-  const open = [...Array(SHOP_N).keys()].filter(i => !(rows.shop[i] && rows.shop[i].locked));
-  const special = owned.length && open.length && !rows.shop.some(c => c && c.locked && EL[c.element].special) && Math.random() < totemShopChance() ? pickOne(open) : -1;
+  // Each owned totem (Fight, Flight) may take one of the open slots: one roll per totem per refresh, not per slot.
+  const open = [...Array(SHOP_N).keys()].filter(i => !(rows.shop[i] && rows.shop[i].locked)), special = {};
+  for (const el of SPECIALS) {
+    if (!save.specials[el] || !open.length || rows.shop.some(c => c && c.locked && c.element === el)) continue;
+    if (Math.random() < totemShopChance(el)) { const k = Math.floor(Math.random() * open.length); special[open[k]] = el; open.splice(k, 1); }
+  }
   for (let i = 0; i < SHOP_N; i++) {
     if (rows.shop[i] && rows.shop[i].locked) continue;   // a locked card stays until it is bought
     let c;
-    if (i === special) c = new Card(pickOne(owned), SPECIAL);
+    if (special[i]) c = new Card(special[i], SPECIAL);
     else { const el = randomBase(); c = new Card(el, Math.min(maxRarity(el), rollRarity(Math.max(1, wave + 1)))); }
     c.inShop = true; c.price = priceOf(c.element, c.rarity);
     const s = slotPos("shop", i); c.setHome(s.x, s.y, true); c.y += 200;
@@ -2863,7 +3101,7 @@ function toggleShopLock(i) {
 }
 function shopTapBuy(i) {
   if (!rows.shop[i]) return;
-  const tot = EL[rows.shop[i].element].totem && totemOnBoard(rows.shop[i]);
+  const tot = EL[rows.shop[i].element].totem && totemOnBoard(rows.shop[i], rows.shop[i].element);
   if (tot) { for (const r of ["active", "storage"]) { const k = rows[r].indexOf(tot); if (k >= 0 && buy(i, r, k)) { playUi("ui_place"); return; } } return; }   // a tapped Totem powers up yours
   const slot = firstFree();
   if (!slot) { showInfo("No free slot! Drag it onto a matching card to fuse it."); rows.shop[i].shake = 1; }
@@ -2920,10 +3158,10 @@ function updateStorage(dt) {
   } else storageEdgeT = 0;
 }
 // Only one Totem may be on the board (battle and storage rows). Returns it, or null.
-const totemOnBoard = except => [...rows.active, ...rows.storage].find(c => c && c !== except && EL[c.element].totem) || null;
+const totemOnBoard = (except, el) => [...rows.active, ...rows.storage].find(c => c && c !== except && c.element === el) || null;
 function buy(si, row, i) {
   const card = rows.shop[si]; if (!card) return false;
-  if (EL[card.element].totem && !rows[row][i] && totemOnBoard(card)) { showInfo("Only 1 Totem on the board! Drop this one onto your Totem for +1x."); card.shake = 1; return false; }
+  if (EL[card.element].totem && !rows[row][i] && totemOnBoard(card, card.element)) { const nm = EL[card.element].name; showInfo(`Only 1 ${nm} on the board! Drop this one onto your ${nm} for +1x.`); card.shake = 1; return false; }
   const cost = freeCard ? 0 : card.price;
   if (gold < cost) { showInfo(`Not enough gold! This card costs ${cost}.`); card.shake = 1; return false; }
   const other = rows[row][i];
@@ -2937,7 +3175,7 @@ function buy(si, row, i) {
     rows.shop[si] = null; applyMerge(other, res);
   }
   gold -= cost; freeCard = false;
-  if (EL[card.element].totem) totemBuys++;   // each Totem bought makes the next one rarer in the shop
+  if (EL[card.element].totem) totemBuys[card.element] = (totemBuys[card.element] || 0) + 1;   // each one bought makes the next rarer
   return true;
 }
 function sell(row, i) {
@@ -2965,10 +3203,11 @@ function powerUp(card) {
 function applyMerge(card, res) {
   if (res.totem) {
     card.boost = res.boost; card.cooldown = 0.3; card.scale = 1.4; track("merge");
-    fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: "#3fe0b0", radius: 110, duration: 0.45 }));
-    fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: GOLD, radius: 70, duration: 0.35 }));
-    for (let i = 0; i < 3; i++) addPart({ add: true, kind: "ring", x: card.hx, y: card.hy + 30, rgb: "90,240,190", size: 24 + i * 14, grow: 200 + i * 80, w: 5 - i, sq: 0.45, life: 0.5 + i * 0.12 });
-    fxs.push(new Fx("text", { x: card.hx, y: card.hy - 90, text: `Totem x${1 + card.boost}!`, color: "#7dffd8", size: 30, duration: 1.1 }));
+    const th = TOTEM_THEME[EL[card.element].totem];
+    fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: th.main, radius: 110, duration: 0.45 }));
+    fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: th.light, radius: 70, duration: 0.35 }));
+    for (let i = 0; i < 3; i++) addPart({ add: true, kind: "ring", x: card.hx, y: card.hy + 30, rgb: th.rgb, size: 24 + i * 14, grow: 200 + i * 80, w: 5 - i, sq: 0.45, life: 0.5 + i * 0.12 });
+    fxs.push(new Fx("text", { x: card.hx, y: card.hy - 90, text: `${EL[card.element].name} x${1 + card.boost}!`, color: th.light, size: 30, duration: 1.1 }));
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sTone("triangle", 196, 196, 0.5, 0.14); sTone("triangle", 294, 294, 0.5, 0.1, 0.1); sTone("sine", 588, 588, 0.6, 0.08, 0.2); sNoise(0.4, 0.3, "lowpass", 400, 80, 0.8); }
     showInfo(describe(card.element, card.rarity, 0, card.boost));
     return;
@@ -3871,9 +4110,10 @@ function update(dt) {
     }
     for (const c of rows.active) {
       if (!c || (drag && drag.card === c) || EL[c.element].totem) continue;   // a Totem never attacks
-      if (EL[c.element].beam) { updateBeam(c, dt * (speedT > 0 ? SPEED_MULT : 1)); continue; }
-      if (EL[c.element].lance) { updateLance(c, dt * (speedT > 0 ? SPEED_MULT : 1)); continue; }
-      c.cooldown -= dt * (speedT > 0 ? SPEED_MULT : 1);
+      const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd");   // Speed Up spell and a Flight totem next to it
+      if (EL[c.element].beam) { updateBeam(c, dt * spd); continue; }
+      if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
+      c.cooldown -= dt * spd;
       if (c.cooldown <= 0 && enemies.length) { fireCard(c); c.cooldown = 1 / rateOf(c.element, c.rarity); }
     }
   } else if (state === "break" && breakTimer > 0) {
@@ -4907,7 +5147,7 @@ const testRarity = (el, lvl) => EL[el].special ? SPECIAL : EL[el].legendCard ? L
 function testGive(el) {
   const slot = firstFree();
   if (!slot) { showInfo("No free slot. Sell or merge a card first."); playSfx("ash", "hit"); return; }
-  const had = EL[el].totem && totemOnBoard(null);
+  const had = EL[el].totem && totemOnBoard(null, el);
   if (had) { had.boost = (had.boost || 1) + 1; had.scale = 1.4; showInfo(describe(el, SPECIAL, 0, had.boost)); return; }
   const c = new Card(el, testRarity(el, testPick.lvl)); rows[slot[0]][slot[1]] = c;
   const q = slotPos(slot[0], slot[1]); c.setHome(q.x, q.y, true); c.scale = 1.35;
@@ -5592,7 +5832,7 @@ function drawCardInfo(dt) {
   rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
   // Card on the left, name and level on the right.
   const c = ci.card; c.x = c.hx = x + 120; c.y = c.hy = y + 150; c.scale = 1.5; c.draw();
-  const group = d.special ? "Special card" : d.legendCard ? "Legend card" : d.myth ? "Myth card" : d.tier === 3 ? "Epic element" : d.tier === 2 ? "Next element" : "Main element";
+  const group = d.totem ? "Special card: Totem" : d.special ? "Special card" : d.legendCard ? "Legend card" : d.myth ? "Myth card" : d.tier === 3 ? "Epic element" : d.tier === 2 ? "Next element" : "Main element";
   const tx = x + 232;
   text(d.name, tx, y + 74, d.name.length > 10 ? 34 : 40, INK, { align: "left", font: DISPLAY, weight: 900 });
   text(group, tx, y + 108, 21, RARITY_COLORS[showRarity(el)] === "#B8BEC8" ? "#6b3a22" : shade(RARITY_COLORS[showRarity(el)], -0.25), { align: "left", weight: 700 });
@@ -5607,10 +5847,10 @@ function drawCardInfo(dt) {
   const formName = r => r <= 2 ? `V${r + 1}` : RARITY_NAMES[r];
   line();
   if (d.totem) {
-    for (const [k, v, col] of [["Attack", "Never attacks", "#b4441f"], ["Boost", "x2 damage to the card left and right", "#2f8f3f"], ["Combine", "+1x per Totem, no limit", "#7a3fb0"]]) {
+    for (const [k, v, col] of [["Attack", "Never attacks", "#b4441f"], ["Boost", d.totem === "spd" ? "x2 attack speed to the card left and right" : "x2 damage to the card left and right", "#2f8f3f"], ["Combine", `+1x per ${d.name}, no limit`, "#7a3fb0"]]) {
       text(k, x + 30, ry, 22, INK, { align: "left", weight: 700 }); text(v, x + w - 30, ry, 20, col, { align: "right", weight: 700 }); ry += 44; line();
     }
-    text("Limit", x + 30, ry, 22, INK, { align: "left", weight: 700 }); text("1 Totem on the board", x + w - 30, ry, 20, INK, { align: "right", weight: 600 });
+    text("Limit", x + 30, ry, 22, INK, { align: "left", weight: 700 }); text(`1 ${d.name} on the board`, x + w - 30, ry, 20, INK, { align: "right", weight: 600 });
     ry += 44; line();
   } else {
   text(d.beam ? "Damage per stream /s" : d.lance ? "Beam damage /s (each enemy)" : "Damage per hit", x + 30, ry, 22, INK, { align: "left", weight: 700 });
@@ -5845,9 +6085,12 @@ const GUIDE = [
   { t: "MAX POWER: 5 Stars", eq: [[["zeus", LEGEND, 4], ["zeus", LEGEND, 0], ["zeus", LEGEND, 5]]], labels: [["4 stars + one more copy = 5 stars!", "#ffd84a"]], labelDy: 18,
     note: "5 stars = 32x damage + a golden power aura",
     b: "When a Myth or Legend card reaches 5 stars it unlocks MAX POWER: it bursts into a blazing golden aura with lightning and rising energy, so everyone can see it's your strongest card. It deals 32x its normal damage!" },
-  { t: "Special Card: Totem", row: [["fire", 2, "No boost", "#ff8a7a"], ["zeus", LEGEND, "x2", "#7dffd8"], ["totem", SPECIAL, "TOTEM", "#ffd84a"], ["poseidon", LEGEND, "x2", "#7dffd8"], ["wind", 2, "No boost", "#ff8a7a"]],
-    note: "Drop a Totem on your Totem: +1x  (x2 > x3 > x4 ... no limit)",
-    b: "The Totem never attacks. Put it in the battle row: the cards RIGHT NEXT to it (left and right) deal x2 damage. Cards further away get nothing, so put your strongest cards beside it. Only 1 Totem can be on the board, but every extra Totem you drop on it adds +1x." },
+  { t: "Totem: Fight", row: [["fire", 2, "No boost", "#ff8a7a"], ["zeus", LEGEND, "x2 DMG", "#ffc27a"], ["totem", SPECIAL, "FIGHT", "#ffd84a"], ["poseidon", LEGEND, "x2 DMG", "#ffc27a"], ["wind", 2, "No boost", "#ff8a7a"]],
+    note: "Drop a Fight on your Fight: +1x  (x2 > x3 > x4 ... no limit)",
+    b: "Totems are Special cards that never attack. Fight gives the cards RIGHT NEXT to it (left and right) x2 DAMAGE. Cards further away get nothing. Only 1 Fight can be on the board, but every extra Fight you drop on it adds +1x." },
+  { t: "Totem: Flight", row: [["water", 2, "No boost", "#ff8a7a"], ["hades", LEGEND, "x2 SPEED", "#9fe6ff"], ["flight", SPECIAL, "FLIGHT", "#ffd84a"], ["zeus", LEGEND, "x2 SPEED", "#9fe6ff"], ["earth", 2, "No boost", "#ff8a7a"]],
+    note: "Fight + Flight on both sides of a card = x2 damage AND x2 speed!",
+    b: "Flight works the same way, but its neighbours ATTACK x2 FASTER (Zeus and Poseidon beams hit faster too). Only 1 Flight on the board; drop another Flight on it for +1x. Put a card between Fight and Flight to get both!" },
   { t: "The Road to Legend", flow: [["fire", 0], ["fire", 1], ["fire", 2], ["steam", 2], ["storm", EPIC], ["phoenix", MYTH], ["zeus", LEGEND]],
     b: "Main V1 > V2 > V3, fuse into Next elements, level them to V3, fuse two into an Epic, fuse Epics into a Myth, and a Myth into a Legend. Good luck, summoner!" },
 ];
@@ -5935,10 +6178,10 @@ function drawGuide(dt) {
     const xs = pg.row.map((_, i) => px + 20 + cw / 2 + i * (cw + gap));
     pg.row.forEach(([el, r], i) => gCard(el, r, 300 + i, xs[i], cy, sc, dt, 0));
     const ti = pg.row.findIndex(it => EL[it[0]].totem), top = cy - CARD_H * sc / 2 + 4;
-    for (const j of [ti - 1, ti + 1]) if (pg.row[j]) totemArc(xs[ti], top, xs[j], top, g.t, 1);
+    for (const j of [ti - 1, ti + 1]) if (pg.row[j]) totemArc(xs[ti], top, xs[j], top, g.t, EL[pg.row[ti][0]].totem);
     pg.row.forEach(([, , lab, col], i) => text(lab, xs[i], cy + CARD_H * sc / 2 + 30, 20, col, { weight: 900, outline: 5 }));
-    rrect(px + 40, bottom - 52, pw - 80, 44, 22); ctx.fillStyle = "rgba(63,224,176,0.18)"; ctx.fill();
-    text(pg.note, W / 2, bottom - 23, 20, "#7dffd8", { weight: 800 });
+    rrect(px + 40, bottom - 52, pw - 80, 44, 22); ctx.fillStyle = "rgba(242,193,78,0.18)"; ctx.fill();
+    text(pg.note, W / 2, bottom - 23, 19, GOLD, { weight: 800 });
   }
   if (pg.recipes) {
     // One fusion per row, big enough to read: [A] + [B] = [C] with the result's name.
