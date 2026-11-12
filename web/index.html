@@ -5592,6 +5592,12 @@ const GUIDE = [
     b: "Tap Chamber and put 3 to 5 Epic cards on the altars, then tap Fuse for a chance to create the Myth Phoenix. More Epic cards give a better chance. If it fails, all those cards are lost!" },
   { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["zeus", LEGEND]]], note: "Each Myth +6%   each Epic +2%   up to 30%",
     b: "Put a Myth card on an altar to try for a LEGEND card like Zeus, the strongest in the game. Each Myth card adds 6% and each Epic adds 2%, up to 30%." },
+  { t: "Stars: Myth & Legend", eq: [[["phoenix", MYTH, 0], ["phoenix", MYTH, 0], ["phoenix", MYTH, 1]], [["zeus", LEGEND, 1], ["zeus", LEGEND, 0], ["zeus", LEGEND, 2]]],
+    labels: [["Same card + same card = 1 star", "#ffd84a"], ["1 star + one more copy = 2 stars", "#ffd84a"]], labelDy: 18, note: "Every star DOUBLES the card's damage!",
+    b: "Myth and Legend cards can't level up, but they can earn STARS. Drag a card onto the exact same card (Phoenix onto Phoenix, Zeus onto Zeus) to give it a star. Add another copy to a starred card for one more star. Stars are shown at the bottom of the card." },
+  { t: "Stacking Stars", eq: [[["hades", LEGEND, 2], ["hades", LEGEND, 2], ["hades", LEGEND, 5]], [["phoenix", MYTH, 5], ["phoenix", MYTH, 0], "x"]],
+    labels: [["2 stars + 2 stars = 5 stars (stars add up, +1)", "#9cff9c"], ["5 stars is the maximum", "#ff8a7a"]], labelDy: 18, note: "\u2605 x2   \u2605\u2605 x4   \u2605\u2605\u2605 x8   \u2605\u2605\u2605\u2605 x16   \u2605\u2605\u2605\u2605\u2605 x32",
+    b: "Starred cards combine too: their stars add up, plus one for the merge, up to 5 stars. A 5-star card deals 32x damage! Enemies keep getting stronger, so stars keep your best cards in the fight. In the Chamber a starred card counts as a normal card." },
   { t: "The Road to Legend", flow: [["fire", 0], ["fire", 1], ["fire", 2], ["steam", 2], ["storm", EPIC], ["phoenix", MYTH], ["zeus", LEGEND]],
     b: "Main V1 > V2 > V3, fuse into Next elements, level them to V3, fuse two into an Epic, fuse Epics into a Myth, and a Myth into a Legend. Good luck, summoner!" },
 ];
@@ -5610,9 +5616,9 @@ function guideNext() {
 function guideBack() { if (guide.page > 0) { guide.page--; guide.t = 0; playUi("ui_pick"); } }
 function guideButtons() { return [btn.guideNext, ...(guide.page > 0 ? [btn.guideBack] : []), ...(guide.forced ? [] : [btn.guideClose])]; }
 // Draws one card of the guide, bobbing gently.
-function gCard(el, r, slot, x, y, sc, dt, glow = 0) {
+function gCard(el, r, slot, x, y, sc, dt, glow = 0, stars = 0) {
   const c = guideCard(el, r, slot);
-  c.t += dt; c.evolveAt = -1;
+  c.t += dt; c.evolveAt = -1; c.stars = stars;
   if (glow > 0) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(x, y, 10, x, y, 110 * sc); g.addColorStop(0, `rgba(255,230,140,${0.45 * glow})`); g.addColorStop(1, "rgba(255,230,140,0)"); ctx.fillStyle = g; ctx.fillRect(x - 120 * sc, y - 120 * sc, 240 * sc, 240 * sc); ctx.restore(); }
   c.x = c.hx = x; c.y = c.hy = y + Math.sin(c.t * 2 + slot) * 3; c.scale = sc; c.draw();
 }
@@ -5629,7 +5635,7 @@ function drawEquation(eq, cy, dt, pageT, slot0, maxH = 999) {
     if (last && item === "x") {
       circle(x, cy, 34, "#e0533f"); ring(x, cy, 34, INK, 4);
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(x - 14, cy - 14); ctx.lineTo(x + 14, cy + 14); ctx.moveTo(x + 14, cy - 14); ctx.lineTo(x - 14, cy + 14); ctx.stroke();
-    } else gCard(item[0], item[1], slot0 + i, x, cy, sc * (last ? 1 + 0.05 * pulse : 1), dt, last ? 0.6 + 0.4 * pulse : 0);
+    } else gCard(item[0], item[1], slot0 + i, x, cy, sc * (last ? 1 + 0.05 * pulse : 1), dt, last ? 0.6 + 0.4 * pulse : 0, item[2] || 0);
     if (!last) glyph(i === n - 2 ? (eq[n - 1] === "x" ? "?" : "=") : "+", x + cw / 2 + symW / 2, cy, 40, i === n - 2 ? GOLD : PARCH);
     x += cw + symW;
   });
@@ -5661,11 +5667,11 @@ function drawGuide(dt) {
   }
   if (pg.eq) {
     const rows = pg.eq.length, avail = bottom - top - (pg.note ? 60 : 0), rowH = Math.min(230, avail / rows), y0 = top + (avail - rowH * rows) / 2;
-    const lab = pg.labels ? 30 : 0;
+    const lab = pg.labels ? 30 + (pg.labelDy || 0) : 0;
     pg.eq.forEach((eq, i) => {
       const cy = y0 + rowH * (i + 0.5) - lab / 2;
       drawEquation(eq, cy, dt, g.t, i * 10, rowH - lab - 30);
-      if (pg.labels) { const [txt, col] = pg.labels[i], sc = Math.min(1.05, (rowH - lab - 30) / CARD_H); text(txt, W / 2, cy + CARD_H * sc / 2 + 26, 20, col, { weight: 800, outline: 5 }); }
+      if (pg.labels) { const [txt, col] = pg.labels[i], sc = Math.min(1.05, (rowH - lab - 30) / CARD_H); text(txt, W / 2, cy + CARD_H * sc / 2 + 26 + (pg.labelDy || 0), 20, col, { weight: 800, outline: 5 }); }
     });
     if (pg.note) {
       rrect(px + 40, bottom - 52, pw - 80, 44, 22); ctx.fillStyle = "rgba(242,193,78,0.18)"; ctx.fill();
