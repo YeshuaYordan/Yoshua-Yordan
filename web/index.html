@@ -3928,7 +3928,7 @@ const btn = {
   reroll: makeBtn("Reroll", 450, 1100, 250, 96, () => reroll(), 28),
   bossRun: Object.assign(makeBtn("BOSS BREAK OUT", 0, 0, 340, 72, () => startBossRun(), 26), { fill: "#c0392b", fillDown: "#8e2a20", font: DISPLAY, weight: 900, color: "#fff2d0", outline: 6 }),
   bossAd: Object.assign(makeBtn("\u25B6 Ad", 0, 0, 104, 72, () => watchAdForBoss(), 22), { fill: "#6cc56a", fillDown: "#4fa84d" }),
-  play: Object.assign(makeBtn("PLAY", 210, 1140, 300, 96, () => { startRun(); fadeIn = 0.5; }, 40), { fill: GOLD, fillDown: "#d9a838", font: DISPLAY, weight: 900 }),
+  play: Object.assign(makeBtn("PLAY", 210, 1140, 300, 96, () => tapPlay(), 40), { fill: GOLD, fillDown: "#d9a838", font: DISPLAY, weight: 900 }),
   titleBook: makeBtn("", 14, 232, 112, 112, () => openBook()),
   summon: Object.assign(makeBtn("x1", 184, 1130, 170, 92, () => doSummon(1), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
   summon10: Object.assign(makeBtn("x10", 366, 1130, 170, 92, () => doSummon(10), 40), { fill: "#ffcd50", fillDown: "#e0a830", font: DISPLAY, weight: 900 }),
@@ -4048,7 +4048,7 @@ function baseButtons() {
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.bio, btn.settingsBtn, btn.gemPill];
-    if (lobbyPage === 0) return [...(bossReadyIn() > 0 ? (bossAdAvailable() ? [btn.bossAd] : []) : [btn.bossRun]), btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, ...top];
+    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
     return [...visibleUpgradeBtns(), ...top];
   }
@@ -4788,7 +4788,18 @@ function drawHomeScene() {
     if (night > 0.01 && slot.night) { ctx.globalAlpha = night; ctx.drawImage(slot.night, x, y); ctx.globalAlpha = 1; }
   };
   const cx = -((lobbyT * 22) % 2160); layer(L.clouds, cx, 170); layer(L.clouds, cx + 2160, 170);
-  layer(L.hills, 0, 0); layer(L.room, 0, 0);
+  layer(L.hills, 0, 0);
+  const bk = lobbyBossK;
+  if (bk > 0.005) {   // Boss mode: a blood-red storm outside, bosses peeking in
+    ctx.fillStyle = `rgba(36,6,22,${0.78 * bk})`; ctx.fillRect(0, 0, 1080, 1920);
+    const rg = ctx.createRadialGradient(540, 900, 40, 540, 900, 620); rg.addColorStop(0, `rgba(200,30,30,${0.35 * bk})`); rg.addColorStop(1, "rgba(120,10,30,0)");
+    ctx.fillStyle = rg; ctx.fillRect(0, 200, 1080, 1300);
+    const fl = (lobbyT % 5.7), flash = fl < 0.08 || (fl > 0.18 && fl < 0.24) ? 1 : 0;   // lightning
+    if (flash) { ctx.fillStyle = `rgba(255,220,230,${0.35 * bk})`; ctx.fillRect(0, 0, 1080, 1300); }
+    drawLobbyBosses(bk);
+  }
+  layer(L.room, 0, 0);
+  if (bk > 0.005) { ctx.fillStyle = `rgba(30,6,30,${0.35 * bk})`; ctx.fillRect(0, 0, 1080, 1920); }
   // Candle flame and its warm light (stronger at night), plus the hanging lantern's glow.
   if (L.candle.ready) ctx.drawImage(L.candle.img, (Math.floor(lobbyT * 12) % 12) * 120, 0, 120, 200, 845, 1068, 120, 200);
   ctx.globalCompositeOperation = "lighter";
@@ -4822,13 +4833,18 @@ function setLobbyPage(n) { n = clamp(n, -1, 1); if (n !== lobbyPage) playUi("ui_
 function lobbyDown(p) {
   const b = visibleButtons().find(b => inRect(p, b)) || null;
   if (b) b.down = true;
-  lobbySwipe = { x0: p.x, y0: p.y, dx: 0, moved: false, btn: b, t0: performance.now(), startPos: lobbyPos };
+  lobbySwipe = { x0: p.x, y0: p.y, dx: 0, moved: false, btn: b, t0: performance.now(), startPos: lobbyPos, onPlay: lobbyPage === 0 && lobbySettled() && b === btn.play };
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
   if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || bioOpen || guide || settingsOpen || tutBlocking()) return;
   if (missionsOpen) { if (missionsTab === 1) { const dy = p.y - s.y0; if (Math.abs(dy) > 10) { s.vscroll = true; if (s.btn) s.btn.down = false; achScroll = (s.scroll0 ?? (s.scroll0 = achScroll)) - dy; } } return; }   // no swiping under a popup
   const dy = p.y - s.y0;
+  if (s.onPlay) {   // sliding the PLAY button between Play and Boss Break Out
+    if (!s.sliding && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy)) { s.sliding = true; btn.play.down = false; }
+    if (s.sliding) playDrag = clamp(dx / btn.play.w, playMode - 1, playMode);
+    if (s.sliding || Math.abs(dx) <= 12) return;
+  }
   if (!s.moved && !s.vscroll) {
     if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
     else if (lobbyPage === -1 && lobbySettled() && Math.abs(dy) > 14) { s.vscroll = true; s.scroll0 = cardsScroll; if (s.btn) s.btn.down = false; }
@@ -4840,6 +4856,13 @@ function lobbyUp(p) {
   const s = lobbySwipe; if (!s) return;
   if (s.btn) s.btn.down = false;
   if (s.vscroll) { lobbySwipe = null; return; }
+  if (s.sliding) {
+    const dx = p.x - s.x0, prev = playMode;
+    playModeT = clamp(playModeT - playDrag, 0, 1); playDrag = 0; lobbySwipe = null;
+    if (dx < -40) playMode = 1; else if (dx > 40) playMode = 0;
+    if (playMode !== prev) playUi("ui_pick");
+    return;
+  }
   if (!s.moved) {
     lobbySwipe = null;
     if (s.btn && inRect(p, s.btn)) s.btn.onTap();
@@ -6091,21 +6114,70 @@ function drawLobbyUi() {
   if (shopToast) drawShopToast(dt);
 }
 
-// Lobby: the Boss Break Out button above PLAY (a timer while it rests, with an optional ad to skip the rest).
-function drawBossRunButton() {
-  const wait = bossReadyIn(), y = H - 236, b = btn.bossRun, pul = 0.5 + 0.5 * Math.sin(lobbyT * 4);
+// Lobby PLAY button = a two-mode slider. Swipe left on it for Boss Break Out, right for the normal game.
+// The lobby turns dark and stormy with bosses peeking through the window as it slides (lobbyBossK 0..1).
+let playMode = 0, playModeT = 0, playDrag = 0, lobbyBossK = 0, playSliderLast = 0;
+function tapPlay() {
+  if (playMode === 0) { startRun(); fadeIn = 0.5; return; }
+  if (bossReadyIn() > 0) { btn.play.shake = 1; shopToast = { text: `Boss Break Out is resting: ${fmtTime(bossReadyIn())}`, color: "#ff9a7a", t: 0 }; return; }
+  startBossRun();
+}
+function drawPlaySlider() {
+  const now = performance.now(), dt = Math.min(0.05, (now - (playSliderLast || now)) / 1000); playSliderLast = now;
+  if (!lobbySwipe || !lobbySwipe.sliding) playModeT += (playMode - playModeT) * Math.min(1, dt * 7);
+  const b = btn.play; b.x = W / 2 - 150; b.y = H - 140; b.w = 300; b.h = 96;
+  const pos = clamp(playModeT - playDrag, 0, 1); lobbyBossK = pos;
+  const press = b.down ? 3 : 0, wait = bossReadyIn(), pul = 0.5 + 0.5 * Math.sin(lobbyT * 4);
+  // Glow (red in boss mode).
+  if (pos > 0.01) { ctx.save(); ctx.globalAlpha = pos; ctx.shadowColor = `rgba(255,60,30,${0.5 + 0.4 * pul})`; ctx.shadowBlur = 20 + 12 * pul; rrect(b.x, b.y + press, b.w, b.h, 16); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.restore(); }
+  rrect(b.x, b.y + 4, b.w, b.h, 16); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
+  ctx.save(); rrect(b.x, b.y + press, b.w, b.h, 16); ctx.clip();
+  // Normal side.
+  const nx = b.x - pos * b.w;
+  ctx.fillStyle = b.down ? "#d9a838" : GOLD; ctx.fillRect(nx, b.y + press, b.w, b.h);
+  text("PLAY", nx + b.w / 2, b.y + press + b.h / 2, 40 + Math.sin(lobbyT * 3) * 1.5, INK, { font: DISPLAY, weight: 900, baseline: "middle" });
+  // Boss side.
+  const bx = b.x + (1 - pos) * b.w, cy = b.y + press + b.h / 2;
+  const g = ctx.createLinearGradient(0, b.y, 0, b.y + b.h); g.addColorStop(0, wait ? "#5a2a2a" : "#e04a30"); g.addColorStop(1, wait ? "#3a1414" : "#8e1e14");
+  ctx.fillStyle = g; ctx.fillRect(bx, b.y + press, b.w, b.h);
   if (!wait) {
-    b.x = W / 2 - 170; b.y = y; b.w = 340;
-    ctx.save(); ctx.shadowColor = `rgba(255,80,40,${0.5 + 0.4 * pul})`; ctx.shadowBlur = 18 + 10 * pul; rrect(b.x, b.y, b.w, b.h, 18); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.restore();
-    drawBtn(b);
-    drawSkullIcon(b.x + 30, b.y + b.h / 2 + (b.down ? 3 : 0), 12, 1, 0.9); drawSkullIcon(b.x + b.w - 30, b.y + b.h / 2 + (b.down ? 3 : 0), 12, 1, 0.9);
-    if (save.bossBest) text(`Best: ${save.bossBest} bosses`, W / 2, y - 10, 18, "#ffb08a", { weight: 800, outline: 5 });
+    text("BOSS", bx + b.w / 2, cy - 15, 26, "#fff2d0", { font: DISPLAY, weight: 900, outline: 6, baseline: "middle" });
+    text("BREAK OUT", bx + b.w / 2, cy + 17, 26, "#fff2d0", { font: DISPLAY, weight: 900, outline: 6, baseline: "middle" });
+    drawSkullIcon(bx + 34, cy, 14, 1, 0.6 + 0.4 * pul); drawSkullIcon(bx + b.w - 34, cy, 14, 1, 0.6 + 0.4 * pul);
   } else {
-    const ad = bossAdAvailable(), w = ad ? 228 : 340, x = W / 2 - (ad ? (w + 112) / 2 : w / 2);
-    rrect(x, y, w, 72, 18); ctx.fillStyle = "rgba(60,20,20,0.88)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
-    text("BOSS BREAK OUT", x + w / 2, y + 30, 20, "#ff9a7a", { font: DISPLAY, weight: 900, outline: 4 });
-    text(`Ready in ${fmtTime(wait)}`, x + w / 2, y + 56, 19, PARCH, { weight: 800 });
-    if (ad) { btn.bossAd.x = x + w + 8; btn.bossAd.y = y; drawBtn(btn.bossAd); }
+    text("BOSS BREAK OUT", bx + b.w / 2, cy - 14, 22, "#ff9a7a", { font: DISPLAY, weight: 900, outline: 5, baseline: "middle" });
+    text(`Ready in ${fmtTime(wait)}`, bx + b.w / 2, cy + 20, 21, PARCH, { weight: 800, outline: 4, baseline: "middle" });
+  }
+  ctx.restore();
+  rrect(b.x, b.y + press, b.w, b.h, 16); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
+  // Mode dots and swipe hint above the button.
+  const dy = b.y - 18;
+  rrect(W / 2 - 112, dy - 15, 224, 30, 15); ctx.fillStyle = "rgba(20,10,30,0.72)"; ctx.fill();
+  for (let i = 0; i < 2; i++) { const on = Math.abs(pos - i) < 0.5; circle(W / 2 + (i - 0.5) * 22, dy, 7, INK); circle(W / 2 + (i - 0.5) * 22, dy, 4.5, on ? (i ? "#ff6a4a" : GOLD) : hexA(PARCH, 0.5)); }
+  const ha = 0.55 + 0.35 * Math.sin(lobbyT * 3);
+  text(pos < 0.5 ? "‹ Boss" : "Play ›", W / 2 + (pos < 0.5 ? -66 : 66), dy + 6, 17, pos < 0.5 ? `rgba(255,150,120,${ha})` : `rgba(255,224,140,${ha})`, { weight: 800 });
+  if (pos > 0.5) {
+    if (!wait && save.bossBest) text(`Best: ${save.bossBest} bosses`, W / 2, dy - 26, 18, "#ffb08a", { weight: 800, outline: 5 });
+    if (wait && bossAdAvailable()) { const a = btn.bossAd; a.w = 240; a.h = 56; a.x = W / 2 - 120; a.y = dy - 82; a.label = "▶ Watch ad: play now"; a.size = 20; drawBtn(a); }
+  }
+}
+// Three bosses in shadow, eyes glowing, peeking over the window sill in Boss mode (lobby art coordinates).
+const LOBBY_BOSSES = [["kingOrc", 300, 1090, 2.4, 0, [[-0.22, -0.6], [0.19, -0.6]]], ["kingSlime", 560, 1100, 2.7, 1.7, [[-0.26, -0.05], [0.26, -0.05]]], ["kingGoblin", 812, 1085, 2.3, 3.1, [[-0.24, -0.6], [0.2, -0.6]]]];
+function drawLobbyBosses(k) {
+  for (const [kind, x, y, sc, ph, eyes] of LOBBY_BOSSES) {
+    const sz = KINDS[kind].size, bob = Math.sin(lobbyT * 0.9 + ph) * 14 + (1 - k) * 220;   // rise into view as the mode slides in
+    const by = y + bob, look = Math.sin(lobbyT * 0.5 + ph) * 0.08;
+    ctx.save(); ctx.globalAlpha = k; ctx.translate(x, by); ctx.rotate(look); ctx.scale(sc, sc);
+    drawCached("lbsil_" + kind, 240, 240, () => {
+      const e = new Enemy(kind, 1, 0, 0); e.t = 0.3; e.draw();
+      ctx.globalCompositeOperation = "source-atop"; ctx.fillStyle = "rgba(16,4,24,0.86)"; ctx.fillRect(-120, -120, 240, 240);
+    });
+    ctx.globalCompositeOperation = "lighter";
+    const blink = ((lobbyT + ph * 3) % 5.3) < 0.15 ? 0.15 : 1;
+    for (const [ex, ey] of eyes) {
+      circle(ex * sz, ey * sz, 7, `rgba(255,40,30,${0.45 * blink})`); circle(ex * sz, ey * sz, 3.2, `rgba(255,${120 + 80 * Math.sin(lobbyT * 3 + ph) | 0},90,${blink})`);
+    }
+    ctx.restore();
   }
 }
 function drawHomeUi() {
@@ -6122,10 +6194,7 @@ function drawHomeUi() {
     const x = i < 2 ? 54 + i * 80 : W - 54 - (3 - i) * 80, y = by + Math.sin(lobbyT * 2 + i * 1.3) * 5, s = 76;
     ctx.drawImage(slot.img, (Math.floor(lobbyT * 12 + i * 3) % 12) * 128, 0, 128, 128, x - s / 2, y - s / 2, s, s);
   });
-  drawBossRunButton();
-  btn.play.x = W / 2 - 150; btn.play.y = H - 140; btn.play.w = 300; btn.play.h = 96;
-  btn.play.size = 40 + Math.sin(lobbyT * 3) * 1.5;
-  drawBtn(btn.play);
+  drawPlaySlider();
   // Daily reward (red dot when it is waiting) and Help (replays the tutorial).
   drawIconBtn(GUIDE_ICON[save.tut && save.tut.lobby ? "tutorial" : "tutorial_notify"], btn.help, "Tutorial");
   drawIconBtn(GUIDE_ICON[save.guide ? "merge_guide" : "merge_guide_notify"], btn.mergeGuide, "Merge Guide", 7);   // slower than the other icons
