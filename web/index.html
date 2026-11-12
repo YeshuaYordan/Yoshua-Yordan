@@ -3515,6 +3515,78 @@ function mixHexColors(a, b, k) {
   const ch = s => Math.round(((pa >> s) & 255) * (1 - k) + ((pb >> s) & 255) * k);
   return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
 }
+// A purple crystal floating above a pillar: a six-sided bipyramid that slowly spins in 3D, with a glow,
+// a beam of light down to the pillar's crystal, orbiting sparkles and motes drifting up.
+// (x, y) is where it floats, baseY the top of the pillar crystal under it, r its size. All in the 1080x1920 art.
+function drawPillarCrystal(x, y, baseY, r, t, i) {
+  const bob = Math.sin(t * 1.3 + i * 1.7) * r * 0.35, cy = y + bob, spin = t * 0.7 + i * 1.1, pulse = 0.5 + 0.5 * Math.sin(t * 2 + i);
+  const top = r * 1.6, bot = r * 1.15;   // heights of the upper and lower points
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  // Beam of light linking it to the pillar.
+  let g = ctx.createLinearGradient(0, cy, 0, baseY);
+  g.addColorStop(0, `rgba(200,150,255,${0.25 + 0.15 * pulse})`); g.addColorStop(1, "rgba(200,150,255,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - r * 0.35, cy + bot * 0.6); ctx.lineTo(x + r * 0.35, cy + bot * 0.6); ctx.lineTo(x + r * 0.9, baseY); ctx.lineTo(x - r * 0.9, baseY); ctx.closePath(); ctx.fill();
+  // Halo.
+  g = ctx.createRadialGradient(x, cy, r * 0.2, x, cy, r * 3.2);
+  g.addColorStop(0, `rgba(190,130,255,${0.45 + 0.25 * pulse})`); g.addColorStop(1, "rgba(150,80,255,0)");
+  ctx.fillStyle = g; ctx.fillRect(x - r * 3.2, cy - r * 3.2, r * 6.4, r * 6.4);
+  ctx.restore();
+  // Orbiting sparkles behind the crystal (the ones in front are drawn after it).
+  const orbit = (front) => {
+    for (let k = 0; k < 4; k++) {
+      const a = t * 1.6 + k * Math.PI / 2 + i, z = Math.sin(a);
+      if ((z > 0) !== front) continue;
+      const ox = x + Math.cos(a) * r * 2.1, oy = cy + Math.sin(a) * r * 0.55 - r * 0.2, s = (2 + 1.5 * (z + 1)) * (0.7 + 0.3 * Math.sin(t * 5 + k));
+      ctx.strokeStyle = `rgba(255,240,255,${0.5 + 0.4 * (z + 1) / 2})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ox - s * 2, oy); ctx.lineTo(ox + s * 2, oy); ctx.moveTo(ox, oy - s * 2); ctx.lineTo(ox, oy + s * 2); ctx.stroke();
+      circle(ox, oy, s * 0.7, "#ffffff");
+    }
+  };
+  orbit(false);
+  // The crystal: six facets around a vertical axis. Only facets facing us are drawn, shaded by their angle.
+  const N = 6, fac = [];
+  for (let k = 0; k < N; k++) {
+    const a0 = spin + k * Math.PI * 2 / N, a1 = a0 + Math.PI * 2 / N, mid = (a0 + a1) / 2;
+    if (Math.cos(mid) <= 0) continue;
+    fac.push({ x0: Math.sin(a0) * r, x1: Math.sin(a1) * r, light: Math.cos(mid), side: Math.sin(mid) });
+  }
+  fac.sort((a, b) => a.light - b.light);
+  for (const f of fac) {
+    const l = 0.35 + 0.65 * f.light, warm = f.side < 0 ? 1 : 0.85;
+    // Upper facet.
+    ctx.beginPath(); ctx.moveTo(x, cy - top); ctx.lineTo(x + f.x1, cy); ctx.lineTo(x + f.x0, cy); ctx.closePath();
+    ctx.fillStyle = `rgb(${Math.round((110 + 110 * l) * warm)},${Math.round(40 + 120 * l)},${Math.round(190 + 65 * l)})`; ctx.fill();
+    // Lower facet (a bit darker).
+    ctx.beginPath(); ctx.moveTo(x, cy + bot); ctx.lineTo(x + f.x1, cy); ctx.lineTo(x + f.x0, cy); ctx.closePath();
+    ctx.fillStyle = `rgb(${Math.round((70 + 80 * l) * warm)},${Math.round(25 + 60 * l)},${Math.round(130 + 70 * l)})`; ctx.fill();
+  }
+  // Inner light and outline.
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  g = ctx.createRadialGradient(x, cy, 0, x, cy, r * 1.1); g.addColorStop(0, `rgba(255,190,255,${0.18 + 0.22 * pulse})`); g.addColorStop(1, "rgba(255,200,255,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x, cy - top); ctx.lineTo(x + r, cy); ctx.lineTo(x, cy + bot); ctx.lineTo(x - r, cy); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  const wx = Math.max(...fac.map(f => Math.max(f.x0, f.x1))), wn = Math.min(...fac.map(f => Math.min(f.x0, f.x1)));
+  ctx.beginPath(); ctx.moveTo(x, cy - top); ctx.lineTo(x + wx, cy); ctx.lineTo(x, cy + bot); ctx.lineTo(x + wn, cy); ctx.closePath();
+  ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.stroke();
+  // Facet edges.
+  ctx.strokeStyle = "rgba(43,36,64,0.45)"; ctx.lineWidth = 1.5; ctx.beginPath();
+  for (const f of fac) { ctx.moveTo(x, cy - top); ctx.lineTo(x + f.x0, cy); ctx.lineTo(x, cy + bot); }
+  ctx.moveTo(x + wn, cy); ctx.lineTo(x + wx, cy); ctx.stroke();
+  // Glint that flashes as a bright facet turns past.
+  const glint = Math.max(0, Math.cos(spin * 3)) ** 8;
+  if (glint > 0.05) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = glint;
+    const gx = x - r * 0.25, gy = cy - top * 0.45, s = r * 0.7;
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(gx - s, gy); ctx.lineTo(gx + s, gy); ctx.moveTo(gx, gy - s); ctx.lineTo(gx, gy + s); ctx.stroke();
+    ctx.restore();
+  }
+  orbit(true);
+  // Motes drifting up from the pillar into the crystal.
+  for (let k = 0; k < 5; k++) {
+    const p = (t * 0.35 + k / 5 + i * 0.13) % 1, mx = x + Math.sin(k * 2.3 + t) * r * 0.6;
+    circle(mx, lerp(baseY, cy + bot, p), 2.5 + (k % 2), `rgba(230,200,255,${0.8 * Math.sin(Math.PI * p)})`);
+  }
+}
 function drawSummonScene() {
   const v = lobbyView(), G = GACHA, t = lobbyT, ph = gachaColorPhase();
   const col = mixHexColors(GACHA_COLORS[ph.i], GACHA_COLORS[ph.j], ph.k);
@@ -3544,16 +3616,10 @@ function drawSummonScene() {
   if (LOBBY.candle.ready) {
     GACHA_WICKS.forEach(([x, y], i) => ctx.drawImage(LOBBY.candle.img, ((Math.floor(t * 12) + i * 5) % 12) * 120, 0, 120, 200, x - 24, y - 80, 48, 80));
   }
-  const badge = (el, x, y, size, i) => {
-    const slot = LOBBY["badge_" + el]; if (!slot.ready) return;
-    const by = y + Math.sin(t * Math.PI * 2 / 6 + i) * 8;
-    ctx.drawImage(slot.img, ((Math.floor(t * 12) + i * 3) % 12) * 128, 0, 128, 128, x - size / 2, by - size / 2, size, size);
-  };
-  // 5. Badges behind the pillars, 6. pillars, 7. badges in front.
-  badge("earth", 250, 700, 130, 0); badge("wind", 830, 700, 130, 1);
+  // 5. Floating crystals above the back pillars, 6. front pillars, 7. crystals above the front pillars.
+  drawPillarCrystal(250, 670, 789, 38, t, 0); drawPillarCrystal(830, 670, 789, 38, t, 1);
   if (G.g_pillars.ready) ctx.drawImage(G.g_pillars.img, 0, 0, 1080, 1920);
-  // Fire and Water float centered above the two front pillars (pillar centers x 110 and 970, tops near y 1140).
-  badge("fire", 110, 1075, 85, 2); badge("water", 970, 1075, 85, 3);
+  drawPillarCrystal(110, 975, 1108, 46, t, 2); drawPillarCrystal(970, 975, 1108, 46, t, 3);
   // 8. Sparks rising from the circle.
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   for (let i = 0; i < 26; i++) {
