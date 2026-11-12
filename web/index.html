@@ -2628,6 +2628,10 @@ const btn = {
   tutNext: Object.assign(makeBtn("Next", 0, 0, 200, 64, () => tutNext(), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   tutSkip: makeBtn("Skip tutorial", 0, 0, 220, 64, () => tutSkipAll(), 22),
   daily: makeBtn("", W - 126, 372, 112, 112, () => openDaily()),
+  guideNext: Object.assign(makeBtn("Next", 0, 0, 200, 72, () => guideNext(), 28), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  guideBack: makeBtn("Back", 0, 0, 160, 72, () => guideBack(), 26),
+  guideClose: makeBtn("Close", 0, 0, 160, 72, () => { guide = null; }, 26),
+  mergeGuide: Object.assign(makeBtn("Merge Guide", W - 178, 596, 164, 60, () => openGuide(false), 22), { fill: "#c9a6ff", fillDown: "#a982e8" }),
   help: makeBtn("Tutorial", W - 158, 520, 144, 60, () => { save.tut = {}; writeSave(); tutStart("lobby"); }, 24),
   dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 230, 84, () => claimDaily(1), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   dailyAd: Object.assign(makeBtn("Watch ad", 296, 0, 374, 84, () => watchAdForDaily(), 22), { fill: "#ffcd50", fillDown: "#e0a830" }),
@@ -2695,6 +2699,7 @@ function chamberDrop(d, p) {
   if (other) { const b = slotPos(d.from, d.index); other.setHome(b.x, b.y); }
 }
 function visibleButtons() {
+  if (guide) return guideButtons();
   if (tut) return tutBlocking() ? [btn.tutNext, btn.tutSkip] : [btn.tutSkip, ...baseButtons()];
   return baseButtons();
 }
@@ -2712,7 +2717,7 @@ function baseButtons() {
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.bio, btn.lobbySound, btn.gemPill];
-    if (lobbyPage === 0) return [btn.play, btn.daily, btn.help, btn.getGems, btn.titleBook, ...top];
+    if (lobbyPage === 0) return [btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
     return [...visibleUpgradeBtns(), ...top];
   }
@@ -2750,7 +2755,7 @@ canvas.addEventListener("pointerdown", ev => {
       b.down = true; setTimeout(() => { b.down = false; }, 120); b.onTap(); return;
     }
   }
-  if (tutBlocking()) return;   // a tutorial step is open: only its buttons work
+  if (tutBlocking() || guide) return;   // a tutorial step or the guide is open: only its buttons work
   if (bookOpen) { bookDrag = { y: p.y, s: bookScroll }; return; }
   if (fusion) return;
   if (spell) {
@@ -2824,7 +2829,7 @@ function update(dt) {
   updateStorage(dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking()) return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt);
   speedT = Math.max(0, speedT - dt);
@@ -3445,7 +3450,7 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
-  if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || bioOpen || tutBlocking()) return;   // no swiping under a popup
+  if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || bioOpen || guide || tutBlocking()) return;   // no swiping under a popup
   const dy = p.y - s.y0;
   if (!s.moved && !s.vscroll) {
     if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy)) { s.moved = true; if (s.btn) s.btn.down = false; }
@@ -4290,7 +4295,7 @@ function drawHomeUi() {
   btn.play.size = 40 + Math.sin(lobbyT * 3) * 1.5;
   drawBtn(btn.play);
   // Daily reward (red dot when it is waiting) and Help (replays the tutorial).
-  drawBtn(btn.help);
+  drawBtn(btn.help); drawBtn(btn.mergeGuide);
   // Spellbook icon on the left, above the Shop.
   const bk = BOOK_ICON[bookHasNew() ? "spellbook_notify" : "spellbook"], bb = btn.titleBook, bp = bb.down ? 0.92 : 1;
   if (bk && bk.ready) { const sz = bb.w * bp; ctx.drawImage(bk.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, bb.x + (bb.w - sz) / 2, bb.y + (bb.h - sz) / 2, sz, sz); }
@@ -4308,6 +4313,142 @@ function drawHomeUi() {
   const found = RECIPE_LIST.filter(r => save.discovered[r[2]]).length;
   const stats = (save.best > 0 ? `Best: Wave ${waveLabel(save.best)}   ·   ` : "") + `${found}/${RECIPE_LIST.length} fusions found`;
   text(stats, W / 2, H - 20, 20, PARCH, { outline: 6 });
+}
+
+// ------------------------------------------------------------ Merge & Fusion guide (illustrated)
+// Shown once after the first cleared wave, even when the tutorial was skipped. It can't be skipped the first time.
+// Each page shows real cards in little equations: [A] + [B] = [C].
+const GUIDE = [
+  { t: "Card Levels", show: [["fire", 0, "V1 = Common"], ["fire", 1, "V2 = Uncommon"], ["fire", 2, "V3 = Rare"]],
+    b: "Every card has a level, shown at the top of the card. V1 is Common (grey), V2 is Uncommon (green) and V3 is Rare (blue). Higher levels hit much harder: a V3 does almost 3x the damage of a V1." },
+  { t: "Merge: Level Up", eq: [[["fire", 0], ["fire", 0], ["fire", 1]], [["fire", 1], ["fire", 1], ["fire", 2]]],
+    b: "Drag a card onto the SAME element at the SAME level to merge them. Two V1 Fire make one V2 Fire. Two V2 Fire make one V3 Fire. V3 (Rare) is the highest level for Main and Next elements." },
+  { t: "Levels Must Match", eq: [[["water", 0], ["water", 1], "x"], [["earth", 1], ["wind", 0], "x"]],
+    b: "Cards only merge or fuse when they are the SAME level. A V1 and a V2 do nothing together, so level your cards up in pairs." },
+  { t: "Fusion: New Elements", eq: [[["fire", 0], ["water", 0], ["steam", 0]], [["fire", 1], ["earth", 1], ["lava", 1]]],
+    b: "Drag two DIFFERENT main elements of the same level together to FUSE them into a Next element. The new card keeps their level: V1 + V1 makes a V1 Steam, V2 + V2 makes a V2 Lava." },
+  { t: "All 6 Fusions", recipes: [["fire", "water", "steam"], ["fire", "earth", "lava"], ["fire", "wind", "lightning"], ["water", "earth", "plant"], ["water", "wind", "ice"], ["earth", "wind", "dust"]],
+    b: "These are all the Next element fusions. Every Next element has its own power: clouds, magma pools, chain lightning, roots, slows and knockback." },
+  { t: "Level Up Next Elements", eq: [[["steam", 0], ["steam", 0], ["steam", 1]], [["steam", 1], ["steam", 1], ["steam", 2]]],
+    b: "Next elements level up the same way: two of the same element and level make one level higher, up to V3 (Rare)." },
+  { t: "Epic Cards", eq: [[["steam", 2], ["lightning", 2], ["storm", EPIC]]],
+    b: "Fuse two DIFFERENT Next elements, BOTH at V3, to create a powerful Epic card. There are 11 Epic cards to discover. Every recipe is in the Spellbook. Epic cards have a single form and don't merge with each other." },
+  { t: "Myth: Fusion Chamber", eq: [[["storm", EPIC], ["blizzard", EPIC], ["grove", EPIC], ["phoenix", MYTH]]], note: "3 Epics: 35%   4 Epics: 60%   5 Epics: 85%",
+    b: "Tap Chamber and put 3 to 5 Epic cards on the altars, then tap Fuse for a chance to create the Myth Phoenix. More Epic cards give a better chance. If it fails, all those cards are lost!" },
+  { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["phoenix", LEGEND]]], note: "Each Myth +6%   each Epic +2%   up to 30%",
+    b: "Put a Myth card on an altar to try for a LEGEND card, the strongest in the game. Each Myth card adds 6% and each Epic adds 2%, up to 30%." },
+  { t: "The Road to Legend", flow: [["fire", 0], ["fire", 1], ["fire", 2], ["steam", 2], ["storm", EPIC], ["phoenix", MYTH], ["phoenix", LEGEND]],
+    b: "Main V1 > V2 > V3, fuse into Next elements, level them to V3, fuse two into an Epic, fuse Epics into a Myth, and a Myth into a Legend. Good luck, summoner!" },
+];
+let guide = null;   // { page, t, forced }
+const guideCards = new Map();
+function guideCard(el, r, slot) {
+  const k = `${el}|${r}|${slot}`; let c = guideCards.get(k);
+  if (!c) { c = new Card(el, r); guideCards.set(k, c); }
+  return c;
+}
+function openGuide(forced) { guide = { page: 0, t: 0, forced }; cancelDrag(); playUi("ui_pick"); }
+function guideNext() {
+  if (guide.page < GUIDE.length - 1) { guide.page++; guide.t = 0; playUi("ui_pick"); return; }
+  save.guide = true; writeSave(); guide = null; playUi("ui_place");
+}
+function guideBack() { if (guide.page > 0) { guide.page--; guide.t = 0; playUi("ui_pick"); } }
+function guideButtons() { return [btn.guideNext, ...(guide.page > 0 ? [btn.guideBack] : []), ...(guide.forced ? [] : [btn.guideClose])]; }
+// Draws one card of the guide, bobbing gently.
+function gCard(el, r, slot, x, y, sc, dt, glow = 0) {
+  const c = guideCard(el, r, slot);
+  c.t += dt; c.evolveAt = -1;
+  if (glow > 0) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(x, y, 10, x, y, 110 * sc); g.addColorStop(0, `rgba(255,230,140,${0.45 * glow})`); g.addColorStop(1, "rgba(255,230,140,0)"); ctx.fillStyle = g; ctx.fillRect(x - 120 * sc, y - 120 * sc, 240 * sc, 240 * sc); ctx.restore(); }
+  c.x = c.hx = x; c.y = c.hy = y + Math.sin(c.t * 2 + slot) * 3; c.scale = sc; c.draw();
+}
+function glyph(s, x, y, size, col) { text(s, x, y, size, col, { weight: 900, outline: 6, baseline: "middle" }); }
+// [A] + [B] (+ [C]) = [result] ; result "x" draws a red cross instead (no match).
+function drawEquation(eq, cy, dt, pageT, slot0) {
+  const n = eq.length, panelW = W - 100, symW = 46;
+  const sc = Math.min(1.05, (panelW - symW * (n - 1)) / (n * CARD_W));
+  const cw = CARD_W * sc, total = n * cw + (n - 1) * symW;
+  let x = W / 2 - total / 2 + cw / 2;
+  const pulse = 0.5 + 0.5 * Math.sin(pageT * 4);
+  eq.forEach((item, i) => {
+    const last = i === n - 1;
+    if (last && item === "x") {
+      circle(x, cy, 34, "#e0533f"); ring(x, cy, 34, INK, 4);
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(x - 14, cy - 14); ctx.lineTo(x + 14, cy + 14); ctx.moveTo(x + 14, cy - 14); ctx.lineTo(x - 14, cy + 14); ctx.stroke();
+    } else gCard(item[0], item[1], slot0 + i, x, cy, sc * (last ? 1 + 0.05 * pulse : 1), dt, last ? 0.6 + 0.4 * pulse : 0);
+    if (!last) glyph(i === n - 2 ? (eq[n - 1] === "x" ? "?" : "=") : "+", x + cw / 2 + symW / 2, cy, 40, i === n - 2 ? GOLD : PARCH);
+    x += cw + symW;
+  });
+}
+function drawGuide(dt) {
+  const g = guide; g.t += dt;
+  const pg = GUIDE[g.page];
+  dim(0.82);
+  const px = 20, pw = W - 40, ph = Math.min(H - 120, 1060), py = (H - ph) / 2;
+  rrect(px, py, pw, ph, 26); ctx.fillStyle = "#2a1d40"; ctx.fill(); ctx.strokeStyle = GOLD; ctx.lineWidth = 5; ctx.stroke();
+  text("MERGE & FUSION GUIDE", W / 2, py + 44, 22, "#c9a6ff", { weight: 800 });
+  text(pg.t, W / 2, py + 96, 44, GOLD, { font: DISPLAY, weight: 900, outline: 10 });
+  // Explanation text.
+  ctx.font = `600 23px ${FONT}`;
+  const lines = []; let ln = "";
+  for (const wd of pg.b.split(" ")) { const tt = ln ? ln + " " + wd : wd; if (ctx.measureText(tt).width > pw - 70 && ln) { lines.push(ln); ln = wd; } else ln = tt; }
+  if (ln) lines.push(ln);
+  lines.forEach((l, i) => text(l, W / 2, py + 148 + i * 31, 23, PARCH, { weight: 600 }));
+  const top = py + 148 + lines.length * 31 + 20, bottom = py + ph - 130, mid = (top + bottom) / 2;
+  // The pictures.
+  if (pg.show) {
+    const sc = 1.25, gap = (pw - 60) / 3;
+    pg.show.forEach(([el, r, label], i) => {
+      const x = px + 30 + gap * (i + 0.5);
+      gCard(el, r, i, x, mid - 20, sc, dt, 0);
+      text(label, x, mid + CARD_H * sc / 2 + 18, 22, RARITY_COLORS[r], { weight: 800, outline: 6 });
+      text(`${Math.round(damageOf(el, r))} damage`, x, mid + CARD_H * sc / 2 + 46, 18, PARCH, { weight: 600 });
+    });
+  }
+  if (pg.eq) {
+    const rows = pg.eq.length, avail = bottom - top - (pg.note ? 60 : 0), rowH = Math.min(230, avail / rows), y0 = top + (avail - rowH * rows) / 2;
+    pg.eq.forEach((eq, i) => drawEquation(eq, y0 + rowH * (i + 0.5), dt, g.t, i * 10));
+    if (pg.note) {
+      rrect(px + 40, bottom - 52, pw - 80, 44, 22); ctx.fillStyle = "rgba(242,193,78,0.18)"; ctx.fill();
+      text(pg.note, W / 2, bottom - 23, 21, GOLD, { weight: 800 });
+    }
+  }
+  if (pg.recipes) {
+    // One fusion per row, big enough to read: [A] + [B] = [C] with the result's name.
+    const rowH = (bottom - top) / 6, sc = Math.min(0.62, (rowH - 8) / CARD_H), cw = CARD_W * sc, gap = 54;
+    pg.recipes.forEach(([a, b2, c], i) => {
+      const cy = top + rowH * (i + 0.5), x0 = W / 2 - (cw * 1.5 + gap) - 60;
+      gCard(a, 0, 100 + i * 3, x0, cy, sc, dt);
+      glyph("+", x0 + cw / 2 + gap / 2, cy, 30, PARCH);
+      gCard(b2, 0, 101 + i * 3, x0 + cw + gap, cy, sc, dt);
+      glyph("=", x0 + cw * 1.5 + gap * 1.5, cy, 30, GOLD);
+      gCard(c, 0, 102 + i * 3, x0 + (cw + gap) * 2, cy, sc, dt, 0.5);
+      text(EL[c].name, x0 + (cw + gap) * 2 + cw / 2 + 18, cy + 8, 24, EL[c].color, { align: "left", weight: 900, outline: 6 });
+    });
+  }
+  if (pg.flow) {
+    // Two rows: 4 cards, then 3 cards, joined by arrows.
+    const rowsXY = [], sc = 0.72, cw = CARD_W * sc, gap = (pw - 40) / 4;
+    pg.flow.forEach((_, i) => { const row = i < 4 ? 0 : 1, col = i < 4 ? i : i - 4 + 0.5; rowsXY.push([px + 20 + gap * (col + 0.5), mid + (row ? 120 : -110)]); });
+    for (let i = 0; i < rowsXY.length - 1; i++) {
+      const [x0, y0] = rowsXY[i], [x1, y1] = rowsXY[i + 1];
+      const k = (g.t * 0.8 + i * 0.12) % 1;
+      ctx.strokeStyle = hexA(GOLD, 0.7); ctx.lineWidth = 4; ctx.setLineDash([8, 8]); ctx.lineDashOffset = -g.t * 30;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]);
+      circle(lerp(x0, x1, k), lerp(y0, y1, k), 5, "#fff6c8");
+    }
+    pg.flow.forEach(([el, r], i) => {
+      const [x, y] = rowsXY[i];
+      gCard(el, r, 200 + i, x, y, sc, dt, i === pg.flow.length - 1 ? 0.8 : 0);
+      const lab = r <= 2 ? `V${r + 1}` : RARITY_NAMES[r];
+      text(lab, x, y + CARD_H * sc / 2 + 22, 19, RARITY_COLORS[r], { weight: 800, outline: 5 });
+    });
+  }
+  // Page dots and buttons.
+  for (let i = 0; i < GUIDE.length; i++) circle(W / 2 + (i - (GUIDE.length - 1) / 2) * 22, py + ph - 112, i === g.page ? 7 : 5, i === g.page ? GOLD : hexA(PARCH, 0.4));
+  const by = py + ph - 92;
+  btn.guideNext.label = g.page === GUIDE.length - 1 ? "Got it!" : "Next"; btn.guideNext.x = px + pw - 30 - btn.guideNext.w; btn.guideNext.y = by; drawBtn(btn.guideNext);
+  if (g.page > 0) { btn.guideBack.x = px + 30; btn.guideBack.y = by; drawBtn(btn.guideBack); }
+  if (!g.forced) { btn.guideClose.x = W / 2 - btn.guideClose.w / 2 + (g.page > 0 ? 0 : -90); btn.guideClose.y = by; drawBtn(btn.guideClose); }
 }
 
 // ------------------------------------------------------------ First-run tutorial
@@ -4339,10 +4480,6 @@ const TUT = {
   ],
   merge: [
     { t: "Gold", hl: () => ({ x: btn.reroll.x, y: btn.reroll.y + btn.reroll.h + 6, w: 140, h: 50 }), b: "This is your gold. Spend it on cards, shop rerolls and spells." },
-    { t: "Level up", hl: () => { const a = rowRect("active", SLOTS), s = rowRect("storage", SLOTS); return { x: a.x, y: a.y, w: a.w, h: s.y + s.h - a.y }; },
-      b: "Drag a card onto the SAME card at the SAME level to level it up: V1 > V2 > V3. Each level hits much harder. Main and Next elements stop at V3." },
-    { t: "Fusion", b: "Drag two DIFFERENT main elements of the same level together to fuse a Next element: Fire + Water = Steam, Fire + Earth = Lava, Water + Wind = Ice, and more. Two V3 Next elements fuse into a powerful Epic card." },
-    { t: "Recipes", b: "All recipes are in the Spellbook (Fusions tab). Every fusion you make for the first time is discovered and appears in your Cards library." },
     { t: "Reroll", hl: () => btnRect(btn.reroll), b: "Don't like the shop? Reroll it for new cards. The price goes up with each reroll and resets every wave." },
     { t: "Sell", hl: () => ({ x: SELL_RECT.x - 6, y: SELL_RECT.y - 6, w: SELL_RECT.w + 12, h: SELL_RECT.h + 12 }), b: "Drag a card you don't need onto Sell to get half of its price back." },
     { t: "Elements", b: "Water beats Fire, Fire beats Wind, Wind beats Earth and Earth beats Water. Some enemies resist an element: they take half damage from it and 1.5x damage from the element that beats it. Wind is strong against flying enemies." },
@@ -4374,6 +4511,8 @@ function tutSkipAll() { for (const k of Object.keys(TUT)) save.tut[k] = true; wr
 function tutStart(ch) { tut = { ch, i: 0, t: 0 }; cancelDrag(); }
 // Starts a chapter when its moment comes, and moves on from "do it" steps once they are done.
 function tutCheck() {
+  if (guide) return;
+  if (!save.guide && !tut && state === "break" && wavesCleared >= 1 && !paused && !bookOpen && !chamberOpen && !spell && !drag && !fusion && !doom) { openGuide(true); return; }
   if (tut) { const st = tutStep(); if (st.wait && st.wait()) tutNext(); return; }
   const seen = k => save.tut[k];
   if (state === "title") {
@@ -4467,6 +4606,7 @@ function frame(now) {
   }
   drawOverlays(); drawFilm();
   tutCheck(); if (tut) drawTut(dt);
+  if (guide) drawGuide(dt);
   if (fadeIn > 0) { ctx.fillStyle = `rgba(10,5,15,${fadeIn / 0.5})`; ctx.fillRect(0, 0, W, H); fadeIn = Math.max(0, fadeIn - dt); }
   requestAnimationFrame(frame);
 }
