@@ -2388,9 +2388,9 @@ function clearBoard() {
 // right side of the battlefield: scroll it up/down, the card in front is the big one; drag it out to use it.
 // Every wild card shares one frame; each has its own icon. They are lost when the run ends.
 const WILD = {
-  stalwart: { name: "Stalwart", desc: "The wall gets +25 max HP (and heals 25) and +1% damage reduction. Stacks.", hpUp: 25, armorUp: 0.01 },
+  stalwart: { name: "Stalwart", desc: "The wall gets +25 max HP (and heals 25) and +0.5% damage reduction (up to 60%). Stacks.", hpUp: 25, armorUp: 0.005 },
 };
-const WILD_DROP = 0.015, WILD_ARMOR_MAX = 0.75;
+const WILD_DROP = 0.015, WILD_ARMOR_MAX = 0.6;
 let wilds = [], wildFly = [], wildScroll = 0, wildDrag = null, wildFan = null, wallGlow = 0;
 const wildCount = () => wilds.reduce((a, w) => a + w.n, 0);
 function wildFanGeo() { const cy = (HUD_H + FRONT_Y) / 2 + 30; return { cx: W + 40, cy, R: 165 }; }
@@ -2418,7 +2418,7 @@ function useWild(i) {
     castleMax += d.hpUp; castleHp = Math.min(castleMax, castleHp + d.hpUp); castleArmor = Math.min(WILD_ARMOR_MAX, castleArmor + d.armorUp); wallGlow = 1;
     for (let k = 0; k < 9; k++) fxs.push(new Fx("burst", { x: 40 + k * 80, y: WALL_Y + WALL_H / 2, color: "#cfe6ff", radius: 70, duration: 0.6 }));
     for (let k = 0; k < 30; k++) addPart({ add: true, kind: "glint", x: rand(20, W - 20), y: WALL_Y + rand(0, WALL_H), vx: rand(-30, 30), vy: -rand(80, 220), life: rand(0.6, 1.1), size: rand(3, 6), col: Math.random() < 0.5 ? "#ffffff" : "#9fd8ff" });
-    fxs.push(new Fx("text", { x: W / 2, y: WALL_Y - 40, text: `+${d.hpUp} Max HP   ·   ${Math.round(castleArmor * 100)}% damage reduction`, color: "#cfe6ff", size: 26, duration: 1.6 }));
+    fxs.push(new Fx("text", { x: W / 2, y: WALL_Y - 40, text: `+${d.hpUp} Max HP   ·   ${+(castleArmor * 100).toFixed(1)}% damage reduction`, color: "#cfe6ff", size: 26, duration: 1.6 }));
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sNoise(0.5, 0.6, "lowpass", 600, 60, 0.8); sTone("sine", 110, 70, 0.4, 0.2); [523, 784, 1047].forEach((f, k) => sTone("triangle", f, f, 0.5, 0.08, 0.1 + k * 0.08)); }
     shakeT = Math.max(shakeT, 0.25); shakeAmp = 5;
   }
@@ -4638,7 +4638,7 @@ function drawHud() {
   if (castleArmor > 0) {   // Stalwart damage reduction: a little shield with the percentage
     const sx = hb.x + hb.w - 14, sy = hb.y + hb.h + 10;
     poly([[sx, sy - 11], [sx + 10, sy - 7], [sx + 9, sy + 4], [sx, sy + 11], [sx - 9, sy + 4], [sx - 10, sy - 7]], "#9fc6e8", INK, 2);
-    text(`${Math.round(castleArmor * 100)}%`, sx - 14, sy + 6, 16, "#cfe6ff", { align: "right", weight: 800, outline: 4 });
+    text(`${+(castleArmor * 100).toFixed(1)}%`, sx - 14, sy + 6, 16, "#cfe6ff", { align: "right", weight: 800, outline: 4 });
   }
   // Gold, under the left edge of the Reroll button.
   const gx = btn.reroll.x + 16, gy = btn.reroll.y + btn.reroll.h + 34;
