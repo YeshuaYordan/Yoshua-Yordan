@@ -2544,8 +2544,9 @@ function drawWildFan() {
   }
   if (wilds.length > 1) {   // scroll hint: how many more cards wait in the fan
     const g = wildFanGeo(), left = wilds.length - 1 - Math.round(wildScroll);
-    if (left > 0) text(`▲ ${left} more`, g.cx - 14, g.cy - CARD_H * WILD_SC / 2 - 64, 16, "rgba(220,240,255,0.9)", { weight: 800, outline: 4 });
-    if (Math.round(wildScroll) > 0) text("▼", g.cx, g.cy + CARD_H * WILD_SC / 2 + 26, 17, "rgba(220,240,255,0.9)", { weight: 800, outline: 4 });
+    const bob = Math.sin(time * 4) * 3;   // the arrows bob gently to invite a swipe
+    if (left > 0) text("▲", g.cx, g.cy - CARD_H * WILD_SC / 2 - 54 - bob, 28, "rgba(230,245,255,0.95)", { weight: 900, outline: 5 });
+    if (Math.round(wildScroll) > 0) text("▼", g.cx, g.cy + CARD_H * WILD_SC / 2 + 42 + bob, 28, "rgba(230,245,255,0.95)", { weight: 900, outline: 5 });
   }
   if (wildDrag && wildDrag.moved) {
     const ok = wildDropOk(pointer);
