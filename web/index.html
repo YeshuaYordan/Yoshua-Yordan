@@ -108,8 +108,8 @@ const EL = {
   hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 46, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
   poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [118, 48, 224], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400, rate: (1 / 8) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 3, shotScale: 4 },   // 3 s rest + 5 s gathering = one shot every 8 s
-  fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [112, 78, 262], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
-  serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [178, 40, 230], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre (bosses resist it).", dmg: 32, rate: 0.6 / RARITY_RATE[4], speed: 680, whirl: 105, whirl_pull: 150, whirl_time: 2.6 },
+  fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [112, 78, 262], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
+  serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [178, 40, 230], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre (bosses resist it).", dmg: 32, rate: 0.6 / RARITY_RATE[4], speed: 680, shotScale: 1.7, whirl: 105, whirl_pull: 150, whirl_time: 2.6 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
 // Element tiers:
@@ -1919,7 +1919,7 @@ class Enemy {
 // Every card's shot has its own look (a flying head + a trail of particles) and its own impact,
 // so each element is easy to recognise in a busy fight.
 const VFX_STYLE = {
-  fire: "fire", wildfire: "fire", phoenix: "phoenix", solarflare: "sun", zeus: "bolt", poseidon: "water", hades: "soul", serpent: "water", fenrir: "bolt", kitsune: "foxfire",
+  fire: "fire", wildfire: "fire", phoenix: "phoenix", solarflare: "sun", zeus: "bolt", poseidon: "water", hades: "soul", serpent: "serpent", fenrir: "fenrir", kitsune: "foxfire",
   water: "water", tidalwave: "water", geyser: "geyser",
   earth: "rock", earthquake: "rock", obsidian: "obsidian", lava: "lava", magmabloom: "magma",
   wind: "wind", tempest: "wind", dust: "sand", sandstorm: "sand",
@@ -1927,6 +1927,8 @@ const VFX_STYLE = {
   lightning: "bolt", storm: "bolt", aurora: "bolt",
 };
 const VFX_SCALE = 1.35;   // how big shots look compared with their hit size
+const SEA_COLS = [[255, 255, 255], [180, 240, 255], [70, 170, 255], [20, 70, 180]];   // Serpent: foam to deep sea
+const STORM_COLS = [[255, 255, 255], [200, 240, 255], [110, 200, 255], [40, 90, 220]];  // Fenrir: white-hot to storm blue
 const FOX_COLS = [[255, 255, 255], [255, 208, 220], [255, 106, 134], [224, 32, 60]];   // Kitsune's fox-fire: white core to crimson
 const SOUL_COLS = [[255, 240, 255], [220, 150, 255], [150, 60, 230], [50, 10, 90]];
 const FIRE_COLS = [[255, 250, 210], [255, 205, 80], [255, 110, 40], [140, 40, 30]];
@@ -2015,6 +2017,19 @@ function emitTrail(pr, dt) {
   const n = rate => { pr.emit[rate] = (pr.emit[rate] || 0) + dt * rate; const c = Math.floor(pr.emit[rate]); pr.emit[rate] -= c; return c; };
   const back = (sp, j = 40) => ({ vx: -dx * sp + rand(-j, j), vy: -dy * sp + rand(-j, j) });
   const rgb = rgbOf(pr.color);
+  if (st === "serpent") {
+    // Sea spray peeling off the water serpent: glowing foam, droplets and bubbles.
+    for (let i = n(70); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(30, 110)), life: rand(0.3, 0.5), size: R * rand(0.4, 0.75), grow: -0.5, cols: SEA_COLS, a: 0.75 });
+    for (let i = n(22); i > 0; i--) addPart({ kind: "drop", x: bx, y: by, vx: rand(-120, 120), vy: rand(-160, 40), g: 700, life: rand(0.4, 0.7), size: rand(1.8, 3.2), col: "#bfeeff" });
+    for (let i = n(8); i > 0; i--) addPart({ kind: "bubble", x: bx + rand(-8, 8), y: by + rand(-8, 8), vx: rand(-20, 20), vy: rand(-40, -10), life: 0.7, size: rand(2, 4.5), col: "rgba(230,250,255,0.9)", rot: rand(0, 9) });
+    return;
+  }
+  if (st === "fenrir") {
+    // Storm sparks crackling off the lightning orb, and short arcs left hanging in the air.
+    for (let i = n(60); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 120)), life: rand(0.2, 0.35), size: R * rand(0.35, 0.7), grow: -0.6, cols: STORM_COLS, a: 0.8 });
+    for (let i = n(40); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, vx: rand(-260, 260), vy: rand(-260, 260), drag: 5, life: rand(0.15, 0.3), size: 1.8, cols: STORM_COLS, len: 0.05 });
+    return;
+  }
   if (st === "foxfire") {
     // Red-pink fox-fire flames, white wisps and drifting petals.
     for (let i = n(80); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 140)), life: rand(0.25, 0.45), size: R * rand(0.6, 1.0), grow: -0.6, cols: FOX_COLS, a: 0.8 });
@@ -2082,6 +2097,54 @@ function drawShotHead(pr) {
   const st = pr.style, R = pr.radius * VFX_SCALE * 1.1, t = pr.t;
   ctx.save(); ctx.translate(pr.x, pr.y);
   const glow = (r, c) => { const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, `rgba(${c},0.6)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); };
+  if (st === "serpent") {
+    // A water serpent: a sinuous glowing body that follows the shot's path, and a fanged head with glowing eyes.
+    ctx.restore(); ctx.save();
+    pr.hist = pr.hist || []; const hh = pr.hist; hh.unshift([pr.x, pr.y]); if (hh.length > 16) hh.length = 16;
+    if (hh.length > 2) {
+      const pts = hh.map(([hx, hy], i) => { const j = Math.min(i + 1, hh.length - 1), dx = hh[Math.max(0, i - 1)][0] - hh[j][0], dy = hh[Math.max(0, i - 1)][1] - hh[j][1], l = Math.hypot(dx, dy) || 1, w = Math.sin(i * 0.85 - t * 16) * R * 0.9 * Math.min(1, i / 3);
+        return [hx - dy / l * w, hy + dx / l * w]; });
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      for (let i = pts.length - 1; i > 0; i--) {   // tapered body: thick behind the head, thin at the tail
+        const f = 1 - i / pts.length, wdt = R * (0.35 + 1.1 * f);
+        ctx.strokeStyle = `rgba(20,70,180,${0.85 * f + 0.1})`; ctx.lineWidth = wdt + 4; ctx.beginPath(); ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(pts[i - 1][0], pts[i - 1][1]); ctx.stroke();
+        ctx.strokeStyle = `rgba(80,190,255,${0.9 * f + 0.1})`; ctx.lineWidth = wdt; ctx.stroke();
+        ctx.strokeStyle = `rgba(230,250,255,${0.8 * f})`; ctx.lineWidth = wdt * 0.3; ctx.stroke();
+        if (i % 3 === 0) { const a = Math.atan2(pts[i - 1][1] - pts[i][1], pts[i - 1][0] - pts[i][0]); ctx.save(); ctx.translate(pts[i][0], pts[i][1]); ctx.rotate(a);   // a dorsal fin
+          ctx.fillStyle = `rgba(150,225,255,${0.8 * f})`; ctx.beginPath(); ctx.moveTo(-wdt * 0.5, 0); ctx.lineTo(0, -wdt * 0.9); ctx.lineTo(wdt * 0.5, 0); ctx.closePath(); ctx.fill(); ctx.restore(); }
+      }
+    }
+    ctx.translate(pr.x, pr.y); ctx.rotate(pr.ang);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 3); g.addColorStop(0, "rgba(90,200,255,0.55)"); g.addColorStop(1, "rgba(90,200,255,0)"); ctx.fillStyle = g; ctx.fillRect(-R * 3, -R * 3, R * 6, R * 6);
+    const jaw = 0.25 + 0.15 * Math.sin(t * 20);
+    for (const sy of [-1, 1]) {   // upper and lower jaw, opening and snapping
+      ctx.save(); ctx.rotate(sy * jaw);
+      ctx.beginPath(); ctx.moveTo(-R * 0.6, 0); ctx.quadraticCurveTo(R * 0.4, sy * R * 1.1, R * 1.8, sy * R * 0.15); ctx.lineTo(R * 0.6, sy * R * 0.1); ctx.closePath();
+      const jg = ctx.createLinearGradient(0, 0, 0, sy * R); jg.addColorStop(0, "#e8f8ff"); jg.addColorStop(1, "#2a7ad8"); ctx.fillStyle = jg; ctx.fill(); ctx.strokeStyle = "#0a2a6a"; ctx.lineWidth = 1.5; ctx.stroke();
+      for (let k2 = 0; k2 < 3; k2++) { const fx = R * (0.7 + k2 * 0.35); ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(fx, sy * R * 0.12); ctx.lineTo(fx + R * 0.12, sy * -R * 0.12); ctx.lineTo(fx + R * 0.24, sy * R * 0.12); ctx.closePath(); ctx.fill(); }   // fangs
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.ellipse(-R * 0.1, 0, R * 1.0, R * 0.75, 0, 0, Math.PI * 2); const hg = ctx.createRadialGradient(-R * 0.3, -R * 0.3, 1, 0, 0, R); hg.addColorStop(0, "#e8f8ff"); hg.addColorStop(0.5, "#4ab4ff"); hg.addColorStop(1, "#14468e");
+    ctx.fillStyle = hg; ctx.fill(); ctx.strokeStyle = "#0a2a6a"; ctx.lineWidth = 1.5; ctx.stroke();
+    for (const sy of [-1, 1]) { circle(R * 0.25, sy * R * 0.38, R * 0.3, "rgba(120,255,240,0.45)"); circle(R * 0.25, sy * R * 0.38, R * 0.15, "#e8fffc"); }   // glowing eyes
+    for (const sy of [-1, 1]) { ctx.beginPath(); ctx.moveTo(-R * 0.6, sy * R * 0.4); ctx.quadraticCurveTo(-R * 1.4, sy * R * 1.0, -R * 1.9, sy * R * 0.7); ctx.strokeStyle = "rgba(200,240,255,0.85)"; ctx.lineWidth = 2; ctx.stroke(); }   // whiskers / crest
+    ctx.restore(); return;
+  }
+  if (st === "fenrir") {
+    // A storm orb: a white-hot core in a blue halo, wild lightning arcs lashing out, and three claw marks spinning around it.
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 3.6); g.addColorStop(0, "rgba(140,210,255,0.65)"); g.addColorStop(1, "rgba(60,120,255,0)"); ctx.fillStyle = g; ctx.fillRect(-R * 3.6, -R * 3.6, R * 7.2, R * 7.2);
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (let a = 0; a < 6; a++) {   // arcs, redrawn every frame so they flicker
+      const ang = Math.random() * Math.PI * 2, L = R * rand(1.6, 3.2), pts = [[0, 0]];
+      for (let k2 = 1; k2 <= 5; k2++) { const d = L * k2 / 5; pts.push([Math.cos(ang) * d + rand(-R * 0.45, R * 0.45), Math.sin(ang) * d + rand(-R * 0.45, R * 0.45)]); }
+      for (const [w, c] of [[4, "rgba(80,160,255,0.45)"], [1.8, "rgba(190,235,255,0.95)"], [0.8, "#ffffff"]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); }
+    }
+    ctx.save(); ctx.rotate(t * 10);
+    for (let c2 = -1; c2 <= 1; c2++) { ctx.beginPath(); ctx.arc(0, 0, R * (1.55 + c2 * 0.22), -0.9 + c2 * 0.1, 0.4 + c2 * 0.1); ctx.strokeStyle = "rgba(220,245,255,0.95)"; ctx.lineWidth = 2.2; ctx.stroke(); }   // claw marks
+    ctx.restore();
+    circle(0, 0, R * 1.05, "#5ab8ff"); circle(0, 0, R * 0.72, "#d8f2ff"); circle(0, 0, R * 0.38, "#ffffff");
+    ctx.restore(); return;
+  }
   if (st === "foxfire") {
     // A fox-fire ball: crimson glow, white-pink core and three flame tongues spinning around it.
     const GR = R * 1.9, g = ctx.createRadialGradient(0, 0, 0, 0, 0, GR); g.addColorStop(0, "rgba(255,70,100,0.55)"); g.addColorStop(1, "rgba(255,70,100,0)"); ctx.fillStyle = g; ctx.fillRect(-GR, -GR, GR * 2, GR * 2);
@@ -2182,6 +2245,22 @@ function impactFx(el, x, y, r, area) {
   const burst = (count, f) => { for (let i = 0; i < count; i++) { const a = rand(0, Math.PI * 2); f(Math.cos(a), Math.sin(a), i); } };
   const ringFx = (col, size, grow, w, sq = 0.55, add = true, life = 0.45) => addPart(add ? { add: true, kind: "ring", x, y, rgb: col, size, grow, w, sq, life } : { kind: "ring", x, y, col, size, grow, w, sq, life });
   addPart({ add: true, kind: "glow", x, y, life: 0.16, size: 26 * P + A * 0.3, grow: 0.3, rgb: "255,255,240", a: 0.9 });
+  if (st === "serpent") {
+    // The serpent crashes into the water: a splash crown, droplets flying up, rippling rings and mist.
+    burst(Math.round(18 * P), (cx, cy) => { const sp = rand(60, 220) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.6 - 40, drag: 3, life: rand(0.35, 0.6), size: rand(9, 16) * P, grow: -0.4, cols: SEA_COLS, a: 0.8 }); });
+    for (let i = 0; i < 26; i++) { const a = -Math.PI / 2 + rand(-1.1, 1.1), sp = rand(200, 460); addPart({ kind: "drop", x: x + rand(-10, 10), y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 1100, life: rand(0.5, 0.8), size: rand(2.5, 4.5), col: Math.random() < 0.4 ? "#ffffff" : "#8fdcff" }); }
+    for (let i = 0; i < 3; i++) addPart({ kind: "ring", x, y, col: i === 1 ? "rgba(255,255,255,0.9)" : "rgba(90,190,255,0.85)", size: 10 + i * 8, grow: 70 + i * 40, w: 5 - i, sq: 0.45, life: 0.45 + i * 0.15 });
+    for (let i = 0; i < 6; i++) addPart({ kind: "bubble", x: x + rand(-25, 25), y: y + rand(-10, 10), vx: rand(-30, 30), vy: rand(-80, -30), life: 0.8, size: rand(3, 6), col: "rgba(230,250,255,0.9)", rot: rand(0, 9) });
+    return;
+  }
+  if (st === "fenrir") {
+    // Fenrir strikes: three huge lightning claw slashes across the target, a crackling shockwave and a spray of sparks.
+    fxs.push(new Fx("claw", { x, y, duration: 0.32, radius: 70 * P }));
+    burst(28, (cx, cy) => { const sp = rand(220, 520); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 4, life: rand(0.25, 0.45), size: 2.4, cols: STORM_COLS, len: 0.05 }); });
+    burst(Math.round(12 * P), (cx, cy) => { const sp = rand(60, 200); addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.6, drag: 3, life: rand(0.25, 0.45), size: rand(8, 14) * P, grow: -0.4, cols: STORM_COLS, a: 0.85 }); });
+    ringFx("120,200,255", 10, 90 * P, 6); ringFx("255,255,255", 6, 55 * P, 3, 0.55, true, 0.3);
+    return;
+  }
   if (st === "foxfire") {
     // The bursting blow: a white flash, crimson flame burst over the whole area, two shockwaves and petals flying out.
     const AR = Math.max(A, 60);
@@ -2379,6 +2458,16 @@ function drawWhirlpool(z) {
   for (let i = 0; i < 6; i++) { const u = ((z.t * 0.9 + i / 6) % 1), a = -spin * 1.4 + i * 1.05 + u * 5, rr = R * (0.85 - 0.75 * u); circle(Math.cos(a) * rr, Math.sin(a) * rr, 3.2 * (1 - u) + 1, "rgba(235,250,255,0.85)"); }   // bubbles sucked in
   circle(0, 0, R * 0.13, "rgba(2,8,30,0.9)");
   ctx.restore();
+  if (z.t < 0.6) {   // a water spout bursts up as the whirlpool opens
+    const u = z.t / 0.6, h = 90 * Math.sin(Math.PI * Math.min(1, u * 1.3)), w = 16 + 10 * u;
+    ctx.save(); ctx.globalAlpha = 1 - u * 0.6;
+    const sg = ctx.createLinearGradient(0, z.y - h, 0, z.y); sg.addColorStop(0, "rgba(230,250,255,0.9)"); sg.addColorStop(1, "rgba(40,140,230,0.85)");
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.moveTo(z.x - w, z.y);
+    for (let i = 0; i <= 8; i++) { const yy = z.y - h * i / 8; ctx.lineTo(z.x - w * (1 - i / 10) + Math.sin(i + z.t * 30) * 4, yy); }
+    for (let i = 8; i >= 0; i--) { const yy = z.y - h * i / 8; ctx.lineTo(z.x + w * (1 - i / 10) + Math.sin(i * 1.3 + z.t * 30) * 4, yy); }
+    ctx.closePath(); ctx.fill(); circle(z.x, z.y - h, w * 0.8, "rgba(240,252,255,0.85)");
+    ctx.restore();
+  }
 }
 class Fx {
   constructor(mode, opt) { Object.assign(this, { mode, t: 0, dead: false, duration: 0.4, color: "#ffffff", radius: 40, x: 0, y: 0 }, opt); }
@@ -2391,6 +2480,18 @@ class Fx {
       ctx.beginPath();
       for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.moveTo(this.x + Math.cos(a) * r * 0.6, this.y + Math.sin(a) * r * 0.6); ctx.lineTo(this.x + Math.cos(a) * r * 1.1, this.y + Math.sin(a) * r * 1.1); }
       ctx.strokeStyle = hexA(this.color, 1 - k); ctx.lineWidth = 2.5; ctx.stroke();
+    } else if (this.mode === "claw") {
+      // Three giant jagged lightning slashes swiping across the target (drawn in, then fading).
+      if (!this.seed) this.seed = Math.random() * 1000;
+      const reveal = Math.min(1, k * 4), fade = 1 - Math.max(0, (k - 0.35) / 0.65), L = this.radius * 2.2, ang = -0.8;
+      ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+      for (let c2 = -1; c2 <= 1; c2++) {
+        const ca = Math.cos(ang), sa = Math.sin(ang), ox = -sa * c2 * this.radius * 0.32, oy = ca * c2 * this.radius * 0.32, len = L * (1 - Math.abs(c2) * 0.15) * reveal;
+        let sd = this.seed + c2 * 31; const pts = [];
+        for (let i = 0; i <= 8; i++) { sd = (sd * 9301 + 49297) % 233280; const j = (sd / 233280 - 0.5) * 10, d = -L * (1 - Math.abs(c2) * 0.15) / 2 + len * i / 8; pts.push([this.x + ox + ca * d - sa * j, this.y + oy + sa * d + ca * j]); }
+        for (const [w, col] of [[14, `rgba(70,150,255,${0.35 * fade})`], [6, `rgba(160,220,255,${0.95 * fade})`], [2.4, `rgba(255,255,255,${fade})`]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([px, py], i) => i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.stroke(); }
+      }
+      ctx.restore();
     } else if (this.mode === "bolt") {
       const jag = [];
       for (let i = 0; i < this.points.length - 1; i++) {
