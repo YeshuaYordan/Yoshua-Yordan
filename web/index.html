@@ -254,7 +254,7 @@ const SPECIAL_RATE = 0.005, MAIN_RATE = 0.5, NEXT_RATE = 0.3, EPIC_RATE = 0.13, 
 const LEVEL_NEED = [5, 10, 20, 40], LEVEL_BONUS = 0.2, MAX_LEVEL = 5;   // copies for Lv2..Lv5, +20% damage each
 // Chance that a shop refresh (new wave or reroll) offers the Totem, once you own it. It drops every time you buy one
 // this run (combining doesn't matter, skipping it doesn't matter): 10% > 8% > 6% > 4% > 2.5%. Resets each run.
-const TOTEM_SHOP_CHANCES = [0.10, 0.08, 0.06, 0.04, 0.025];
+const TOTEM_SHOP_CHANCES = [0.10, 0.08, 0.06, 0.04, 0.025].map(c => c / 1.5);   // ~6.7% > 5.3% > 4% > 2.7% > 1.7%
 let totemBuys = {};   // per totem: how many were bought this run
 const totemShopChance = el => TOTEM_SHOP_CHANCES[Math.min(totemBuys[el] || 0, TOTEM_SHOP_CHANCES.length - 1)];
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice"];
