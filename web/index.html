@@ -2510,11 +2510,6 @@ function drawWildCard(id, x, y, sc, rot = 0, n = 1, glow = 0) {
   const hw = CARD_W / 2, hh = CARD_H / 2;
   ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(sc, sc);
   if (glow > 0) { const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(170,225,255,${0.55 * glow})`); g.addColorStop(1, "rgba(170,225,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -120, 240, 240); }   // painted (not added) so it stays blue over grass
-  for (let k = Math.min(3, n - 1); k >= 1; k--) {   // a pile: extra copies peek out behind
-    ctx.save(); ctx.translate(k * 5, k * 4); ctx.rotate(k * 0.07);
-    rrect(-hw, -hh, CARD_W, CARD_H, 11); ctx.fillStyle = "#16283e"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.stroke(); ctx.strokeStyle = "#9fc6e8"; ctx.lineWidth = 3; ctx.stroke();
-    ctx.restore();
-  }
   rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 11); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
   drawCached("wild_" + id, CARD_W + 30, CARD_H + 30, () => {
     drawWildFrame(hw, hh); drawWildIcon(id);
