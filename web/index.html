@@ -108,7 +108,7 @@ const EL = {
   hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 46, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
   poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [112, 78, 262], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 1.1, speed: 950, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
-  serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [178, 40, 230], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre.", dmg: 32, rate: 0.95, speed: 680, whirl: 105, whirl_dps: 8, whirl_pull: 150, whirl_time: 2.6 },
+  serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [178, 40, 230], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre (bosses resist it).", dmg: 32, rate: 0.95, speed: 680, whirl: 105, whirl_pull: 150, whirl_time: 2.6 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
 // Element tiers:
@@ -2282,9 +2282,9 @@ class Zone {
       if (Math.hypot(e.x - this.x, e.y - this.y) <= this.radius + e.size * 0.5) {
         if (this.pull) {   // whirlpool: drag the enemy toward the centre (bosses barely move, heavy foes half as much)
           const dx = this.x - e.x, dy = this.y - e.y, dd = Math.hypot(dx, dy);
-          if (dd > 3) { const pl = this.pull * (e.isBoss ? 0.2 : e.heavy ? 0.5 : 1) * dt * Math.min(1, dd / 25) * Math.min(1, (this.duration - this.t) * 2); e.x += dx / dd * pl; e.y += dy / dd * pl; }
+          if (dd > 3) { const pl = this.pull * (e.isBoss ? 0 : e.heavy ? 0.5 : 1) * dt * Math.min(1, dd / 25) * Math.min(1, (this.duration - this.t) * 2); e.x += dx / dd * pl; e.y += dy / dd * pl; }
         }
-        e.takeDamage(this.dps * dt, this.src, this.color);
+        if (this.dps > 0) e.takeDamage(this.dps * dt, this.src, this.color);
         if (this.slowAmt > 0 && !e.dead) e.slow(this.slowAmt, 0.3);
         if (this.burnAmt > 0 && !e.dead) e.burn(this.burnAmt, 1);
       }
@@ -3642,7 +3642,7 @@ function applyHit(el, r, x, y, enemy, sm = 1) {
     impactFx(el, x, y, r, 0);
   }
   if (d.scratch) { const z = new Zone(x, y, d.scratch, d.scratch_dps * rm, d.scratch_time, d.color); z.src = statKey(el, r); z.slowAmt = d.scratch_slow; z.scratch = true; zones.push(z); }
-  if (d.whirl) { const z = new Zone(x, y, d.whirl, d.whirl_dps * rm, d.whirl_time, d.color); z.src = statKey(el, r); z.pull = d.whirl_pull; z.whirl = true; zones.push(z); if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running" && Math.random() < 0.5) sNoise(0.9, 0.22, "bandpass", 300, 900, 2.5); }
+  if (d.whirl) { const z = new Zone(x, y, d.whirl, 0, d.whirl_time, d.color); z.src = statKey(el, r); z.pull = d.whirl_pull; z.whirl = true; zones.push(z); if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running" && Math.random() < 0.5) sNoise(0.9, 0.22, "bandpass", 300, 900, 2.5); }
   if (d.cloud) { const z = new Zone(x, y, d.cloud, d.cloud_dps * rm, 2.5, d.color); z.src = statKey(el, r); z.slowAmt = d.cloud_slow || 0; zones.push(z); }
   if (d.puddle) { const z = new Zone(x, y, d.puddle, d.puddle_dps * rm, 3, d.color); z.src = statKey(el, r); z.burnAmt = 2 * rm; zones.push(z); }
 }
