@@ -2787,9 +2787,10 @@ function curseTap(p) {
   return true;
 }
 // ---- Boss Break Out: a mode with only bosses. Wave N brings N bosses (max 5), each wave stronger. Every boss killed
-// gives 1 gem, and every 2% of a boss's HP you take off gives 1 gold (so a full kill = 50 gold), even if it survives.
+// gives BOSS_GEMS gems, and every 2% of a boss's HP you take off gives 1 gold (so a full kill = 50 gold), even if it survives.
 // After a run the mode rests for 6 hours, or only 3 hours if you beat 10+ bosses. An optional ad skips one rest.
 let bossMode = false, bossKills = 0, bossSeq = 0, bossModeOver = false, bossLastRun = 0;
+const BOSS_GEMS = 10;   // gems for each boss killed in Boss Break Out
 const BOSS_ROTATION = ["kingGoblin", "kingOrc", "kingSlime"];
 const BOSS_HP_MULT = 0.5, BOSS_WAVE_STEP = 3, BOSS_MAX_PER_WAVE = 5, BOSS_GOLD_PER_KILL = 50;
 const BOSS_CD_LONG = 6 * 3600e3, BOSS_CD_SHORT = 3 * 3600e3, BOSS_GOAL = 10;
@@ -2802,7 +2803,7 @@ function startBossRun() {
   save.bossReadyAt = gameNow() + BOSS_CD_LONG; writeSave();   // leaving early can't be used to skip the rest
   fadeIn = 0.5;
   showBanner("BOSS BREAK OUT!", "#e0533f");
-  showInfo("Only bosses! Every boss killed = 1 gem. Hurting a boss gives gold. Buy cards, then tap Next Wave.");
+  showInfo(`Only bosses! Every boss killed = ${BOSS_GEMS} gems. Hurting a boss gives gold. Buy cards, then tap Next Wave.`);
 }
 // Ends a Boss Break Out run (game over or leaving): sets the rest time.
 function endBossRun() {
@@ -2988,9 +2989,9 @@ function onEnemyKilled(e) {
   track("kill"); track("kill_" + e.look); if (e.isBoss) { track("boss"); buzz(120); }
   if (!e.noGold) track("gold", e.gold);
   deathFx(e); playDeath(e);
-  if (e.rush) {   // Boss Break Out: 1 gem per boss
-    bossKills++; save.gems += 1; runGems += 1; writeSave();
-    fxs.push(new Fx("text", { x: e.x, y: e.y - 40, text: "+1 gem", color: "#7fe6ff", size: 30, duration: 1.2 }));
+  if (e.rush) {   // Boss Break Out: gems for every boss
+    bossKills++; save.gems += BOSS_GEMS; runGems += BOSS_GEMS; writeSave();
+    fxs.push(new Fx("text", { x: e.x, y: e.y - 40, text: `+${BOSS_GEMS} gems`, color: "#7fe6ff", size: 30, duration: 1.2 }));
   } else if (e.noGold) fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: "0", color: "#9a9590", size: 20, duration: 0.8 }));
   else {
     gold += e.gold;
