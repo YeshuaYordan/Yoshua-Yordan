@@ -107,7 +107,7 @@ const EL = {
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
   hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 46, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
   poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
-  serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", theme: "sea", color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre.", dmg: 32, rate: 0.95, speed: 680, whirl: 105, whirl_dps: 8, whirl_pull: 150, whirl_time: 2.6 },
+  serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre.", dmg: 32, rate: 0.95, speed: 680, whirl: 105, whirl_dps: 8, whirl_pull: 150, whirl_time: 2.6 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
 // Element tiers:
@@ -703,7 +703,7 @@ class Card {
     if (maxed) this.drawPowerAura(hw, hh, t, false);
     if (d.totem) { this.drawTotemCard(hw, hh, t, d); ctx.restore(); return; }
     if (d.special) { this.drawSpecial(hw, hh, t, d); ctx.restore(); return; }
-    if (d.art) { this.drawIllustrated(hw, hh, t, d); this.drawStars(hh, t); if (maxed) this.drawPowerAura(hw, hh, t, true); ctx.restore(); return; }
+    if (d.art && !d.myth) { this.drawIllustrated(hw, hh, t, d); this.drawStars(hh, t); if (maxed) this.drawPowerAura(hw, hh, t, true); ctx.restore(); return; }
     if (this.rarity === LEGEND) { this.drawLegendRays(hw, hh, t); this.drawLegendOrbit(hw, hh, t, true); }
     if (this.rarity >= MYTH) this.drawMythAura(hw, hh, t, this.rarity === LEGEND);
     else if (d.tier === 3) this.drawEpicAura(hw, hh, t);
@@ -727,7 +727,9 @@ class Card {
     // The elemental spirit.
     const cx = 0, cy = -6 + Math.sin(t * 2.2 + this.seed) * 3, r = 26;
     circle(cx, cy, r * 1.45, hexA(d.color, 0.18));
-    if (this.drawEvolve(cx, cy, t) || drawSprite(this.element, cx, cy, this.spriteSize(), t + this.seed, this.rarity)) {
+    if (d.art && this.drawArtMedallion(cx, cy, t, d)) {
+      // Myth cards with a picture: the picture sits in the round medallion where the sprite would be.
+    } else if (this.drawEvolve(cx, cy, t) || drawSprite(this.element, cx, cy, this.spriteSize(), t + this.seed, this.rarity)) {
       // Base elements use the animated "Main element v1" emblems.
     } else {
     circle(cx, cy, r * 1.2, hexA(d.color, 0.18));
@@ -941,7 +943,6 @@ class Card {
   }
   // ---- Full-art cards (Legend): the illustration fills the whole card, under a gold frame, with Legend effects.
   drawIllustrated(hw, hh, t, d) {
-    if (d.myth) { this.drawMythArt(hw, hh, t, d); return; }
     // theme "sea" (Poseidon): deep-sea blue light and water-bubble orbs instead of gold.
     this.drawLegendRays(hw, hh, t, d.theme); this.drawLegendOrbit(hw, hh, t, true, d.theme);
     this.drawMythAura(hw, hh, t, true, d.theme);
@@ -984,37 +985,6 @@ class Card {
       drawGrabHand(hw * 0.52, -hh - 4 + creep(2) * 0.5, Math.PI / 2 - 0.12, 0.88, curl(2));
     }
     this.drawLegendOrbit(hw, hh, t, false, d.theme);
-  }
-  // ---- Full-art Myth cards (Serpent): the picture fills the card under a crimson-silver Myth frame with horns,
-  // inside the Myth flame aura in the card's own colour (blue water flames for Serpent).
-  drawMythArt(hw, hh, t, d) {
-    const pulse = 0.5 + 0.5 * Math.sin(t * 3);
-    this.drawMythAura(hw, hh, t, false, d.theme);
-    rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 10); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
-    const art = CARD_ILLUS[d.art];
-    ctx.save(); rrect(-hw, -hh, CARD_W, CARD_H, 10); ctx.clip();
-    if (art && art.ready) {   // the same gentle sea-wave motion as the Legend cards
-      const z = 1.06 + 0.01 * Math.sin(t * 0.9), px = Math.sin(t * 1.1) * 1.2, py = Math.sin(t * 1.9) * 2, tilt = Math.sin(t * 1.1 + 0.6) * 0.008;
-      ctx.save(); ctx.rotate(tilt); ctx.drawImage(art.img, -hw * z + px, -hh * z + py, CARD_W * z, CARD_H * z); ctx.restore();
-    } else { ctx.fillStyle = "#0c2a50"; ctx.fillRect(-hw, -hh, CARD_W, CARD_H); }
-    for (let i = 0; i < 6; i++) { const u = (t * 0.35 + i / 6) % 1; circle(-hw + 12 + ((i * 37) % (CARD_W - 24)) + Math.sin(t * 2 + i) * 4, hh - 30 - u * (CARD_H - 40), 2.2 * (1 - u) + 0.8, `rgba(220,245,255,${0.75 * Math.sin(Math.PI * u)})`); }   // bubbles rising
-    const g = ctx.createLinearGradient(0, hh - 44, 0, hh); g.addColorStop(0, "rgba(20,12,30,0)"); g.addColorStop(1, "rgba(20,12,30,0.55)");
-    ctx.fillStyle = g; ctx.fillRect(-hw, hh - 44, CARD_W, 44);
-    ctx.restore();
-    // Frame: outer glow (pre-drawn in pulse steps), a crimson-silver band with a sliding shine, runes and two sparks.
-    const gp = Math.round(pulse * 9) / 9;
-    drawCached("mf_glow" + gp, CARD_W + 70, CARD_H + 70, () => {
-      ctx.shadowColor = `rgba(255,70,50,${0.55 + 0.3 * gp})`; ctx.shadowBlur = 14 + 6 * gp;
-      rrect(-hw, -hh, CARD_W, CARD_H, 10); ctx.strokeStyle = INK; ctx.lineWidth = 9; ctx.stroke();
-    }, 0, 0, 1, 1);
-    const sh = (t * 0.6) % 2 - 0.5, fg = ctx.createLinearGradient(-hw + sh * CARD_W * 2, -hh, hw + sh * CARD_W * 2, hh);
-    fg.addColorStop(0, "#5a0010"); fg.addColorStop(0.35, "#c4111f"); fg.addColorStop(0.5, "#f2f4f8"); fg.addColorStop(0.65, "#c4111f"); fg.addColorStop(1, "#5a0010");
-    rrect(-hw, -hh, CARD_W, CARD_H, 10); ctx.strokeStyle = fg; ctx.lineWidth = 6; ctx.stroke();
-    rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, 6); ctx.strokeStyle = "rgba(40,0,8,0.6)"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.save(); ctx.setLineDash([2, 5]); ctx.lineDashOffset = -t * 12; ctx.strokeStyle = `rgba(255,190,180,${0.5 + 0.35 * pulse})`; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore();
-    const per = 2 * (CARD_W + CARD_H), pt = u => { let q = ((u % 1) + 1) % 1 * per; if (q < CARD_W) return [-hw + q, -hh]; q -= CARD_W; if (q < CARD_H) return [hw, -hh + q]; q -= CARD_H; if (q < CARD_W) return [hw - q, hh]; q -= CARD_W; return [-hw, hh - q]; };
-    for (const off of [0, 0.5]) { const u = t * 0.22 + off; for (let k = 8; k >= 0; k -= 2) { const [px, py] = pt(u - k * 0.008); circle(px, py, 3 - k * 0.22, `rgba(255,${200 + 40 * (1 - k / 9) | 0},${190 + 50 * (1 - k / 9) | 0},${0.9 * (1 - k / 9)})`); } }
-    drawCached("mf_static_" + this.element + (this.noLabel ? "_n" : ""), CARD_W + 90, CARD_H + 90, () => drawMythFrameStatic(hw, hh, d, this.noLabel));
   }
   // ---- Special cards: animated rainbow frame, starry inside, the element's top sprite.
   drawSpecial(hw, hh, t, d) {
@@ -1319,6 +1289,22 @@ class Card {
     ctx.translate(x, 0); ctx.transform(1, 0, -0.45, 1, 0, 0); ctx.translate(-x, 0);
     ctx.fillStyle = g; ctx.fillRect(x - 26, -hh - 20, 52, CARD_H + 40);
     ctx.restore();
+  }
+  // A round medallion with the card's picture (its crop: d.medal = [x, y, size] in the picture, 448 x 544), scalloped rim.
+  drawArtMedallion(cx, cy, t, d) {
+    const art = CARD_ILLUS[d.art]; if (!art || !art.ready) return false;
+    const R = this.spriteSize() / 2 - 2, [mx, my, ms] = d.medal || [62, 20, 340];
+    drawCached("medal_rim_" + this.element, R * 2 + 16, R * 2 + 16, () => {   // scalloped rim like the element emblems
+      ctx.beginPath(); for (let i = 0; i <= 48; i++) { const a = i / 48 * Math.PI * 2, rr = R + 5 + (i % 2 ? 2.2 : 0); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath();
+      ctx.fillStyle = shade(d.color, -0.35); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R + 1.5, 0, Math.PI * 2); ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 2.5; ctx.stroke();
+    }, cx, cy);
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+    const z = 1.04 + 0.02 * Math.sin(t * 0.9), dx = Math.sin(t * 1.1) * 1.5, dy = Math.sin(t * 1.9) * 1.5;   // gentle wave motion
+    ctx.drawImage(art.img, mx, my, ms, ms, cx - R * z + dx, cy - R * z + dy, R * 2 * z, R * 2 * z);
+    ctx.restore();
+    ring(cx, cy, R, INK, 1.5);
+    return true;
   }
   spriteSize() { return EL[this.element].myth ? 78 : 66; }   // HD Myth sprites are shown a little bigger
   // Plays the Epic "evolve" sheet once, right after the card was created. Returns false when not evolving.
@@ -3303,34 +3289,6 @@ function drawBoostBadge(x, y, kind, mult) {
   ctx.strokeStyle = fight ? "#f2c14e" : "#bff0ff"; ctx.lineWidth = 2.2; ctx.stroke();
   ctx.save(); ctx.translate(x - bw / 2 + 14, y); drawTotemEmblem(kind, 7.5); ctx.restore();
   text(lab, x + 8, y + 1, 16, fight ? "#ffe08a" : "#eafcff", { weight: 900, baseline: "middle" });
-}
-// The fixed parts of the full-art Myth frame: crimson-silver claw corners, a horned crest with a gem, the MYTH label and
-// a crimson name ribbon. The gem takes the card's colour.
-function drawMythFrameStatic(hw, hh, d, noLabel) {
-  const gemCol = d.color;
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
-    ctx.save(); ctx.translate(sx * (hw - 2), sy * (hh - 2));
-    poly([[0, 0], [-sx * 22, 0], [-sx * 12, -sy * 6], [-sx * 6, -sy * 12], [0, -sy * 22]], "#d8dce6", INK, 2);
-    poly([[-sx * 3, -sy * 3], [-sx * 15, -sy * 2], [-sx * 7, -sy * 7], [-sx * 2, -sy * 15]], "#b0101c", null);
-    circle(-sx * 7, -sy * 7, 3.6, INK); circle(-sx * 7, -sy * 7, 2.7, gemCol); circle(-sx * 7 - 0.8, -sy * 7 - 0.8, 0.9, "rgba(255,255,255,0.9)");
-    ctx.restore();
-  });
-  const cy = -hh - 2;
-  for (const sx of [-1, 1]) {   // horns curving up and out
-    ctx.beginPath(); ctx.moveTo(sx * 7, cy + 5); ctx.quadraticCurveTo(sx * 24, cy - 2, sx * 30, cy - 22); ctx.quadraticCurveTo(sx * 33, cy - 8, sx * 22, cy + 6); ctx.closePath();
-    const hg = ctx.createLinearGradient(0, cy - 22, 0, cy + 6); hg.addColorStop(0, "#f2e6e0"); hg.addColorStop(0.5, "#c4111f"); hg.addColorStop(1, "#4a0010");
-    ctx.fillStyle = hg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
-  }
-  poly([[0, cy - 13], [11, cy - 5], [9, cy + 8], [0, cy + 13], [-9, cy + 8], [-11, cy - 5]], "#7a0010", INK, 2.2);
-  ctx.beginPath(); ctx.moveTo(0, cy - 9); ctx.lineTo(6, cy); ctx.lineTo(0, cy + 9); ctx.lineTo(-6, cy); ctx.closePath();
-  const jg = ctx.createLinearGradient(-6, cy - 9, 6, cy + 9); jg.addColorStop(0, "#e8fbff"); jg.addColorStop(0.5, gemCol); jg.addColorStop(1, "#0a2a6a");
-  ctx.fillStyle = jg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.stroke();
-  const ry = hh - 15, rw = Math.max(64, Math.min(CARD_W - 6, d.name.length * 11 + 34));
-  ctx.beginPath(); ctx.moveTo(-rw / 2, ry - 10); ctx.lineTo(rw / 2, ry - 10); ctx.lineTo(rw / 2 + 8, ry); ctx.lineTo(rw / 2, ry + 10); ctx.lineTo(-rw / 2, ry + 10); ctx.lineTo(-rw / 2 - 8, ry); ctx.closePath();
-  const rg = ctx.createLinearGradient(0, ry - 10, 0, ry + 10); rg.addColorStop(0, "#9a1020"); rg.addColorStop(1, "#4a0610");
-  ctx.fillStyle = rg; ctx.fill(); ctx.strokeStyle = "#e6e8ee"; ctx.lineWidth = 2.5; ctx.stroke();
-  if (!noLabel) text("MYTH", 0, -hh + 18, 9, "#ffe6e0", { weight: 800, outline: 4, outlineColor: "#4a0010" });
-  text(d.name, 0, ry + 1, 15, "#f4f6fa", { font: DISPLAY, weight: 900, outline: 4, outlineColor: "#3a0008", baseline: "middle" });
 }
 // A small cartoon skull (Hades' orbs and his soul shots). r = radius of the cranium.
 function drawSkullIcon(x, y, r, alpha = 1, glowA = 0.8) {
