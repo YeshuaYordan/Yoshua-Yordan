@@ -2619,7 +2619,7 @@ function addCurse() {
   const k = pickOne(free); curses.add(k);
   if (k === "hp") { curseHpCut = Math.floor(castleMax / 2); castleMax -= curseHpCut; castleHp = Math.min(castleHp, castleMax); }
   if (k === "burn") curseBurnT = CURSE_BURN_CD;
-  curseFlash = 1;
+  curseFlash = 1; curseFxT = 3.2; curseLaughT = 20; evilLaugh(1);
   showBanner(`CURSED: ${CURSES[k].name}!`, "#b36bff");
   showInfo(`${CURSES[k].desc} Draw the ${SPELLS[CURSES[k].cure].name} rune to cure it (see the badge or the Runes book).`);
   if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sTone("sawtooth", 220, 55, 1.2, 0.08); sTone("sine", 330, 165, 1.4, 0.1, 0.1); sTone("sine", 349, 174, 1.4, 0.08, 0.15); sNoise(1.0, 0.25, "bandpass", 600, 150, 3); }
@@ -2631,6 +2631,98 @@ function liftCurse(k) {
   if (k === "hp") { castleMax += curseHpCut; curseHpCut = 0; }
   for (let i = 0; i < 24; i++) addPart({ add: true, kind: "glint", x: rand(40, W - 40), y: rand(HUD_H + 60, FRONT_Y), vx: rand(-40, 40), vy: -rand(60, 200), life: rand(0.6, 1.2), size: rand(3, 6), col: Math.random() < 0.5 ? "#ffffff" : "#e3c9ff" });
   fxs.push(new Fx("text", { x: W / 2, y: (HUD_H + FRONT_Y) / 2, text: "Curse lifted!", color: "#e3c9ff", size: 34, duration: 1.4 }));
+}
+// An evil "HA-HA-HA-HA" laugh with an echo: buzzy voice through two vowel formants, each syllable lower than the last,
+// then the whole laugh repeats quieter (the echo). vol 1 = the big laugh when cursed, lower = the reminder.
+function evilLaugh(vol = 1) {
+  if (Sfx.muted || !Sfx.ctx || Sfx.ctx.state !== "running") return;
+  const ac = Sfx.ctx, now = ac.currentTime + 0.06;   // a moment ahead, so the breath before the first "ha" is never in the past
+  const out = ac.createGain(); out.gain.value = 0.9 * vol; out.connect(Sfx.master);
+  const echo = ac.createDelay(1.5); echo.delayTime.value = 0.38; const fb = ac.createGain(); fb.gain.value = 0.42; const wet = ac.createGain(); wet.gain.value = 0.6;
+  out.connect(echo); echo.connect(fb); fb.connect(echo); echo.connect(wet); wet.connect(Sfx.master);
+  const syl = [0, 0.2, 0.39, 0.57, 0.74, 0.92], base = 165;
+  syl.forEach((t, i) => {
+    const t0 = now + t, f = base * (1 - i * 0.045), d = 0.16;
+    const o = ac.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f * 1.15, t0); o.frequency.exponentialRampToValueAtTime(f * 0.85, t0 + d);
+    const o2 = ac.createOscillator(); o2.type = "sawtooth"; o2.frequency.setValueAtTime(f * 0.5 * 1.15, t0); o2.frequency.exponentialRampToValueAtTime(f * 0.5 * 0.85, t0 + d);   // a deep growl an octave down
+    const f1 = ac.createBiquadFilter(); f1.type = "bandpass"; f1.frequency.value = 750; f1.Q.value = 5;
+    const f2 = ac.createBiquadFilter(); f2.type = "bandpass"; f2.frequency.value = 1150; f2.Q.value = 6;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.9, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+    o.connect(f1); o.connect(f2); o2.connect(f1); f1.connect(g); f2.connect(g); g.connect(out);
+    o.start(t0); o2.start(t0); o.stop(t0 + d + 0.02); o2.stop(t0 + d + 0.02);
+    // The breathy "h" before each "a".
+    const n = ac.createBufferSource(); n.buffer = Sfx.noise; const nf = ac.createBiquadFilter(); nf.type = "bandpass"; nf.frequency.value = 1400; nf.Q.value = 1;
+    const ng = ac.createGain(); ng.gain.setValueAtTime(0.0001, t0 - 0.03); ng.gain.exponentialRampToValueAtTime(0.25, t0); ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
+    n.connect(nf); nf.connect(ng); ng.connect(out); n.start(t0 - 0.03, Math.random()); n.stop(t0 + 0.08);
+  });
+  setTimeout(() => { try { out.disconnect(); fb.disconnect(); } catch (e) {} }, 4500);
+}
+// The devil face of a curse: a carved jack-o'-lantern grin glowing red, with little horns (centred on the origin, ~2r wide).
+function drawDevilFace(r, t, a) {
+  ctx.save(); ctx.globalAlpha = a;
+  const flick = 0.75 + 0.25 * Math.sin(t * 17) * Math.sin(t * 7.3);
+  const glow = ctx.createRadialGradient(0, 0, r * 0.1, 0, 0, r * 1.5);
+  glow.addColorStop(0, `rgba(255,40,30,${0.35 * flick})`); glow.addColorStop(1, "rgba(120,0,40,0)");
+  ctx.fillStyle = glow; ctx.fillRect(-r * 1.6, -r * 1.6, r * 3.2, r * 3.2);
+  // Horns.
+  for (const sx of [-1, 1]) {
+    ctx.beginPath(); ctx.moveTo(sx * r * 0.42, -r * 0.62); ctx.quadraticCurveTo(sx * r * 0.62, -r * 0.95, sx * r * 0.5, -r * 1.25); ctx.quadraticCurveTo(sx * r * 0.78, -r * 0.9, sx * r * 0.68, -r * 0.48); ctx.closePath();
+    ctx.fillStyle = "#3a0010"; ctx.fill(); ctx.strokeStyle = `rgba(255,60,40,${0.8 * flick})`; ctx.lineWidth = r * 0.025; ctx.stroke();
+  }
+  const fire = (path) => {   // carved holes with fire light inside
+    const g = ctx.createLinearGradient(0, -r * 0.5, 0, r * 0.6); g.addColorStop(0, "#fff0a0"); g.addColorStop(0.35, "#ff7a1a"); g.addColorStop(1, "#c4000c");
+    ctx.save(); ctx.shadowColor = "#ff2a10"; ctx.shadowBlur = r * 0.25 * flick; path(); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+    path(); ctx.strokeStyle = "rgba(60,0,10,0.9)"; ctx.lineWidth = r * 0.03; ctx.stroke();
+  };
+  // Slanted angry eyes.
+  for (const sx of [-1, 1]) fire(() => { ctx.beginPath(); ctx.moveTo(sx * r * 0.12, -r * 0.18); ctx.lineTo(sx * r * 0.62, -r * 0.42); ctx.lineTo(sx * r * 0.52, -r * 0.05); ctx.closePath(); });
+  // Nose.
+  fire(() => { ctx.beginPath(); ctx.moveTo(0, -r * 0.02); ctx.lineTo(r * 0.09, r * 0.13); ctx.lineTo(-r * 0.09, r * 0.13); ctx.closePath(); });
+  // The big wicked grin: a wide carved mouth, sharp teeth hanging from the top and rising from the bottom.
+  fire(() => {
+    const N = 10, w = 0.8;
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {   // top edge, left to right
+      const x = -w + 2 * w * i / N, q = x / w, base = 0.08 + 0.16 * (1 - q * q) - (Math.abs(q) > 0.9 ? 0.06 : 0);
+      ctx.lineTo(x * r, (base + (i % 2 && Math.abs(q) < 0.85 ? 0.13 : 0)) * r);
+    }
+    for (let i = N; i >= 0; i--) {   // bottom edge, right to left
+      const x = -w + 2 * w * i / N, q = x / w, base = 0.08 + 0.55 * (1 - q * q) - (Math.abs(q) > 0.9 ? 0.06 : 0);
+      ctx.lineTo(x * r, (base - (i % 2 === 0 && i > 1 && i < N - 1 && Math.abs(q) < 0.6 ? 0.14 : 0)) * r);
+    }
+    ctx.closePath();
+  });
+  ctx.restore();
+}
+let curseFxT = 0, curseLaughT = 0;   // the cursing moment (seconds left) and the time until the next reminder laugh
+function drawCurseFx() {
+  // While cursed: a faint purple haze around the edges of the battlefield.
+  if (curses.size) {
+    const pul = 0.5 + 0.5 * Math.sin(time * 1.6), top = HUD_H, h = FRONT_Y - HUD_H;
+    const vg = ctx.createRadialGradient(W / 2, top + h / 2, h * 0.35, W / 2, top + h / 2, h * 0.8);
+    vg.addColorStop(0, "rgba(90,20,140,0)"); vg.addColorStop(1, `rgba(90,20,140,${0.28 + 0.08 * pul})`);
+    ctx.fillStyle = vg; ctx.fillRect(0, top, W, h);
+  }
+  if (curseFxT <= 0) return;
+  // The cursing moment: purple smoke floods the screen and the devil grin rises out of it.
+  const T = 3.2, u = T - curseFxT, k = Math.min(1, u / 0.45) * Math.min(1, curseFxT / 0.9);
+  ctx.save();
+  ctx.fillStyle = `rgba(50,10,80,${0.62 * k})`; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 14; i++) {
+    const a = i * 2.4 + u * (0.25 + (i % 3) * 0.1), rad = 140 + (i % 4) * 60, x = W / 2 + Math.cos(a) * (180 + (i % 5) * 50), y = H * 0.38 + Math.sin(a * 1.3) * (260 + (i % 3) * 60);
+    const g = ctx.createRadialGradient(x, y, 10, x, y, rad); g.addColorStop(0, `rgba(150,60,210,${0.5 * k})`); g.addColorStop(1, "rgba(150,60,210,0)");
+    ctx.fillStyle = g; ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  const rise = Math.min(1, u / 0.8), sc = 0.7 + 0.3 * (1 - Math.pow(1 - rise, 3));
+  ctx.translate(W / 2, (HUD_H + FRONT_Y) / 2 - 40 + (1 - rise) * 60); ctx.scale(sc, sc); ctx.rotate(Math.sin(u * 2.2) * 0.04);
+  drawDevilFace(230, time, k);
+  ctx.restore();
+}
+function updateCurseFx(realDt) {
+  curseFxT = Math.max(0, curseFxT - realDt);
+  if (!curses.size) { curseLaughT = 0; return; }
+  curseLaughT -= realDt;
+  if (curseLaughT <= 0) { if (curseFxT <= 0) evilLaugh(0.35); curseLaughT = 18 + Math.random() * 8; }   // a quiet echo now and then, until cured
 }
 // Hellfire: a random stored card catches fire and burns away.
 function updateCurses(dt) {
@@ -4533,6 +4625,7 @@ document.addEventListener("keydown", ev => {
 // ------------------------------------------------------------ Update
 function update(dt) {
   const realDt = dt;
+  if (state === "wave" || state === "break") updateCurseFx(realDt); else { curseFxT = 0; }
   updateSpell(dt);
   if (spell) dt *= SPELL_SLOWMO;   // slow motion while drawing / choosing a spell
   if (gameSpeed === 2 && !spell && !reviveOffer && !speedOffer && (state === "wave" || state === "break")) dt *= 2;   // 2x speed
@@ -4821,7 +4914,7 @@ function drawWorld() {
   }
   if (curses.has("smoke")) drawCurseSmoke();
   drawCurseBurns();
-  if (curseFlash > 0) { ctx.fillStyle = `rgba(120,40,200,${0.35 * curseFlash})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H); }
+  drawCurseFx();
   if (state === "wave" || state === "break") drawCurseBadges();
   if (timeStopT > 0) drawTimeStop();
   if (!chamberOpen && !spell) drawWildFan();
