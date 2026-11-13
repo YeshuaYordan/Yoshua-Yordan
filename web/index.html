@@ -2388,9 +2388,11 @@ function clearBoard() {
 // right side of the battlefield: scroll it up/down, the card in front is the big one; drag it out to use it.
 // Every wild card shares one frame; each has its own icon. They are lost when the run ends.
 const WILD = {
+  pause: { name: "Pause", desc: "The whole battlefield stops for 10 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 10 },
   stalwart: { name: "Stalwart", desc: "The wall gets +25 max HP (and heals 25) and +0.5% damage reduction (up to 60%). Stacks.", hpUp: 25, armorUp: 0.005 },
 };
 const WILD_DROP = 0.015, WILD_ARMOR_MAX = 0.6;
+let timeStopT = 0, timeStopSpells = 0, timeStopTick = 0;   // Pause wild card
 let wilds = [], wildFly = [], wildScroll = 0, wildDrag = null, wildFan = null, wallGlow = 0;
 const wildCount = () => wilds.reduce((a, w) => a + w.n, 0);
 // The fan: the front card stands upright against the right edge; the next cards fan out behind it like a hand of
@@ -2430,7 +2432,27 @@ function useWild(i) {
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sNoise(0.5, 0.6, "lowpass", 600, 60, 0.8); sTone("sine", 110, 70, 0.4, 0.2); [523, 784, 1047].forEach((f, k) => sTone("triangle", f, f, 0.5, 0.08, 0.1 + k * 0.08)); }
     shakeT = Math.max(shakeT, 0.25); shakeAmp = 5;
   }
+  if (w.id === "pause") {
+    if (timeStopT <= 0) timeStopSpells = 0;
+    timeStopT += d.time; timeStopTick = Math.ceil(timeStopT);
+    showBanner("TIME STOPPED!", "#9fd8ff");
+    showInfo("The battlefield is frozen for 10s. Move your cards, shop, or cast 1 spell!");
+    for (let k = 0; k < 3; k++) addPart({ add: true, kind: "ring", x: W / 2, y: (HUD_H + FRONT_Y) / 2, rgb: "170,220,255", size: 20 + k * 30, grow: 900 + k * 200, w: 10 - k * 3, sq: 1, life: 0.7 + k * 0.15 });
+    if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sTone("sine", 900, 90, 0.7, 0.18); sNoise(0.6, 0.35, "bandpass", 2500, 200, 1.5); sTone("triangle", 1760, 1760, 0.15, 0.08, 0.6); }
+  }
   if (--w.n <= 0) wilds.splice(i, 1);
+}
+// Pause: the clock counts real seconds; it ticks every second and the battle resumes with a whoosh.
+function updateTimeStop(realDt) {
+  if (timeStopT <= 0) return false;
+  timeStopT = Math.max(0, timeStopT - realDt);
+  const sec = Math.ceil(timeStopT);
+  if (sec < timeStopTick) {
+    timeStopTick = sec;
+    if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { if (sec > 0) sTone("square", sec <= 3 ? 1500 : 1200, sec <= 3 ? 1500 : 1200, 0.04, 0.05); else { sTone("sine", 120, 900, 0.5, 0.15); sNoise(0.5, 0.3, "bandpass", 300, 3000, 1.5); } }
+    if (sec === 0) { showBanner("Time resumes!", "#9fd8ff"); timeStopSpells = 0; }
+  }
+  return timeStopT > 0;
 }
 // One frame for every wild card: midnight-blue card, silver-aqua border, a rainbow medallion for the icon, a ribbon.
 function drawWildFrame(hw, hh) {
@@ -2455,7 +2477,20 @@ function drawWildFrame(hw, hh) {
   poly([[-30, -hh + 4], [30, -hh + 4], [36, -hh + 13], [30, -hh + 22], [-30, -hh + 22], [-36, -hh + 13]], "#5a2d9a", INK, 2);
   text("WILD", 0, -hh + 13, 12, "#fff2c8", { font: DISPLAY, weight: 900, baseline: "middle" });
 }
-function drawWildIcon(id) {
+function drawWildIcon(id, my = -10, spin = null) {
+  if (id === "pause") {   // a golden pocket clock
+    ctx.save(); ctx.translate(0, my);
+    circle(0, -24, 5, INK); ring(0, -24, 3.2, "#f2c14e", 2.4); ctx.fillStyle = "#f2c14e"; ctx.fillRect(-3, -21, 6, 4);
+    circle(0, 0, 21, INK); const g = ctx.createLinearGradient(-20, -20, 20, 20); g.addColorStop(0, "#fff2b0"); g.addColorStop(0.5, "#f2b632"); g.addColorStop(1, "#a8701e");
+    circle(0, 0, 19.5, g); circle(0, 0, 15.5, INK); circle(0, 0, 14.5, "#fbf6e8");
+    ctx.strokeStyle = INK; ctx.lineCap = "round";
+    for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6, l = k % 3 ? 2 : 3.6; ctx.lineWidth = k % 3 ? 1 : 1.8; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (13 - l), Math.sin(a) * (13 - l)); ctx.lineTo(Math.cos(a) * 13, Math.sin(a) * 13); ctx.stroke(); }
+    const ha = spin === null ? -Math.PI / 2 + 0.9 : -Math.PI / 2 + spin, ma = spin === null ? -Math.PI / 2 - 0.6 : -Math.PI / 2 + spin * 12;
+    ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ha) * 7, Math.sin(ha) * 7); ctx.stroke();
+    ctx.strokeStyle = "#2a6ad8"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ma) * 11, Math.sin(ma) * 11); ctx.stroke();
+    circle(0, 0, 2, INK); circle(-6, -8, 2.2, "rgba(255,255,255,0.7)");
+    ctx.restore();
+  }
   if (id === "stalwart") {   // a stone castle wall with merlons, a gate and a flag
     const my = -10;
     ctx.save(); ctx.translate(0, my);
@@ -2522,6 +2557,21 @@ function drawWildFan() {
     if (ok) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = `rgba(150,220,255,${0.18 + 0.1 * Math.sin(time * 8)})`; ctx.fillRect(0, WALL_Y, W, WALL_H); ctx.restore(); }
     drawWildCard(wilds[wildDrag.i].id, pointer.x, pointer.y - 30, 0.9, Math.sin(time * 6) * 0.05, 1, ok ? 1 : 0.4);
   }
+}
+// Pause overlay: a cold grey-blue tint over the frozen battlefield and a big clock counting down.
+function drawTimeStop() {
+  const k = Math.min(1, timeStopT * 2), top = HUD_H, h = FRONT_Y - HUD_H;
+  ctx.save();
+  ctx.fillStyle = `rgba(40,60,90,${0.32 * k})`; ctx.fillRect(0, top, W, h);
+  const vg = ctx.createRadialGradient(W / 2, top + h / 2, h * 0.25, W / 2, top + h / 2, h * 0.75);
+  vg.addColorStop(0, "rgba(20,30,50,0)"); vg.addColorStop(1, `rgba(20,30,50,${0.45 * k})`); ctx.fillStyle = vg; ctx.fillRect(0, top, W, h);
+  const cx = W / 2, cy = top + 200, r = 62, frac = (timeStopT % 10 || 10) / 10, sec = Math.ceil(timeStopT);
+  ctx.globalAlpha = 0.9 * k;
+  circle(cx, cy, r + 10, "rgba(10,20,40,0.55)");
+  ctx.strokeStyle = "#9fd8ff"; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.beginPath(); ctx.arc(cx, cy, r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, timeStopT / 10)); ctx.stroke();
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(1.6, 1.6); drawWildIcon("pause", 0, -Math.PI * 2 * (1 - frac)); ctx.restore();
+  text(`${sec}`, cx, cy + r + 46, 40, "#eaf6ff", { font: DISPLAY, weight: 900, outline: 8 });
+  ctx.restore();
 }
 const wildDropOk = p => p.x < W - 170 && p.y > HUD_H + 10 && p.y < WALL_Y + WALL_H;
 function wildTopRect() { const sl = wildSlot(Math.round(wildScroll)); const w2 = CARD_W * sl.sc / 2 + 6, h2 = CARD_H * sl.sc / 2 + 6; return { x: sl.x - w2, y: sl.y - h2, w: w2 * 2, h: h2 * 2 }; }
@@ -2594,7 +2644,7 @@ function spawnRushBoss(w) {
 const curStage = w => bossMode ? STAGES[Math.max(0, w - 1) % STAGES.length] : stageOf(w);
 function startRun() {
   clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
-  gold = START_GOLD; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
@@ -3783,6 +3833,7 @@ let spellCd = 0;
 function endSpell() { if (spell && spell.match) spellCd = SPELL_COOLDOWN; spell = null; }
 function openSpell() {
   if ((state !== "wave" && state !== "break") || spell) return;
+  if (timeStopT > 0 && timeStopSpells >= 1) { showInfo("Only 1 spell while time is stopped."); return; }
   if (spellCd > 0) { showInfo(`Spell ready in ${Math.ceil(spellCd)}s.`); return; }
   cancelDrag();
   spell = { phase: "draw", t: RUNE_TIME, strokes: [], drawing: false, settle: 0, match: null, score: 0 };
@@ -3808,6 +3859,7 @@ function castSpell() {
   if (gold < sp.cost) { showInfo(`Not enough gold: ${sp.name} costs ${sp.cost}.`); return; }
   if (spell.match === "heal" && castleHp >= castleMax) { showInfo("The castle is already at full HP."); return; }
   gold -= sp.cost;
+  if (timeStopT > 0) timeStopSpells++;
   track("spell"); track("spell_" + spell.match);
   if (spell.match === "meteor") castMeteor();
   if (spell.match === "freeze") castFreeze();
@@ -4357,6 +4409,7 @@ document.addEventListener("keydown", ev => {
 
 // ------------------------------------------------------------ Update
 function update(dt) {
+  const realDt = dt;
   updateSpell(dt);
   if (spell) dt *= SPELL_SLOWMO;   // slow motion while drawing / choosing a spell
   if (gameSpeed === 2 && !spell && !reviveOffer && !speedOffer && (state === "wave" || state === "break")) dt *= 2;   // 2x speed
@@ -4371,6 +4424,12 @@ function update(dt) {
   if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || settingsOpen || testPick) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt); spellCd = Math.max(0, spellCd - dt);
+  if ((state === "wave" || state === "break") && updateTimeStop(realDt)) {   // Pause wild card: the battlefield is frozen
+    time -= dt;   // battlefield animations stand still too
+    for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead);
+    for (const c of rows.shop) if (c) { c.isFree = freeCard; c.affordable = freeCard || gold >= c.price; }
+    return;
+  }
   speedT = Math.max(0, speedT - dt);
   if (state === "wave") {
     for (const sp of spawners) {
@@ -4610,7 +4669,13 @@ function drawWorld() {
   }
   for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W))) c.draw();
   if (!chamberOpen) { drawStorageNav(); drawShopLocks(); drawTotemLinks(); }
-  if (!chamberOpen) { drawParts(); for (const p of projectiles) p.draw(); drawLances(); drawBeams(); }
+  if (!chamberOpen) {
+    drawParts(); for (const p of projectiles) p.draw();
+    if (timeStopT > 0) {   // frozen lightning: same jagged shape every frame while time is stopped
+      const rnd = Math.random; let sd = 12345; Math.random = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+      try { drawLances(); drawBeams(); } finally { Math.random = rnd; }
+    } else { drawLances(); drawBeams(); }
+  }
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
   if (fusion) drawFusion();
   drawMeteors();
@@ -4629,6 +4694,7 @@ function drawWorld() {
     const g = ctx.createLinearGradient(0, WALL_Y - 30, 0, WALL_Y + WALL_H + 10); g.addColorStop(0, "rgba(160,220,255,0)"); g.addColorStop(0.5, `rgba(180,230,255,${0.5 * wallGlow})`); g.addColorStop(1, "rgba(160,220,255,0)");
     ctx.fillStyle = g; ctx.fillRect(0, WALL_Y - 30, W, WALL_H + 40); ctx.restore();
   }
+  if (timeStopT > 0) drawTimeStop();
   if (!chamberOpen && !spell) drawWildFan();
 }
 
