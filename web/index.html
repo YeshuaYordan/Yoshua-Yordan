@@ -107,7 +107,7 @@ const EL = {
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
   hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 46, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
   poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
-  kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [118, 48, 224], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 40, rate: 0.6 / RARITY_RATE[4], speed: 760, splash: 115, gather: true },
+  kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [118, 48, 224], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 40, rate: 0.6 / RARITY_RATE[4], speed: 760, splash: 115, gather: true, shotScale: 4 },
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [112, 78, 262], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
   serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [178, 40, 230], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre (bosses resist it).", dmg: 32, rate: 0.6 / RARITY_RATE[4], speed: 680, whirl: 105, whirl_pull: 150, whirl_time: 2.6 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
@@ -2084,7 +2084,7 @@ function drawShotHead(pr) {
   const glow = (r, c) => { const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, `rgba(${c},0.6)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); };
   if (st === "foxfire") {
     // A fox-fire ball: crimson glow, white-pink core and three flame tongues spinning around it.
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 3.4); g.addColorStop(0, "rgba(255,70,100,0.55)"); g.addColorStop(1, "rgba(255,70,100,0)"); ctx.fillStyle = g; ctx.fillRect(-R * 3.4, -R * 3.4, R * 6.8, R * 6.8);
+    const GR = R * 1.9, g = ctx.createRadialGradient(0, 0, 0, 0, 0, GR); g.addColorStop(0, "rgba(255,70,100,0.55)"); g.addColorStop(1, "rgba(255,70,100,0)"); ctx.fillStyle = g; ctx.fillRect(-GR, -GR, GR * 2, GR * 2);
     for (let i = 0; i < 3; i++) { ctx.save(); ctx.rotate(t * 9 + i * 2.1); ctx.beginPath(); ctx.moveTo(-R * 0.5, 0); ctx.quadraticCurveTo(0, -R * 2.1, R * 0.5, 0); ctx.closePath(); ctx.fillStyle = i % 2 ? "rgba(255,90,120,0.85)" : "rgba(255,200,215,0.85)"; ctx.fill(); ctx.restore(); }
     circle(0, 0, R * 0.95, "#ff4a6a"); circle(0, 0, R * 0.62, "#ffe0e8"); circle(0, 0, R * 0.3, "#ffffff");
     ctx.restore(); return;
@@ -2261,7 +2261,7 @@ class Projectile {
     this.element = el; this.rarity = r; this.x = x; this.y = y; this.target = target;
     this.tx = target.x; this.ty = target.y; this.speed = d.speed || 650; this.color = d.color;
     this.pierce = d.pierce || 0; this.homing = this.pierce === 0;
-    this.radius = 7 + r * 1.2 + (d.shape === "rock" ? 4 : 0);
+    this.radius = (7 + r * 1.2 + (d.shape === "rock" ? 4 : 0)) * (d.shotScale || 1);
     const len = Math.hypot(this.tx - x, this.ty - y) || 1;
     this.vx = (this.tx - x) / len * this.speed; this.vy = (this.ty - y) / len * this.speed;
     this.hit = new Set(); this.trail = []; this.life = 3; this.dead = false;
