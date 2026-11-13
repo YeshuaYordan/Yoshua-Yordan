@@ -5098,7 +5098,7 @@ function drawSummonUi() {
 }
 // ---- Summon: x1 or x10 (x10 is 10% off). The card on the altar gathers light, spins, then bursts into the result(s).
 const PULL10_COST = Math.round(PULL_COST * 10 * 0.9);   // 90 gems
-const SUMMON_REVEAL = 2.9;                              // seconds of build-up before the reveal
+const SUMMON_REVEAL = 3.6;                              // seconds of build-up before the reveal (tap to skip)
 // Glow color of a result: the best card in the pull decides the color of the whole animation.
 const resultTier = el => EL[el].special ? 6 : LEGEND_ELS.includes(el) ? 5 : EL[el].myth ? 4 : EL[el].tier === 3 ? 3 : EL[el].tier === 2 ? 1 : 0;
 const TIER_GLOW = ["#d8dde6", "#6ED28C", "#5AA0FA", "#AF78FF", "#FF6E50", "#FFCD50"];
@@ -5116,12 +5116,14 @@ function doSummon(n = 1) {
   const best = Math.max(...results.map(r => r.tier));
   const parts = [];
   for (let i = 0; i < 80; i++) parts.push({ a: Math.random() * Math.PI * 2, rr: rand(0.55, 1), delay: rand(0, 0.55), size: rand(2, 4.8), bulge: rand(-70, 70), orbit: rand(60, 150), white: Math.random() < 0.3 });
-  summonReveal = { results, best, multi: n > 1, t: 0, parts, revealed: false };
-  playUi("ui_pick");
+  // The rarity climb: the light steps up through every rarity colour up to the best card (more steps = more hype).
+  const steps = [0, 1, 3, 4, 5, 6].filter(x => x <= best && x > 0);
+  summonReveal = { results, best, multi: n > 1, t: 0, parts, revealed: false, steps, stepDone: 0, burst: [], sfx: {} };
+  summonSfx("rise");
 }
-const summonDoneAt = r => SUMMON_REVEAL + (r.multi ? 0.3 + r.results.length * 0.14 + 0.2 : 0.45);
+const summonDoneAt = r => SUMMON_REVEAL + (r.multi ? 0.45 + r.results.length * 0.17 + 0.5 : 0.9);
 const summonDone = () => summonReveal && summonReveal.t >= summonDoneAt(summonReveal);
-function summonSpinAngle(u) { const D = 1.6; u = clamp(u, 0, D); return 1.5 * u + 40 * u * u * u / (3 * D * D); }
+function summonSpinAngle(u) { const D = 1.7; u = clamp(u, 0, D); return 1.5 * u + 40 * u * u * u / (3 * D * D); }
 // A card-shaped shape made of light, tinted with `color`; sx squashes it to fake a 3D spin.
 function drawLightCard(x, y, sx, w, h, color, alpha, glow) {
   ctx.save(); ctx.translate(x, y); ctx.scale(Math.max(0.04, Math.abs(sx)), 1); ctx.globalAlpha = alpha;
@@ -5132,89 +5134,265 @@ function drawLightCard(x, y, sx, w, h, color, alpha, glow) {
   ctx.shadowBlur = 0; ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = 3; ctx.stroke();
   ctx.restore();
 }
+// ---- Summon sounds (synthesized).
+function summonSfx(kind, lv = 0) {
+  if (Sfx.muted || !Sfx.ctx || Sfx.ctx.state !== "running") return;
+  if (kind === "rise") { sNoise(2.2, 0.22, "bandpass", 180, 1600, 1.6); sTone("sawtooth", 55, 160, 2.4, 0.045); sTone("sine", 110, 330, 2.6, 0.06, 0.4); }
+  else if (kind === "zap") { sNoise(0.12, 0.25, "highpass", 4000, 2000, 0.8); }
+  else if (kind === "step") { const f = 440 * Math.pow(2, lv / 3); sTone("sine", f, f, 0.5, 0.12); sTone("triangle", f * 1.5, f * 1.5, 0.45, 0.06, 0.05); sNoise(0.25, 0.2, "highpass", 6000, 3000, 0.7); }
+  else if (kind === "implode") { sTone("sine", 1400, 120, 0.3, 0.12); sNoise(0.3, 0.25, "bandpass", 3000, 300, 2); }
+  else if (kind === "boom") {
+    sNoise(1.0, 0.7, "lowpass", 1400, 50, 0.8); sTone("sine", 95, 35, 0.8, 0.3);
+    const top = lv >= 4 ? [523, 659, 784, 1047, 1319] : lv >= 3 ? [523, 659, 784, 1047] : [659, 988];
+    top.forEach((f, i) => sTone(i % 2 ? "triangle" : "sine", f, f, 0.6, 0.09, 0.12 + i * 0.07));
+    if (lv >= 5) { SOUNDS.thunder.atk(); [262, 330, 392, 523].forEach(f => sTone("sine", f, f * 1.003, 1.8, 0.05, 0.5)); }   // a shining chord for Legend+
+  }
+  else if (kind === "pop") { const f = 600 + lv * 180; sTone("triangle", f, f * 1.5, 0.15, 0.08); }
+}
+// The summoning circle on the floor: rune rings turning both ways, a hexagram drawing itself, glowing in `col`.
+function drawMagicCircle(cx, cy, rx, ry, t, col, prog, power) {
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(1, ry / rx);
+  ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+  const g = ctx.createRadialGradient(0, 0, 10, 0, 0, rx * 1.15);
+  g.addColorStop(0, hexOrHsl(col, 0.1 + 0.35 * power)); g.addColorStop(0.7, hexOrHsl(col, 0.08 + 0.15 * power)); g.addColorStop(1, hexOrHsl(col, 0));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, rx * 1.15, 0, Math.PI * 2); ctx.fill();
+  const stroke = (w, a) => { ctx.strokeStyle = hexOrHsl(col, a); ctx.lineWidth = w; };
+  // Outer double ring (draws itself around).
+  stroke(5, 0.9 * prog); ctx.beginPath(); ctx.arc(0, 0, rx, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, prog * 1.4)); ctx.stroke();
+  stroke(2, 0.7 * prog); ctx.beginPath(); ctx.arc(0, 0, rx * 0.92, Math.PI / 2, Math.PI / 2 + Math.PI * 2 * Math.min(1, prog * 1.4)); ctx.stroke();
+  // Rune ticks turning one way, dashed ring turning the other.
+  ctx.save(); ctx.rotate(t * 0.6);
+  for (let i = 0; i < 36; i++) { const a = i / 36 * Math.PI * 2; ctx.save(); ctx.rotate(a); stroke(i % 3 ? 2 : 4, 0.8 * prog); ctx.beginPath(); ctx.moveTo(rx * 0.93, 0); ctx.lineTo(rx * (i % 3 ? 0.97 : 0.99), 0); ctx.stroke();
+    if (i % 3 === 0) { ctx.beginPath(); ctx.arc(rx * 0.86, 0, 6, 0, Math.PI * 2); ctx.stroke(); } ctx.restore(); }
+  ctx.restore();
+  ctx.save(); ctx.rotate(-t * 0.9); ctx.setLineDash([18, 14]); stroke(3, 0.75 * prog); ctx.beginPath(); ctx.arc(0, 0, rx * 0.74, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  // Hexagram drawing itself.
+  const hp = clamp((prog - 0.25) / 0.75, 0, 1);
+  if (hp > 0) {
+    ctx.save(); ctx.rotate(t * 0.25); stroke(3.5, 0.85);
+    for (const off of [0, Math.PI]) {
+      const pts = [0, 1, 2].map(k => [Math.cos(off - Math.PI / 2 + k * Math.PI * 2 / 3) * rx * 0.72, Math.sin(off - Math.PI / 2 + k * Math.PI * 2 / 3) * rx * 0.72]);
+      const per = 3 * rx * 0.72 * Math.sqrt(3);
+      ctx.setLineDash([per * hp, per]); ctx.beginPath(); ctx.moveTo(...pts[0]); ctx.lineTo(...pts[1]); ctx.lineTo(...pts[2]); ctx.closePath(); ctx.stroke();
+    }
+    ctx.setLineDash([]); stroke(2.5, 0.8 * hp); ctx.beginPath(); ctx.arc(0, 0, rx * 0.36, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+// Jagged energy bolt between two points.
+function summonBolt(x0, y0, x1, y1, col, w) {
+  const pts = [[x0, y0]], n = 9;
+  for (let i = 1; i < n; i++) { const k = i / n, j = (1 - Math.abs(k - 0.5) * 2) * 26; pts.push([lerp(x0, x1, k) + rand(-j, j), lerp(y0, y1, k) + rand(-j, j)]); }
+  pts.push([x1, y1]);
+  for (const [lw, c] of [[w * 3, hexOrHsl(col, 0.3)], [w, hexOrHsl(col, 0.95)], [w * 0.4, "#ffffff"]]) {
+    ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.lineJoin = "round"; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+  }
+}
+// Burst particles of the reveal (sparks, stars and confetti), simulated here.
+function summonBurst(r, x, y, n, tier, spd = 1) {
+  const col = () => tier >= 6 ? `hsl(${Math.random() * 360 | 0},100%,65%)` : Math.random() < 0.3 ? "#ffffff" : tierColor(tier);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = rand(180, 720) * spd, kind = Math.random() < 0.35 ? "star" : (tier >= 4 && Math.random() < 0.35 ? "conf" : "spark");
+    r.burst.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120 * spd, life: rand(0.7, 1.6), t: 0, size: rand(3, 7) * (kind === "conf" ? 1.3 : 1), col: kind === "conf" ? `hsl(${Math.random() * 360 | 0},90%,62%)` : col(), kind, rot: Math.random() * 6, vr: rand(-10, 10) });
+  }
+}
+function drawBurst(r, dt) {
+  ctx.save();
+  for (const p of r.burst) {
+    p.t += dt; p.vy += 520 * dt; p.vx *= 1 - dt * 0.9; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+    const a = Math.max(0, 1 - p.t / p.life); if (a <= 0) continue;
+    ctx.globalAlpha = a;
+    if (p.kind === "conf") { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, Math.abs(Math.cos(p.rot * 1.7)) + 0.15); ctx.fillStyle = p.col; ctx.fillRect(-p.size / 2, -p.size, p.size, p.size * 2); ctx.restore(); }
+    else if (p.kind === "star") { const s2 = p.size * 1.3; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot * 0.3); poly([[0, -s2], [s2 * 0.25, -s2 * 0.25], [s2, 0], [s2 * 0.25, s2 * 0.25], [0, s2], [-s2 * 0.25, s2 * 0.25], [-s2, 0], [-s2 * 0.25, -s2 * 0.25]], p.col, null); ctx.restore(); }
+    else { circle(p.x, p.y, p.size * 1.8, hexOrHsl(p.col.startsWith("hsl") ? p.col : p.col, 0.25)); circle(p.x, p.y, p.size * 0.7, p.col); }
+  }
+  ctx.restore();
+  r.burst = r.burst.filter(p => p.t < p.life);
+}
+const easeOutBack = x => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
 function drawSummonReveal(dt) {
   const r = summonReveal; r.t += dt; const t = r.t;
   for (const x of r.results) x.card.t += dt;
   const v = lobbyView(), ax = v.ox + 540 * v.s, ay = v.oy + 1215 * v.s;          // the floating card on the altar
   const ccx = v.ox + 540 * v.s, ccy = v.oy + 1500 * v.s, crx = 450 * v.s, cry = 200 * v.s;   // the summoning circle
   const bw = 300 * v.s, bh = 464 * v.s, bestCol = tierColor(r.best);
+  const T1 = 0.9, T2 = 1.9, TI = SUMMON_REVEAL - 0.28;   // circle awakens / light gathers / spin & climb / implode
   if (t < SUMMON_REVEAL) {
-    const k = t / SUMMON_REVEAL, spinU = Math.max(0, t - 1.3), sk = clamp(spinU / 1.6, 0, 1);
-    // Suspense: the light starts white/gold and only shows the real color late in the spin.
-    const col = sk < 0.55 ? "#ffe9b8" : bestCol;
-    dim(0.2 + 0.4 * k);
-    // The circle flares up.
+    const k = t / SUMMON_REVEAL;
+    // Rarity climb: the colour steps up during the spin, each step with a flash and a higher chime.
+    const nSteps = r.steps.length, climbT = (tt) => T2 + 0.25 + (tt + 1) * (TI - T2 - 0.35) / Math.max(1, nSteps + 0.5);
+    let lvl = 0; for (let i = 0; i < nSteps; i++) if (t >= climbT(i)) lvl = i + 1;
+    while (r.stepDone < lvl) { r.stepDone++; summonSfx("step", r.stepDone); r.stepFlash = 1; }
+    r.stepFlash = Math.max(0, (r.stepFlash || 0) - dt * 3);
+    const col = lvl ? tierColor(r.steps[lvl - 1]) : "#fff1cc";
+    const power = clamp(k * 1.2, 0, 1) * (0.6 + 0.1 * lvl);
+    // Shake grows with the rarity.
+    const shake = (t > T2 ? (lvl * 1.2 + (t > TI ? 6 : 0)) : t > T1 ? 1 : 0);
+    ctx.save(); if (shake) ctx.translate(rand(-1, 1) * shake, rand(-1, 1) * shake);
+    dim(0.38 + 0.45 * k);
+    // Coloured light rising from the circle.
     ctx.save(); ctx.globalCompositeOperation = "lighter";
-    ctx.save(); ctx.translate(ccx, ccy); ctx.scale(1, cry / crx);
-    const g = ctx.createRadialGradient(0, 0, 10, 0, 0, crx * 1.1);
-    g.addColorStop(0, hexOrHsl(col, 0.15 + 0.4 * k)); g.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = g; ctx.fillRect(-crx * 1.2, -crx * 1.2, crx * 2.4, crx * 2.4); ctx.restore();
-    // Light rises from the circle into the card, then orbits it while it spins.
-    const ang = summonSpinAngle(spinU);
+    const bg = ctx.createRadialGradient(ccx, ccy, 10, ccx, ccy - 200 * v.s, H * 0.8);
+    bg.addColorStop(0, hexOrHsl(col, 0.25 * power)); bg.addColorStop(1, hexOrHsl(col, 0));
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); ctx.restore();
+    drawMagicCircle(ccx, ccy, crx, cry, t, col, clamp(t / T1, 0, 1), power);
+    // Four pillars of light rising from the circle.
+    if (t > T1 * 0.6) {
+      const ph = clamp((t - T1 * 0.6) / 0.6, 0, 1) * (t > TI ? 1 - (t - TI) / 0.28 : 1);
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 4; i++) {
+        const a = t * 0.6 + i * Math.PI / 2, px = ccx + Math.cos(a) * crx * 0.86, py = ccy + Math.sin(a) * cry * 0.86, hgt = 700 * v.s * ph;
+        const lg = ctx.createLinearGradient(0, py - hgt, 0, py); lg.addColorStop(0, hexOrHsl(col, 0)); lg.addColorStop(1, hexOrHsl(col, 0.55));
+        ctx.fillStyle = lg; ctx.fillRect(px - 14, py - hgt, 28, hgt);
+        ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(px - 3, py - hgt * 0.9, 6, hgt * 0.9);
+      }
+      ctx.restore();
+    }
+    // Lightning from the circle's rim into the card while the light gathers.
+    if (t > T1 && t < TI) {
+      if (!r.sfx.z || t - r.sfx.z > 0.35) { r.sfx.z = t; summonSfx("zap"); }
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 3; i++) { if (Math.random() < 0.35) continue; const a = rand(0, Math.PI * 2); summonBolt(ccx + Math.cos(a) * crx * 0.9, ccy + Math.sin(a) * cry * 0.9, ax + rand(-20, 20), ay + rand(-30, 30), col, 3); }
+      ctx.restore();
+    }
+    // Light motes rise into the card, then orbit it while it spins.
+    const ang = summonSpinAngle(Math.max(0, t - T2));
+    const sk = clamp((t - T2) / (TI - T2), 0, 1);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
     for (const p of r.parts) {
       let x, y, a = 1;
       const sx0 = ccx + Math.cos(p.a) * crx * p.rr, sy0 = ccy + Math.sin(p.a) * cry * p.rr;
-      if (t < 1.3) {
-        const u = clamp((t - p.delay) / 0.8, 0, 1), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      if (t < T2) {
+        const u = clamp((t - 0.4 - p.delay) / 1.0, 0, 1), e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
         x = lerp(sx0, ax, e) + Math.sin(e * Math.PI) * p.bulge; y = lerp(sy0, ay, e) - Math.sin(e * Math.PI) * 80;
-        a = clamp(t / 0.3, 0, 1);
+        a = clamp((t - 0.3) / 0.3, 0, 1);
       } else {
-        const rr = p.orbit * v.s * 1.4 * (1 - 0.6 * sk);
-        x = ax + Math.cos(p.a + ang * 0.6) * rr; y = ay + Math.sin(p.a + ang * 0.6) * rr * 1.3; a = 1 - sk * 0.4;
+        const rr = p.orbit * v.s * 1.4 * (1 - 0.65 * sk) * (t > TI ? 1 - (t - TI) / 0.28 : 1);
+        x = ax + Math.cos(p.a + ang * 0.6) * rr; y = ay + Math.sin(p.a + ang * 0.6) * rr * 1.3; a = 1 - sk * 0.3;
       }
       const pc = p.white ? "#ffffff" : col;
       ctx.globalAlpha = 0.3 * a; circle(x, y, p.size * 2.4, pc);
       ctx.globalAlpha = 0.95 * a; circle(x, y, p.size, pc);
     }
     ctx.restore();
-    // The card back glows, turns into light, then spins faster and faster.
-    if (t < 1.3) {
-      const glow = clamp(t / 1.3, 0, 1);
+    // The card: its back glows and dissolves into light, the light spins faster and faster, then collapses to a point.
+    if (t < T2) {
+      const glow = clamp((t - 0.5) / 1.0, 0, 1), fade = clamp((t - (T2 - 0.45)) / 0.45, 0, 1), bob = Math.sin(t * 3) * 6;
       if (LOBBY.card_back.ready) {
-        ctx.save(); ctx.translate(ax, ay); ctx.shadowColor = col; ctx.shadowBlur = 40 + glow * 60;
-        ctx.globalAlpha = 1 - clamp((t - 0.9) / 0.4, 0, 1); ctx.drawImage(LOBBY.card_back.img, -bw / 2, -bh / 2, bw, bh); ctx.restore();
+        ctx.save(); ctx.translate(ax, ay + bob); ctx.shadowColor = col; ctx.shadowBlur = 30 + glow * 70;
+        ctx.globalAlpha = 1 - fade; ctx.drawImage(LOBBY.card_back.img, -bw / 2, -bh / 2, bw, bh); ctx.restore();
       }
-      if (t > 0.9) drawLightCard(ax, ay, 1, bw, bh, col, clamp((t - 0.9) / 0.4, 0, 1), glow);
+      if (fade > 0) drawLightCard(ax, ay + bob, 1, bw, bh, col, fade, glow);
     } else {
-      drawLightCard(ax, ay - sk * 40, Math.cos(ang), bw * (1 + sk * 0.15), bh * (1 + sk * 0.15), col, 0.85 + 0.15 * Math.sin(t * 30), sk);
-      if (sk > 0.6) { ctx.save(); ctx.globalAlpha = (sk - 0.6) * 0.8; circle(ax, ay - sk * 40, bw * (0.6 + sk * 0.4), hexOrHsl(col, 0.35)); ctx.restore(); }
+      const imp = t > TI ? 1 - clamp((t - TI) / 0.28, 0, 1) : 1;
+      if (t > TI && !r.sfx.imp) { r.sfx.imp = true; summonSfx("implode"); }
+      const sc = (1 + sk * 0.18) * Math.max(0.02, imp);
+      drawLightCard(ax, ay - sk * 40, Math.cos(ang), bw * sc, bh * sc, col, 0.85 + 0.15 * Math.sin(t * 30), sk);
+      if (sk > 0.4) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = (sk - 0.4) * 0.9; circle(ax, ay - sk * 40, bw * (0.55 + sk * 0.45) * Math.max(0.2, imp), hexOrHsl(col, 0.35)); ctx.restore(); }
+      if (t > TI) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(ax, ay - 40, 20 + (1 - imp) * 30, "rgba(255,255,255,0.95)"); ctx.restore(); }
     }
+    // Flash on every rarity step.
+    if (r.stepFlash > 0) {   // a soft burst of the new colour around the card, plus a light screen tint
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = r.stepFlash * 0.18; ctx.fillStyle = hexOrHsl(col, 0.8); ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = r.stepFlash; circle(ax, ay - 40, bw * (1.6 - r.stepFlash * 0.6), hexOrHsl(col, 0.35));
+      ctx.strokeStyle = hexOrHsl(col, 0.9); ctx.lineWidth = 6 * r.stepFlash; ctx.beginPath(); ctx.arc(ax, ay - 40, bw * (1.8 - r.stepFlash), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
     return;
   }
-  // --- The reveal.
-  const u = t - SUMMON_REVEAL;
-  if (!r.revealed) { r.revealed = true; if (r.best >= 4) playSfx("phoenix", "atk"); else playSfx("lightning", "hit"); }
-  dim(0.8);
-  const cy = r.multi ? H * 0.38 : H * 0.42;
-  // Rays and a shockwave in the best color.
-  ctx.save(); ctx.globalCompositeOperation = "lighter";
-  for (let i = 0; i < 18; i++) {
-    const a = lobbyT * 0.4 + i * Math.PI / 9, len = 380 * Math.min(1, u * 2.5);
-    ctx.fillStyle = r.best >= 6 ? `hsla(${(i * 20 + lobbyT * 80) % 360},100%,65%,0.22)` : hexOrHsl(bestCol, 0.2);
-    ctx.beginPath(); ctx.moveTo(W / 2, cy); ctx.arc(W / 2, cy, len, a - 0.07, a + 0.07); ctx.closePath(); ctx.fill();
+  // ---------------- The reveal ----------------
+  const u = t - SUMMON_REVEAL, cy = r.multi ? H * 0.38 : H * 0.42;
+  if (!r.revealed) {
+    r.revealed = true; summonSfx("boom", r.best);
+    summonBurst(r, W / 2, cy, r.multi ? 90 : 140 + r.best * 30, r.best, 1 + r.best * 0.08);
   }
-  if (u < 0.7) { ctx.globalAlpha = 1 - u / 0.7; ctx.strokeStyle = bestCol; ctx.lineWidth = 10 * (1 - u / 0.7) + 2; ctx.beginPath(); ctx.arc(W / 2, cy, 40 + u * 900, 0, Math.PI * 2); ctx.stroke(); }
+  const shake = u < 0.6 ? (1 - u / 0.6) * (6 + r.best * 3) : 0;
+  ctx.save(); if (shake) ctx.translate(rand(-1, 1) * shake, rand(-1, 1) * shake);
+  dim(0.82);
+  // Backdrop: rotating rays (two layers for Myth and up), a light pillar from the sky, shockwaves.
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const rayN = r.best >= 4 ? 24 : 16, grow = Math.min(1, u * 2.2);
+  for (let layer = 0; layer < (r.best >= 4 ? 2 : 1); layer++) for (let i = 0; i < rayN; i++) {
+    const a = lobbyT * (layer ? -0.25 : 0.4) + i * Math.PI * 2 / rayN, len = (layer ? 520 : 420) * grow, w2 = layer ? 0.04 : 0.07;
+    ctx.fillStyle = r.best >= 6 ? `hsla(${(i * 15 + lobbyT * 80) % 360},100%,65%,0.2)` : hexOrHsl(layer ? "#ffffff" : bestCol, layer ? 0.08 : 0.2);
+    ctx.beginPath(); ctx.moveTo(W / 2, cy); ctx.arc(W / 2, cy, len, a - w2, a + w2); ctx.closePath(); ctx.fill();
+  }
+  const pil = ctx.createLinearGradient(W / 2 - 90, 0, W / 2 + 90, 0);
+  pil.addColorStop(0, hexOrHsl(bestCol, 0)); pil.addColorStop(0.5, hexOrHsl(bestCol, 0.35 * Math.min(1, u * 3))); pil.addColorStop(1, hexOrHsl(bestCol, 0));
+  ctx.fillStyle = pil; ctx.fillRect(W / 2 - 90, 0, 180, cy + 60);
+  for (let i = 0; i < 3; i++) { const uu = u - i * 0.12; if (uu < 0 || uu > 0.8) continue; ctx.globalAlpha = 1 - uu / 0.8; ctx.strokeStyle = i === 1 ? "#ffffff" : bestCol; ctx.lineWidth = 12 * (1 - uu / 0.8) + 2; ctx.beginPath(); ctx.arc(W / 2, cy, 40 + uu * 1000, 0, Math.PI * 2); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  // Myth: a ring of fire. Legend: golden lightning striking down. Special: a spinning rainbow halo.
+  if (!r.multi && r.best >= 4) {
+    const R = CARD_W * 1.55;
+    if (r.best === 4) {
+      for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2 + lobbyT, f = 0.6 + 0.4 * Math.sin(lobbyT * 12 + i * 2.1), x = W / 2 + Math.cos(a) * R, y = cy + Math.sin(a) * R * 1.15;
+        ctx.fillStyle = `rgba(255,${120 + 80 * f | 0},40,${0.5 * Math.min(1, u * 2)})`; ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.quadraticCurveTo(x, y - 40 * f, x + 9, y); ctx.closePath(); ctx.fill(); }
+    } else if (r.best === 5) {
+      if (u < 1.4 && Math.random() < 0.5) for (let i = 0; i < 2; i++) { const x = W / 2 + rand(-CARD_W, CARD_W); summonBolt(x + rand(-80, 80), 0, x, cy - CARD_H, "#ffd84a", 4); }
+      ctx.strokeStyle = `rgba(255,216,74,${0.6})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(W / 2, cy, R * (1 + 0.05 * Math.sin(lobbyT * 5)), 0, Math.PI * 2); ctx.stroke();
+    } else {
+      for (let i = 0; i < 12; i++) { ctx.strokeStyle = `hsla(${(i * 30 + lobbyT * 120) % 360},100%,65%,0.7)`; ctx.lineWidth = 6; ctx.beginPath(); const a = lobbyT * 2 + i * Math.PI / 6; ctx.arc(W / 2, cy, R, a, a + 0.4); ctx.stroke(); }
+    }
+  }
   ctx.restore();
   if (!r.multi) {
-    const one = r.results[0], c = one.card, pop = 1 + 0.3 * Math.max(0, 1 - u / 0.3);
-    c.x = c.hx = W / 2; c.y = c.hy = cy; c.scale = 2.4 * pop; c.draw();
+    // The card bursts out of the light with a bounce and a little wobble.
+    const one = r.results[0], c = one.card, e = easeOutBack(clamp(u / 0.5, 0, 1));
+    ctx.save(); ctx.translate(W / 2, cy); ctx.rotate(Math.sin(u * 14) * 0.12 * Math.max(0, 1 - u / 0.6)); ctx.translate(-W / 2, -cy);
+    c.x = c.hx = W / 2; c.y = c.hy = cy; c.scale = 2.4 * Math.max(0.01, e); c.draw(); ctx.restore();
+    // Floating sparkles around it.
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 14; i++) { const k = (lobbyT * 0.35 + i / 14) % 1, x = W / 2 + Math.sin(i * 2.4 + lobbyT) * CARD_W * 1.4, y = cy + CARD_H * 1.2 - k * CARD_H * 2.6; circle(x, y, 3 * (1 - k) + 1, hexOrHsl(r.best >= 6 ? `hsl(${i * 30},100%,70%)` : bestCol, 0.9 * Math.sin(Math.PI * k))); }
+    ctx.restore();
+    // Rarity banner sweeping in.
+    const bu = clamp((u - 0.25) / 0.35, 0, 1);
+    if (bu > 0) {
+      const name = one.isNew ? "NEW!" : r.best >= 6 ? "SPECIAL!" : r.best === 5 ? "LEGEND!" : r.best === 4 ? "MYTH!" : r.best === 3 ? "EPIC!" : r.best === 1 ? "NICE!" : "";
+      if (name) {
+        const bx = W / 2 + (1 - easeOutBack(bu)) * -W, by = cy - CARD_H * 1.2 - 54, sz = 40 + r.best * 4;
+        ctx.save(); ctx.translate(bx, by); ctx.rotate(-0.06);
+        rrect(-200, -34, 400, 68, 34); ctx.fillStyle = "rgba(20,10,30,0.7)"; ctx.fill(); ctx.strokeStyle = r.best >= 6 ? `hsl(${(lobbyT * 200) % 360},100%,65%)` : bestCol; ctx.lineWidth = 4; ctx.stroke();
+        text(name, 0, 2, sz, r.best >= 6 ? `hsl(${(lobbyT * 200) % 360},100%,72%)` : bestCol, { font: DISPLAY, weight: 900, outline: 10, baseline: "middle" });
+        const shine = ((lobbyT * 0.8) % 1.6) - 0.3;   // a shine sweeping over the banner
+        if (shine < 1) { ctx.globalCompositeOperation = "lighter"; const sg = ctx.createLinearGradient(-200 + shine * 400 - 40, 0, -200 + shine * 400 + 40, 0); sg.addColorStop(0, "rgba(255,255,255,0)"); sg.addColorStop(0.5, "rgba(255,255,255,0.35)"); sg.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = sg; ctx.fillRect(-200, -34, 400, 68); }
+        ctx.restore();
+      }
+    }
   } else {
-    // Ten cards flip out of the light one after another.
+    // Ten cards fly out of the light one after another, flip over and pop with their own little burst.
     const sc = 1.05, cw = CARD_W * sc, gap = 16, x0 = W / 2 - (5 * cw + 4 * gap) / 2 + cw / 2;
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(W / 2, cy, 60 + 10 * Math.sin(lobbyT * 6), hexOrHsl(bestCol, Math.max(0, 0.5 - u * 0.15))); ctx.restore();
     r.results.forEach((res, i) => {
-      const x = x0 + (i % 5) * (cw + gap), y = cy - 92 + Math.floor(i / 5) * (CARD_H * sc + 48), ui = u - 0.3 - i * 0.14;
+      const tx = x0 + (i % 5) * (cw + gap), ty = cy - 92 + Math.floor(i / 5) * (CARD_H * sc + 48), ui = u - 0.35 - i * 0.17;
       const col = tierColor(res.tier);
-      if (ui < 0) { drawLightCard(x, y, 1, cw, CARD_H * sc, "#ffe9b8", 0.55 + 0.2 * Math.sin(t * 12 + i), 0.3); return; }
-      if (!res.popped) { res.popped = true; if (res.tier >= 3) playUi("ui_place"); }
-      const f = clamp(ui / 0.22, 0, 1), sx = Math.abs(Math.cos((1 - f) * Math.PI / 2));
-      if (ui < 0.5) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 1 - ui / 0.5; circle(x, y, 40 + ui * 160, hexOrHsl(col, 0.5)); ctx.restore(); }
-      const c = res.card; c.x = c.hx = x; c.y = c.hy = y; c.scale = sc * (1 + 0.2 * Math.max(0, 1 - ui / 0.25));
-      ctx.save(); ctx.translate(x, y); ctx.scale(Math.max(0.05, sx), 1); ctx.translate(-x, -y); c.draw(); ctx.restore();
-      if (res.isNew && ui > 0.2) text("NEW!", x, y - CARD_H * sc / 2 - 10, 22, "#ff8af0", { weight: 900, outline: 6 });
+      if (ui < 0) return;
+      const fl = clamp(ui / 0.25, 0, 1), e = 1 - Math.pow(1 - fl, 3);
+      const x = lerp(W / 2, tx, e), y = lerp(cy, ty, e) - Math.sin(e * Math.PI) * 60;
+      if (fl < 1) {   // flying light with a trail
+        ctx.save(); ctx.globalCompositeOperation = "lighter";
+        for (let k = 1; k <= 5; k++) { const e2 = 1 - Math.pow(1 - Math.max(0, fl - k * 0.05), 3); circle(lerp(W / 2, tx, e2), lerp(cy, ty, e2) - Math.sin(e2 * Math.PI) * 60, 16 - k * 2, hexOrHsl(col, 0.25)); }
+        ctx.restore();
+        drawLightCard(x, y, 1, cw * (0.4 + 0.6 * e), CARD_H * sc * (0.4 + 0.6 * e), col, 0.9, 0.4);
+        return;
+      }
+      const fu = ui - 0.25;
+      if (!res.popped) { res.popped = true; summonSfx("pop", res.tier); summonBurst(r, tx, ty, 10 + res.tier * 8, res.tier, 0.45); if (res.tier >= 3) playUi("ui_place"); }
+      const f = clamp(fu / 0.2, 0, 1), sx = Math.abs(Math.cos((1 - f) * Math.PI / 2));
+      if (res.tier >= 3) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(tx, ty, cw * 0.8 + 6 * Math.sin(lobbyT * 5 + i), hexOrHsl(col, 0.28)); ctx.restore(); }
+      if (fu < 0.5) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 1 - fu / 0.5; circle(tx, ty, 40 + fu * 180, hexOrHsl(col, 0.5)); ctx.restore(); }
+      const c = res.card; c.x = c.hx = tx; c.y = c.hy = ty; c.scale = sc * (1 + 0.25 * Math.max(0, 1 - fu / 0.25));
+      ctx.save(); ctx.translate(tx, ty); ctx.scale(Math.max(0.05, sx), 1); ctx.translate(-tx, -ty); c.draw(); ctx.restore();
+      if (res.isNew && fu > 0.2) text("NEW!", tx, ty - CARD_H * sc / 2 - 10, 22, "#ff8af0", { weight: 900, outline: 6 });
     });
   }
+  drawBurst(r, dt);
+  ctx.restore();
   // White flash at the moment of the reveal.
-  if (u < 0.45) { ctx.save(); ctx.globalAlpha = 1 - u / 0.45; ctx.fillStyle = "#fffaf0"; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  if (u < 0.5) { ctx.save(); ctx.globalAlpha = 1 - u / 0.5; ctx.fillStyle = "#fffaf0"; ctx.fillRect(0, 0, W, H); ctx.restore(); }
   if (!summonDone()) return;
   // Results text.
   if (!r.multi) {
