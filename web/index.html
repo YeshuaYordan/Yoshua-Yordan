@@ -2337,6 +2337,7 @@ const CHAMBER_Y = 340;
 let chamberOpen = false;
 let restartArmed = 0; // seconds left to confirm Restart in the pause menu
 let enemies = [], projectiles = [], zones = [], fxs = [];
+let castleMax = CASTLE_MAX, castleArmor = 0;   // raised by the Stalwart wild card during a run
 let gold = 0, castleHp = CASTLE_MAX, wave = 0, state = "title", breakTimer = -1, runGems = 0;
 // One revive per run: when the castle falls, watching an ad (within 6 s) clears the field and restores the castle.
 const REVIVE_TIME = 6;
@@ -2383,6 +2384,159 @@ function clearBoard() {
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
+// ---- Wild Cards: one-use cards found during a run (dropped by enemies, always by bosses). They wait in a fan on the
+// right side of the battlefield: scroll it up/down, the card in front is the big one; drag it out to use it.
+// Every wild card shares one frame; each has its own icon. They are lost when the run ends.
+const WILD = {
+  stalwart: { name: "Stalwart", desc: "The wall gets +25 max HP (and heals 25) and +1% damage reduction. Stacks.", hpUp: 25, armorUp: 0.01 },
+};
+const WILD_DROP = 0.015, WILD_ARMOR_MAX = 0.75;
+let wilds = [], wildFly = [], wildScroll = 0, wildDrag = null, wildFan = null, wallGlow = 0;
+const wildCount = () => wilds.reduce((a, w) => a + w.n, 0);
+function wildFanGeo() { const cy = (HUD_H + FRONT_Y) / 2 + 30; return { cx: W + 40, cy, R: 165 }; }
+// Where the i-th stack sits in the fan (s = scroll position).
+function wildSlot(i, s = wildScroll) {
+  const g = wildFanGeo(), d = i - s, a = Math.PI + d * 0.45;
+  return { x: g.cx + Math.cos(a) * g.R, y: g.cy + Math.sin(a) * g.R * 1.25, rot: d * 0.3, sc: Math.abs(d) < 0.5 ? 0.82 - Math.abs(d) * 0.3 : Math.max(0.5, 0.68 - Math.abs(d) * 0.08), d };
+}
+function addWild(id) { const w = wilds.find(x => x.id === id); if (w) w.n++; else wilds.push({ id, n: 1 }); }
+function dropWild(id, x, y) {
+  const g = wildSlot(Math.round(wildScroll));
+  wildFly.push({ id, x0: x, y0: y, x1: g.x, y1: g.y, t: 0 });
+  if (!(save.tut && save.tut.wild)) { save.tut = save.tut || {}; save.tut.wild = true; writeSave(); showInfo("You found a Wild Card! It waits on the right side. Drag it onto the battlefield to use it."); }
+}
+function updateWild(dt) {
+  wallGlow = Math.max(0, wallGlow - dt * 0.8);
+  for (const f of wildFly) { f.t += dt; if (f.t >= 0.75 && !f.done) { f.done = true; addWild(f.id); playUi("ui_place"); } }
+  wildFly = wildFly.filter(f => f.t < 0.75);
+  if (!wildFan && !wildDrag) wildScroll += (Math.round(wildScroll) - wildScroll) * Math.min(1, dt * 10);
+  wildScroll = clamp(wildScroll, 0, Math.max(0, wilds.length - 1));
+}
+function useWild(i) {
+  const w = wilds[i], d = WILD[w.id]; if (!w) return;
+  if (w.id === "stalwart") {
+    castleMax += d.hpUp; castleHp = Math.min(castleMax, castleHp + d.hpUp); castleArmor = Math.min(WILD_ARMOR_MAX, castleArmor + d.armorUp); wallGlow = 1;
+    for (let k = 0; k < 9; k++) fxs.push(new Fx("burst", { x: 40 + k * 80, y: WALL_Y + WALL_H / 2, color: "#cfe6ff", radius: 70, duration: 0.6 }));
+    for (let k = 0; k < 30; k++) addPart({ add: true, kind: "glint", x: rand(20, W - 20), y: WALL_Y + rand(0, WALL_H), vx: rand(-30, 30), vy: -rand(80, 220), life: rand(0.6, 1.1), size: rand(3, 6), col: Math.random() < 0.5 ? "#ffffff" : "#9fd8ff" });
+    fxs.push(new Fx("text", { x: W / 2, y: WALL_Y - 40, text: `+${d.hpUp} Max HP   ·   ${Math.round(castleArmor * 100)}% damage reduction`, color: "#cfe6ff", size: 26, duration: 1.6 }));
+    if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sNoise(0.5, 0.6, "lowpass", 600, 60, 0.8); sTone("sine", 110, 70, 0.4, 0.2); [523, 784, 1047].forEach((f, k) => sTone("triangle", f, f, 0.5, 0.08, 0.1 + k * 0.08)); }
+    shakeT = Math.max(shakeT, 0.25); shakeAmp = 5;
+  }
+  if (--w.n <= 0) wilds.splice(i, 1);
+}
+// One frame for every wild card: midnight-blue card, silver-aqua border, a rainbow medallion for the icon, a ribbon.
+function drawWildFrame(hw, hh) {
+  rrect(-hw, -hh, CARD_W, CARD_H, 11); const bg = ctx.createLinearGradient(0, -hh, 0, hh); bg.addColorStop(0, "#1c3552"); bg.addColorStop(1, "#0c1626");
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.save(); rrect(-hw, -hh, CARD_W, CARD_H, 11); ctx.clip();   // faint arcane pattern
+  ctx.strokeStyle = "rgba(120,200,255,0.12)"; ctx.lineWidth = 1.5;
+  for (let r2 = 14; r2 < 110; r2 += 14) { ctx.beginPath(); ctx.arc(0, -8, r2, 0, Math.PI * 2); ctx.stroke(); }
+  for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(Math.cos(a) * 120, -8 + Math.sin(a) * 120); ctx.stroke(); }
+  ctx.restore();
+  const tg = ctx.createLinearGradient(-hw, -hh, hw, hh); tg.addColorStop(0, "#ffffff"); tg.addColorStop(0.4, "#9fc6e8"); tg.addColorStop(0.7, "#e8f4ff"); tg.addColorStop(1, "#5a7a9a");
+  rrect(-hw, -hh, CARD_W, CARD_H, 11); ctx.strokeStyle = INK; ctx.lineWidth = 7; ctx.stroke(); ctx.strokeStyle = tg; ctx.lineWidth = 4; ctx.stroke();
+  rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, 7); ctx.strokeStyle = "rgba(95,232,255,0.55)"; ctx.lineWidth = 1.5; ctx.stroke();
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const x = sx * (hw - 9), y = sy * (hh - 9); poly([[x, y - 6], [x + 6, y], [x, y + 6], [x - 6, y]], "#e8f4ff", INK, 1.5); poly([[x, y - 3], [x + 3, y], [x, y + 3], [x - 3, y]], "#5fe8ff", null); }
+  // Rainbow medallion ring.
+  const my = -10, mr = 31;
+  circle(0, my, mr + 4, INK);
+  if (ctx.createConicGradient) { const cg = ctx.createConicGradient(0, 0, my); for (let k = 0; k <= 6; k++) cg.addColorStop(k / 6, `hsl(${k * 60},90%,65%)`); ctx.beginPath(); ctx.arc(0, my, mr + 2, 0, Math.PI * 2); ctx.fillStyle = cg; ctx.fill(); }
+  else circle(0, my, mr + 2, "#9fc6e8");
+  const mg = ctx.createRadialGradient(0, my - 8, 3, 0, my, mr); mg.addColorStop(0, "#2a4a6e"); mg.addColorStop(1, "#0e1a2c"); circle(0, my, mr - 2, mg);
+  // "WILD" ribbon on top.
+  poly([[-30, -hh + 4], [30, -hh + 4], [36, -hh + 13], [30, -hh + 22], [-30, -hh + 22], [-36, -hh + 13]], "#5a2d9a", INK, 2);
+  text("WILD", 0, -hh + 13, 12, "#fff2c8", { font: DISPLAY, weight: 900, baseline: "middle" });
+}
+function drawWildIcon(id) {
+  if (id === "stalwart") {   // a stone castle wall with merlons, a gate and a flag
+    const my = -10;
+    ctx.save(); ctx.translate(0, my);
+    poly([[-22, -4], [22, -4], [22, 18], [-22, 18]], "#b8aa98", INK, 2);
+    for (const x of [-22, -11, 0, 11]) poly([[x, -12], [x + 8, -12], [x + 8, -4], [x, -4]], "#c9bca8", INK, 1.6);
+    ctx.strokeStyle = "rgba(60,40,30,0.55)"; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (const y of [3, 10]) { ctx.moveTo(-22, y); ctx.lineTo(22, y); }
+    for (const x of [-15, 1, 15]) { ctx.moveTo(x, -4); ctx.lineTo(x, 3); } for (const x of [-7, 9]) { ctx.moveTo(x, 3); ctx.lineTo(x, 10); } ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6, 18); ctx.lineTo(-6, 9); ctx.quadraticCurveTo(0, 2, 6, 9); ctx.lineTo(6, 18); ctx.closePath(); ctx.fillStyle = "#3a2418"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(4, -12); ctx.lineTo(4, -26); ctx.stroke();
+    poly([[4, -26], [17, -22], [4, -18]], "#4fb8ff", INK, 1.4);
+    ctx.restore();
+  }
+}
+// A wild card at (x, y): frame and icon pre-drawn once; a shine sweeps over it; count badge for stacks.
+function drawWildCard(id, x, y, sc, rot = 0, n = 1, glow = 0) {
+  const hw = CARD_W / 2, hh = CARD_H / 2;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(sc, sc);
+  if (glow > 0) { const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(170,225,255,${0.55 * glow})`); g.addColorStop(1, "rgba(170,225,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -120, 240, 240); }   // painted (not added) so it stays blue over grass
+  for (let k = Math.min(3, n - 1); k >= 1; k--) {   // a pile: extra copies peek out behind
+    ctx.save(); ctx.translate(k * 5, k * 4); ctx.rotate(k * 0.07);
+    rrect(-hw, -hh, CARD_W, CARD_H, 11); ctx.fillStyle = "#16283e"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.stroke(); ctx.strokeStyle = "#9fc6e8"; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+  }
+  rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 11); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
+  drawCached("wild_" + id, CARD_W + 30, CARD_H + 30, () => {
+    drawWildFrame(hw, hh); drawWildIcon(id);
+    const py = hh - 20; rrect(-hw + 9, py - 11, CARD_W - 18, 22, 8); ctx.fillStyle = "rgba(240,248,255,0.95)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    text(WILD[id].name, 0, py + 1, 15, "#1c3552", { font: DISPLAY, weight: 900, baseline: "middle" });
+  });
+  const sh = ((time * 0.5 + x * 0.003) % 2.2) - 0.6;   // foil shine
+  if (sh < 1.1) { ctx.save(); rrect(-hw, -hh, CARD_W, CARD_H, 11); ctx.clip(); ctx.globalCompositeOperation = "lighter"; const sx = -hw + sh * CARD_W;
+    const g = ctx.createLinearGradient(sx - 20, 0, sx + 20, 0); g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.5, "rgba(200,240,255,0.35)"); g.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.translate(sx, 0); ctx.transform(1, 0, -0.4, 1, 0, 0); ctx.translate(-sx, 0); ctx.fillStyle = g; ctx.fillRect(sx - 20, -hh - 20, 40, CARD_H + 40); ctx.restore(); }
+  if (n > 1) { circle(hw - 8, -hh + 8, 14, INK); circle(hw - 8, -hh + 8, 12, "#e0533f"); text(`x${n}`, hw - 8, -hh + 9, n > 9 ? 11 : 13, "#fff", { weight: 900, baseline: "middle" }); }
+  ctx.restore();
+}
+function drawWildFan() {
+  if (state !== "wave" && state !== "break") return;
+  // Cards flying in from where they dropped.
+  for (const f of wildFly) {
+    const k = Math.min(1, f.t / 0.75), e = 1 - Math.pow(1 - k, 3), x = lerp(f.x0, f.x1, e), y = lerp(f.y0, f.y1, e) - Math.sin(e * Math.PI) * 90;
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; for (let j = 1; j <= 4; j++) { const e2 = 1 - Math.pow(1 - Math.max(0, k - j * 0.05), 3); circle(lerp(f.x0, f.x1, e2), lerp(f.y0, f.y1, e2) - Math.sin(e2 * Math.PI) * 90, 12 - j * 2, "rgba(120,220,255,0.35)"); } ctx.restore();
+    drawWildCard(f.id, x, y, 0.35 + 0.35 * e, f.t * 8 * (1 - e), 1, 1);
+  }
+  if (!wilds.length) return;
+  const sel = Math.round(wildScroll), order = wilds.map((w, i) => i).sort((a, b) => Math.abs(b - wildScroll) - Math.abs(a - wildScroll));
+  for (const i of order) {
+    if (wildDrag && wildDrag.moved && wildDrag.i === i && wilds[i].n === 1) continue;
+    const sl = wildSlot(i); if (Math.abs(sl.d) > 3.2) continue;
+    ctx.save(); ctx.globalAlpha = Math.abs(sl.d) < 0.5 ? 1 : Math.max(0.35, 0.85 - Math.abs(sl.d) * 0.15);
+    drawWildCard(wilds[i].id, sl.x, sl.y, sl.sc, sl.rot, wilds[i].n - (wildDrag && wildDrag.moved && wildDrag.i === i ? 1 : 0), i === sel ? 0.5 + 0.3 * Math.sin(time * 4) : 0);
+    ctx.restore();
+  }
+  if (wilds.length > 1) { const g = wildFanGeo(); text("▲", W - 22, g.cy - g.R * 1.05, 18, "rgba(200,235,255,0.7)", { outline: 3 }); text("▼", W - 22, g.cy + g.R * 1.1, 18, "rgba(200,235,255,0.7)", { outline: 3 }); }
+  if (wildDrag && wildDrag.moved) {
+    const ok = wildDropOk(pointer);
+    if (ok) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = `rgba(150,220,255,${0.18 + 0.1 * Math.sin(time * 8)})`; ctx.fillRect(0, WALL_Y, W, WALL_H); ctx.restore(); }
+    drawWildCard(wilds[wildDrag.i].id, pointer.x, pointer.y - 30, 0.9, Math.sin(time * 6) * 0.05, 1, ok ? 1 : 0.4);
+  }
+}
+const wildDropOk = p => p.x < W - 150 && p.y > HUD_H + 10 && p.y < WALL_Y + WALL_H;
+function wildTopRect() { const sl = wildSlot(Math.round(wildScroll)); const w2 = CARD_W * sl.sc / 2 + 6, h2 = CARD_H * sl.sc / 2 + 6; return { x: sl.x - w2, y: sl.y - h2, w: w2 * 2, h: h2 * 2 }; }
+// Touch: returns true when the wild-card fan took the touch.
+function wildDown(p) {
+  if (!wilds.length || chamberOpen || spell) return false;
+  const g = wildFanGeo();
+  if (inRect(p, wildTopRect())) { wildDrag = { i: Math.round(wildScroll), x0: p.x, y0: p.y, moved: false, s0: wildScroll }; return true; }
+  if (p.x > W - 150 && Math.abs(p.y - g.cy) < g.R * 1.3) { wildFan = { y0: p.y, s0: wildScroll }; return true; }
+  return false;
+}
+function wildMove(p) {
+  if (wildFan) { wildScroll = clamp(wildFan.s0 - (p.y - wildFan.y0) / 80, 0, wilds.length - 1); return true; }
+  if (!wildDrag) return false;
+  const dx = p.x - wildDrag.x0, dy = p.y - wildDrag.y0;
+  if (!wildDrag.moved && Math.hypot(dx, dy) > 12) {
+    if (Math.abs(dy) > Math.abs(dx) * 1.3 && wilds.length > 1) { wildFan = { y0: wildDrag.y0, s0: wildDrag.s0 }; wildDrag = null; return wildMove(p); }   // vertical: scroll
+    wildDrag.moved = true; playUi("ui_pick");
+  }
+  return true;
+}
+function wildUp(p) {
+  if (wildFan) { wildFan = null; return true; }
+  if (!wildDrag) return false;
+  const d = wildDrag; wildDrag = null;
+  if (!d.moved) { const w = wilds[d.i]; if (w) showInfo(`${WILD[w.id].name}: ${WILD[w.id].desc} Drag it onto the battlefield to use it.`); return true; }
+  if (wildDropOk(p) && wilds[d.i]) useWild(d.i);
+  return true;
+}
 // ---- Boss Break Out: a mode with only bosses. Wave N brings N bosses (max 5), each wave stronger. Every boss killed
 // gives 1 gem, and every 2% of a boss's HP you take off gives 1 gold (so a full kill = 50 gold), even if it survives.
 // After a run the mode rests for 6 hours, or only 3 hours if you beat 10+ bosses. An optional ad skips one rest.
@@ -2426,7 +2580,7 @@ function spawnRushBoss(w) {
 const curStage = w => bossMode ? STAGES[Math.max(0, w - 1) % STAGES.length] : stageOf(w);
 function startRun() {
   clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
-  gold = START_GOLD; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
@@ -2495,7 +2649,7 @@ function spawnEnemy(kind, wave) {
 }
 function damageCastle(a) {
   if (state !== "wave") return;
-  castleHp -= a; wallFlash = 1; buzz(25);
+  castleHp -= a * (1 - castleArmor); wallFlash = 1; buzz(25);
   if (castleHp <= 0) {
     castleHp = 0;
     if (!reviveUsed && !reviveOffer) { reviveOffer = { t: REVIVE_TIME }; cancelDrag(); spell = null; paused = false; }
@@ -2518,7 +2672,7 @@ async function watchAdToRevive() {
   reviveOffer = null; reviveUsed = true;
   // Every enemy on the field dies (no gold), the castle is fully restored, and the run goes on.
   for (const e of enemies.slice()) if (!e.dead) { e.noGold = true; e.takeDamage(e.hp + 1); }
-  castleHp = CASTLE_MAX; wallFlash = 0;
+  castleHp = castleMax; wallFlash = 0;
   for (let i = 0; i < 8; i++) fxs.push(new Fx("burst", { x: 60 + i * 86, y: (FRONT_Y + WALL_Y) / 2, color: "#fff2b0", radius: 90, duration: 0.7 }));
   addPart({ add: true, kind: "ring", x: W / 2, y: FRONT_Y, rgb: "255,240,180", size: 30, grow: 700, w: 14, sq: 0.5, life: 0.9 });
   shakeT = 0.4; shakeAmp = 8;
@@ -2562,6 +2716,7 @@ function deathFx(e) {
 }
 function onEnemyKilled(e) {
   enemies = enemies.filter(x => x !== e);
+  if (state === "wave" && !e.noGold && (e.isBoss || Math.random() < WILD_DROP)) dropWild(pickOne(Object.keys(WILD)), e.x, e.y);
   // A soul cursed by Hades breaks free and hunts the nearest enemy.
   if (e.burnT > 0 && e.burnCol === "#a64dff" && projectiles.filter(p => p.element === "hades").length < 24) {
     const live = enemies.filter(o => !o.dead);
@@ -3637,7 +3792,7 @@ function castSpell() {
   if (!spell || !spell.match) return;
   const sp = SPELLS[spell.match];
   if (gold < sp.cost) { showInfo(`Not enough gold: ${sp.name} costs ${sp.cost}.`); return; }
-  if (spell.match === "heal" && castleHp >= CASTLE_MAX) { showInfo("The castle is already at full HP."); return; }
+  if (spell.match === "heal" && castleHp >= castleMax) { showInfo("The castle is already at full HP."); return; }
   gold -= sp.cost;
   track("spell"); track("spell_" + spell.match);
   if (spell.match === "meteor") castMeteor();
@@ -3854,7 +4009,7 @@ function castSpeed() {
 // Healing: +25 castle HP (up to the maximum), with green light over the wall.
 const HEAL_AMOUNT = 25;
 function castHeal() {
-  const before = castleHp; castleHp = Math.min(CASTLE_MAX, castleHp + HEAL_AMOUNT);
+  const before = castleHp; castleHp = Math.min(castleMax, castleHp + HEAL_AMOUNT);
   const healed = Math.round(castleHp - before);
   for (let i = 0; i < 6; i++) fxs.push(new Fx("burst", { x: 60 + i * 120, y: (FRONT_Y + WALL_Y) / 2, color: "#6cff8a", radius: 70, duration: 0.6 }));
   fxs.push(new Fx("text", { x: W / 2, y: FRONT_Y - 40, text: `+${healed} HP`, color: "#6cff8a", size: 40, duration: 1.2 }));
@@ -3936,7 +4091,7 @@ function drawSpell() {
     text(`${Math.round(spell.score * 100)}% match`, W / 2, 212, 22, PARCH, { outline: 5 });
     text(sp.desc, W / 2, FRONT_Y - 26, 22, PARCH, { outline: 6 });
     btn.castSpell.label = `Cast (${sp.cost} gold)`;
-    const full = spell.match === "heal" && castleHp >= CASTLE_MAX;
+    const full = spell.match === "heal" && castleHp >= castleMax;
     if (full) btn.castSpell.label = "Castle HP is full";
     drawBtn(btn.castSpell, gold < sp.cost || full); drawBtn(btn.cancelSpell);
   } else {
@@ -4128,6 +4283,7 @@ canvas.addEventListener("pointerdown", ev => {
     return;
   }
   if (paused || (state !== "wave" && state !== "break")) return;
+  if (wildDown(p)) return;
   const s = slotAt(p);
   if (Math.abs(p.y - STORAGE_Y) < CARD_H / 2 + 10 && (!s || (s[0] === "storage" && !rows.storage[s[1]]))) { storageSwipe = { x0: p.x }; return; }
   if (!s || !rows[s[0]][s[1]]) return;
@@ -4142,6 +4298,7 @@ canvas.addEventListener("pointermove", ev => {
   if (lobbySwipe) { lobbyMove(p); return; }
   if (bookOpen && bookDrag) { bookScroll = bookDrag.s - (p.y - bookDrag.y); return; }
   if (spell && spell.drawing) { const st = spell.strokes[spell.strokes.length - 1], l = st[st.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1]) > 3) st.push([p.x, p.y]); return; }
+  if (wildMove(p)) return;
   if (storageSwipe) { const dx = p.x - storageSwipe.x0; if (Math.abs(dx) > 40) { setStoragePage(storagePage + (dx < 0 ? 1 : -1)); storageSwipe = null; } return; }
   if (!drag) return;
   drag.card.x = p.x + drag.ox; drag.card.y = p.y + drag.oy;
@@ -4153,6 +4310,7 @@ function pointerUp(ev) {
   if (lobbySwipe) { lobbyUp(p); return; }
   // Lifting the finger ends a line; the rune is read once no new line starts for RUNE_SETTLE seconds.
   if (spell && spell.drawing) { spell.drawing = false; spell.settle = RUNE_SETTLE; return; }
+  if (wildUp(p)) return;
   if (!drag) return;
   const d = drag; cancelDrag();
   // Dropping on the Sell box plays the coin sound (from sell) instead of the place sound.
@@ -4172,7 +4330,7 @@ function pointerUp(ev) {
   moveCard(d.from, d.index, target[0], target[1]);
 }
 canvas.addEventListener("pointerup", pointerUp);
-canvas.addEventListener("pointercancel", () => { cancelDrag(); bookDrag = null; if (lobbySwipe?.btn) lobbySwipe.btn.down = false; lobbySwipe = null; });
+canvas.addEventListener("pointercancel", () => { wildDrag = null; wildFan = null; cancelDrag(); bookDrag = null; if (lobbySwipe?.btn) lobbySwipe.btn.down = false; lobbySwipe = null; });
 canvas.addEventListener("wheel", ev => {
   if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); }
   else if (state === "title" && missionsOpen) { achScroll += ev.deltaY; ev.preventDefault(); }
@@ -4193,7 +4351,7 @@ function update(dt) {
   time += dt;
   banner.t += dt; info.t += dt;
   restartArmed = Math.max(0, restartArmed - dt);
-  updateStorage(dt); updateShopTap(dt); updateRevive(dt);
+  updateStorage(dt); updateShopTap(dt); updateRevive(dt); updateWild(dt);
   for (const r in rows) for (const c of rows[r]) if (c) c.update(dt);
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
   if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || settingsOpen || testPick) return;
@@ -4452,6 +4610,12 @@ function drawWorld() {
     text(`SPEED UP x${SPEED_MULT}  ${Math.ceil(speedT)}s`, W / 2, FRONT_Y - 14, 24, "#ffd84a", { weight: 800, outline: 6 });
   }
   if (freezeFlash > 0) { ctx.fillStyle = `rgba(190,235,255,${0.35 * freezeFlash})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H); }
+  if (wallGlow > 0) {   // Stalwart: the wall shines silver-blue for a moment
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createLinearGradient(0, WALL_Y - 30, 0, WALL_Y + WALL_H + 10); g.addColorStop(0, "rgba(160,220,255,0)"); g.addColorStop(0.5, `rgba(180,230,255,${0.5 * wallGlow})`); g.addColorStop(1, "rgba(160,220,255,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, WALL_Y - 30, W, WALL_H + 40); ctx.restore();
+  }
+  if (!chamberOpen && !spell) drawWildFan();
 }
 
 function drawHud() {
@@ -4469,8 +4633,13 @@ function drawHud() {
   ctx.fillStyle = INK; ctx.fillRect(tx - 3, ty + 3, 6, 9);
   ctx.fillStyle = wallFlash > 0 ? mixHex("#2a1a12", "#e0533f", wallFlash) : INK; ctx.fillRect(hb.x - 3, hb.y - 3, hb.w + 6, hb.h + 6);
   ctx.fillStyle = "#4a2a2a"; ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
-  ctx.fillStyle = mixHex("#e0533f", "#6cc56a", castleHp / CASTLE_MAX); ctx.fillRect(hb.x, hb.y, hb.w * castleHp / CASTLE_MAX, hb.h);
-  text(`${Math.ceil(castleHp)} / ${CASTLE_MAX}`, hb.x + hb.w / 2, hb.y + 21, 19, PARCH, { outline: 5 });
+  ctx.fillStyle = mixHex("#e0533f", "#6cc56a", castleHp / castleMax); ctx.fillRect(hb.x, hb.y, hb.w * castleHp / castleMax, hb.h);
+  text(`${Math.ceil(castleHp)} / ${castleMax}`, hb.x + hb.w / 2, hb.y + 21, 19, PARCH, { outline: 5 });
+  if (castleArmor > 0) {   // Stalwart damage reduction: a little shield with the percentage
+    const sx = hb.x + hb.w - 14, sy = hb.y + hb.h + 10;
+    poly([[sx, sy - 11], [sx + 10, sy - 7], [sx + 9, sy + 4], [sx, sy + 11], [sx - 9, sy + 4], [sx - 10, sy - 7]], "#9fc6e8", INK, 2);
+    text(`${Math.round(castleArmor * 100)}%`, sx - 14, sy + 6, 16, "#cfe6ff", { align: "right", weight: 800, outline: 4 });
+  }
   // Gold, under the left edge of the Reroll button.
   const gx = btn.reroll.x + 16, gy = btn.reroll.y + btn.reroll.h + 34;
   circle(gx, gy, 15, GOLD); ring(gx, gy, 15, INK, 3); ring(gx, gy, 9, hexA(INK, 0.5), 2);
