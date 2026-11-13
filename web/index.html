@@ -2391,6 +2391,8 @@ const WILD = {
   pause: { name: "Pause", desc: "The whole battlefield stops for 10 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 10 },
   stalwart: { name: "Stalwart", desc: "The wall gets +25 max HP (and heals 25) and +0.5% damage reduction (up to 60%). Stacks.", hpUp: 25, armorUp: 0.005 },
 };
+const WILD_CD = 15;   // seconds of battle before another normal enemy can drop a wild card (not shown to the player)
+let wildDropCd = 0;
 const WILD_DROP = 0.015, WILD_ARMOR_MAX = 0.6;
 let timeStopT = 0, timeStopSpells = 0, timeStopTick = 0;   // Pause wild card
 let wilds = [], wildFly = [], wildScroll = 0, wildDrag = null, wildFan = null, wallGlow = 0;
@@ -2640,7 +2642,7 @@ function spawnRushBoss(w) {
 const curStage = w => bossMode ? STAGES[Math.max(0, w - 1) % STAGES.length] : stageOf(w);
 function startRun() {
   clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
-  gold = START_GOLD; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
@@ -2776,7 +2778,11 @@ function deathFx(e) {
 }
 function onEnemyKilled(e) {
   enemies = enemies.filter(x => x !== e);
-  if (state === "wave" && !e.noGold && (e.isBoss || Math.random() < WILD_DROP)) dropWild(pickOne(Object.keys(WILD)), e.x, e.y);
+  if (state === "wave" && !e.noGold) {
+    // Hidden cooldown: after a normal enemy drops a wild card, the next one can't drop for WILD_CD seconds. Bosses always drop.
+    if (e.isBoss) dropWild(pickOne(Object.keys(WILD)), e.x, e.y);
+    else if (wildDropCd <= 0 && Math.random() < WILD_DROP) { dropWild(pickOne(Object.keys(WILD)), e.x, e.y); wildDropCd = WILD_CD; }
+  }
   // A soul cursed by Hades breaks free and hunts the nearest enemy.
   if (e.burnT > 0 && e.burnCol === "#a64dff" && projectiles.filter(p => p.element === "hades").length < 24) {
     const live = enemies.filter(o => !o.dead);
@@ -4427,6 +4433,7 @@ function update(dt) {
     return;
   }
   speedT = Math.max(0, speedT - dt);
+  if (state === "wave") wildDropCd = Math.max(0, wildDropCd - dt);   // counts only while a wave is being fought
   if (state === "wave") {
     for (const sp of spawners) {
       sp.timer -= dt;
