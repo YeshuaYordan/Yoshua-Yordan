@@ -3914,6 +3914,7 @@ function recognizeRune(strokes) {
   const cloud = toCloud(lines); if (!cloud) return null;
   let best = null;
   for (const [id, sp] of Object.entries(SPELLS)) {
+    if (sp.curse && typeof curses !== "undefined" && !curses.has(sp.curse)) continue;   // a cure rune only counts while you have that curse
     let score;
     if (sp.rune.length === 1 && lines.length === 1) {
       // One-line rune drawn in one line: compare the path itself (shape and drawing direction).
