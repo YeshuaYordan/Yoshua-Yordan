@@ -107,7 +107,7 @@ const EL = {
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
   hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 46, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
   poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
-  serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre.", dmg: 32, rate: 0.95, speed: 680, whirl: 105, whirl_dps: 8, whirl_pull: 150, whirl_time: 2.6 },
+  serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [178, 40, 230], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre.", dmg: 32, rate: 0.95, speed: 680, whirl: 105, whirl_dps: 8, whirl_pull: 150, whirl_time: 2.6 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
 // Element tiers:
@@ -1293,7 +1293,7 @@ class Card {
   // A round medallion with the card's picture (its crop: d.medal = [x, y, size] in the picture, 448 x 544), scalloped rim.
   drawArtMedallion(cx, cy, t, d) {
     const art = CARD_ILLUS[d.art]; if (!art || !art.ready) return false;
-    const R = this.spriteSize() / 2 - 2, [mx, my, ms] = d.medal || [62, 20, 340];
+    const R = 37, [mx, my, ms] = d.medal || [62, 20, 340];
     drawCached("medal_rim_" + this.element, R * 2 + 16, R * 2 + 16, () => {   // scalloped rim like the element emblems
       ctx.beginPath(); for (let i = 0; i <= 48; i++) { const a = i / 48 * Math.PI * 2, rr = R + 5 + (i % 2 ? 2.2 : 0); ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath();
       ctx.fillStyle = shade(d.color, -0.35); ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
@@ -1306,7 +1306,7 @@ class Card {
     ring(cx, cy, R, INK, 1.5);
     return true;
   }
-  spriteSize() { return EL[this.element].myth ? 78 : 66; }   // HD Myth sprites are shown a little bigger
+  spriteSize() { return EL[this.element].myth ? 96 : 66; }   // HD Myth sprites are shown a little bigger
   // Plays the Epic "evolve" sheet once, right after the card was created. Returns false when not evolving.
   drawEvolve(cx, cy, t) {
     const evo = SPRITES[this.element + "_evolve"];
