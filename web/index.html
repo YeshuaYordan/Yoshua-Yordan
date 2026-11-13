@@ -5061,7 +5061,7 @@ function drawBook() {
       text(sp.name, left + 172, y + 46, 32, shade(sp.color, -0.3), { align: "left", font: DISPLAY, weight: 900 });
       text(sp.curse ? "Free  (cures a curse)" : `Cost: ${spellCost(l.rune)} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
       text(sp.desc, left + 172, y + 110, 17, "#6b5a48", { align: "left", weight: 500 });
-      text(sp.rune.length === 1 ? "One line. Dot = where it starts." : `${sp.rune.length} lines, any order.`, left + 172, y + 136, 15, "#a89878", { align: "left", weight: 500 });
+      text(sp.rune.length === 1 ? "One line. Dot = where it starts." : `${sp.rune.length} lines, any order${sp.alts ? ` (or ${sp.alts.map(a => a.length).join(" / ")}: join lines in one move)` : ""}.`, left + 172, y + 136, 15, "#a89878", { align: "left", weight: 500 });
       y += l.h; continue;
     }
     const lh = Math.max(...l.segs.map(s => s[2])) * 1.4; y += lh;
