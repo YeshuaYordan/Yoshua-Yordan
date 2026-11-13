@@ -3799,7 +3799,8 @@ function drawFusion() {
 // ------------------------------------------------------------ Rune spells (draw a rune from memory)
 // Tap Spell: the battle slows down and you have 5 seconds to draw one rune in a single stroke. The drawing is
 // compared with every spell's rune; a match of 70% or more lets you cast that spell for its gold cost.
-const RUNE_TIME = 5, RUNE_MATCH = 0.7, SPELL_SLOWMO = 0.25;
+const RUNE_TIME = 5, RUNE_MATCH = 0.7, CURE_MATCH = 0.55, SPELL_SLOWMO = 0.25;   // cure runes are detailed, so they need only a 55% match
+const runeNeeded = id => (SPELLS[id] && SPELLS[id].curse ? CURE_MATCH : RUNE_MATCH);
 // A rune is a list of strokes; each stroke is a polyline in a 0..1 box (y grows downward).
 // aspect = the rune's real width / height (the box is squashed to 0..1 on both axes).
 const SPELLS = {
@@ -3958,7 +3959,7 @@ function finishRune(timedOut) {
   const r = timedOut ? null : recognizeRune(spell.strokes);
   spell.phase = "result"; spell.drawing = false;
   spell.score = r ? r.score : 0;
-  if (r && r.score >= RUNE_MATCH) {
+  if (r && r.score >= runeNeeded(r.id)) {
     spell.match = r.id;
     playSpellSound("spell_work");
   } else {
@@ -4978,7 +4979,7 @@ function runeLines() {
   const L = [];
   L.push({ center: true, segs: [["Runes", INK, 32, DISPLAY, 900]] });
   L.push({ center: true, segs: [["Tap Spell in battle, then draw a rune (one or more lines).", "#6b3a22", 19]] });
-  L.push({ center: true, segs: [[`You have 5 seconds. ${Math.round(RUNE_MATCH * 100)}% match casts the spell.`, "#6b3a22", 19]] });
+  L.push({ center: true, segs: [[`You have 5 seconds. ${Math.round(RUNE_MATCH * 100)}% match casts the spell (cure runes: ${Math.round(CURE_MATCH * 100)}%).`, "#6b3a22", 19]] });
   L.push({ gap: 18 });
   for (const [id, sp] of Object.entries(SPELLS)) {
     L.push({ rune: id, h: 150 });
