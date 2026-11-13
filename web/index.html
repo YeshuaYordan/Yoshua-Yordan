@@ -5074,7 +5074,7 @@ function drawBook() {
     const trackH = bottom - top, thumb = Math.max(60, trackH * trackH / total), pos = (bookScroll / (total - trackH)) * (trackH - thumb);
     rrect(bx + bw - 30, top + pos, 8, thumb, 4); ctx.fillStyle = hexA(INK, 0.35); ctx.fill();
   }
-  drawBtn(btn.tabFusions, bookTab !== "fusions"); drawBtn(btn.tabRunes, bookTab !== "runes");
+  drawBtn(btn.tabFusions, bookTab === "fusions"); drawBtn(btn.tabRunes, bookTab === "runes");   // the open tab looks pressed in (darker)
   drawBtn(btn.closeBook);
 }
 
