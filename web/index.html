@@ -1927,7 +1927,7 @@ const VFX_STYLE = {
   lightning: "bolt", storm: "bolt", aurora: "bolt",
 };
 const VFX_SCALE = 1.35;   // how big shots look compared with their hit size
-const FOX_COLS = ["#ffffff", "#ffd0dc", "#ff6a86", "#e0203c"];   // Kitsune's fox-fire: white core to crimson
+const FOX_COLS = [[255, 255, 255], [255, 208, 220], [255, 106, 134], [224, 32, 60]];   // Kitsune's fox-fire: white core to crimson
 const SOUL_COLS = [[255, 240, 255], [220, 150, 255], [150, 60, 230], [50, 10, 90]];
 const FIRE_COLS = [[255, 250, 210], [255, 205, 80], [255, 110, 40], [140, 40, 30]];
 const SUN_COLS = [[255, 255, 235], [255, 236, 120], [255, 170, 40], [255, 90, 20]];
@@ -2017,9 +2017,9 @@ function emitTrail(pr, dt) {
   const rgb = rgbOf(pr.color);
   if (st === "foxfire") {
     // Red-pink fox-fire flames, white wisps and drifting petals.
-    for (let i = n(80); i > 0; i--) addPart({ kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 140)), life: rand(0.25, 0.45), size: R * rand(0.6, 1.0), grow: -0.6, cols: FOX_COLS, a: 0.8 });
-    for (let i = n(16); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, ...back(rand(60, 160), 90), life: rand(0.3, 0.5), size: 2, cols: ["#ffffff", "#ffd6e0"], len: 0.04 });
-    for (let i = n(10); i > 0; i--) addPart({ kind: "glow", x: bx + rand(-6, 6), y: by + rand(-6, 6), ...back(30, 50), life: 0.8, size: rand(2.5, 4), grow: -0.3, cols: ["#ffe0e8", "#ffffff"], a: 0.9 });
+    for (let i = n(80); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 140)), life: rand(0.25, 0.45), size: R * rand(0.6, 1.0), grow: -0.6, cols: FOX_COLS, a: 0.8 });
+    for (let i = n(16); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, ...back(rand(60, 160), 90), life: rand(0.3, 0.5), size: 2, cols: [[255, 255, 255], [255, 214, 224]], len: 0.04 });
+    for (let i = n(10); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-6, 6), y: by + rand(-6, 6), ...back(30, 50), life: 0.8, size: rand(2.5, 4), grow: -0.3, cols: [[255, 224, 232], [255, 255, 255]], a: 0.9 });
     return;
   }
   if (st === "soul") {
@@ -2185,10 +2185,12 @@ function impactFx(el, x, y, r, area) {
   if (st === "foxfire") {
     // The bursting blow: a white flash, crimson flame burst over the whole area, two shockwaves and petals flying out.
     const AR = Math.max(A, 60);
-    burst(Math.round(26 * P), (cx, cy) => { const sp = rand(80, 300) * P; addPart({ kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.65 - 30, drag: 3, life: rand(0.35, 0.6), size: rand(11, 19) * P, grow: -0.4, cols: FOX_COLS, a: 0.85 }); });
-    burst(14, (cx, cy) => { const sp = rand(120, 280); addPart({ kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.7 - 60, drag: 2, g: 120, life: rand(0.8, 1.3), size: rand(3.5, 5), grow: -0.3, cols: ["#ffc8d8", "#ffffff"], a: 0.95 }); });
-    burst(16, (cx, cy) => { const sp = rand(200, 460); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 4, life: rand(0.3, 0.5), size: 2.4, cols: ["#ffffff", "#ffd6e0"], len: 0.04 }); });
-    ringFx("#ff4a6a", AR * 0.25, AR * 0.9, 9, 0.55, false, 0.5); ringFx("#ffe0e8", AR * 0.15, AR * 0.6, 5, 0.55, false, 0.35);
+    burst(Math.round(44 * P), (cx, cy) => { const sp = rand(120, 460) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.65 - 30, drag: 3, life: rand(0.45, 0.8), size: rand(14, 26) * P, grow: -0.4, cols: [[255, 58, 90], [224, 32, 60], [255, 122, 148], [255, 58, 90]], a: 0.9 }); });
+    burst(14, (cx, cy) => { const sp = rand(120, 280); addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.7 - 60, drag: 2, g: 120, life: rand(0.8, 1.3), size: rand(3.5, 5), grow: -0.3, cols: [[255, 200, 216], [255, 255, 255]], a: 0.95 }); });
+    burst(16, (cx, cy) => { const sp = rand(200, 460); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 4, life: rand(0.3, 0.5), size: 2.4, cols: [[255, 255, 255], [255, 214, 224]], len: 0.04 }); });
+    ringFx("#ff4a6a", AR * 0.25, AR * 1.3, 12, 0.55, false, 0.6); ringFx("#ffe0e8", AR * 0.15, AR * 0.9, 7, 0.55, false, 0.45); ringFx("#ffffff", AR * 0.1, AR * 1.7, 4, 0.55, false, 0.7);
+    addPart({ add: true, kind: "glow", x, y, life: 0.3, size: AR * 0.75, grow: 0.6, cols: [[255, 255, 255], [255, 138, 160], [224, 32, 60]], a: 0.8 });   // a big bright flash
+    fxs.push(new Fx("burst", { x, y, color: "#ff4a6a", radius: AR * 1.4, duration: 0.45 }));
     return;
   }
   if (st === "soul") {
@@ -2533,7 +2535,7 @@ function useWild(i) {
   if (w.id === "stalwart") {
     castleMax += d.hpUp; castleHp = Math.min(castleMax, castleHp + d.hpUp); castleArmor = Math.min(WILD_ARMOR_MAX, castleArmor + d.armorUp); wallGlow = 1;
     for (let k = 0; k < 9; k++) fxs.push(new Fx("burst", { x: 40 + k * 80, y: WALL_Y + WALL_H / 2, color: "#cfe6ff", radius: 70, duration: 0.6 }));
-    for (let k = 0; k < 30; k++) addPart({ add: true, kind: "glint", x: rand(20, W - 20), y: WALL_Y + rand(0, WALL_H), vx: rand(-30, 30), vy: -rand(80, 220), life: rand(0.6, 1.1), size: rand(3, 6), col: Math.random() < 0.5 ? "#ffffff" : "#9fd8ff" });
+    for (let k = 0; k < 30; k++) addPart({ add: true, kind: "glint", x: rand(20, W - 20), y: WALL_Y + rand(0, WALL_H), vx: rand(-30, 30), vy: -rand(80, 220), life: rand(0.6, 1.1), size: rand(3, 6), rgb: Math.random() < 0.5 ? "255,255,255" : "159,216,255" });
     fxs.push(new Fx("text", { x: W / 2, y: WALL_Y - 40, text: `+${d.hpUp} Max HP   ·   ${+(castleArmor * 100).toFixed(1)}% damage reduction`, color: "#cfe6ff", size: 26, duration: 1.6 }));
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sNoise(0.5, 0.6, "lowpass", 600, 60, 0.8); sTone("sine", 110, 70, 0.4, 0.2); [523, 784, 1047].forEach((f, k) => sTone("triangle", f, f, 0.5, 0.08, 0.1 + k * 0.08)); }
     shakeT = Math.max(shakeT, 0.25); shakeAmp = 5;
@@ -2731,7 +2733,7 @@ function liftCurse(k) {
   if (!curses.has(k)) return;
   curses.delete(k);
   if (k === "hp") { castleMax += curseHpCut; curseHpCut = 0; }
-  for (let i = 0; i < 24; i++) addPart({ add: true, kind: "glint", x: rand(40, W - 40), y: rand(HUD_H + 60, FRONT_Y), vx: rand(-40, 40), vy: -rand(60, 200), life: rand(0.6, 1.2), size: rand(3, 6), col: Math.random() < 0.5 ? "#ffffff" : "#e3c9ff" });
+  for (let i = 0; i < 24; i++) addPart({ add: true, kind: "glint", x: rand(40, W - 40), y: rand(HUD_H + 60, FRONT_Y), vx: rand(-40, 40), vy: -rand(60, 200), life: rand(0.6, 1.2), size: rand(3, 6), rgb: Math.random() < 0.5 ? "255,255,255" : "227,201,255" });
   fxs.push(new Fx("text", { x: W / 2, y: (HUD_H + FRONT_Y) / 2, text: "Curse lifted!", color: "#e3c9ff", size: 34, duration: 1.4 }));
 }
 // An evil "HA-HA-HA-HA" laugh with an echo: buzzy voice through two vowel formants, each syllable lower than the last,
@@ -3706,8 +3708,11 @@ function drawBeams() {
 function applyHit(el, r, x, y, enemy, sm = 1) {
   playSfx(el, "hit");
   if (EL[el].gather && !Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") {   // Kitsune's burst: a deep boom under the hit sound
-    if (!playSample("kitsune_boom", 0.85, 1, 0.15)) { sTone("sine", 110, 32, 0.9, 0.42); sTone("triangle", 70, 28, 0.7, 0.2, 0.02); sNoise(0.8, 0.6, "lowpass", 900, 40, 0.8); }   // the recorded boom right after the hit sound
-    shakeT = Math.max(shakeT, 0.18); shakeAmp = Math.max(shakeAmp, 4);
+    playSample("kitsune_boom", 1.0, 1, 0.12);   // the recorded boom (deep bass: felt on headphones and big speakers)
+    // A layer phone speakers can play: a big noise crack sweeping down, a mid "crunch" and a buzzy falling body.
+    sNoise(0.75, 0.95, "lowpass", 2600, 140, 0.7, 0.1); sNoise(0.35, 0.6, "bandpass", 1100, 220, 1.1, 0.1);
+    sTone("sawtooth", 190, 45, 0.6, 0.16, 0.1); sTone("square", 130, 40, 0.5, 0.08, 0.12);
+    shakeT = Math.max(shakeT, 0.4); shakeAmp = Math.max(shakeAmp, 10);
   }
   const d = EL[el], dmg = damageOf(el, r) * sm, splash = d.splash || 0, rm = RARITY_DMG[r] * sm;
   if (splash > 0) {
@@ -3852,7 +3857,7 @@ function powerUp(card) {
   card.ssjFlare = 1; shakeT = Math.max(shakeT, 0.7); shakeAmp = 9;
   const x = card.hx, y = card.hy;
   for (let i = 0; i < 3; i++) addPart({ add: true, kind: "ring", x, y: y + 20, rgb: "255,210,80", size: 30 + i * 20, grow: 320 + i * 120, w: 8 - i * 2, sq: 0.45, life: 0.6 + i * 0.15 });
-  for (let i = 0; i < 40; i++) { const a = Math.random() * Math.PI * 2, v = rand(200, 520); addPart({ add: true, kind: "glint", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, life: rand(0.5, 0.9), size: rand(4, 7), col: Math.random() < 0.3 ? "#ffffff" : "#ffd84a" }); }
+  for (let i = 0; i < 40; i++) { const a = Math.random() * Math.PI * 2, v = rand(200, 520); addPart({ add: true, kind: "glint", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, life: rand(0.5, 0.9), size: rand(4, 7), rgb: Math.random() < 0.3 ? "255,255,255" : "255,216,74" }); }
   fxs.push(new Fx("burst", { x, y, color: "#fff2a8", radius: 170, duration: 0.5 }));
   fxs.push(new Fx("text", { x, y: y - 120, text: "MAX POWER!", color: "#ffd84a", size: 38, duration: 1.6 }));
   if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") {
@@ -3881,7 +3886,7 @@ function applyMerge(card, res) {
     const col = EL[card.element].color;
     fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: "#ffd84a", radius: 100, duration: 0.4 }));
     fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: col, radius: 70, duration: 0.35 }));
-    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2; addPart({ add: true, kind: "glint", x: card.hx, y: card.hy + CARD_H / 2, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220 - 60, life: 0.6, size: 5, col: "#ffe680" }); }
+    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2; addPart({ add: true, kind: "glint", x: card.hx, y: card.hy + CARD_H / 2, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220 - 60, life: 0.6, size: 5, rgb: "255,230,128" }); }
     fxs.push(new Fx("text", { x: card.hx, y: card.hy - 86, text: `${"\u2605".repeat(card.stars)}  x${2 ** card.stars} damage!`, color: "#ffd84a", size: 26, duration: 1.1 }));
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") {   // bright rising chime
       [[880, 0], [1175, 0.07], [1568, 0.14], [2093, 0.21]].forEach(([f, dl]) => sTone("sine", f, f, 0.32, 0.11, dl));
