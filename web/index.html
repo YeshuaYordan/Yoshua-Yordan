@@ -107,7 +107,7 @@ const EL = {
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
   hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 46, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
   poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
-  kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [118, 48, 224], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 40, rate: 0.6 / RARITY_RATE[4], speed: 760, splash: 115, gather: true, shotScale: 4 },
+  kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [118, 48, 224], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 40, rate: (1 / 8) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 3, shotScale: 4 },   // 3 s rest + 5 s gathering = one shot every 8 s
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [112, 78, 262], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
   serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [178, 40, 230], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre (bosses resist it).", dmg: 32, rate: 0.6 / RARITY_RATE[4], speed: 680, whirl: 105, whirl_pull: 150, whirl_time: 2.6 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
@@ -3506,7 +3506,9 @@ function drawGather() {
   if (state !== "wave") return;
   for (const c of rows.active) {
     if (!c || !EL[c.element].gather || c.dragging) continue;
-    const k = clamp(1 - c.cooldown * rateOf(c.element, c.rarity), 0, 1), ox = c.x, oy = c.y - CARD_H / 2 - 30;
+    const d = EL[c.element], cycle = 1 / rateOf(c.element, c.rarity), left = Math.max(0, c.cooldown) * (d.gather + d.gatherRest) / cycle;   // seconds left, in the 8 s cycle
+    if (left > d.gather) continue;   // resting after a shot: nothing gathers yet
+    const k = clamp(1 - left / d.gather, 0, 1), ox = c.x, oy = c.y - CARD_H / 2 - 30;
     ctx.save(); ctx.lineCap = "round";
     for (let i = 0; i < 16; i++) {   // motes spiralling in from the empty air, each with a short streak
       const u = (time * 0.8 + i / 16 + c.seed) % 1, a = i * 2.39 + c.seed + u * 2.4, d = 120 * (1 - u) + 8;
@@ -3515,7 +3517,7 @@ function drawGather() {
       ctx.strokeStyle = `rgba(255,120,150,${0.6 * al})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ox + Math.cos(a2) * d2, oy + Math.sin(a2) * d2 * 0.75); ctx.lineTo(x, y); ctx.stroke();
       circle(x, y, 3.4, `rgba(255,${190 + 60 * u | 0},${205 + 50 * u | 0},${al})`);
     }
-    const R = 7 + 15 * k, pul = 0.5 + 0.5 * Math.sin(time * 12);
+    const R = 2 + 20 * k, pul = 0.5 + 0.5 * Math.sin(time * 12);
     const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, R * 2.8); g.addColorStop(0, `rgba(255,70,100,${0.35 + 0.35 * k})`); g.addColorStop(1, "rgba(255,70,100,0)");
     ctx.fillStyle = g; ctx.fillRect(ox - R * 2.8, oy - R * 2.8, R * 5.6, R * 5.6);
     for (let i = 0; i < 3; i++) { ctx.save(); ctx.translate(ox, oy); ctx.rotate(time * 6 + i * 2.1); ctx.beginPath(); ctx.moveTo(-R * 0.45, 0); ctx.quadraticCurveTo(0, -R * 1.8, R * 0.45, 0); ctx.closePath(); ctx.fillStyle = "rgba(255,110,140,0.7)"; ctx.fill(); ctx.restore(); }
@@ -6728,7 +6730,7 @@ function effectLines(d) {
   const L = [];
   if (d.multishot) L.push(`Fires ${d.multishot} shots at once`);
   if (d.whirl) L.push("Whirlpool drags enemies to where the shot hit");
-  if (d.gather) L.push("Charges up, then bursts over a wide area");
+  if (d.gather) L.push(`Rests ${d.gatherRest}s, gathers power for ${d.gather}s, then bursts over a wide area`);
   if (d.scratch) L.push("Lightning claws slash and slow enemies in the area");
   if (d.beam) L.push(`Lightning streams into ${d.beam} enemies nonstop`);
   if (d.lance) L.push("Nonstop water beam pierces every enemy in its line");
