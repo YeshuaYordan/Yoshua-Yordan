@@ -2687,7 +2687,7 @@ function drawCurseBadges() {
 function curseTap(p) {
   const r = curseRects.find(r => inRect(p, r)); if (!r) return false;
   const c = CURSES[r.k], sp = SPELLS[c.cure];
-  showInfo(`Cursed: ${c.name}. ${c.desc} Cure: draw the ${sp.name} rune shown on the badge (${spellCost(c.cure)} gold).`);
+  showInfo(`Cursed: ${c.name}. ${c.desc} Cure: draw the ${sp.name} rune shown on the badge (free).`);
   return true;
 }
 // ---- Boss Break Out: a mode with only bosses. Wave N brings N bosses (max 5), each wave stronger. Every boss killed
@@ -3825,14 +3825,19 @@ const SPELLS = {
 };
 // Every cast makes that spell 1.5x more expensive for the rest of the run (Doom 200 > 300 > 450 ...).
 let spellUses = {};
-const spellCost = id => Math.round(SPELLS[id].cost * Math.pow(1.5, spellUses[id] || 0));
+const spellCost = id => SPELLS[id].curse ? 0 : Math.round(SPELLS[id].cost * Math.pow(1.5, spellUses[id] || 0));   // cure runes are always free
 // Cure runes: each lifts one curse (only castable while you have it).
 Object.assign(SPELLS, {
-  cure_hp:    { name: "Mend Walls", cost: 30, color: "#c9a6ff", aspect: 1, curse: "hp", rune: [[[0.5, 0], [1, 1], [0, 1], [0.5, 0]]], desc: "Cures Crumbling Wall: the castle's max HP comes back." },
-  cure_spd:   { name: "Quicken", cost: 30, color: "#c9a6ff", aspect: 1.2, curse: "spd", rune: [[[0, 0], [0.25, 1], [0.5, 0.35], [0.75, 1], [1, 0]]], desc: "Cures Sluggish: cards attack at full speed again." },
-  cure_dmg:   { name: "Empower", cost: 30, color: "#c9a6ff", aspect: 1, curse: "dmg", rune: [[[0, 0], [1, 1]], [[1, 0], [0, 1]]], desc: "Cures Weakness: cards deal full damage again." },
-  cure_smoke: { name: "Clear Skies", cost: 30, color: "#c9a6ff", aspect: 1, curse: "smoke", rune: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]], desc: "Cures Smoke: the smoke blows away." },
-  cure_burn:  { name: "Douse", cost: 30, color: "#c9a6ff", aspect: 2, curse: "burn", rune: [[[0.000, 0.500], [0.083, 0.250], [0.167, 0.067], [0.250, 0.000], [0.333, 0.067], [0.417, 0.250], [0.500, 0.500], [0.583, 0.750], [0.667, 0.933], [0.750, 1.000], [0.833, 0.933], [0.917, 0.750], [1.000, 0.500]]], desc: "Cures Hellfire: stored cards stop burning." },
+  // a castle tower: walls, pointed roof, door
+  cure_hp: { name: "Mend Walls", cost: 0, color: "#c9a6ff", aspect: 1, curse: "hp", rune: [[[0.15, 0.4], [0.85, 0.4], [0.85, 1], [0.15, 1], [0.15, 0.4]], [[0.05, 0.45], [0.5, 0.0], [0.95, 0.45]], [[0.5, 1], [0.5, 0.72]]], desc: "Cures Crumbling Wall: the castle's max HP comes back." },
+  // an hourglass in a circle
+  cure_spd: { name: "Quicken", cost: 0, color: "#c9a6ff", aspect: 1, curse: "spd", rune: [[[0.5, 0.0], [0.655, 0.024], [0.794, 0.095], [0.905, 0.206], [0.976, 0.345], [1.0, 0.5], [0.976, 0.655], [0.905, 0.794], [0.794, 0.905], [0.655, 0.976], [0.5, 1.0], [0.345, 0.976], [0.206, 0.905], [0.095, 0.794], [0.024, 0.655], [0.0, 0.5], [0.024, 0.345], [0.095, 0.206], [0.206, 0.095], [0.345, 0.024], [0.5, 0.0]], [[0.28, 0.2], [0.72, 0.2]], [[0.28, 0.8], [0.72, 0.8]], [[0.28, 0.2], [0.72, 0.8]], [[0.72, 0.2], [0.28, 0.8]]], desc: "Cures Sluggish: cards attack at full speed again." },
+  // a sword in a circle
+  cure_dmg: { name: "Empower", cost: 0, color: "#c9a6ff", aspect: 1, curse: "dmg", rune: [[[0.5, 0.0], [0.655, 0.024], [0.794, 0.095], [0.905, 0.206], [0.976, 0.345], [1.0, 0.5], [0.976, 0.655], [0.905, 0.794], [0.794, 0.905], [0.655, 0.976], [0.5, 1.0], [0.345, 0.976], [0.206, 0.905], [0.095, 0.794], [0.024, 0.655], [0.0, 0.5], [0.024, 0.345], [0.095, 0.206], [0.206, 0.095], [0.345, 0.024], [0.5, 0.0]], [[0.5, 0.18], [0.5, 0.85]], [[0.3, 0.66], [0.7, 0.66]], [[0.38, 0.32], [0.5, 0.18], [0.62, 0.32]]], desc: "Cures Weakness: cards deal full damage again." },
+  // a sun: small circle and six rays
+  cure_smoke: { name: "Clear Skies", cost: 0, color: "#c9a6ff", aspect: 1, curse: "smoke", rune: [[[0.5, 0.3], [0.577, 0.315], [0.641, 0.359], [0.685, 0.423], [0.7, 0.5], [0.685, 0.577], [0.641, 0.641], [0.577, 0.685], [0.5, 0.7], [0.423, 0.685], [0.359, 0.641], [0.315, 0.577], [0.3, 0.5], [0.315, 0.423], [0.359, 0.359], [0.423, 0.315], [0.5, 0.3]], [[0.5, 0.2], [0.5, 0.0]], [[0.76, 0.35], [0.933, 0.25]], [[0.76, 0.65], [0.933, 0.75]], [[0.5, 0.8], [0.5, 1.0]], [[0.24, 0.65], [0.067, 0.75]], [[0.24, 0.35], [0.067, 0.25]]], desc: "Cures Smoke: the smoke blows away." },
+  // a water drop over two waves
+  cure_burn: { name: "Douse", cost: 0, color: "#c9a6ff", aspect: 1, curse: "burn", rune: [[[0.5, 0.0], [0.58, 0.14], [0.66, 0.28], [0.73, 0.42], [0.754, 0.507], [0.769, 0.58], [0.765, 0.653], [0.74, 0.723], [0.698, 0.784], [0.641, 0.83], [0.573, 0.86], [0.5, 0.87], [0.427, 0.86], [0.359, 0.83], [0.302, 0.784], [0.26, 0.723], [0.235, 0.653], [0.231, 0.58], [0.246, 0.507], [0.27, 0.42], [0.34, 0.28], [0.42, 0.14], [0.5, 0.0]], [[0.05, 0.98], [0.14, 0.939], [0.23, 0.913], [0.32, 0.913], [0.41, 0.939], [0.5, 0.98], [0.59, 1.021], [0.68, 1.047], [0.77, 1.047], [0.86, 1.021], [0.95, 0.98]], [[0.18, 1.14], [0.244, 1.105], [0.308, 1.083], [0.372, 1.083], [0.436, 1.105], [0.5, 1.14], [0.564, 1.175], [0.628, 1.197], [0.692, 1.197], [0.756, 1.175], [0.82, 1.14]]], desc: "Cures Hellfire: stored cards stop burning." },
 });
 const RUNE_SETTLE = 0.6;   // seconds without a new line before a multi-line drawing is read
 let spell = null;      // { phase: "draw" | "result", t, strokes: [[[x,y]...]...], drawing, settle, match, score, failT }
@@ -4267,7 +4272,7 @@ function drawSpell() {
     text(sp.name, W / 2, 170, 56, sp.color, { font: DISPLAY, weight: 900, outline: 10 });
     text(`${Math.round(spell.score * 100)}% match`, W / 2, 212, 22, PARCH, { outline: 5 });
     text(sp.desc, W / 2, FRONT_Y - 26, 22, PARCH, { outline: 6 });
-    btn.castSpell.label = `Cast (${spellCost(spell.match)} gold)`;
+    btn.castSpell.label = spellCost(spell.match) ? `Cast (${spellCost(spell.match)} gold)` : "Cast (free)";
     const full = (spell.match === "heal" && castleHp >= castleMax) || (sp.curse && !curses.has(sp.curse));
     if (spell.match === "heal" && castleHp >= castleMax) btn.castSpell.label = "Castle HP is full";
     if (sp.curse && !curses.has(sp.curse)) btn.castSpell.label = "Not cursed";
@@ -5049,7 +5054,7 @@ function drawBook() {
       rrect(left, y + 6, 150, 138, 14); ctx.fillStyle = "#2a1640"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
       drawRuneIcon(sp, left + 30, y + 30, 90, 90);
       text(sp.name, left + 172, y + 46, 32, shade(sp.color, -0.3), { align: "left", font: DISPLAY, weight: 900 });
-      text(sp.curse ? `Cost: ${spellCost(l.rune)} gold  (cures a curse)` : `Cost: ${spellCost(l.rune)} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
+      text(sp.curse ? "Free  (cures a curse)" : `Cost: ${spellCost(l.rune)} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
       text(sp.desc, left + 172, y + 110, 17, "#6b5a48", { align: "left", weight: 500 });
       text(sp.rune.length === 1 ? "One line. Dot = where it starts." : `${sp.rune.length} lines, any order.`, left + 172, y + 136, 15, "#a89878", { align: "left", weight: 500 });
       y += l.h; continue;
