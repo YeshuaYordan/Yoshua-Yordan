@@ -3114,7 +3114,7 @@ function fireCard(c) {
   if (!targets.length) return;
   c.kick = 1;
   playSfx(c.element, "atk");
-  const ox = c.x, oy = d.gather ? c.y - CARD_H / 2 - 30 : c.y - 60;   // Kitsune fires from its gathered orb
+  const ox = c.x, oy = d.gather ? c.y - CARD_H / 2 - 80 : c.y - 60;   // Kitsune fires from its gathered orb
   if (d.chain) { chain(c.element, c.rarity, ox, oy, targets[0], d.chain, powerMult(c)); return; }
   for (let i = 0; i < shots; i++) { const pr = new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]); pr.sm = powerMult(c); projectiles.push(pr); }
 }
@@ -3508,7 +3508,7 @@ function drawGather() {
     if (!c || !EL[c.element].gather || c.dragging) continue;
     const d = EL[c.element], cycle = 1 / rateOf(c.element, c.rarity), left = Math.max(0, c.cooldown) * (d.gather + d.gatherRest) / cycle;   // seconds left, in the 8 s cycle
     if (left > d.gather) continue;   // resting after a shot: nothing gathers yet
-    const k = clamp(1 - left / d.gather, 0, 1), ox = c.x, oy = c.y - CARD_H / 2 - 30;
+    const k = clamp(1 - left / d.gather, 0, 1), ox = c.x, oy = c.y - CARD_H / 2 - 80;   // high enough that the full-size orb clears the card
     ctx.save(); ctx.lineCap = "round";
     for (let i = 0; i < 16; i++) {   // motes spiralling in from the empty air, each with a short streak
       const u = (time * 0.8 + i / 16 + c.seed) % 1, a = i * 2.39 + c.seed + u * 2.4, d = 120 * (1 - u) + 8;
@@ -3517,11 +3517,8 @@ function drawGather() {
       ctx.strokeStyle = `rgba(255,120,150,${0.6 * al})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ox + Math.cos(a2) * d2, oy + Math.sin(a2) * d2 * 0.75); ctx.lineTo(x, y); ctx.stroke();
       circle(x, y, 3.4, `rgba(255,${190 + 60 * u | 0},${205 + 50 * u | 0},${al})`);
     }
-    const R = 2 + 20 * k, pul = 0.5 + 0.5 * Math.sin(time * 12);
-    const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, R * 2.8); g.addColorStop(0, `rgba(255,70,100,${0.35 + 0.35 * k})`); g.addColorStop(1, "rgba(255,70,100,0)");
-    ctx.fillStyle = g; ctx.fillRect(ox - R * 2.8, oy - R * 2.8, R * 5.6, R * 5.6);
-    for (let i = 0; i < 3; i++) { ctx.save(); ctx.translate(ox, oy); ctx.rotate(time * 6 + i * 2.1); ctx.beginPath(); ctx.moveTo(-R * 0.45, 0); ctx.quadraticCurveTo(0, -R * 1.8, R * 0.45, 0); ctx.closePath(); ctx.fillStyle = "rgba(255,110,140,0.7)"; ctx.fill(); ctx.restore(); }
-    circle(ox, oy, R, "#ff4a6a"); circle(ox, oy, R * 0.62, "#ffe0e8"); circle(ox, oy, R * 0.3 * (1 + 0.25 * pul), "#ffffff");
+    // The orb is drawn exactly like the shot, growing to the shot's full size, so the shot leaves seamlessly.
+    if (k > 0.02) drawShotHead({ style: "foxfire", x: ox, y: oy, t: time, ang: -Math.PI / 2, radius: (7 + c.rarity * 1.2) * (d.shotScale || 1) * k });
     ctx.restore();
   }
 }
