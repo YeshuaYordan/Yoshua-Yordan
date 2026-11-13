@@ -144,7 +144,7 @@ function totemMult(c, kind = "dmg") {
   for (const j of [i - 1, i + 1]) { const o = rows.active[j]; if (o && o !== c && EL[o.element].totem === kind && !(drag && drag.card === o)) m += o.boost || 1; }
   return m;
 }
-const powerMult = c => starMult(c) * totemMult(c, "dmg");
+const powerMult = c => starMult(c) * totemMult(c, "dmg") * curseDmgMult();
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };   // Totem + Totem: +1x
@@ -1454,7 +1454,7 @@ class Enemy {
     const d = KINDS[kind], w = wave - 1;
     this.kind = kind; this.look = d.look; this.x = x; this.y = y;
     this.isBoss = !!d.boss; this.king = !!d.king; this.glow = !!d.glow; this.heavy = !!d.heavy;
-    this.hp = d.hp * (1 + 0.2 * w) * Math.pow(1.05, w); this.maxHp = this.hp;
+    this.hp = d.hp * (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, Math.max(0, w - 40)); this.maxHp = this.hp;   // steeper mid game, gentler late game
     this.speed = d.speed * (1 + Math.min(0.5, wave * 0.012)); this.size = d.size;
     this.gold = d.gold + Math.floor(wave / 8); this.dps = d.dps * (1 + wave * 0.05);
     this.flying = false; this.color = d.color; this.resist = d.resist || "";
@@ -2321,10 +2321,10 @@ class Fx {
 // ------------------------------------------------------------ Game state
 const rows = { active: Array(SLOTS).fill(null), storage: Array(STORAGE_N).fill(null), shop: Array(SHOP_N).fill(null), chamber: Array(5).fill(null) };
 // Fusion Chamber: 3-5 Epic cards on the altars, a chance to become one Myth card. On failure every card is lost.
-const CHAMBER_CHANCE = { 3: 35, 4: 60, 5: 85 };
+const CHAMBER_CHANCE = { 3: 36, 4: 48, 5: 60 };   // 12% per Epic card, max 60%
 // Legend Chamber: active as soon as a Myth card is on an altar. Myth cards are the base of a Legend; Epic cards only
-// add a little. Five Myth cards give the maximum: 50%.
-const LEGEND = 5, LEGEND_PER_MYTH = 10, LEGEND_PER_EPIC = 2, LEGEND_MAX = 50;
+// add a little. Five Myth cards give the maximum: 45%.
+const LEGEND = 5, LEGEND_PER_MYTH = 9, LEGEND_PER_EPIC = 3, LEGEND_MAX = 45;
 const isLegendChamber = () => rows.chamber.some(c => c && c.rarity === MYTH);
 function chamberChance() {
   const cards = rows.chamber.filter(Boolean);
@@ -2345,6 +2345,8 @@ let reviveOffer = null, reviveUsed = false;
 // Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
 const CALL_COOLDOWN = 3;
 let spawners = [], callCd = 0, wavesCleared = 0, rerollCost = REROLL_BASE, freeCard = true;
+// Reroll price: 2, 3, 4 ... in stage 1; it doubles every stage (stage 2: 4, 6, 8 ...; stage 3: 8, 12, 16 ...).
+const rerollMult = () => 2 ** (stageNum(Math.max(1, state === "break" ? wave + 1 : wave)) - 1);
 let time = 0, wallFlash = 0, paused = false, bookOpen = false, bookScroll = 0;
 let drag = null; // { card, from, index, ox, oy, px, py, moved }
 let hover = null;
@@ -2599,6 +2601,95 @@ function wildUp(p) {
   if (wildDropOk(p) && wilds[d.i]) useWild(d.i);
   return true;
 }
+// ---- Curses: every boss (normal mode) leaves a random curse you don't have yet. A curse lasts until you cast its
+// cure rune. The badges under the buttons show each curse with the rune that cures it (tap one to read it).
+const CURSES = {
+  hp:    { name: "Crumbling Wall", desc: "Castle max HP -50%.", cure: "cure_hp" },
+  spd:   { name: "Sluggish", desc: "Your cards attack 35% slower.", cure: "cure_spd" },
+  dmg:   { name: "Weakness", desc: "Your cards deal 35% less damage.", cure: "cure_dmg" },
+  smoke: { name: "Smoke", desc: "Smoke hides the battlefield and your cards deal 20% less damage.", cure: "cure_smoke" },
+  burn:  { name: "Hellfire", desc: "Every 5 seconds a card in your storage burns away.", cure: "cure_burn" },
+};
+const CURSE_BURN_CD = 5;
+let curses = new Set(), curseHpCut = 0, curseBurnT = CURSE_BURN_CD, curseFlash = 0, curseRects = [];
+const curseDmgMult = () => (curses.has("dmg") ? 0.65 : 1) * (curses.has("smoke") ? 0.8 : 1);
+const curseSpdMult = () => (curses.has("spd") ? 0.65 : 1);
+function addCurse() {
+  const free = Object.keys(CURSES).filter(k => !curses.has(k)); if (!free.length) return;
+  const k = pickOne(free); curses.add(k);
+  if (k === "hp") { curseHpCut = Math.floor(castleMax / 2); castleMax -= curseHpCut; castleHp = Math.min(castleHp, castleMax); }
+  if (k === "burn") curseBurnT = CURSE_BURN_CD;
+  curseFlash = 1;
+  showBanner(`CURSED: ${CURSES[k].name}!`, "#b36bff");
+  showInfo(`${CURSES[k].desc} Draw the ${SPELLS[CURSES[k].cure].name} rune to cure it (see the badge or the Runes book).`);
+  if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sTone("sawtooth", 220, 55, 1.2, 0.08); sTone("sine", 330, 165, 1.4, 0.1, 0.1); sTone("sine", 349, 174, 1.4, 0.08, 0.15); sNoise(1.0, 0.25, "bandpass", 600, 150, 3); }
+  buzz(200);
+}
+function liftCurse(k) {
+  if (!curses.has(k)) return;
+  curses.delete(k);
+  if (k === "hp") { castleMax += curseHpCut; curseHpCut = 0; }
+  for (let i = 0; i < 24; i++) addPart({ add: true, kind: "glint", x: rand(40, W - 40), y: rand(HUD_H + 60, FRONT_Y), vx: rand(-40, 40), vy: -rand(60, 200), life: rand(0.6, 1.2), size: rand(3, 6), col: Math.random() < 0.5 ? "#ffffff" : "#e3c9ff" });
+  fxs.push(new Fx("text", { x: W / 2, y: (HUD_H + FRONT_Y) / 2, text: "Curse lifted!", color: "#e3c9ff", size: 34, duration: 1.4 }));
+}
+// Hellfire: a random stored card catches fire and burns away.
+function updateCurses(dt) {
+  curseFlash = Math.max(0, curseFlash - dt * 0.8);
+  for (const c of rows.storage) if (c && c.burnAway !== undefined) { c.burnAway += dt; if (c.burnAway >= 1) { const i = rows.storage.indexOf(c); if (i >= 0) rows.storage[i] = null; fxs.push(new Fx("burst", { x: c.x, y: c.y, color: "#ff6a2a", radius: 70, duration: 0.4 })); } }
+  if (!curses.has("burn")) return;
+  curseBurnT -= dt;
+  if (curseBurnT <= 0) {
+    curseBurnT = CURSE_BURN_CD;
+    const list = rows.storage.filter(c => c && c.burnAway === undefined && !(drag && drag.card === c));
+    if (list.length) { const c = pickOne(list); c.burnAway = 0; showInfo(`Hellfire! ${cardName(c)} is burning away...`); playSfx("fire", "hit"); }
+  }
+}
+// Smoke drifting over the battlefield (enemies stay faintly visible).
+function drawCurseSmoke() {
+  ctx.save();
+  for (let i = 0; i < 9; i++) {
+    const x = ((time * (12 + i * 3) + i * 170) % (W + 400)) - 200, y = HUD_H + 120 + ((i * 97) % (FRONT_Y - HUD_H - 200)), r = 130 + (i % 3) * 40;
+    const g = ctx.createRadialGradient(x, y, 10, x, y, r); g.addColorStop(0, "rgba(120,110,125,0.55)"); g.addColorStop(1, "rgba(120,110,125,0)");
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  ctx.fillStyle = "rgba(90,80,95,0.25)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
+  ctx.restore();
+}
+// Burning stored cards: flames over the card while it burns away.
+function drawCurseBurns() {
+  for (const c of rows.storage) {
+    if (!c || c.burnAway === undefined) continue;
+    const k = c.burnAway;
+    ctx.save(); ctx.globalAlpha = 0.85;
+    for (let j = 0; j < 7; j++) { const fx2 = c.x - CARD_W / 2 + 10 + j * (CARD_W - 20) / 6, h = (30 + 25 * Math.sin(time * 14 + j * 2)) * (0.5 + k);
+      ctx.fillStyle = j % 2 ? "rgba(255,120,30,0.85)" : "rgba(255,210,80,0.85)"; ctx.beginPath(); ctx.moveTo(fx2 - 9, c.y + CARD_H / 2); ctx.quadraticCurveTo(fx2, c.y + CARD_H / 2 - h * 2.2, fx2 + 9, c.y + CARD_H / 2); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = k * 0.8; rrect(c.x - CARD_W / 2, c.y - CARD_H / 2, CARD_W, CARD_H, 10); ctx.fillStyle = "#1a0a06"; ctx.fill();
+    ctx.restore();
+  }
+}
+// Curse badges: a purple medallion per curse showing its cure rune; tap one to read it.
+function drawCurseBadges() {
+  curseRects = [];
+  if (!curses.size) return;
+  let x = 22; const y = HUD_H + 92;
+  for (const k of curses) {
+    const sp = SPELLS[CURSES[k].cure], pul = 0.5 + 0.5 * Math.sin(time * 3 + x);
+    circle(x + 24, y + 24, 27, `rgba(150,60,240,${0.25 + 0.2 * pul})`); circle(x + 24, y + 24, 23, "#2a1040"); ring(x + 24, y + 24, 23, "#b36bff", 3);
+    ctx.save(); ctx.translate(x + 24, y + 24); ctx.strokeStyle = "#e3c9ff"; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    const sz = 24, ax = sp.aspect;
+    for (const st of sp.rune) { ctx.beginPath(); st.forEach(([px, py], i) => { const X = (px * ax - ax / 2) * sz / Math.max(1, ax), Y = (py - 0.5) * sz; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }); ctx.stroke(); }
+    ctx.restore();
+    drawSkullIcon(x + 42, y + 6, 7, 1, 0.9);
+    curseRects.push({ k, x, y, w: 48, h: 48 });
+    x += 58;
+  }
+}
+function curseTap(p) {
+  const r = curseRects.find(r => inRect(p, r)); if (!r) return false;
+  const c = CURSES[r.k], sp = SPELLS[c.cure];
+  showInfo(`Cursed: ${c.name}. ${c.desc} Cure: draw the ${sp.name} rune shown on the badge (${spellCost(c.cure)} gold).`);
+  return true;
+}
 // ---- Boss Break Out: a mode with only bosses. Wave N brings N bosses (max 5), each wave stronger. Every boss killed
 // gives 1 gem, and every 2% of a boss's HP you take off gives 1 gold (so a full kill = 50 gold), even if it survives.
 // After a run the mode rests for 6 hours, or only 3 hours if you beat 10+ bosses. An optional ad skips one rest.
@@ -2642,7 +2733,7 @@ function spawnRushBoss(w) {
 const curStage = w => bossMode ? STAGES[Math.max(0, w - 1) % STAGES.length] : stageOf(w);
 function startRun() {
   clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
-  gold = START_GOLD; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; curses = new Set(); curseHpCut = 0; curseBurnT = CURSE_BURN_CD; spellUses = {}; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
@@ -2652,7 +2743,7 @@ function startRun() {
 function beginWave(fromTimer = false) {
   if (state !== "break" && state !== "wave") return;
   if (callCd > 0 && !fromTimer) { showInfo(`Next wave ready in ${Math.ceil(callCd)}s.`); return; }
-  wave++; state = "wave"; breakTimer = -1; callCd = CALL_COOLDOWN; rerollCost = REROLL_BASE;
+  wave++; state = "wave"; breakTimer = -1; callCd = CALL_COOLDOWN; rerollCost = REROLL_BASE * rerollMult();
   if (bossMode) {
     const n = Math.min(wave, BOSS_MAX_PER_WAVE);
     spawners.push({ wave, left: n, total: n, timer: 0.6, rush: true });
@@ -2690,6 +2781,10 @@ function waveCleared(w) {
 function toBreak() {
   state = "break"; breakTimer = BREAK_TIME;
   refreshShop();
+  if (!bossMode && (wave + 1) % STAGE_LEN === 0) {   // warn before every boss wave
+    showBanner("Next wave: BOSS!", "#e0533f");
+    showInfo("A boss comes next wave. Beating it clears the stage, but its dying curse weakens you until you cure it with a rune!");
+  }
 }
 function gameOver() {
   state = "gameover"; cancelDrag();
@@ -2778,6 +2873,7 @@ function deathFx(e) {
 }
 function onEnemyKilled(e) {
   enemies = enemies.filter(x => x !== e);
+  if (state === "wave" && e.isBoss && !bossMode) addCurse();   // a dying boss curses you
   if (state === "wave" && !e.noGold) {
     // Hidden cooldown: after a normal enemy drops a wild card, the next one can't drop for WILD_CD seconds. Bosses always drop.
     if (e.isBoss) dropWild(pickOne(Object.keys(WILD)), e.x, e.y);
@@ -3448,7 +3544,7 @@ function drawShopLocks() {
 function reroll() {
   if (state !== "break" && state !== "wave") return;
   if (gold < rerollCost) { showInfo("Not enough gold to reroll."); return; }
-  gold -= rerollCost; rerollCost++; refreshShop();
+  gold -= rerollCost; rerollCost += rerollMult(); refreshShop();
 }
 function cardName(c) { return `${RARITY_NAMES[c.rarity]} ${EL[c.element].name}`; }
 function firstFree() {
@@ -3727,6 +3823,17 @@ const SPELLS = {
           rune: [[[0.500, 0.200], [0.578, 0.210], [0.650, 0.240], [0.712, 0.288], [0.760, 0.350], [0.790, 0.422], [0.800, 0.500], [0.790, 0.578], [0.760, 0.650], [0.712, 0.712], [0.650, 0.760], [0.578, 0.790], [0.500, 0.800], [0.422, 0.790], [0.350, 0.760], [0.288, 0.712], [0.240, 0.650], [0.210, 0.578], [0.200, 0.500], [0.210, 0.422], [0.240, 0.350], [0.288, 0.288], [0.350, 0.240], [0.422, 0.210], [0.500, 0.200]], [[0.500, 0.280], [0.647, 0.732], [0.262, 0.453], [0.738, 0.453], [0.353, 0.732], [0.500, 0.280]], [[0.217, 0.217], [0.104, 0.104]], [[0.783, 0.217], [0.896, 0.104]], [[0.217, 0.783], [0.104, 0.896]], [[0.783, 0.783], [0.896, 0.896]]],
           desc: "A giant meteor destroys every enemy. They drop no gold." },
 };
+// Every cast makes that spell 1.5x more expensive for the rest of the run (Doom 200 > 300 > 450 ...).
+let spellUses = {};
+const spellCost = id => Math.round(SPELLS[id].cost * Math.pow(1.5, spellUses[id] || 0));
+// Cure runes: each lifts one curse (only castable while you have it).
+Object.assign(SPELLS, {
+  cure_hp:    { name: "Mend Walls", cost: 30, color: "#c9a6ff", aspect: 1, curse: "hp", rune: [[[0.5, 0], [1, 1], [0, 1], [0.5, 0]]], desc: "Cures Crumbling Wall: the castle's max HP comes back." },
+  cure_spd:   { name: "Quicken", cost: 30, color: "#c9a6ff", aspect: 1.2, curse: "spd", rune: [[[0, 0], [0.25, 1], [0.5, 0.35], [0.75, 1], [1, 0]]], desc: "Cures Sluggish: cards attack at full speed again." },
+  cure_dmg:   { name: "Empower", cost: 30, color: "#c9a6ff", aspect: 1, curse: "dmg", rune: [[[0, 0], [1, 1]], [[1, 0], [0, 1]]], desc: "Cures Weakness: cards deal full damage again." },
+  cure_smoke: { name: "Clear Skies", cost: 30, color: "#c9a6ff", aspect: 1, curse: "smoke", rune: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]], desc: "Cures Smoke: the smoke blows away." },
+  cure_burn:  { name: "Douse", cost: 30, color: "#c9a6ff", aspect: 2, curse: "burn", rune: [[[0.000, 0.500], [0.083, 0.250], [0.167, 0.067], [0.250, 0.000], [0.333, 0.067], [0.417, 0.250], [0.500, 0.500], [0.583, 0.750], [0.667, 0.933], [0.750, 1.000], [0.833, 0.933], [0.917, 0.750], [1.000, 0.500]]], desc: "Cures Hellfire: stored cards stop burning." },
+});
 const RUNE_SETTLE = 0.6;   // seconds without a new line before a multi-line drawing is read
 let spell = null;      // { phase: "draw" | "result", t, strokes: [[[x,y]...]...], drawing, settle, match, score, failT }
 let meteors = [];
@@ -3857,10 +3964,11 @@ function finishRune(timedOut) {
 }
 function castSpell() {
   if (!spell || !spell.match) return;
-  const sp = SPELLS[spell.match];
-  if (gold < sp.cost) { showInfo(`Not enough gold: ${sp.name} costs ${sp.cost}.`); return; }
+  const sp = SPELLS[spell.match], cost = spellCost(spell.match);
+  if (sp.curse && !curses.has(sp.curse)) { showInfo(`You don't have the ${CURSES[sp.curse].name} curse.`); return; }
+  if (gold < cost) { showInfo(`Not enough gold: ${sp.name} costs ${cost}.`); return; }
   if (spell.match === "heal" && castleHp >= castleMax) { showInfo("The castle is already at full HP."); return; }
-  gold -= sp.cost;
+  gold -= cost; spellUses[spell.match] = (spellUses[spell.match] || 0) + 1;
   if (timeStopT > 0) timeStopSpells++;
   track("spell"); track("spell_" + spell.match);
   if (spell.match === "meteor") castMeteor();
@@ -3868,6 +3976,7 @@ function castSpell() {
   if (spell.match === "heal") castHeal();
   if (spell.match === "speed") castSpeed();
   if (spell.match === "doom") castDoom();
+  if (sp.curse) liftCurse(sp.curse);
   showBanner(`${sp.name}!`, sp.color);
   endSpell();
 }
@@ -4158,10 +4267,11 @@ function drawSpell() {
     text(sp.name, W / 2, 170, 56, sp.color, { font: DISPLAY, weight: 900, outline: 10 });
     text(`${Math.round(spell.score * 100)}% match`, W / 2, 212, 22, PARCH, { outline: 5 });
     text(sp.desc, W / 2, FRONT_Y - 26, 22, PARCH, { outline: 6 });
-    btn.castSpell.label = `Cast (${sp.cost} gold)`;
-    const full = spell.match === "heal" && castleHp >= castleMax;
-    if (full) btn.castSpell.label = "Castle HP is full";
-    drawBtn(btn.castSpell, gold < sp.cost || full); drawBtn(btn.cancelSpell);
+    btn.castSpell.label = `Cast (${spellCost(spell.match)} gold)`;
+    const full = (spell.match === "heal" && castleHp >= castleMax) || (sp.curse && !curses.has(sp.curse));
+    if (spell.match === "heal" && castleHp >= castleMax) btn.castSpell.label = "Castle HP is full";
+    if (sp.curse && !curses.has(sp.curse)) btn.castSpell.label = "Not cursed";
+    drawBtn(btn.castSpell, gold < spellCost(spell.match) || full); drawBtn(btn.cancelSpell);
   } else {
     text("Spell failed", W / 2, 360, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 10 });
     if (spell.reason) text(spell.reason, W / 2, 404, 24, PARCH, { outline: 6 });
@@ -4351,6 +4461,7 @@ canvas.addEventListener("pointerdown", ev => {
     return;
   }
   if (paused || (state !== "wave" && state !== "break")) return;
+  if (curseTap(p)) return;
   if (wildDown(p)) return;
   const s = slotAt(p);
   if (Math.abs(p.y - STORAGE_Y) < CARD_H / 2 + 10 && (!s || (s[0] === "storage" && !rows.storage[s[1]]))) { storageSwipe = { x0: p.x }; return; }
@@ -4433,6 +4544,7 @@ function update(dt) {
     return;
   }
   speedT = Math.max(0, speedT - dt);
+  updateCurses(dt);
   if (state === "wave") wildDropCd = Math.max(0, wildDropCd - dt);   // counts only while a wave is being fought
   if (state === "wave") {
     for (const sp of spawners) {
@@ -4440,12 +4552,12 @@ function update(dt) {
       if (sp.timer > 0) continue;
       if (sp.rush) { if (sp.left > 0) { sp.left--; spawnRushBoss(sp.wave); } sp.timer = 2.4; continue; }
       sp.timer = Math.max(0.28, 1.2 - sp.wave * 0.035);
-      if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; spawnEnemy(stageOf(sp.wave).boss, sp.wave); }
+      if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; spawnEnemy(stageOf(sp.wave).boss, sp.wave); if (stageNum(sp.wave) === 1) { const e = enemies[enemies.length - 1]; e.hp = e.maxHp = e.maxHp * 0.75; } }   // the first boss is a bit softer
       else if (sp.left > 0) { sp.left--; spawnEnemy(pickKind(sp.wave), sp.wave); }
     }
     for (const c of rows.active) {
       if (!c || (drag && drag.card === c) || EL[c.element].totem) continue;   // a Totem never attacks
-      const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd");   // Speed Up spell and a Flight totem next to it
+      const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult();   // Speed Up spell and a Flight totem next to it
       if (EL[c.element].beam) { updateBeam(c, dt * spd); continue; }
       if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
       c.cooldown -= dt * spd;
@@ -4697,6 +4809,10 @@ function drawWorld() {
     const g = ctx.createLinearGradient(0, WALL_Y - 30, 0, WALL_Y + WALL_H + 10); g.addColorStop(0, "rgba(160,220,255,0)"); g.addColorStop(0.5, `rgba(180,230,255,${0.5 * wallGlow})`); g.addColorStop(1, "rgba(160,220,255,0)");
     ctx.fillStyle = g; ctx.fillRect(0, WALL_Y - 30, W, WALL_H + 40); ctx.restore();
   }
+  if (curses.has("smoke")) drawCurseSmoke();
+  drawCurseBurns();
+  if (curseFlash > 0) { ctx.fillStyle = `rgba(120,40,200,${0.35 * curseFlash})`; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H); }
+  if (state === "wave" || state === "break") drawCurseBadges();
   if (timeStopT > 0) drawTimeStop();
   if (!chamberOpen && !spell) drawWildFan();
 }
@@ -4793,7 +4909,7 @@ function drawChamber() {
     text(`Myth +${LEGEND_PER_MYTH}% each   Epic +${LEGEND_PER_EPIC}% each   (max ${LEGEND_MAX}%)`, W / 2, 462, 22, PARCH, { outline: 6 });
     text("Needs 3+ cards. Success creates one Legend card.", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
   } else {
-    text("3 cards: 35%   4 cards: 60%   5 cards: 85%", W / 2, 462, 24, PARCH, { outline: 6 });
+    text("3 cards: 36%   4 cards: 48%   5 cards: 60%", W / 2, 462, 24, PARCH, { outline: 6 });
     text("Success creates one Myth card. Add a Myth for a Legend!", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
   }
 }
@@ -4933,7 +5049,7 @@ function drawBook() {
       rrect(left, y + 6, 150, 138, 14); ctx.fillStyle = "#2a1640"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
       drawRuneIcon(sp, left + 30, y + 30, 90, 90);
       text(sp.name, left + 172, y + 46, 32, shade(sp.color, -0.3), { align: "left", font: DISPLAY, weight: 900 });
-      text(`Cost: ${sp.cost} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
+      text(sp.curse ? `Cost: ${spellCost(l.rune)} gold  (cures a curse)` : `Cost: ${spellCost(l.rune)} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
       text(sp.desc, left + 172, y + 110, 17, "#6b5a48", { align: "left", weight: 500 });
       text(sp.rune.length === 1 ? "One line. Dot = where it starts." : `${sp.rune.length} lines, any order.`, left + 172, y + 136, 15, "#a89878", { align: "left", weight: 500 });
       y += l.h; continue;
@@ -6716,10 +6832,10 @@ const GUIDE = [
     b: "Every Epic recipe uses two V3 (Rare) Next elements. Here are the first six." },
   { t: "Epic Recipes (2/2)", recipes: EPIC_RECIPES.slice(6), rIn: 2, rOut: EPIC,
     b: "And the other five. All recipes are also written in the Spellbook." },
-  { t: "Myth: Fusion Chamber", eq: [[["storm", EPIC], ["blizzard", EPIC], ["grove", EPIC], ["phoenix", MYTH]]], note: "3 Epics: 35%   4 Epics: 60%   5 Epics: 85%",
+  { t: "Myth: Fusion Chamber", eq: [[["storm", EPIC], ["blizzard", EPIC], ["grove", EPIC], ["phoenix", MYTH]]], note: "3 Epics: 36%   4 Epics: 48%   5 Epics: 60%",
     b: "Tap Chamber and put 3 to 5 Epic cards on the altars, then tap Fuse for a chance to create the Myth Phoenix. More Epic cards give a better chance. If it fails, all those cards are lost!" },
-  { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["zeus", LEGEND]]], note: "Each Myth +10%   each Epic +2%   up to 50%",
-    b: "Put a Myth card on an altar to try for a LEGEND card like Zeus, the strongest in the game. Each Myth card adds 10% and each Epic adds 2%, up to 50%." },
+  { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["zeus", LEGEND]]], note: "Each Myth +9%   each Epic +3%   up to 45%",
+    b: "Put a Myth card on an altar to try for a LEGEND card like Zeus, the strongest in the game. Each Myth card adds 9% and each Epic adds 3%, up to 45%." },
   { t: "Stars: Myth & Legend", eq: [[["phoenix", MYTH, 0], ["phoenix", MYTH, 0], ["phoenix", MYTH, 1]], [["zeus", LEGEND, 1], ["zeus", LEGEND, 0], ["zeus", LEGEND, 2]]],
     labels: [["Same card + same card = 1 star", "#ffd84a"], ["1 star + one more copy = 2 stars", "#ffd84a"]], labelDy: 18, note: "Every star DOUBLES the card's damage!",
     b: "Myth and Legend cards can't level up, but they can earn STARS. Drag a card onto the exact same card (Phoenix onto Phoenix, Zeus onto Zeus) to give it a star. Add another copy to a starred card for one more star. Stars are shown at the bottom of the card." },
@@ -6908,8 +7024,8 @@ const TUT = {
     { t: "Pause", hl: () => btnRect(btn.pause), b: "Pause at any time to resume, restart, open the Spellbook, turn the sound on or off, or quit to the lobby." },
   ],
   chamber: [
-    { t: "An Epic card!", hl: () => btnRect(btn.chamber), b: "Open the Chamber and place 3 to 5 Epic cards on the altars to try for a Myth Phoenix: 35%, 60% or 85% chance. If it fails, all those cards are lost!" },
-    { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 10% and each Epic adds 2%, up to 50%." },
+    { t: "An Epic card!", hl: () => btnRect(btn.chamber), b: "Open the Chamber and place 3 to 5 Epic cards on the altars to try for a Myth Phoenix: 36%, 48% or 60% chance. If it fails, all those cards are lost!" },
+    { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 9% and each Epic adds 3%, up to 45%." },
   ],
   boss: [
     { t: "Boss wave!", b: "Every 15th wave a boss appears. Beat it to clear the stage: you earn 20 gems for Summon, and the map changes to a new land with new enemies." },
