@@ -153,7 +153,7 @@ const TOTEM_STEP = el => 0.5;   // Fight and Flight: each extra copy adds +0.5x
 const TOTEM_MAX = 3;   // boost 3 = x4, the most a totem can give (5 copies)
 const totemSum = (el, a, b) => (a || 1) + (b || 1) - 1 + TOTEM_STEP(el);
 const totemFull = c => (c.boost || 1) >= TOTEM_MAX;
-const powerMult = c => starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * totemMult(c, "dmg") * curseDmgMult();
+const powerMult = c => starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };   // Totem + Totem: +0.5x (see totemSum)
@@ -1561,20 +1561,17 @@ class Enemy {
     const limit = FRONT_Y - this.size * 0.9;
     if (this.y < limit) {
       this.attacking = false;
-      if (this.rootT <= 0) this.y += this.speed * this.slowMult * (hasRelic("mire") ? 0.9 : 1) * FIELD_SPEED * dt;
+      if (this.rootT <= 0) this.y += this.speed * this.slowMult * FIELD_SPEED * dt;
     } else {
-      if (!this.attacking && hasRelic("frostgate") && frostGateWave !== this.wave) {   // Frost Gate: the first one at the wall freezes
-        frostGateWave = this.wave; this.stunT = 5; fxs.push(new Fx("burst", { x: this.x, y: this.y, color: "#bfefff", radius: this.size * 2.4, duration: 0.6 })); return;
-      }
       this.attacking = true; this.y = limit; damageCastle(this.dps * dt);
+      if (hasRelic("thorns") && state === "wave") { this.takeDamage(this.maxHp * 0.05 * dt, "Thorn Wall", "#7a9a5a"); if (this.dead) return; }
     }
   }
   takeDamage(a, src, color) {
     if (this.dead) return;
     if (this.isBoss && hasRelic("bossbane")) a *= 1.3;
-    let dealt = Math.min(a, Math.max(0, this.hp));
+    const dealt = Math.min(a, Math.max(0, this.hp));
     this.hp -= a; if (a >= 1) this.flash = 1;
-    if (!this.isBoss && hasRelic("reaper") && this.hp > 0 && this.hp < this.maxHp * 0.08) { dealt += this.hp; this.hp = 0; }   // Reaper's Mark
     if (this.rush) {   // Boss Break Out: 1 gold for every 2% of its HP taken off
       this.goldAcc = (this.goldAcc || 0) + dealt / this.maxHp * BOSS_GOLD_PER_KILL;
       const g = Math.floor(this.goldAcc);
@@ -2875,11 +2872,11 @@ const RELICS = {
   bossbane:  { name: "Giant Slayer",     desc: "Bosses take +30% damage.", icon: "sword", col: "#ff6a4a" },
   bounty:    { name: "Bounty Board",     desc: "+1 gold for every kill.", icon: "coin", col: "#f2c14e" },
   wildluck:  { name: "Lucky Clover",     desc: "Wild cards drop twice as often.", icon: "clover", col: "#5fd87a" },
-  frostgate: { name: "Frost Gate",       desc: "The first enemy to reach the wall each wave is frozen for 5 s.", icon: "snow", col: "#9fe6ff" },
+  drums:     { name: "War Drums",        desc: "Cards next to a totem deal +15% more damage.", icon: "star", col: "#ff8a4a" },
   walls:     { name: "Mason's Blessing", desc: "+40 castle max HP (and heals 40 now).", icon: "shield", col: "#cfc2ae" },
   aegis:     { name: "Aegis",            desc: "The castle takes 10% less damage.", icon: "shield", col: "#8fc8ff" },
-  mire:      { name: "Mire Totem",       desc: "Enemies move 10% slower.", icon: "snow", col: "#7a9a5a" },
-  reaper:    { name: "Reaper's Mark",    desc: "Normal enemies under 8% HP die at once.", icon: "sword", col: "#a64dff" },
+  thorns:    { name: "Thorn Wall",       desc: "Enemies hitting the wall take 5% of their max HP each second.", icon: "shield", col: "#7a9a5a" },
+  lucky:     { name: "Lucky Strike",     desc: "Card hits have a 10% chance to deal double damage.", icon: "clover", col: "#a64dff" },
   stars:     { name: "Star Shard",       desc: "Starred cards deal +20% damage.", icon: "star", col: "#ffd84a" },
   vamp:      { name: "Blood Mortar",     desc: "Every kill heals the castle 0.3 HP.", icon: "heart", col: "#ff4a6a" },
   vault:     { name: "Golden Vault",     desc: "Gold interest limit +50.", icon: "coin", col: "#ffe27a" },
@@ -2899,7 +2896,7 @@ function runDmgMult(el) {
   return m;
 }
 // Enemy HP growth per wave (the same curve the enemies use), for things that scale with the waves.
-const hpScale = wave => { const w = wave - 1; return (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, clamp(w - 40, 0, 20)) * Math.pow(1.06, Math.max(0, w - 60)); };
+const hpScale = wave => { const w = wave - 1; return (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, clamp(w - 40, 0, 20)) * Math.pow(1.06, Math.max(0, w - 60)) * (1 + 0.03 * Math.max(0, w - 15)); };   // last factor: tougher from stage 2 on (offsets relics, weakness, upgrades)
 // Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
 const CALL_COOLDOWN = 3;
 let spawners = [], callCd = 0, wavesCleared = 0, rerollCost = REROLL_BASE, freeCard = true;
@@ -4396,7 +4393,7 @@ function applyHit(el, r, x, y, enemy, sm = 1) {
   if (d.puddle) { const z = new Zone(x, y, d.puddle, d.puddle_dps * rm, 3, d.color); z.src = statKey(el, r); z.burnAmt = 2 * rm; zones.push(z); }
 }
 function hitEnemy(e, el, r, dmg, sm = 1) {
-  const d = EL[el], mult = elementMult(el, e.resist, e.flying), amount = dmg * mult, rm = RARITY_DMG[r] * sm;
+  const d = EL[el], mult = elementMult(el, e.resist, e.flying), amount = dmg * mult * (hasRelic("lucky") && Math.random() < 0.1 ? 2 : 1), rm = RARITY_DMG[r] * sm;
   const x = e.x, y = e.y, src = statKey(el, r);
   if (d.burn) { e.burnSrc = src; e.burnCol = d.color; e.soulR = r; e.soulSm = sm; e.burn(d.burn * rm, 2.5); }
   if (d.slow) e.slow(d.slow, 2);
