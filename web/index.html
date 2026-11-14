@@ -849,7 +849,7 @@ class Card {
   // Battery saver: in battle each card is drawn once as a still picture (with all its auras, frozen) and then only
   // copied, moved and scaled. Live drawing is used only while something about it is changing (evolving, burning).
   drawBattle() {
-    if (!settings.lite || this.evolveAt >= 0 || this.burnAway !== undefined || (this.ssjFlare || 0) > 0.01) return this.draw();
+    if (!liteBattle() || this.evolveAt >= 0 || this.burnAway !== undefined || (this.ssjFlare || 0) > 0.01) return this.draw();
     const d = EL[this.element];
     if (d.art && !(CARD_ILLUS[d.art] && CARD_ILLUS[d.art].ready)) return this.draw();
     const maxed = (this.stars || 0) >= MAX_STARS, big = maxed || this.rarity >= MYTH || d.art || d.special;
@@ -1674,7 +1674,7 @@ class Enemy {
   draw() {
     const s = this.size, t = this.t;
     ctx.save(); ctx.translate(this.x, this.y);
-    const lite = settings.lite;
+    const lite = liteBattle();
     if (this.isBoss) { if (lite) this.layer("aura", () => this.drawBossAura(s, 0.5)); else this.drawBossAura(s, t); }
     ellipse(0, s * 0.85, s * 0.95, s * 0.28, "rgba(0,0,0,0.32)");
     // Lunge at the wall while attacking; squash when hit.
@@ -2307,7 +2307,20 @@ let parts = [];
 const MAX_PARTS = 1500;
 // Particle budget: normal play stays well under 500. Only when huge speed buffs make cards fire many times faster do
 // new particles start to be skipped (more the closer to 900), so the effects stay just as dense but can't flood the frame.
-const PART_SOFT = 500, PART_HARD = 900;
+let PART_SOFT = 500, PART_HARD = 900;
+// Battle drawing goes cheap (still cards, one-picture enemies, simple beams) in Battery saver, or by itself when the
+// smoothness guard is at its last step (the phone can't keep up).
+const liteBattle = () => settings.lite || perfLevel >= 2;
+// Smoothness guard: the game watches its real frame rate. If it stays under ~50 FPS it steps down (fewer particles,
+// simpler enemies); when it has been smooth for a while it steps back up. Fast phones stay at full quality.
+let perfLevel = 0, perfAvg = 16.7, perfHold = 0;
+function perfWatch(ms) {
+  if (ms > 100) return;   // a tab switch or a one-off hitch: ignore
+  perfAvg += (ms - perfAvg) * 0.05; perfHold += ms / 1000;
+  if (perfAvg > 20 && perfHold > 1 && perfLevel < 2) { perfLevel++; perfHold = 0; }
+  else if (perfAvg < 13.5 && perfHold > 8 && perfLevel > 0) { perfLevel--; perfHold = 0; }   // steps back up only after a long smooth stretch
+  PART_SOFT = [500, 300, 180][perfLevel]; PART_HARD = [900, 560, 340][perfLevel];
+}
 function addPart(p) {
   if (parts.length > PART_SOFT && Math.random() < (parts.length - PART_SOFT) / (PART_HARD - PART_SOFT)) return;
   if (parts.length >= (settings.lite ? 160 : MAX_PARTS)) return;
@@ -2531,7 +2544,8 @@ const NEW_SHOTS = new Set(["voidorb", "starshard", "hellflame", "abyssmaw", "tom
 function drawShotHead(pr) {
   const st = pr.style, t = pr.t; let R = pr.radius * VFX_SCALE * 1.1;
   ctx.save(); ctx.translate(pr.x, pr.y);
-  const glow = (r, c) => { const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, `rgba(${c},0.6)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); };
+  const glow = (r, c) => { const q = Math.max(2, Math.round(r / 2) * 2);   // pre-drawn per colour and size (sizes rounded to 2 px)
+    drawCached(`sg|${c}|${q}`, q * 2 + 2, q * 2 + 2, () => { const g = ctx.createRadialGradient(0, 0, 0, 0, 0, q); g.addColorStop(0, `rgba(${c},0.6)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, q, 0, Math.PI * 2); ctx.fill(); }, 0, 0, r / q, 1); };
   if (NEW_SHOTS.has(st)) R *= 1.35;   // the Dark / Light family shots are drawn bigger
   if (st === "voidorb") {   // a black hole: two crossed accretion disks, a pulsing event horizon, orbiting moons
     glow(R * 3.2, "150,90,255");
@@ -2579,12 +2593,14 @@ function drawShotHead(pr) {
   if (st === "tombstone") {   // a tumbling tombstone in a ghost-green aura, with a little ghost clinging to it
     glow(R * 2.6, "120,220,170");
     ctx.save(); ctx.rotate(t * 7);
+    drawCached(`tomb|${Math.round(R)}`, R * 2.6, R * 2.6, () => {
     const w = R * 0.85, top = -R * 1.05, bot = R * 1.0;
     ctx.beginPath(); ctx.moveTo(-w, bot); ctx.lineTo(-w, top + w); ctx.arc(0, top + w, w, Math.PI, 0); ctx.lineTo(w, bot); ctx.closePath();
     const g = ctx.createLinearGradient(-w, 0, w, 0); g.addColorStop(0, "#c8c6d4"); g.addColorStop(1, "#7a7888"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.stroke();
     ctx.strokeStyle = "#4a4858"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -R * 0.55); ctx.lineTo(0, R * 0.25); ctx.moveTo(-R * 0.35, -R * 0.25); ctx.lineTo(R * 0.35, -R * 0.25); ctx.stroke();
     ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(w * 0.6, -R * 0.1); ctx.lineTo(w * 0.25, R * 0.3); ctx.lineTo(w * 0.5, R * 0.6); ctx.stroke();
     ctx.fillStyle = "rgba(90,70,60,0.8)"; ctx.fillRect(-w * 1.15, bot - R * 0.15, w * 2.3, R * 0.25);
+    });
     ctx.restore();
     const ga = -pr.ang + Math.PI, gx = Math.cos(pr.ang + Math.PI) * R * 2, gy = Math.sin(pr.ang + Math.PI) * R * 2 + Math.sin(t * 9) * R * 0.3;   // the ghost trails behind
     ctx.save(); ctx.translate(gx, gy); ctx.globalAlpha = 0.85;
@@ -2597,8 +2613,11 @@ function drawShotHead(pr) {
   if (st === "shadowblade") {   // twin crescent shadow blades spinning against each other, with afterimages
     glow(R * 2.6, "140,120,220");
     const r1 = R * 1.6, r2 = R * 1.35, d = R * 0.75, ix = (d * d + r1 * r1 - r2 * r2) / (2 * d), iy = Math.sqrt(Math.max(0, r1 * r1 - ix * ix)), a1 = Math.atan2(iy, ix), a2 = Math.atan2(iy, ix - d);
-    const blade = (a, al, sc) => { ctx.save(); ctx.rotate(a); ctx.scale(sc, sc); ctx.globalAlpha = al; ctx.beginPath(); ctx.arc(0, 0, r1, a1, Math.PI * 2 - a1); ctx.arc(d, 0, r2, -a2, a2, true); ctx.closePath();
-      const g = ctx.createLinearGradient(-r1, 0, r1, 0); g.addColorStop(0, "#e0d8ff"); g.addColorStop(0.5, "#5a4e8a"); g.addColorStop(1, "#1e1830"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(230,225,255,0.95)"; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore(); };
+    const bk = `shb|${Math.round(R)}`, bs = r1 * 2 + 6;
+    const blade = (a, al, sc) => { ctx.save(); ctx.rotate(a); ctx.scale(sc, sc); ctx.globalAlpha *= al;
+      drawCached(bk, bs, bs, () => { ctx.beginPath(); ctx.arc(0, 0, r1, a1, Math.PI * 2 - a1); ctx.arc(d, 0, r2, -a2, a2, true); ctx.closePath();
+        const g = ctx.createLinearGradient(-r1, 0, r1, 0); g.addColorStop(0, "#e0d8ff"); g.addColorStop(0.5, "#5a4e8a"); g.addColorStop(1, "#1e1830"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(230,225,255,0.95)"; ctx.lineWidth = 1.4; ctx.stroke(); });
+      ctx.restore(); };
     for (const [k, al] of [[0.8, 0.15], [0.4, 0.35], [0, 1]]) { blade(t * 16 - k, al, 1); blade(-t * 13 + Math.PI - k, al * 0.9, 0.75); }
     circle(0, 0, R * 0.3, "#c8c0ff");
     ctx.restore(); return;
@@ -4629,7 +4648,7 @@ function drawLances() {
     ctx.translate(ox, oy); ctx.rotate(a);
     const edge = sgn => { ctx.moveTo(0, 0); for (let x = 0; x <= L; x += STEP) ctx.lineTo(x, sgn * half(x)); };
     const bodyPath = () => { ctx.beginPath(); ctx.moveTo(0, -half(0)); for (let x = STEP; x <= L; x += STEP) ctx.lineTo(x, -half(x)); for (let x = L; x >= 0; x -= STEP) ctx.lineTo(x, half(x)); ctx.closePath(); };
-    if (settings.lite) {   // Battery saver: just the water beam body, its edge and the white core
+    if (liteBattle()) {   // Battery saver: just the water beam body, its edge and the white core
       bodyPath(); const lg = ctx.createLinearGradient(0, -w * 0.75, 0, w * 0.75);
       lg.addColorStop(0, `rgba(20,90,220,${0.85 * on})`); lg.addColorStop(0.5, `rgba(190,245,255,${0.95 * on})`); lg.addColorStop(1, `rgba(20,90,220,${0.85 * on})`);
       ctx.fillStyle = lg; ctx.fill();
@@ -4727,7 +4746,7 @@ function drawBeams() {
     if (!c || !c.beams || !c.beams.length || (drag && drag.card === c) || state !== "wave") continue;
     const ox = c.x, oy = c.y - CARD_H / 2 + 10, t = time;
     ctx.save(); ctx.lineJoin = "round"; ctx.lineCap = "round";
-    if (settings.lite) {   // Battery saver: one bolt per target (blue halo + white core) and a plain glow on it
+    if (liteBattle()) {   // Battery saver: one bolt per target (blue halo + white core) and a plain glow on it
       for (const b of c.beams) {
         const e = b.e, dist = Math.hypot(e.x - ox, e.y - oy), main = boltPath(ox, oy, e.x, e.y, 8, Math.min(26, dist * 0.08));
         ctx.strokeStyle = "rgba(70,140,255,0.8)"; ctx.lineWidth = 8; strokePath(main);
@@ -6207,7 +6226,7 @@ function drawWorld() {
   }
 
   for (const z of zones) z.draw();
-  EN_DETAIL = !settings.lite && enemies.length <= 18;
+  EN_DETAIL = !settings.lite && enemies.length <= [18, 10, 0][perfLevel];
   for (const e of enemies) e.draw();
   if (chamberOpen) {
     // Frozen battle shots and effects stay underneath the Chamber panel.
@@ -8651,8 +8670,9 @@ function drawStorageNav() {
 applyLayout();
 let last = performance.now();
 function frame(now) {
+  if (state === "wave" || state === "break") perfWatch(now - last);
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
-  if (settings.lite && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }   // pictures still loading at start-up
+  if (liteBattle() && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }   // pictures still loading at start-up
   update(dt);
   ctx.clearRect(0, 0, W, H);
   if (state === "title") drawLobby(dt);
