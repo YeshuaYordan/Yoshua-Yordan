@@ -1672,8 +1672,7 @@ class Enemy {
     if (this.king) { ctx.save(); path(); ctx.clip(); const pulse = 0.6 + 0.4 * Math.sin(t * 3); circle(0, s * 0.32, s * 0.3, `rgba(255,140,240,${0.5 * pulse})`); poly([[0, s * 0.1], [s * 0.13, s * 0.32], [0, s * 0.54], [-s * 0.13, s * 0.32]], "#ff8af0", "#1a0b12", 2); ctx.restore(); }
     this.shine(-s * 0.52, -s * 0.5, s * 0.22, s * 0.09); circle(-s * 0.22, -s * 0.78, s * 0.055, "#ffffff");
     if (EN_DETAIL) for (let i = 0; i < 3; i++) { const by = s * 0.55 - ((t * s * 0.35 + i * s * 0.45) % (s * 1.2)); ring((-0.55 + i * 0.5) * s, by, s * 0.06, "rgba(255,255,255,0.6)", 1.4); }
-    const iris = dark ? "#ff2a3a" : this.glow ? "#ffffff" : this.king ? "#ff4ae0" : "#ffd23a";
-    this.fEyes(0, -s * 0.28, s * 0.2, iris, 1.35);
+        this.eyes(0, -s * 0.28, s * 0.2, dark ? "#ff6b6b" : "#fffaf0", dark ? "#ff3b3b" : this.glow ? this.color : null);
     this.fMouth(0, s * 0.2, s * 0.42, s * 0.2, 6);
     if (EN_DETAIL) { const k = (t * 0.9) % 1; ctx.fillStyle = hexA(shade(body, 0.3), 0.85 * (1 - k)); ctx.beginPath(); ctx.ellipse(s * 0.2, s * 0.42 + k * s * 0.4, s * 0.05, s * 0.09, 0, 0, Math.PI * 2); ctx.fill(); }   // drool
     ctx.restore();
@@ -1694,7 +1693,7 @@ class Enemy {
     }
     this.cel(() => { ctx.beginPath(); ctx.arc(0, cy - s * 0.15, s * 0.72, 0, Math.PI * 2); }, body, 0.2);
     this.shine(-s * 0.32, cy - s * 0.6, s * 0.14, s * 0.06);
-    this.fEyes(0, cy - s * 0.38, s * 0.15, "#ff3030", 1.35);
+    this.eyes(0, cy - s * 0.38, s * 0.15, "#fff3c4", this.attacking ? "#ff4040" : null);
     ctx.strokeStyle = "#5a1a1e"; ctx.lineWidth = 2.6; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(s * 0.12, cy - s * 0.7); ctx.lineTo(s * 0.4, cy - s * 0.12); ctx.stroke();   // scar
     this.cel(() => { ctx.beginPath(); ctx.ellipse(0, cy + s * 0.12, s * 0.42, s * 0.28, 0, 0, Math.PI * 2); }, "#d98a92", 0.1, 2.4);
     ellipse(-s * 0.13, cy + s * 0.13, s * 0.07, s * 0.1, LN); ellipse(s * 0.13, cy + s * 0.13, s * 0.07, s * 0.1, LN);
@@ -1724,7 +1723,7 @@ class Enemy {
     if (!this.king) { ctx.save(); ctx.beginPath(); ctx.arc(0, cy - s * 0.3, s * 0.64, 0, Math.PI * 2); ctx.clip(); ctx.fillStyle = "#b8202a"; ctx.fillRect(-s, cy - s * 1.0, s * 2, s * 0.42); ctx.fillStyle = "#7a1018"; ctx.fillRect(s * 0.1, cy - s * 1.0, s, s * 0.42); for (let i = 0; i < 4; i++) circle((-0.45 + i * 0.3) * s, cy - s * 0.75, s * 0.04, "#fffaf0"); ctx.restore();
       ctx.strokeStyle = LN; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(-s * 0.62, cy - s * 0.58); ctx.lineTo(s * 0.62, cy - s * 0.58); ctx.stroke(); }
     this.shine(-s * 0.3, cy - s * 0.52, s * 0.12, s * 0.05);
-    this.fEyes(0, cy - s * 0.36, s * 0.16, "#ffe63a", 1.3);
+    this.eyes(0, cy - s * 0.4, s * 0.15, "#fff06a", this.attacking ? "#ffe34a" : null);
     this.cel(() => { ctx.beginPath(); ctx.moveTo(-s * 0.05, cy - s * 0.28); ctx.quadraticCurveTo(s * 0.16, cy - s * 0.24, s * 0.06, cy - s * 0.04); ctx.lineTo(-s * 0.08, cy - s * 0.12); ctx.closePath(); }, shade(body, -0.12), 0.05, 1.6);
     this.fMouth(0, cy + s * 0.06, s * 0.3, s * 0.13, 5);
   }
@@ -1744,7 +1743,7 @@ class Enemy {
     this.cel(() => { ctx.beginPath(); ctx.moveTo(-s * 0.52, cy - s * 0.62); ctx.lineTo(s * 0.52, cy - s * 0.66); ctx.lineTo(s * 0.46, cy - s * 0.28); ctx.lineTo(s * 0.1, cy - s * 0.2); ctx.lineTo(-s * 0.2, cy - s * 0.3); ctx.lineTo(-s * 0.5, cy - s * 0.24); ctx.closePath(); }, "#1c0e10", 0.04, 2.4);
     const fl = 0.75 + 0.25 * Math.sin(t * 9);
     if (EN_DETAIL) { circle(-s * 0.2, cy - s * 0.44, s * 0.22 * fl, "rgba(255,190,40,0.35)"); circle(s * 0.22, cy - s * 0.46, s * 0.14 * fl, "rgba(255,190,40,0.3)"); }
-    this.fEyes(0, cy - s * 0.44, s * 0.13, "#ffb020", 1.6, false);
+    circle(-s * 0.2, cy - s * 0.43, s * 0.09, "#ffcf4a"); circle(s * 0.2, cy - s * 0.43, s * 0.06, "#ffcf4a");
     this.fMouth(0, cy + s * 0.04, s * 0.3, s * 0.12, 6);
     const pulse = 0.5 + 0.5 * Math.sin(t * 3);
     circle(0, cy + s * 0.42, s * (0.2 + 0.04 * pulse), hexA("#3fe0c8", 0.3 * pulse));
@@ -1776,7 +1775,7 @@ class Enemy {
     for (const sd of [-1, 1]) this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.45, cy - s * 0.75); ctx.quadraticCurveTo(sd * s * 1.2, cy - s * 0.85, sd * s * 1.05, cy - s * 1.5); ctx.quadraticCurveTo(sd * s * 0.88, cy - s * 1.0, sd * s * 0.3, cy - s * 0.95); ctx.closePath(); }, "#f0e6d0", 0.08, 2.4);
     this.cel(() => { ctx.beginPath(); ctx.moveTo(-s * 0.68, cy - s * 0.45); ctx.quadraticCurveTo(0, cy - s * 1.32, s * 0.68, cy - s * 0.45); ctx.closePath(); }, "#9aa0ae", 0.14, 2.6);
     if (EN_DETAIL) for (let i = 0; i < 5; i++) circle((i - 2) * s * 0.24, cy - s * 0.5 - Math.cos((i - 2) * 0.55) * s * 0.06, s * 0.035, "#e8ecf4");
-    this.fEyes(0, cy - s * 0.28, s * 0.14, this.attacking || this.king ? "#ff3a20" : "#ffb020", 1.35);
+    this.eyes(0, cy - s * 0.3, s * 0.13, "#ffcf4a", this.attacking || this.king ? "#ff8a3a" : null);
     this.fMouth(0, cy + s * 0.04, s * 0.28, s * 0.1, 4);
     for (const sd of [-1, 1]) this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.12, cy + s * 0.14); ctx.quadraticCurveTo(sd * s * 0.36, cy + s * 0.08, sd * s * 0.34, cy - s * 0.3); ctx.quadraticCurveTo(sd * s * 0.24, cy - s * 0.04, sd * s * 0.04, cy + s * 0.08); ctx.closePath(); }, "#fff6e0", 0.05, 2);   // big tusks
   }
