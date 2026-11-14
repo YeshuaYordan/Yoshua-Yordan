@@ -42,6 +42,11 @@ canvas {
 
 <script>
 "use strict";
+// ---- Loading screen bookkeeping: every picture the game makes is counted, and every sound file is downloaded up front.
+const LOAD = { total: 0, done: 0, t0: performance.now(), finished: false, fade: 0 };
+{ const NativeImage = window.Image;
+  window.Image = function (w, h) { const img = new NativeImage(w, h); LOAD.total++; let counted = false;
+    const fin = () => { if (!counted) { counted = true; LOAD.done++; } }; img.addEventListener("load", fin); img.addEventListener("error", fin); return img; }; }
 // ============================================================ Arcane Fusion: Merge & Defend
 // The screen is 720 wide; its height follows the device (at least 9:16, taller phones get a taller battlefield).
 const W = 720, BASE_H = 1280;
@@ -704,9 +709,16 @@ function loadAudioBytes(uri) {
   return fetch(uri).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).catch(() => new Promise((ok, no) => {
     const x = new XMLHttpRequest(); x.open("GET", uri); x.responseType = "arraybuffer"; x.onload = () => (x.response ? ok(x.response) : no()); x.onerror = no; x.send(); }));
 }
+const AUDIO_BYTES = {};
+function prefetchAudio() {
+  for (const [name, uri] of Object.entries(SAMPLE_SRC)) {
+    LOAD.total++;
+    loadAudioBytes(uri).then(ab => { AUDIO_BYTES[name] = ab; }).catch(() => {}).finally(() => { LOAD.done++; });
+  }
+}
 function loadSamples() {
   for (const [name, uri] of Object.entries(SAMPLE_SRC)) {
-    loadAudioBytes(uri).then(ab => Sfx.ctx.decodeAudioData(ab, buf => { SAMPLES[name] = buf; }, () => {})).catch(() => {});
+    (AUDIO_BYTES[name] ? Promise.resolve(AUDIO_BYTES[name].slice(0)) : loadAudioBytes(uri)).then(ab => Sfx.ctx.decodeAudioData(ab, buf => { SAMPLES[name] = buf; }, () => {})).catch(() => {});
   }
 }
 // Plays a decoded sample with a slight random pitch. Returns false if it is not loaded (the synth is used instead).
@@ -6003,6 +6015,7 @@ canvas.addEventListener("pointerdown", ev => {
   ev.preventDefault();
   canvas.setPointerCapture?.(ev.pointerId);
   sfxUnlock();
+  if (!LOAD.finished) return;   // still loading
   const p = toLogical(ev); pointer = p;
   if (state === "title" && !bookOpen) { lobbyDown(p); return; }   // lobby: buttons fire on release, so a swipe never presses one
   if (testPick) { testDrag = { y0: p.y, s0: testPick.scroll || 0, moved: false }; return; }   // test picker: drag scrolls, a tap (on release) picks
@@ -8798,7 +8811,31 @@ function drawStorageNav() {
 // ------------------------------------------------------------ Loop
 applyLayout();
 let last = performance.now();
+// Loading screen: shown until every picture and sound has arrived (at most 20 s, so a bad connection can't block the game).
+function drawLoading(now) {
+  const k = LOAD.total ? LOAD.done / LOAD.total : 0, t = now / 1000;
+  const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, "#2a1a44"); bg.addColorStop(1, "#110820"); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 40; i++) { const x = (i * 97.3) % W, y = (i * 211.7 + t * (10 + i % 5) * 6) % H; circle(x, H - y, 1.5 + (i % 3), `rgba(255,220,160,${0.25 + 0.25 * Math.sin(t * 2 + i)})`); }   // drifting sparks
+  const cy = H * 0.36;
+  ctx.save(); ctx.translate(W / 2, cy - 150); ctx.rotate(t * 1.2);
+  for (let i = 0; i < 6; i++) { ctx.rotate(Math.PI / 3); const a = 0.35 + 0.65 * ((Math.sin(t * 4 - i) + 1) / 2); circle(0, -44, 11, `rgba(242,193,78,${a})`); }   // spinning rune dots
+  ctx.restore();
+  text("ARCANE", W / 2, cy, 76, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
+  text("FUSION", W / 2, cy + 78, 76, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
+  text("~ Merge & Defend ~", W / 2, cy + 130, 28, PARCH, { outline: 8 });
+  const bw = W - 200, bx = 100, by = H * 0.68, bh = 30;
+  rrect(bx, by + 5, bw, bh, bh / 2); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
+  rrect(bx, by, bw, bh, bh / 2); ctx.fillStyle = "#2a1d40"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
+  if (k > 0.01) { const fw = Math.max(bh, bw * k); rrect(bx, by, fw, bh, bh / 2); const g = ctx.createLinearGradient(0, by, 0, by + bh); g.addColorStop(0, "#ffe27a"); g.addColorStop(1, "#d8941e"); ctx.fillStyle = g; ctx.fill();
+    rrect(bx + 6, by + 4, fw - 12, bh * 0.32, bh * 0.16); ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.fill(); }
+  text(`Loading...  ${Math.round(k * 100)}%`, W / 2, by + bh + 46, 26, PARCH, { weight: 800, outline: 6 });
+}
 function frame(now) {
+  if (!LOAD.finished) {   // loading screen first
+    const ready = LOAD.total > 0 && LOAD.done >= LOAD.total;
+    if ((ready && now - LOAD.t0 > 500) || now - LOAD.t0 > 20000) { LOAD.finished = true; fadeIn = 0.5; last = now; }
+    else { last = now; drawLoading(now); requestAnimationFrame(frame); return; }
+  }
   if (state === "wave" || state === "break") perfWatch(now - last);
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
   if (liteBattle() && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }   // pictures still loading at start-up
@@ -8837,5 +8874,6 @@ function frame(now) {
   try { syncMusic(); } catch (e) {}
   requestAnimationFrame(frame);
 }
+prefetchAudio();
 requestAnimationFrame(frame);
 </script>
