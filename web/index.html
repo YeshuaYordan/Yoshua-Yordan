@@ -543,6 +543,7 @@ function sfxUnlock() {
     Sfx.ctx = ac;
     Sfx.master = ac.createGain(); Sfx.master.gain.value = 0.32 * (typeof settings !== "undefined" ? settings.vol : 1);
     Sfx.master.connect(ac.destination);
+    Sfx.fx = ac.createGain(); Sfx.fx.gain.value = typeof settings !== "undefined" ? settings.sfx : 0.5; Sfx.fx.connect(Sfx.master);   // card attack / hit sounds
     const buf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     Sfx.noise = buf;
@@ -687,6 +688,8 @@ const SOUND_OF = {
   phoenix: "phoenix", zeus: "thunder", hades: "soul", serpent: "water", fenrir: "zap", kitsune: "phoenix",
 };
 // Plays an element's "atk" or "hit" sound, with limits so a full board never turns into noise.
+// Runs fn with every sound it starts routed through the Attack sounds volume.
+function viaFx(fn) { const m = Sfx.master; if (Sfx.fx) Sfx.master = Sfx.fx; try { fn(); } catch (e) {} finally { Sfx.master = m; } }
 function playSfx(el, kind) {
   if (Sfx.muted || !Sfx.ctx || Sfx.ctx.state !== "running") return;
   const set = SOUNDS[SOUND_OF[el] || "fire"]; if (!set) return;
@@ -697,7 +700,8 @@ function playSfx(el, kind) {
   if (Sfx.recent.length >= 8) return;
   Sfx.last[key] = now; Sfx.recent.push(now);
   // A recorded "<element>_atk" / "<element>_hit" file wins; otherwise the synthesized sound plays.
-  try { playSample(`${el}_${kind}`, 0.7) || set[kind](); } catch (e) {}
+  // Both go through the Attack sounds volume (Settings).
+  viaFx(() => playSample(`${el}_${kind}`, 0.7) || set[kind]());
 }
 
 // ------------------------------------------------------------ Entities
@@ -2692,7 +2696,7 @@ class Zone {
           if (dd > 3) { const pl = this.pull * (e.isBoss ? 0 : e.heavy ? 0.5 : 1) * dt * Math.min(1, dd / 25) * Math.min(1, (this.duration - this.t) * 2); e.x += dx / dd * pl; e.y += dy / dd * pl; }
         }
         if (this.block) e.rootT = Math.max(e.rootT, 0.12);   // Barricade: nobody gets past
-        if (this.tar) { e.slowMult = Math.min(e.slowMult, e.isBoss ? 0.5 : 0.3); e.slowT = Math.max(e.slowT, 0.3); }   // Tar Pit: 70% slower, bosses 50%
+        if (this.tar) { e.slowMult = Math.min(e.slowMult, e.isBoss ? 0.85 : 0.6); e.slowT = Math.max(e.slowT, 0.3); }   // Tar Pit: 40% slower, bosses 15%
         if (this.dps > 0) e.takeDamage(this.dps * dt, this.src, this.color);
         if (this.slowAmt > 0 && !e.dead) e.slow(this.slowAmt, 0.3);
         if (this.burnAmt > 0 && !e.dead) e.burn(this.burnAmt, 1);
@@ -2960,7 +2964,7 @@ const WILD = {
   stalwart: { name: "Stalwart", desc: "The wall gets +25 max HP (and heals 25) and +0.5% damage reduction (up to 60%). Stacks.", hpUp: 25, armorUp: 0.005 },
   spikes: { name: "Spike Trap", desc: "Drop it on the path: spikes hurt every enemy on them for 10 seconds.", trap: true, dmg: 0.2 },
   barricade: { name: "Barricade", desc: "Drop it on the path: enemies there are stopped for 20 seconds.", trap: true, time: 20 },
-  tar: { name: "Tar Pit", desc: "Drop it on the path: enemies there move 70% slower (bosses 50%) for 10 seconds.", trap: true, time: 10 },
+  tar: { name: "Tar Pit", desc: "Drop it on the path: enemies there move 40% slower (bosses 15%) for 10 seconds.", trap: true, time: 10 },
 };
 const WILD_CD = 15;   // seconds of battle before another normal enemy can drop a wild card (not shown to the player)
 let wildDropCd = 0;
@@ -4202,7 +4206,7 @@ function syncCollectLoops() {
     const src = ac.createBufferSource(), g = ac.createGain(), buf = SAMPLES.kitsune_collect;
     src.buffer = buf; src.loop = true; src.loopStart = 0.01; src.loopEnd = buf.duration - 0.01;
     g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(0.5, ac.currentTime + 0.4);
-    src.connect(g); g.connect(Sfx.master); src.start();
+    src.connect(g); g.connect(Sfx.fx || Sfx.master); src.start();   // Kitsune gathering is an attack sound too
     collectLoops.set(c, { src, gain: g });
   }
 }
@@ -4408,10 +4412,12 @@ function drawBeams() {
 function applyHit(el, r, x, y, enemy, sm = 1) {
   playSfx(el, "hit");
   if (EL[el].gather && !Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") {   // Kitsune's burst: a deep boom under the hit sound
+    viaFx(() => {
     playSample("kitsune_boom", 1.0, 1, 0.12);   // the recorded boom (deep bass: felt on headphones and big speakers)
     // A layer phone speakers can play: a big noise crack sweeping down, a mid "crunch" and a buzzy falling body.
     sNoise(0.75, 0.95, "lowpass", 2600, 140, 0.7, 0.1); sNoise(0.35, 0.6, "bandpass", 1100, 220, 1.1, 0.1);
     sTone("sawtooth", 190, 45, 0.6, 0.16, 0.1); sTone("square", 130, 40, 0.5, 0.08, 0.12);
+    });
     shakeT = Math.max(shakeT, 0.4); shakeAmp = Math.max(shakeAmp, 10);
   }
   const d = EL[el], dmg = damageOf(el, r) * sm, splash = d.splash || 0, rm = RARITY_DMG[r] * sm;
@@ -5336,6 +5342,8 @@ const btn = {
   settingsClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { settingsOpen = false; }, 26),
   volDown: makeBtn("-", 0, 0, 66, 56, () => changeVolume(-0.2), 32),
   volUp: makeBtn("+", 0, 0, 66, 56, () => changeVolume(0.2), 32),
+  sfxDown: makeBtn("-", 0, 0, 66, 56, () => changeSfx(-0.1), 32),
+  sfxUp: makeBtn("+", 0, 0, 66, 56, () => changeSfx(0.1), 32),
   missions: makeBtn("", W - 126, 248, 112, 112, () => { missionsOpen = true; missionsTab = 0; achScroll = 0; playUi("ui_pick"); }),
   missionsClose: makeBtn("Close", W / 2 - 110, 0, 220, 64, () => { missionsOpen = false; }, 24),
   tabDaily: makeBtn("Daily Missions", 0, 0, 300, 60, () => { missionsTab = 0; }, 22),
@@ -7031,7 +7039,7 @@ function drawBio() {
 }
 
 // ------------------------------------------------------------ Settings (kept apart from the save, so a progress reset keeps them)
-const settings = { vol: 1, vibrate: true, dmgNums: true, lite: false };
+const settings = { vol: 1, sfx: 0.5, vibrate: true, dmgNums: true, lite: false };   // sfx: card attack sounds, 50% by default
 try { Object.assign(settings, JSON.parse(localStorage.getItem("arcane-fusion-settings") || "{}")); } catch (e) {}
 delete settings.recAudio;   // the old "Sound for screen recording" switch is gone
 if (Sfx.muted && settings.vol > 0 && localStorage.getItem("arcane-fusion-settings") === null) settings.vol = 0;   // old mute setting
@@ -7039,6 +7047,7 @@ function saveSettings() { try { localStorage.setItem("arcane-fusion-settings", J
 function applySettings() {
   Sfx.muted = settings.vol <= 0;
   if (Sfx.master) Sfx.master.gain.value = 0.32 * settings.vol;
+  if (Sfx.fx) Sfx.fx.gain.value = settings.sfx;
 }
 let lastBuzz = 0;
 function buzz(ms) {
@@ -7048,14 +7057,15 @@ function buzz(ms) {
 }
 let settingsOpen = false;
 const settingRows = [
-  { key: "vol", label: "Sound effects", kind: "vol" },
+  { key: "vol", label: "Main volume", kind: "vol" },
+  { key: "sfx", label: "Attack sounds", kind: "vol" },
   { key: "vibrate", label: "Vibration", kind: "bool", note: "Buzz when the castle is hit and when bosses fall" },
   { key: "dmgNums", label: "Damage numbers", kind: "bool", note: "Numbers above enemies when they are hit" },
-  { key: "lite", label: "Battery saver", kind: "bool", note: "Max smoothness: still card effects, simpler enemies and fewer effects" },
+  { key: "lite", label: "Battery saver", kind: "bool", note: "Smoother: still card effects, simpler enemies" },
 ];
 function drawSettings() {
   dim(0.75);
-  const x = 40, w = W - 80, h = 760, y = Math.max(90, H / 2 - h / 2);
+  const x = 40, w = W - 80, h = 890, y = Math.max(60, H / 2 - h / 2);
   rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
   text("Settings", W / 2, y + 64, 44, INK, { font: DISPLAY, weight: 900 });
   settingRows.forEach((r, i) => {
@@ -7063,23 +7073,25 @@ function drawSettings() {
     ctx.fillStyle = "rgba(42,26,18,0.12)"; ctx.fillRect(x + 28, ry - 20, w - 56, 2);
     text(r.label, x + 32, ry + 24, 26, INK, { align: "left", weight: 800 });
     if (r.kind === "vol") {
+      const v = settings[r.key], [dn, up] = r.key === "vol" ? [btn.volDown, btn.volUp] : [btn.sfxDown, btn.sfxUp];
       const bx = x + 32, bw = w - 64 - 180, by = ry + 56;
       rrect(bx, by, bw, 18, 9); ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fill();
-      if (settings.vol > 0) { rrect(bx, by, bw * settings.vol, 18, 9); ctx.fillStyle = "#6cc56a"; ctx.fill(); }
-      text(settings.vol <= 0 ? "Off" : `${Math.round(settings.vol * 100)}%`, x + w - 32, ry + 24, 24, "#6b3a22", { align: "right", weight: 800 });
-      btn.volDown.y = btn.volUp.y = ry + 40; btn.volDown.x = x + w - 172; btn.volUp.x = x + w - 92; drawBtn(btn.volDown); drawBtn(btn.volUp);
+      if (v > 0) { rrect(bx, by, bw * v, 18, 9); ctx.fillStyle = "#6cc56a"; ctx.fill(); }
+      text(v <= 0 ? "Off" : `${Math.round(v * 100)}%`, x + w - 32, ry + 24, 24, "#6b3a22", { align: "right", weight: 800 });
+      if (r.key === "sfx") text("Card attack and hit sounds", x + 32, ry + 96, 17, "#6b3a22", { align: "left", weight: 600 });
+      dn.y = up.y = ry + 40; dn.x = x + w - 172; up.x = x + w - 92; drawBtn(dn); drawBtn(up);
     } else {
       const b = settingToggles[r.key]; b.x = x + w - 152; b.y = ry; b.label = settings[r.key] ? "On" : "Off";
       b.fill = settings[r.key] ? "#6cc56a" : "#c9b89a"; b.fillDown = b.fill; drawBtn(b);
       text(r.note, x + 32, ry + 66, 17, "#6b3a22", { align: "left", weight: 600 });
     }
   });
-  text("Music: coming soon", W / 2, y + h - 130, 19, "#8a6a4a", { weight: 600 });
   btn.settingsClose.y = y + h - 100; drawBtn(btn.settingsClose);
 }
 const settingToggles = {};
 for (const r of settingRows) if (r.kind === "bool") settingToggles[r.key] = makeBtn("On", 0, 0, 120, 60, () => { settings[r.key] = !settings[r.key]; saveSettings(); playUi("ui_pick"); }, 24);
-const settingsButtons = () => [btn.settingsClose, btn.volDown, btn.volUp, ...Object.values(settingToggles)];
+const settingsButtons = () => [btn.settingsClose, btn.volDown, btn.volUp, btn.sfxDown, btn.sfxUp, ...Object.values(settingToggles)];
+function changeSfx(d) { settings.sfx = clamp(Math.round((settings.sfx + d) * 10) / 10, 0, 1); saveSettings(); playSfx("fire", "atk"); }   // plays a sample attack so you can hear the level
 function changeVolume(d) { settings.vol = clamp(Math.round((settings.vol + d) * 5) / 5, 0, 1); saveSettings(); if (settings.vol > 0) playUi("ui_pick"); }
 
 // ------------------------------------------------------------ Lifetime counters, daily missions, achievements
