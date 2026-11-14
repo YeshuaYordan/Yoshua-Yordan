@@ -7371,9 +7371,10 @@ function drawPlaySlider() {
   }
 }
 // Three bosses in shadow, eyes glowing, peeking over the window sill in Boss mode (lobby art coordinates).
-const LOBBY_BOSSES = [["kingOrc", 300, 1090, 2.4, 0, [[-0.22, -0.6], [0.19, -0.6]]], ["kingSlime", 560, 1100, 2.7, 1.7, [[-0.26, -0.05], [0.26, -0.05]]], ["kingGoblin", 812, 1085, 2.3, 3.1, [[-0.24, -0.6], [0.2, -0.6]]]];
+// Eye spots measured from the bosses' current drawings (fractions of size), plus the eye radius.
+const LOBBY_BOSSES = [["kingOrc", 300, 1090, 2.4, 0, [[-0.163, -0.381], [0.163, -0.381]], 0.13], ["kingSlime", 560, 1100, 2.7, 1.7, [[-0.274, -0.194], [0.274, -0.194]], 0.2], ["kingGoblin", 812, 1085, 2.3, 3.1, [[-0.188, -0.481], [0.188, -0.481]], 0.15]];
 function drawLobbyBosses(k) {
-  for (const [kind, x, y, sc, ph, eyes] of LOBBY_BOSSES) {
+  for (const [kind, x, y, sc, ph, eyes, er] of LOBBY_BOSSES) {
     const sz = KINDS[kind].size, bob = Math.sin(lobbyT * 0.9 + ph) * 14 + (1 - k) * 220;   // rise into view as the mode slides in
     const by = y + bob, look = Math.sin(lobbyT * 0.5 + ph) * 0.08;
     ctx.save(); ctx.globalAlpha = k; ctx.translate(x, by); ctx.rotate(look); ctx.scale(sc, sc);
@@ -7384,7 +7385,8 @@ function drawLobbyBosses(k) {
     ctx.globalCompositeOperation = "lighter";
     const blink = ((lobbyT + ph * 3) % 5.3) < 0.15 ? 0.15 : 1;
     for (const [ex, ey] of eyes) {
-      circle(ex * sz, ey * sz, 7, `rgba(255,40,30,${0.45 * blink})`); circle(ex * sz, ey * sz, 3.2, `rgba(255,${120 + 80 * Math.sin(lobbyT * 3 + ph) | 0},90,${blink})`);
+      const r = er * sz;   // glow sized to the eye, sitting right on the iris
+      circle(ex * sz, ey * sz, r * 1.1, `rgba(255,30,30,${0.28 * blink})`); circle(ex * sz, ey * sz, r * 0.5, `rgba(255,50,40,${0.75 * blink})`); circle(ex * sz, ey * sz, r * 0.22, `rgba(255,${150 + 70 * Math.sin(lobbyT * 3 + ph) | 0},110,${blink})`);
     }
     ctx.restore();
   }
