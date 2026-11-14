@@ -2683,6 +2683,7 @@ class Zone {
           if (dd > 3) { const pl = this.pull * (e.isBoss ? 0 : e.heavy ? 0.5 : 1) * dt * Math.min(1, dd / 25) * Math.min(1, (this.duration - this.t) * 2); e.x += dx / dd * pl; e.y += dy / dd * pl; }
         }
         if (this.block) e.rootT = Math.max(e.rootT, 0.12);   // Barricade: nobody gets past
+        if (this.tar) { e.slowMult = Math.min(e.slowMult, e.isBoss ? 0.5 : 0.3); e.slowT = Math.max(e.slowT, 0.3); }   // Tar Pit: 70% slower, bosses 50%
         if (this.dps > 0) e.takeDamage(this.dps * dt, this.src, this.color);
         if (this.slowAmt > 0 && !e.dead) e.slow(this.slowAmt, 0.3);
         if (this.burnAmt > 0 && !e.dead) e.burn(this.burnAmt, 1);
@@ -2946,11 +2947,11 @@ function clearBoard() {
 // right side of the battlefield: scroll it up/down, the card in front is the big one; drag it out to use it.
 // Every wild card shares one frame; each has its own icon. They are lost when the run ends.
 const WILD = {
-  pause: { name: "Pause", desc: "The whole battlefield stops for 10 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 10 },
+  pause: { name: "Pause", desc: "The whole battlefield stops for 15 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 15 },
   stalwart: { name: "Stalwart", desc: "The wall gets +25 max HP (and heals 25) and +0.5% damage reduction (up to 60%). Stacks.", hpUp: 25, armorUp: 0.005 },
-  spikes: { name: "Spike Trap", desc: "Drop it on the path: spikes hurt every enemy on them for 10 seconds.", trap: true },
-  barricade: { name: "Barricade", desc: "Drop it on the path: enemies there are stopped for 5 seconds.", trap: true },
-  tar: { name: "Tar Pit", desc: "Drop it on the path: enemies there move 50% slower for 12 seconds.", trap: true },
+  spikes: { name: "Spike Trap", desc: "Drop it on the path: spikes hurt every enemy on them for 10 seconds.", trap: true, dmg: 0.2 },
+  barricade: { name: "Barricade", desc: "Drop it on the path: enemies there are stopped for 20 seconds.", trap: true, time: 20 },
+  tar: { name: "Tar Pit", desc: "Drop it on the path: enemies there move 70% slower (bosses 50%) for 10 seconds.", trap: true, time: 10 },
 };
 const WILD_CD = 15;   // seconds of battle before another normal enemy can drop a wild card (not shown to the player)
 let wildDropCd = 0;
@@ -2993,9 +2994,9 @@ function useWild(i, p) {
   if (d.trap) {   // traps land where they were dropped, on the path
     const x = clamp(p ? p.x : W / 2, 60, W - 60), y = clamp(p ? p.y : (HUD_H + FRONT_Y) / 2, HUD_H + 70, FRONT_Y - 50);
     let z;
-    if (w.id === "spikes") { z = new Zone(x, y, 90, KINDS.orc.hp * hpScale(Math.max(1, wave)) * 0.15, 10, "#c8ccd4"); z.src = "Spike Trap"; }
-    if (w.id === "barricade") { z = new Zone(x, y, 105, 0, 5, "#8a5a2a"); z.block = true; }
-    if (w.id === "tar") { z = new Zone(x, y, 115, 0, 12, "#2a2018"); z.slowAmt = 0.5; }
+    if (w.id === "spikes") { z = new Zone(x, y, 90, KINDS.orc.hp * hpScale(Math.max(1, wave)) * d.dmg, 10, "#c8ccd4"); z.src = "Spike Trap"; }
+    if (w.id === "barricade") { z = new Zone(x, y, 105, 0, d.time, "#8a5a2a"); z.block = true; }
+    if (w.id === "tar") { z = new Zone(x, y, 115, 0, d.time, "#2a2018"); z.tar = true; }
     z.trap = w.id; zones.push(z);
     fxs.push(new Fx("burst", { x, y, color: z.color, radius: z.radius, duration: 0.5 }));
     playSfx(w.id === "tar" ? "plant" : "earth", "hit"); showInfo(`${d.name} placed!`);
@@ -3012,7 +3013,7 @@ function useWild(i, p) {
     if (timeStopT <= 0) timeStopSpells = 0;
     timeStopT += d.time; timeStopTick = Math.ceil(timeStopT);
     showBanner("TIME STOPPED!", "#9fd8ff");
-    showInfo("The battlefield is frozen for 10s. Move your cards, shop, or cast 1 spell!");
+    showInfo(`The battlefield is frozen for ${d.time}s. Move your cards, shop, or cast 1 spell!`);
     for (let k = 0; k < 3; k++) addPart({ add: true, kind: "ring", x: W / 2, y: (HUD_H + FRONT_Y) / 2, rgb: "170,220,255", size: 20 + k * 30, grow: 900 + k * 200, w: 10 - k * 3, sq: 1, life: 0.7 + k * 0.15 });
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sTone("sine", 900, 90, 0.7, 0.18); sNoise(0.6, 0.35, "bandpass", 2500, 200, 1.5); sTone("triangle", 1760, 1760, 0.15, 0.08, 0.6); }
   }
@@ -3166,10 +3167,10 @@ function drawTimeStop() {
   ctx.fillStyle = `rgba(40,60,90,${0.32 * k})`; ctx.fillRect(0, top, W, h);
   const vg = ctx.createRadialGradient(W / 2, top + h / 2, h * 0.25, W / 2, top + h / 2, h * 0.75);
   vg.addColorStop(0, "rgba(20,30,50,0)"); vg.addColorStop(1, `rgba(20,30,50,${0.45 * k})`); ctx.fillStyle = vg; ctx.fillRect(0, top, W, h);
-  const cx = W / 2, cy = top + 200, r = 62, frac = (timeStopT % 10 || 10) / 10, sec = Math.ceil(timeStopT);
+  const cx = W / 2, cy = top + 200, r = 62, PT = WILD.pause.time, frac = (timeStopT % PT || PT) / PT, sec = Math.ceil(timeStopT);
   ctx.globalAlpha = 0.9 * k;
   circle(cx, cy, r + 10, "rgba(10,20,40,0.55)");
-  ctx.strokeStyle = "#9fd8ff"; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.beginPath(); ctx.arc(cx, cy, r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, timeStopT / 10)); ctx.stroke();
+  ctx.strokeStyle = "#9fd8ff"; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.beginPath(); ctx.arc(cx, cy, r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, timeStopT / PT)); ctx.stroke();
   ctx.save(); ctx.translate(cx, cy); ctx.scale(1.6, 1.6); drawWildIcon("pause", 0, -Math.PI * 2 * (1 - frac)); ctx.restore();
   text(`${sec}`, cx, cy + r + 46, 40, "#eaf6ff", { font: DISPLAY, weight: 900, outline: 8 });
   ctx.restore();
