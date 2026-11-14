@@ -776,6 +776,32 @@ class Card {
     if (maxed) this.drawPowerAura(hw, hh, t, true);
     ctx.restore();
   }
+  // Battery saver: in battle each card is drawn once as a still picture (with all its auras, frozen) and then only
+  // copied, moved and scaled. Live drawing is used only while something about it is changing (evolving, burning).
+  drawBattle() {
+    if (!settings.lite || this.evolveAt >= 0 || this.burnAway !== undefined || (this.ssjFlare || 0) > 0.01) return this.draw();
+    const d = EL[this.element];
+    if (d.art && !(CARD_ILLUS[d.art] && CARD_ILLUS[d.art].ready)) return this.draw();
+    const maxed = (this.stars || 0) >= MAX_STARS, big = maxed || this.rarity >= MYTH || d.art || d.special;
+    const key = `${this.element}|${this.rarity}|${this.stars || 0}|${this.boost || 0}|${this.inShop ? 1 : 0}|${this.isFree ? 1 : 0}|${this.affordable ? 1 : 0}|${this.price}|${this.noLabel ? 1 : 0}`;
+    let sp = CARD_SNAP.get(key);
+    if (!sp) {
+      if (CARD_SNAP.size > 60) CARD_SNAP.clear();
+      const px = maxed ? 95 : big ? 60 : 14, pt = maxed ? 190 : big ? 60 : 14, pb = maxed ? 70 : big ? 60 : 24, res = 2;
+      const w = CARD_W + px * 2, h = CARD_H + pt + pb, c = document.createElement("canvas"); c.width = w * res; c.height = h * res;
+      const g = c.getContext("2d"), main = ctx, keep = [this.x, this.y, this.scale, this.shake, this.kick, this.t, this.dragging];
+      g.scale(res, res); ctx = g;
+      try { this.x = px + CARD_W / 2; this.y = pt + CARD_H / 2; this.scale = 1; this.shake = 0; this.kick = 0; this.t = 1; this.dragging = false; this.draw(); }
+      finally { ctx = main; [this.x, this.y, this.scale, this.shake, this.kick, this.t, this.dragging] = keep; }
+      sp = { c, w, h, ox: px + CARD_W / 2, oy: pt + CARD_H / 2 }; CARD_SNAP.set(key, sp);
+    }
+    const t = this.t;
+    ctx.save();
+    ctx.translate(this.x + Math.sin(t * 60) * 6 * this.shake, this.y - 8 * this.kick - (this.dragging ? 6 : 0));
+    ctx.scale(this.scale, this.scale);
+    ctx.drawImage(sp.c, -sp.ox, -sp.oy, sp.w, sp.h);
+    ctx.restore();
+  }
   // ---- 5-star MAX POWER aura: a bursting golden flame aura (spiky, flickering, stretched upward), shockwaves at its
   // feet, energy streaks and sparks rushing up, pebbles lifting off the ground and blue lightning crackling around it.
   drawPowerAura(hw, hh, t, front) {
@@ -1500,6 +1526,9 @@ for (const [k, u] of Object.entries({"kitsune": "data:image/webp;base64,UklGRrj0
 const GRAD_CACHE = new Map();
 // Fine decorations are skipped when many enemies are on screen, to keep the frame rate smooth.
 let EN_DETAIL = true;
+// Battery saver card pictures (see Card.drawBattle). Redrawn when fonts arrive and, early on, while pictures load.
+const CARD_SNAP = new Map(); let snapClearT = 0;
+if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", () => CARD_SNAP.clear());
 const EN_LAYERS = new Map();   // pre-drawn still parts of enemies (see Enemy.layer)
 function gradPut(k, g) { if (GRAD_CACHE.size > 600) GRAD_CACHE.clear(); GRAD_CACHE.set(k, g); }
 const CC_LIMIT = 10;   // each enemy can be knocked back 10 times and stunned 10 times, then it is immune
@@ -1571,7 +1600,8 @@ class Enemy {
   draw() {
     const s = this.size, t = this.t;
     ctx.save(); ctx.translate(this.x, this.y);
-    if (this.isBoss) this.drawBossAura(s, t);
+    const lite = settings.lite;
+    if (this.isBoss) { if (lite) this.layer("aura", () => this.drawBossAura(s, 0.5)); else this.drawBossAura(s, t); }
     ellipse(0, s * 0.85, s * 0.95, s * 0.28, "rgba(0,0,0,0.32)");
     // Lunge at the wall while attacking; squash when hit.
     if (this.attacking) ctx.translate(0, Math.max(0, Math.sin(t * 9)) * s * 0.12);
@@ -1580,6 +1610,7 @@ class Enemy {
     const cy = this.look === "slime" ? 0 : -Math.abs(Math.sin(t * step)) * s * 0.12;
     const body = this.stunT > 0 ? mixHexToHex(this.color, "#bfefff", 0.6) : this.slowT > 0 ? mixHexToHex(this.color, "#9fdcff", 0.45) : this.color;
     this.layerCol = body;
+    const drawBody = (t, cy) => {
     if (this.look === "slime") this.fSlime(s, t, body);
     else { ctx.save(); ctx.translate(0, cy);   // drawn at cy = 0 so their gradients can be cached
       if (this.look === "boar") this.fBoar(s, t, 0, body);
@@ -1588,6 +1619,11 @@ class Enemy {
       else if (this.look === "orc") this.fOrc(s, t, 0, body);
       ctx.restore(); }
     if (this.king) this.drawCrown(s, cy - s * (this.look === "slime" ? 0.95 : 1.0));
+    };
+    if (lite) {   // Battery saver: one still picture of the whole enemy; it still bobs, lunges and squashes when hit
+      const keepT = this.t; this.t = 0.3;
+      try { this.layer(this.attacking ? "lite_a" : "lite", () => drawBody(0.3, 0), 0, cy); } finally { this.t = keepT; }
+    } else drawBody(t, cy);
     // Status effects.
     if (this.burnT > 0) for (let i = 0; i < 3; i++) {
       const fx = (i - 1) * s * 0.5, fy = cy - s * 0.9 - ((t * 40 + i * 13) % (s * 0.6));
@@ -2180,7 +2216,7 @@ const MAX_PARTS = 1500;
 const PART_SOFT = 500, PART_HARD = 900;
 function addPart(p) {
   if (parts.length > PART_SOFT && Math.random() < (parts.length - PART_SOFT) / (PART_HARD - PART_SOFT)) return;
-  if (parts.length >= (settings.lite ? 350 : MAX_PARTS)) return;
+  if (parts.length >= (settings.lite ? 160 : MAX_PARTS)) return;
   parts.push(Object.assign({ t: 0, life: 0.5, vx: 0, vy: 0, g: 0, drag: 0, size: 4, rot: 0, vr: 0, grow: 0, a: 1, kind: "glow" }, p));
 }
 function updateParts(dt) {
@@ -3938,6 +3974,14 @@ function drawLances() {
     ctx.translate(ox, oy); ctx.rotate(a);
     const edge = sgn => { ctx.moveTo(0, 0); for (let x = 0; x <= L; x += STEP) ctx.lineTo(x, sgn * half(x)); };
     const bodyPath = () => { ctx.beginPath(); ctx.moveTo(0, -half(0)); for (let x = STEP; x <= L; x += STEP) ctx.lineTo(x, -half(x)); for (let x = L; x >= 0; x -= STEP) ctx.lineTo(x, half(x)); ctx.closePath(); };
+    if (settings.lite) {   // Battery saver: just the water beam body, its edge and the white core
+      bodyPath(); const lg = ctx.createLinearGradient(0, -w * 0.75, 0, w * 0.75);
+      lg.addColorStop(0, `rgba(20,90,220,${0.85 * on})`); lg.addColorStop(0.5, `rgba(190,245,255,${0.95 * on})`); lg.addColorStop(1, `rgba(20,90,220,${0.85 * on})`);
+      ctx.fillStyle = lg; ctx.fill();
+      ctx.strokeStyle = `rgba(10,50,140,${0.8 * on})`; ctx.lineWidth = 2.5; ctx.beginPath(); edge(-1); edge(1); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * on})`; ctx.lineWidth = w * 0.18; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L, 0); ctx.stroke();
+      ctx.restore(); continue;
+    }
     // 1. Wide glowing aura.
     ctx.globalCompositeOperation = "lighter";
     let g = ctx.createLinearGradient(0, -w * 1.6, 0, w * 1.6);
@@ -4028,6 +4072,16 @@ function drawBeams() {
     if (!c || !c.beams || !c.beams.length || (drag && drag.card === c) || state !== "wave") continue;
     const ox = c.x, oy = c.y - CARD_H / 2 + 10, t = time;
     ctx.save(); ctx.lineJoin = "round"; ctx.lineCap = "round";
+    if (settings.lite) {   // Battery saver: one bolt per target (blue halo + white core) and a plain glow on it
+      for (const b of c.beams) {
+        const e = b.e, dist = Math.hypot(e.x - ox, e.y - oy), main = boltPath(ox, oy, e.x, e.y, 8, Math.min(26, dist * 0.08));
+        ctx.strokeStyle = "rgba(70,140,255,0.8)"; ctx.lineWidth = 8; strokePath(main);
+        ctx.strokeStyle = "rgba(255,255,255,0.97)"; ctx.lineWidth = 2.6; strokePath(main);
+        circle(e.x, e.y, e.size * 1.1, "rgba(150,190,255,0.35)");
+      }
+      circle(ox, oy, 26, "rgba(255,220,120,0.45)");
+      ctx.restore(); continue;
+    }
     for (const b of c.beams) {
       const e = b.e, dist = Math.hypot(e.x - ox, e.y - oy);
       b.strike = Math.max(0, (b.strike || 0) - 0.08);
@@ -5434,7 +5488,7 @@ function drawWorld() {
     for (const f of fxs) if (f.underChamber) f.draw();
     drawChamber();
   }
-  for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W))) c.draw();
+  for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W))) c.drawBattle();
   if (!chamberOpen) { drawStorageNav(); drawShopLocks(); drawTotemLinks(); drawGather(); }
   if (!chamberOpen) {
     drawParts(); for (const p of projectiles) p.draw();
@@ -5751,8 +5805,8 @@ function applyLayout() {
 window.addEventListener("resize", applyLayout);
 document.addEventListener("visibilitychange", () => { if (document.hidden) shakeT = 0; });   // switching away stops the shake
 function drawFilm() {
-  // Only a soft, static darkening at the edges. No grain, flicker or scratches.
-  ctx.drawImage(vignette, 0, 0);
+  // Only a soft, static darkening at the edges. No grain, flicker or scratches. (Off in Battery saver.)
+  if (!settings.lite) ctx.drawImage(vignette, 0, 0);
 }
 
 // ------------------------------------------------------------ Lobby
@@ -5825,6 +5879,7 @@ function drawLobby(dt) {
     ctx.restore();
   }
 }
+const HOME_BG = { c: null, t: 0 };
 function drawHomeScene() {
   const v = lobbyView(), L = LOBBY, tc = (lobbyT / 2) % 20;   // day/night runs at half speed: a full cycle takes 40 s
   ctx.fillStyle = "#3a2c48"; ctx.fillRect(0, 0, W, H);
@@ -5833,6 +5888,8 @@ function drawHomeScene() {
   let i = 0; while (SKY_KEYS[i + 1][0] <= tc) i++;
   const a = SKY_KEYS[i], b = SKY_KEYS[i + 1], k = (tc - a[0]) / (b[0] - a[0]), night = a[2] + (b[2] - a[2]) * k;
   const skyA = L["sky_" + a[1]], skyB = L["sky_" + b[1]];
+  const bk = lobbyBossK;
+  const paintBg = () => {
   if (skyA.ready) ctx.drawImage(skyA.img, 0, 0, 1080, 1920);
   if (b[1] !== a[1] && skyB.ready) { ctx.globalAlpha = k; ctx.drawImage(skyB.img, 0, 0, 1080, 1920); ctx.globalAlpha = 1; }
   // Sun by day, moon by night, each on an arc across the window (kept below the title).
@@ -5844,7 +5901,6 @@ function drawHomeScene() {
   };
   const cx = -((lobbyT * 22) % 2160); layer(L.clouds, cx, 170); layer(L.clouds, cx + 2160, 170);
   layer(L.hills, 0, 0);
-  const bk = lobbyBossK;
   if (bk > 0.005) {   // Boss mode: a blood-red storm outside, bosses peeking in
     ctx.fillStyle = `rgba(36,6,22,${0.78 * bk})`; ctx.fillRect(0, 0, 1080, 1920);
     const rg = ctx.createRadialGradient(540, 900, 40, 540, 900, 620); rg.addColorStop(0, `rgba(200,30,30,${0.35 * bk})`); rg.addColorStop(1, "rgba(120,10,30,0)");
@@ -5855,6 +5911,16 @@ function drawHomeScene() {
   }
   layer(L.room, 0, 0);
   if (bk > 0.005) { ctx.fillStyle = `rgba(30,6,30,${0.35 * bk})`; ctx.fillRect(0, 0, 1080, 1920); }
+  };
+  if (settings.lite) {   // Battery saver: the sky, clouds, hills, room (and boss storm) become one picture, refreshed 10x a second
+    if (!HOME_BG.c || HOME_BG.c.height !== Math.round(H / 2) || lobbyT - HOME_BG.t > 0.1 || lobbyT < HOME_BG.t) {
+      const c = HOME_BG.c && HOME_BG.c.height === Math.round(H / 2) ? HOME_BG.c : Object.assign(document.createElement("canvas"), { width: W / 2, height: Math.round(H / 2) });   // half resolution
+      const g = c.getContext("2d"), main = ctx; g.setTransform(0.5, 0, 0, 0.5, 0, 0); g.fillStyle = "#3a2c48"; g.fillRect(0, 0, W, H); g.translate(v.ox, v.oy); g.scale(v.s, v.s);
+      ctx = g; try { paintBg(); } finally { ctx = main; }
+      HOME_BG.c = c; HOME_BG.t = lobbyT;
+    }
+    ctx.drawImage(HOME_BG.c, -v.ox / v.s, -v.oy / v.s, W / v.s, H / v.s);
+  } else paintBg();
   // Candle flame and its warm light (stronger at night), plus the hanging lantern's glow.
   if (L.candle.ready) ctx.drawImage(L.candle.img, (Math.floor(lobbyT * 12) % 12) * 120, 0, 120, 200, 845, 1068, 120, 200);
   ctx.globalCompositeOperation = "lighter";
@@ -6041,11 +6107,13 @@ function drawPillarCrystal(x, y, baseY, r, t, i) {
     circle(mx, lerp(baseY, cy + bot, p), 2.5 + (k % 2), `rgba(230,200,255,${0.8 * Math.sin(Math.PI * p)})`);
   }
 }
+const GACHA_BG = { c: null, t: 0 };
 function drawSummonScene() {
   const v = lobbyView(), G = GACHA, t = lobbyT, ph = gachaColorPhase();
   const col = mixHexColors(GACHA_COLORS[ph.i], GACHA_COLORS[ph.j], ph.k);
   ctx.fillStyle = "#151022"; ctx.fillRect(0, 0, W, H);
   ctx.save(); ctx.translate(v.ox, v.oy); ctx.scale(v.s, v.s);
+  const paintBack = () => {
   // 1. Nebula in the round window, slowly turning.
   if (G.g_nebula.ready) { ctx.save(); ctx.translate(540, 470); ctx.rotate(t * Math.PI * 2 / 24); ctx.drawImage(G.g_nebula.img, -350, -350, 700, 700); ctx.restore(); }
   // 2. The room.
@@ -6062,10 +6130,21 @@ function drawSummonScene() {
   // Soft glow on the circle.
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   ctx.save(); ctx.translate(540, 1500); ctx.scale(1, 240 / 500);
-  let g = ctx.createRadialGradient(0, 0, 20, 0, 0, 500);
+  const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 500);
   g.addColorStop(0, col.replace("rgb", "rgba").replace(")", `,${0.32 * pulse})`)); g.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = g; ctx.fillRect(-500, -500, 1000, 1000); ctx.restore();
   ctx.restore();
+  };
+  if (settings.lite) {   // Battery saver: nebula, room, summoning rings and their glow as one half-size picture, refreshed 10x a second
+    if (!GACHA_BG.c || GACHA_BG.c.height !== Math.round(H / 2) || t - GACHA_BG.t > 0.1 || t < GACHA_BG.t) {
+      const c = GACHA_BG.c && GACHA_BG.c.height === Math.round(H / 2) ? GACHA_BG.c : Object.assign(document.createElement("canvas"), { width: W / 2, height: Math.round(H / 2) });
+      const gc = c.getContext("2d"), main = ctx; gc.setTransform(0.5, 0, 0, 0.5, 0, 0); gc.fillStyle = "#151022"; gc.fillRect(0, 0, W, H); gc.translate(v.ox, v.oy); gc.scale(v.s, v.s);
+      ctx = gc; try { paintBack(); } finally { ctx = main; }
+      GACHA_BG.c = c; GACHA_BG.t = t;
+    }
+    ctx.drawImage(GACHA_BG.c, -v.ox / v.s, -v.oy / v.s, W / v.s, H / v.s);
+  } else paintBack();
+  let g;
   // 4. Candle flames.
   if (LOBBY.candle.ready) {
     GACHA_WICKS.forEach(([x, y], i) => ctx.drawImage(LOBBY.candle.img, ((Math.floor(t * 12) + i * 5) % 12) * 120, 0, 120, 200, x - 24, y - 80, 48, 80));
@@ -6093,7 +6172,7 @@ function drawSummonScene() {
   ctx.restore();
   if (LOBBY.card_back.ready && !summonReveal) {
     ctx.save(); ctx.translate(540, cardY); ctx.rotate(Math.sin(t * 1.1) * 0.05);
-    ctx.shadowColor = col; ctx.shadowBlur = 60 + Math.sin(t * 3) * 18;
+    if (!settings.lite) { ctx.shadowColor = col; ctx.shadowBlur = 60 + Math.sin(t * 3) * 18; }   // the big blur is skipped in Battery saver
     ctx.drawImage(LOBBY.card_back.img, -150, -232, 300, 464); ctx.restore();
   }
   ctx.restore();
@@ -6629,7 +6708,7 @@ const settingRows = [
   { key: "vol", label: "Sound effects", kind: "vol" },
   { key: "vibrate", label: "Vibration", kind: "bool", note: "Buzz when the castle is hit and when bosses fall" },
   { key: "dmgNums", label: "Damage numbers", kind: "bool", note: "Numbers above enemies when they are hit" },
-  { key: "lite", label: "Battery saver", kind: "bool", note: "Fewer effects, smoother on older phones" },
+  { key: "lite", label: "Battery saver", kind: "bool", note: "Max smoothness: still card effects, simpler enemies and fewer effects" },
 ];
 function drawSettings() {
   dim(0.75);
@@ -7408,7 +7487,7 @@ function drawPlaySlider() {
   const pos = clamp(playModeT - playDrag, 0, 1); lobbyBossK = pos;
   const press = b.down ? 3 : 0, wait = bossReadyIn(), pul = 0.5 + 0.5 * Math.sin(lobbyT * 4);
   // Glow (red in boss mode).
-  if (pos > 0.01) { ctx.save(); ctx.globalAlpha = pos; ctx.shadowColor = `rgba(255,60,30,${0.5 + 0.4 * pul})`; ctx.shadowBlur = 20 + 12 * pul; rrect(b.x, b.y + press, b.w, b.h, 16); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.restore(); }
+  if (pos > 0.01) { ctx.save(); ctx.globalAlpha = pos; ctx.shadowColor = `rgba(255,60,30,${0.5 + 0.4 * pul})`; ctx.shadowBlur = settings.lite ? 0 : 20 + 12 * pul; rrect(b.x, b.y + press, b.w, b.h, 16); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.restore(); }
   { const lipCol = pos > 0.5 ? "#7a1a12" : "#a8761e", R = 24;   // bubbly 3D base and shadow
     rrect(b.x + 2, b.y + 9, b.w - 4, b.h, R); ctx.fillStyle = "rgba(20,10,20,0.28)"; ctx.fill();
     rrect(b.x, b.y + 6, b.w, b.h, R); ctx.fillStyle = lipCol; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke(); }
@@ -7822,6 +7901,7 @@ applyLayout();
 let last = performance.now();
 function frame(now) {
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
+  if (settings.lite && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }   // pictures still loading at start-up
   update(dt);
   ctx.clearRect(0, 0, W, H);
   if (state === "title") drawLobby(dt);
@@ -7835,7 +7915,7 @@ function frame(now) {
     drawWorld(); drawDoom(); drawHud(); drawSpell(); ctx.restore();
   }
   if (drag) {
-    drag.card.draw();
+    drag.card.drawBattle();
     if (drag.from !== "shop" && inRect(pointer, SELL_HIT))
       text(`Sell for +${sellOf(drag.card.element, drag.card.rarity)} g`, clamp(drag.card.x, 120, W - 120), drag.card.y - CARD_H / 2 - 18, 26, GOLD, { weight: 700, outline: 6 });
   }
