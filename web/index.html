@@ -2415,6 +2415,8 @@ for (const [a, b, k] of RECIPE_LIST) {
   EPV[k] = { head, dl, cl, c1, c2, c3, h1: arrHex(c1), h2: arrHex(c2), h3: arrHex(c3), hl: arrHex(lit(c1)), cols: [[255, 255, 255], lit(c1), c1, mixArr(c1, [0, 0, 0], 0.5)], cols2: [lit(c2), c2, mixArr(c2, [0, 0, 0], 0.5)], rgb: c1.join(","), rgb2: c2.join(",") };
   VFX_STYLE[k] = "ep";
 }
+if (EPV.bonefire) EPV.bonefire.head = "crossbones";   // their own one-of-a-kind heads
+if (EPV.tomb_dust) EPV.tomb_dust.head = "coffin";
 function epTrail(pr, n, back, bx, by, R) {
   const v = EPV[pr.element]; if (!v) return;
   for (let i = n(45); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 100)), life: rand(0.25, 0.42), size: R * rand(0.55, 0.95), grow: -0.55, cols: v.cols, a: 0.8 });
@@ -2452,6 +2454,20 @@ function epHead(pr, R, t) {
     case "shard": { ctx.rotate(pr.ang); const g = ctx.createLinearGradient(-R * 2, 0, R * 2.4, 0); g.addColorStop(0, `rgba(${v.rgb},0.2)`); g.addColorStop(0.6, v.h1); g.addColorStop(1, "#ffffff"); poly([[R * 2.4, 0], [0, -R * 0.75], [-R * 2, 0], [0, R * 0.75]], g, v.hl, 1.4); ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-R * 2, 0); ctx.lineTo(R * 2.4, 0); ctx.stroke(); break; }
     case "eye": { const blink = (t % 2.2) < 0.12 ? 0.15 : 1; circle(0, 0, R * 1.45, `rgba(${v.rgb2},0.45)`); ctx.save(); ctx.scale(1, blink); ellipse(0, 0, R * 1.2, R * 0.85, "#f4f0e8"); ring(0, 0, R * 0.55, INK, 1); circle(Math.cos(t * 3) * R * 0.25, 0, R * 0.55, v.h1); ellipse(Math.cos(t * 3) * R * 0.25, 0, R * 0.12, R * 0.45, "#0a0408"); ctx.restore(); ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(0, 0, R * 1.2, R * 0.85 * blink, 0, 0, Math.PI * 2); ctx.stroke(); break; }
     case "feather": ctx.rotate(pr.ang + Math.sin(t * 10) * 0.3); ctx.beginPath(); ctx.moveTo(R * 2, 0); ctx.quadraticCurveTo(R * 0.6, -R * 1.1, -R * 1.8, -R * 0.2); ctx.lineTo(-R * 1.8, R * 0.2); ctx.quadraticCurveTo(R * 0.6, R * 1.1, R * 2, 0); ctx.closePath(); ctx.fillStyle = "#ffffff"; ctx.fill(); ctx.strokeStyle = v.h1; ctx.lineWidth = 1.6; ctx.stroke(); ctx.beginPath(); ctx.moveTo(-R * 2.4, 0); ctx.lineTo(R * 1.9, 0); ctx.strokeStyle = v.h2; ctx.lineWidth = 1.4; ctx.stroke(); break;
+    case "crossbones": {   // two crossed bones spinning inside a ring of flickering flames
+      for (let k = 0; k < 7; k++) { const a = k * Math.PI * 2 / 7 + t * 2, fl = 1 + 0.35 * Math.sin(t * 22 + k * 1.7);
+        ctx.save(); ctx.rotate(a); poly([[R * 0.7, -R * 0.35], [R * 1.9 * fl, 0], [R * 0.7, R * 0.35]], k % 2 ? "#ff8a2a" : "#ffd04a", null); ctx.restore(); }
+      ctx.save(); ctx.rotate(t * 7);
+      const bone = rot => { ctx.save(); ctx.rotate(rot); rrect(-R * 1.3, -R * 0.2, R * 2.6, R * 0.4, R * 0.2); ctx.fillStyle = "#f2ead8"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.stroke();
+        for (const sx of [-1, 1]) for (const sy of [-1, 1]) { circle(sx * R * 1.3, sy * R * 0.22, R * 0.28, "#f2ead8"); ring(sx * R * 1.3, sy * R * 0.22, R * 0.28, INK, 1.2); } ctx.restore(); };
+      bone(0.785); bone(-0.785); ctx.restore(); break; }
+    case "coffin": {   // a tumbling sarcophagus with sand swirling round it
+      for (let q = 0; q < 14; q++) { const a = t * 6 + q * 0.45, rr = R * (1.6 + 0.15 * Math.sin(q * 2.1 + t * 5)); circle(Math.cos(a) * rr, Math.sin(a) * rr * 0.55, R * (0.16 - q * 0.007), `rgba(${v.rgb},${0.9 - q * 0.05})`); }
+      ctx.save(); ctx.rotate(Math.sin(t * 5) * 0.5 + t * 2);
+      poly([[0, -R * 1.5], [R * 0.75, -R * 0.75], [R * 0.55, R * 1.4], [-R * 0.55, R * 1.4], [-R * 0.75, -R * 0.75]], "#c9a86a", INK, 1.5);
+      poly([[0, -R * 1.2], [R * 0.5, -R * 0.65], [R * 0.36, R * 1.15], [-R * 0.36, R * 1.15], [-R * 0.5, -R * 0.65]], "#8a6a3a", null);
+      ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -R * 0.7); ctx.lineTo(0, R * 0.6); ctx.moveTo(-R * 0.3, -R * 0.35); ctx.lineTo(R * 0.3, -R * 0.35); ctx.stroke();
+      ctx.restore(); break; }
     case "arrow": ctx.rotate(pr.ang); ctx.strokeStyle = v.hl; ctx.lineWidth = R * 0.3; ctx.beginPath(); ctx.moveTo(-R * 2.2, 0); ctx.lineTo(R * 1.2, 0); ctx.stroke(); poly([[R * 2.2, 0], [R * 0.9, -R * 0.65], [R * 0.9, R * 0.65]], v.h1, INK, 1.2); for (const sy of [-1, 1]) poly([[-R * 1.3, 0], [-R * 2.3, sy * R * 0.7], [-R * 2.1, 0]], v.h2, null); break;
   }
 }
