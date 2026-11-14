@@ -4789,14 +4789,36 @@ function baseButtons() {
   if (!drag) list.push(btn.next, btn.runes, btn.spell, btn.speed, ...(TESTER_RESET ? [btn.testCards] : []));
   return list;
 }
+// The bubbly body shared by every button: drop shadow, darker 3D base, gradient face, gloss and a sparkle.
+function bubbleBody(x, y, w, h, base, press = 0, R = Math.min(h / 2, 24)) {
+  const lip = shade(base, -0.3), edge = shade(base, -0.55);
+  rrect(x + 2, y + 9, w - 4, h, R); ctx.fillStyle = "rgba(20,10,20,0.28)"; ctx.fill();
+  rrect(x, y + 6, w, h, R); ctx.fillStyle = lip; ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 3; ctx.stroke();
+  rrect(x, y + press, w, h, R);
+  const g = ctx.createLinearGradient(0, y + press, 0, y + press + h); g.addColorStop(0, shade(base, 0.2)); g.addColorStop(1, base);
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 3; ctx.stroke();
+}
+function bubbleGloss(x, y, w, h, press = 0, R = Math.min(h / 2, 24)) {
+  rrect(x + 8, y + press + 5, w - 16, Math.max(6, h * 0.34), Math.min(R * 0.7, h * 0.17)); ctx.fillStyle = "rgba(255,255,255,0.42)"; ctx.fill();
+  circle(x + Math.min(16, R * 0.8), y + press + Math.min(11, h * 0.22), Math.min(3.2, h * 0.07), "rgba(255,255,255,0.9)");
+}
+// Bubbly buttons: a rounded pill with a thick darker 3D base, a soft drop shadow, a glossy top shine and a sparkle.
+// Each button keeps its own colour (b.fill); pressing pushes it down onto its base.
 function drawBtn(b, disabled = false) {
-  const press = b.down ? 3 : 0;
-  rrect(b.x, b.y + 4, b.w, b.h, 16); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
-  rrect(b.x, b.y + press, b.w, b.h, 16);
-  ctx.fillStyle = disabled ? "#8c7f6c" : (b.down ? (b.fillDown || "#cfb486") : (b.fill || "#e9d3a6")); ctx.fill();
-  ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
+  const press = b.down ? 5 : 0, R = Math.min(b.h / 2, 24);
+  const base = disabled ? "#8c7f6c" : (b.fill || "#e9d3a6"), lip = shade(base, -0.3), edge = shade(base, -0.55);
+  rrect(b.x + 2, b.y + 9, b.w - 4, b.h, R); ctx.fillStyle = "rgba(20,10,20,0.28)"; ctx.fill();            // soft drop shadow
+  rrect(b.x, b.y + 6, b.w, b.h, R); ctx.fillStyle = lip; ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 3; ctx.stroke();   // 3D base
+  rrect(b.x, b.y + press, b.w, b.h, R);
+  const g = ctx.createLinearGradient(0, b.y + press, 0, b.y + press + b.h); g.addColorStop(0, shade(base, 0.2)); g.addColorStop(1, b.down ? shade(base, -0.08) : base);
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = edge; ctx.lineWidth = 3; ctx.stroke();
+  if (!disabled) {
+    rrect(b.x + 8, b.y + press + 5, b.w - 16, Math.max(6, b.h * 0.34), Math.min(R * 0.7, b.h * 0.17)); ctx.fillStyle = "rgba(255,255,255,0.42)"; ctx.fill();   // gloss
+    circle(b.x + Math.min(16, R * 0.8), b.y + press + Math.min(11, b.h * 0.22), Math.min(3.2, b.h * 0.07), "rgba(255,255,255,0.9)");                        // sparkle
+  }
   const lines = b.label.split("\n"), lh = b.size * 1.15;
-  lines.forEach((ln, i) => text(ln, b.x + b.w / 2, b.y + press + b.h / 2 + (i - (lines.length - 1) / 2) * lh, b.size, disabled ? hexA(INK, 0.6) : (b.color || INK), { weight: b.weight || 600, font: b.font, baseline: "middle", outline: b.outline || 0 }));
+  lines.forEach((ln, i) => text(ln, b.x + b.w / 2, b.y + press + b.h / 2 + 1 + (i - (lines.length - 1) / 2) * lh, b.size, disabled ? hexA(INK, 0.6) : (b.color || INK),
+    { weight: b.weight || 700, font: b.font, baseline: "middle", outline: b.outline || 0 }));
 }
 
 // ------------------------------------------------------------ Input
@@ -5283,9 +5305,9 @@ function drawSellBox() {
   const over = selling && inRect(pointer, SELL_HIT);
   const pulse = 0.5 + 0.5 * Math.sin(time * 6);
   if (selling) { rrect(r.x - 6, r.y - 6, r.w + 12, r.h + 12, 18); ctx.fillStyle = hexA(GOLD, over ? 0.45 : 0.15 + 0.15 * pulse); ctx.fill(); }
-  rrect(r.x, r.y + 3, r.w, r.h, 14); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
-  rrect(r.x, r.y, r.w, r.h, 14); ctx.fillStyle = over ? "#d9704f" : "#b4553a"; ctx.fill();
-  ctx.strokeStyle = selling ? GOLD : INK; ctx.lineWidth = selling ? 4 : 3; ctx.stroke();
+  bubbleBody(r.x, r.y, r.w, r.h, over ? "#d9704f" : "#b4553a");
+  if (selling) { rrect(r.x, r.y, r.w, r.h, Math.min(r.h / 2, 24)); ctx.strokeStyle = GOLD; ctx.lineWidth = 4; ctx.stroke(); }
+  bubbleGloss(r.x, r.y, r.w, r.h);
   // Coin bag icon.
   const bx = r.x + 30, by = r.y + r.h / 2 + 4;
   poly([[bx - 14, by + 12], [bx - 12, by - 4], [bx - 6, by - 10], [bx + 6, by - 10], [bx + 12, by - 4], [bx + 14, by + 12]], "#e9d3a6", INK, 2.5);
@@ -7121,8 +7143,10 @@ function drawPlaySlider() {
   const press = b.down ? 3 : 0, wait = bossReadyIn(), pul = 0.5 + 0.5 * Math.sin(lobbyT * 4);
   // Glow (red in boss mode).
   if (pos > 0.01) { ctx.save(); ctx.globalAlpha = pos; ctx.shadowColor = `rgba(255,60,30,${0.5 + 0.4 * pul})`; ctx.shadowBlur = 20 + 12 * pul; rrect(b.x, b.y + press, b.w, b.h, 16); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.restore(); }
-  rrect(b.x, b.y + 4, b.w, b.h, 16); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
-  ctx.save(); rrect(b.x, b.y + press, b.w, b.h, 16); ctx.clip();
+  { const lipCol = pos > 0.5 ? "#7a1a12" : "#a8761e", R = 24;   // bubbly 3D base and shadow
+    rrect(b.x + 2, b.y + 9, b.w - 4, b.h, R); ctx.fillStyle = "rgba(20,10,20,0.28)"; ctx.fill();
+    rrect(b.x, b.y + 6, b.w, b.h, R); ctx.fillStyle = lipCol; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke(); }
+  ctx.save(); rrect(b.x, b.y + press, b.w, b.h, 24); ctx.clip();
   // Normal side.
   const nx = b.x - pos * b.w;
   ctx.fillStyle = b.down ? "#d9a838" : GOLD; ctx.fillRect(nx, b.y + press, b.w, b.h);
@@ -7139,8 +7163,9 @@ function drawPlaySlider() {
     text("BOSS BREAK OUT", bx + b.w / 2, cy - 14, 22, "#ff9a7a", { font: DISPLAY, weight: 900, outline: 5, baseline: "middle" });
     text(`Ready in ${fmtTime(wait)}`, bx + b.w / 2, cy + 20, 21, PARCH, { weight: 800, outline: 4, baseline: "middle" });
   }
+  bubbleGloss(b.x, b.y, b.w, b.h, press);
   ctx.restore();
-  rrect(b.x, b.y + press, b.w, b.h, 16); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
+  rrect(b.x, b.y + press, b.w, b.h, 24); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
   // Mode dots and swipe hint above the button.
   const dy = b.y - 18;
   rrect(W / 2 - 112, dy - 15, 224, 30, 15); ctx.fillStyle = "rgba(20,10,30,0.72)"; ctx.fill();
