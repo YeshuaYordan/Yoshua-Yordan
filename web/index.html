@@ -3592,8 +3592,13 @@ function waveCleared(w) {
     showBanner(`Stage ${stageNum(w)} cleared!  +${bonus} gold  +${GEMS_PER_STAGE} gems`, "#7fe6ff");
     offerRelics();
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running" && SAMPLES.stage_clear) {   // stage clear fanfare, at its true pitch
-      const src = Sfx.ctx.createBufferSource(), g = Sfx.ctx.createGain(); src.buffer = SAMPLES.stage_clear; g.gain.value = 0.9;
+      const ac = Sfx.ctx, src = ac.createBufferSource(), g = ac.createGain(); src.buffer = SAMPLES.stage_clear; g.gain.value = 1.0;
       src.connect(g); g.connect(Sfx.master); src.start();
+      if (Music.gain && Music.name) {   // the music dips while the fanfare plays, then comes back
+        const mg = Music.gain.gain, v = MUSIC_VOL[Music.name], now = ac.currentTime;
+        mg.cancelScheduledValues(now); mg.setValueAtTime(mg.value, now); mg.linearRampToValueAtTime(v * 0.2, now + 0.08);
+        mg.setValueAtTime(v * 0.2, now + SAMPLES.stage_clear.duration); mg.linearRampToValueAtTime(v, now + SAMPLES.stage_clear.duration + 0.8);
+      }
     }
   } else showBanner(`Wave ${waveLabel(w)} cleared!  +${bonus} gold`, GOLD);
   writeSave();
