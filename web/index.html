@@ -5940,6 +5940,7 @@ canvas.addEventListener("pointerdown", ev => {
   sfxUnlock();
   const p = toLogical(ev); pointer = p;
   if (state === "title" && !bookOpen) { lobbyDown(p); return; }   // lobby: buttons fire on release, so a swipe never presses one
+  if (testPick) { testDrag = { y0: p.y, s0: testPick.scroll || 0, moved: false }; return; }   // test picker: drag scrolls, a tap (on release) picks
   for (const b of visibleButtons()) {
     if (inRect(p, b)) {
       if (b === btn.reroll && gold < rerollPrice()) { showInfo("Not enough gold to reroll."); return; }
@@ -5969,6 +5970,7 @@ canvas.addEventListener("pointerdown", ev => {
 canvas.addEventListener("pointermove", ev => {
   const p = toLogical(ev); pointer = p;
   if (lobbySwipe) { lobbyMove(p); return; }
+  if (testPick && testDrag) { if (Math.abs(p.y - testDrag.y0) > 10) testDrag.moved = true; if (testDrag.moved) testPick.scroll = testDrag.s0 - (p.y - testDrag.y0); return; }
   if (bookOpen && bookDrag) { bookScroll = bookDrag.s - (p.y - bookDrag.y); return; }
   if (spell && spell.drawing) { const st = spell.strokes[spell.strokes.length - 1], l = st[st.length - 1]; if (Math.hypot(p.x - l[0], p.y - l[1]) > 3) st.push([p.x, p.y]); return; }
   if (wildMove(p)) return;
@@ -5982,6 +5984,7 @@ canvas.addEventListener("pointermove", ev => {
 });
 function pointerUp(ev) {
   const p = toLogical(ev); pointer = p; bookDrag = null; storageSwipe = null;
+  if (testPick && testDrag) { const d = testDrag; testDrag = null; if (!d.moved) { const b = visibleButtons().find(b => inRect(p, b)); if (b) b.onTap(); } return; }
   if (lobbySwipe) { lobbyUp(p); return; }
   // Lifting the finger ends a line; the rune is read once no new line starts for RUNE_SETTLE seconds.
   if (spell && spell.drawing) { spell.drawing = false; spell.settle = RUNE_SETTLE; return; }
@@ -6007,7 +6010,8 @@ function pointerUp(ev) {
 canvas.addEventListener("pointerup", pointerUp);
 canvas.addEventListener("pointercancel", () => { wildDrag = null; wildFan = null; cancelDrag(); bookDrag = null; if (lobbySwipe?.btn) lobbySwipe.btn.down = false; lobbySwipe = null; });
 canvas.addEventListener("wheel", ev => {
-  if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); }
+  if (testPick) { testPick.scroll = (testPick.scroll || 0) + ev.deltaY; ev.preventDefault(); }
+  else if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); }
   else if (state === "title" && missionsOpen) { achScroll += ev.deltaY; ev.preventDefault(); }
   else if (state === "title" && lobbyPage === -1) { cardsScroll = clamp(cardsScroll + ev.deltaY, 0, cardsMaxScroll()); ev.preventDefault(); }
 }, { passive: false });
@@ -7359,7 +7363,7 @@ let bioOpen = false;
 const TESTER_RESET = true;
 let resetArmed = 0;
 // TEMPORARY for testers: a TEST button in battle opens a picker with every card in the game.
-let testPick = null, testBtns = [];
+let testPick = null, testBtns = [], testDrag = null;
 const TEST_GROUPS = () => [["Main", BASE], ["Next", NEXT_ELS], ["Epic", EPIC_ELS], ["Myth", MYTH_ELS], ["Legend", LEGEND_ELS], ["Special", SPECIALS]];
 const testRarity = (el, lvl) => EL[el].special ? SPECIAL : EL[el].legendCard ? LEGEND_R : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : lvl;
 function testGive(el) {
@@ -7383,7 +7387,11 @@ function drawTestPicker(dt) {
   [0, 1, 2].forEach(l => { const b = Object.assign(makeBtn(`V${l + 1}`, x + 230 + l * 96, y + 66, 84, 44, () => { testPick.lvl = l; playUi("ui_pick"); }, 20), { fill: testPick.lvl === l ? GOLD : "#e9d3a6" }); testBtns.push(b); drawBtn(b); });
   // Cards, 6 per row, grouped.
   const cols = 6, cw = (w - 30) / cols, sc = 0.6, rowH = CARD_H * sc + 34;
-  let cy = y + 140;
+  const top = y + 124, bottom = y + h - 14;   // the card list scrolls inside this area
+  let total = 0; for (const [, list] of TEST_GROUPS()) if (list.length) total += 16 + Math.ceil(list.length / cols) * rowH + 6;
+  testPick.scroll = clamp(testPick.scroll || 0, 0, Math.max(0, total + 20 - (bottom - top)));
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 4, top, w - 8, bottom - top); ctx.clip();
+  let cy = top + 16 - testPick.scroll;
   for (const [title, list] of TEST_GROUPS()) {
     if (!list.length) continue;
     text(title, x + 22, cy + 6, 18, "#c9a6ff", { align: "left", weight: 800 }); cy += 16;
@@ -7394,9 +7402,15 @@ function drawTestPicker(dt) {
       let c = testCards.get(key); if (!c) { c = new Card(el, r); c.noLabel = true; testCards.set(key, c); }
       c.t += dt; c.evolveAt = -1; c.x = c.hx = cx; c.y = c.hy = ccy; c.scale = sc; c.draw();
       text(EL[el].name, cx, ccy + CARD_H * sc / 2 + 16, 14, PARCH, { weight: 700, outline: 4 });
-      testBtns.push(makeBtn("", cx - cw / 2 + 4, ccy - CARD_H * sc / 2, cw - 8, CARD_H * sc + 22, () => testGive(el)));
+      const by = ccy - CARD_H * sc / 2, bh = CARD_H * sc + 22;
+      if (by + bh > top && by < bottom) testBtns.push(makeBtn("", cx - cw / 2 + 4, Math.max(top, by), cw - 8, Math.min(bottom, by + bh) - Math.max(top, by), () => testGive(el)));   // only the visible part can be tapped
     });
     cy += rowH + 6;
+  }
+  ctx.restore();
+  if (total + 20 > bottom - top) {   // scroll bar
+    const trackH = bottom - top, thumb = Math.max(50, trackH * trackH / (total + 20)), pos = testPick.scroll / (total + 20 - trackH) * (trackH - thumb);
+    rrect(x + w - 12, top + pos, 6, thumb, 3); ctx.fillStyle = "rgba(255,200,190,0.5)"; ctx.fill();
   }
   btn.testClose.x = x + w - btn.testClose.w - 14; btn.testClose.y = y + 12; drawBtn(btn.testClose);
 }
