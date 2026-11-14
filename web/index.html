@@ -3119,7 +3119,7 @@ function drawWildCard(id, x, y, sc, rot = 0, n = 1, glow = 0) {
   drawCached("wild_" + id, CARD_W + 30, CARD_H + 30, () => {
     drawWildFrame(hw, hh); if (WILD[id].trap) drawTrapIcon(id); else drawWildIcon(id);
     const py = hh - 20; rrect(-hw + 9, py - 11, CARD_W - 18, 22, 8); ctx.fillStyle = "rgba(240,248,255,0.95)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
-    text(WILD[id].name, 0, py + 1, 15, "#1c3552", { font: DISPLAY, weight: 900, baseline: "middle" });
+    text(WILD[id].name, 0, py + 1, WILD[id].name.length > 8 ? 12.5 : 15, "#1c3552", { font: DISPLAY, weight: 900, baseline: "middle" });
   });
   const sh = ((time * 0.5 + x * 0.003) % 2.2) - 0.6;   // foil shine
   if (sh < 1.1) { ctx.save(); rrect(-hw, -hh, CARD_W, CARD_H, 11); ctx.clip(); ctx.globalCompositeOperation = "lighter"; const sx = -hw + sh * CARD_W;
