@@ -4483,6 +4483,16 @@ function hitEnemy(e, el, r, dmg, sm = 1) {
 // After any Special card shows up in the shop, no Special card can show up again for this long (seconds of play).
 const SPECIAL_SHOP_CD = 90;
 let specialShopCd = 0;
+// With 6 main elements a random card matches yours less often than with 4, so each shop slot has a 15% chance to
+// offer a main element you already hold (battle row or storage). Pairs then come up a bit more often than before.
+const SHOP_MATCH = 0.15;
+function shopBase() {
+  if (Math.random() < SHOP_MATCH) {
+    const mine = [...rows.active, ...rows.storage].filter(c => c && EL[c.element].tier === 1).map(c => c.element);
+    if (mine.length) return pickOne(mine);
+  }
+  return randomBase();
+}
 function refreshShop() {
   // Each owned totem (Fight, Flight) may take one of the open slots: one roll per totem per refresh, not per slot.
   const open = [...Array(SHOP_N).keys()].filter(i => !(rows.shop[i] && rows.shop[i].locked)), special = {};
@@ -4496,7 +4506,7 @@ function refreshShop() {
     if (rows.shop[i] && rows.shop[i].locked) continue;   // a locked card stays until it is bought
     let c;
     if (special[i]) c = new Card(special[i], SPECIAL);
-    else { const el = randomBase(); c = new Card(el, Math.min(maxRarity(el), rollRarity(Math.max(1, wave + 1)))); }
+    else { const el = shopBase(); c = new Card(el, Math.min(maxRarity(el), rollRarity(Math.max(1, wave + 1)))); }
     c.inShop = true; c.price = priceOf(c.element, c.rarity);
     const s = slotPos("shop", i); c.setHome(s.x, s.y, true); c.y += 200;
     rows.shop[i] = c;
