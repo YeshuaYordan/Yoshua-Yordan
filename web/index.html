@@ -101,8 +101,8 @@ const EL = {
   // Myth cards. These are not made from recipes: the Fusion Chamber creates them from Epic cards.
   // Special cards (tier 4). Never made by merging or fusing: they come from Summon (gacha) or purchases.
   // Once owned, they can show up (rarely) in the shop during runs. base = the element sprite they use.
-  totem:      { name: "Fight", tier: 4, special: true, totem: "dmg", base: "fire", color: "#ff4a2a", shape: "flame", parts: ["fire"], desc: "War totem. Never attacks. The cards right next to it (left and right) deal x2 damage. Drop another Fight on it for +0.5x more, with no limit.", dmg: 0, rate: 1 },
-  flight:     { name: "Flight", tier: 4, special: true, totem: "spd", base: "wind", color: "#5fd8ff", shape: "swirl", parts: ["wind"], desc: "Sky totem. Never attacks. The cards right next to it (left and right) attack x2 faster. Drop another Flight on it for +0.5x more, with no limit.", dmg: 0, rate: 1 },
+  totem:      { name: "Fight", tier: 4, special: true, totem: "dmg", base: "fire", color: "#ff4a2a", shape: "flame", parts: ["fire"], desc: "War totem. Never attacks. The cards right next to it (left and right) deal x2 damage. Drop another Fight on it for +0.5x more, up to x4.", dmg: 0, rate: 1 },
+  flight:     { name: "Flight", tier: 4, special: true, totem: "spd", base: "wind", color: "#5fd8ff", shape: "swirl", parts: ["wind"], desc: "Sky totem. Never attacks. The cards right next to it (left and right) attack x2 faster. Drop another Flight on it for +0.5x more, up to x4.", dmg: 0, rate: 1 },
   // Legend cards: separate cards (not a Legend version of another card), created in the Legend Chamber or from Summon.
   // art = a full-card illustration instead of a frame + spirit.
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
@@ -137,9 +137,9 @@ const V3 = 2, EPIC = 3;
 const MYTH = 4, SPECIAL = 6, LEGEND_R = 5;
 const maxRarity = el => EL[el].special ? SPECIAL : EL[el].tier === 3 ? EPIC : V3;
 // Stars: two identical Myth or Legend cards (same card, same rarity) combine into one card with a star.
-// Each star doubles the card's damage. Stars add up (a 1-star + a plain card = 2 stars), up to 5 stars.
+// Each star adds +1x damage (1 star x2, 2 stars x3 ... 5 stars x6). Stars add up (a 1-star + a plain card = 2 stars), up to 5 stars.
 const MAX_STARS = 5;
-const starMult = c => (c && c.stars ? 2 ** c.stars : 1);
+const starMult = c => 1 + (c && c.stars ? c.stars : 0);
 // Totems: a battle-row card directly left or right of a totem gets +boost x (x2 for a fresh one).
 // kind "dmg" = Fight (damage), "spd" = Flight (attack speed).
 function totemMult(c, kind = "dmg") {
@@ -150,7 +150,9 @@ function totemMult(c, kind = "dmg") {
 }
 // Combined boost of two totems put together: each extra card adds +0.5x.
 const TOTEM_STEP = el => 0.5;   // Fight and Flight: each extra copy adds +0.5x
+const TOTEM_MAX = 3;   // boost 3 = x4, the most a totem can give (5 copies)
 const totemSum = (el, a, b) => (a || 1) + (b || 1) - 1 + TOTEM_STEP(el);
+const totemFull = c => (c.boost || 1) >= TOTEM_MAX;
 const powerMult = c => starMult(c) * totemMult(c, "dmg") * curseDmgMult();
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
@@ -206,7 +208,7 @@ function rollRarity(wave) {
   return 0;
 }
 const randomBase = () => BASE[Math.floor(Math.random() * 4)];
-const describe = (el, r, st = 0, boost = 1) => EL[el].totem ? `${EL[el].name} x${1 + boost}: never attacks. The cards right next to it (left and right) ${EL[el].totem === "spd" ? `attack x${1 + boost} faster` : `deal x${1 + boost} damage`}. Drop another ${EL[el].name} on it for +0.5x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * 2 ** st)} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
+const describe = (el, r, st = 0, boost = 1) => EL[el].totem ? `${EL[el].name} x${1 + boost}: never attacks. The cards right next to it (left and right) ${EL[el].totem === "spd" ? `attack x${1 + boost} faster` : `deal x${1 + boost} damage`}. Drop another ${EL[el].name} on it for +0.5x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * (1 + st))} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
 
 // ------------------------------------------------------------ Save (per-browser)
 const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {}, tut: {} };
@@ -1539,8 +1541,8 @@ class Enemy {
     const d = KINDS[kind], w = wave - 1;
     this.kind = kind; this.look = d.look; this.x = x; this.y = y;
     this.isBoss = !!d.boss; this.king = !!d.king; this.glow = !!d.glow; this.heavy = !!d.heavy;
-    this.hp = d.hp * (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, Math.max(0, w - 40)); this.maxHp = this.hp;   // steeper mid game, gentler late game
-    this.speed = d.speed * (1 + Math.min(0.5, wave * 0.012)); this.size = d.size;
+    this.hp = d.hp * (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, clamp(w - 40, 0, 20)) * Math.pow(1.06, Math.max(0, w - 60)); this.maxHp = this.hp;   // steeper mid game; from wave 60 +6% per wave
+    this.speed = d.speed * (1 + Math.min(0.5, wave * 0.012)) * (1 + clamp((wave - 80) * 0.005, 0, 0.25)); this.size = d.size;   // +0.5% per wave after 80 (max +25%)
     this.gold = d.gold + Math.floor(wave / 8); this.dps = d.dps * (1 + wave * 0.05);
     this.flying = false; this.color = d.color; this.resist = d.resist || "";
     this.dead = false; this.t = Math.random() * 10; this.flash = 0;
@@ -3337,7 +3339,7 @@ function beginWave(fromTimer = false) {
     showBanner(`Boss Wave ${wave}: ${n} boss${n > 1 ? "es" : ""}!`, "#e0533f");
     return;
   }
-  const total = Math.min(6 + wave * 2, 70);
+  const total = Math.min(6 + wave * 2, 70) + clamp(wave - 80, 0, 50);   // +1 enemy per wave after 80 (max +50)
   spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % STAGE_LEN === 0 });
   const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
   const st = stageOf(wave);
@@ -4177,6 +4179,7 @@ function refreshShop() {
   for (const el of SPECIALS) {
     if (specialShopCd > 0) break;   // Special cards are resting
     if (!save.specials[el] || !open.length || rows.shop.some(c => c && c.locked && c.element === el)) continue;
+    const onBoard = totemOnBoard(null, el); if (onBoard && totemFull(onBoard)) continue;   // a maxed totem isn't offered again
     if (Math.random() < totemShopChance(el)) { const k = Math.floor(Math.random() * open.length); special[open[k]] = el; open.splice(k, 1); specialShopCd = SPECIAL_SHOP_CD; }
   }
   for (let i = 0; i < SHOP_N; i++) {
@@ -4268,7 +4271,7 @@ function buy(si, row, i) {
     const s = slotPos(row, i); card.setHome(s.x, s.y);
   } else {
     const res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
-  if (res && res.totem) res.boost = totemSum(card.element, card.boost, other.boost);
+    if (res && res.totem) { res.boost = totemSum(card.element, card.boost, other.boost); if (res.boost > TOTEM_MAX) { showInfo(`${EL[card.element].name} is already at its max (x${1 + TOTEM_MAX})!`); card.shake = 1; return false; } }
     if (!res) { showInfo(mergeHint(card, other) || `${cardName(card)} can't fuse with ${cardName(other)}.`); card.shake = 1; return false; }
     rows.shop[si] = null; applyMerge(other, res);
   }
@@ -4317,7 +4320,7 @@ function applyMerge(card, res) {
     fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: "#ffd84a", radius: 100, duration: 0.4 }));
     fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: col, radius: 70, duration: 0.35 }));
     for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2; addPart({ add: true, kind: "glint", x: card.hx, y: card.hy + CARD_H / 2, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220 - 60, life: 0.6, size: 5, rgb: "255,230,128" }); }
-    fxs.push(new Fx("text", { x: card.hx, y: card.hy - 86, text: `${"\u2605".repeat(card.stars)}  x${2 ** card.stars} damage!`, color: "#ffd84a", size: 26, duration: 1.1 }));
+    fxs.push(new Fx("text", { x: card.hx, y: card.hy - 86, text: `${"\u2605".repeat(card.stars)}  x${1 + card.stars} damage!`, color: "#ffd84a", size: 26, duration: 1.1 }));
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") {   // bright rising chime
       [[880, 0], [1175, 0.07], [1568, 0.14], [2093, 0.21]].forEach(([f, dl]) => sTone("sine", f, f, 0.32, 0.11, dl));
       sTone("triangle", 2637, 2637, 0.5, 0.06, 0.28);
@@ -4342,8 +4345,8 @@ function moveCard(fr, fi, tr, ti) {
   const card = rows[fr][fi], other = rows[tr][ti];
   if (!card) return "";
   if (!other) { rows[fr][fi] = null; rows[tr][ti] = card; const s = slotPos(tr, ti); card.setHome(s.x, s.y); return "move"; }
-  const res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
-  if (res && res.totem) res.boost = totemSum(card.element, card.boost, other.boost);
+  let res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
+  if (res && res.totem) { res.boost = totemSum(card.element, card.boost, other.boost); if (res.boost > TOTEM_MAX) { showInfo(`${EL[card.element].name} is already at its max (x${1 + TOTEM_MAX})!`); res = null; } }
   if (res) { rows[fr][fi] = null; applyMerge(other, res); return "merge"; }
   const hint = mergeHint(card, other);
   if (hint) showInfo(hint);
@@ -5271,7 +5274,7 @@ function update(dt) {
       sp.timer -= dt;
       if (sp.timer > 0) continue;
       if (sp.rush) { if (sp.left > 0) { sp.left--; spawnRushBoss(sp.wave); } sp.timer = 2.4; continue; }
-      sp.timer = Math.max(0.28, 1.2 - sp.wave * 0.035);
+      sp.timer = Math.max(clamp(0.28 - (sp.wave - 80) * 0.002, 0.18, 0.28), 1.2 - sp.wave * 0.035);   // spawns get quicker after wave 80
       if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; spawnEnemy(stageOf(sp.wave).boss, sp.wave); if (stageNum(sp.wave) === 1) { const e = enemies[enemies.length - 1]; e.hp = e.maxHp = e.maxHp * 0.75; } }   // the first boss is a bit softer
       else if (sp.left > 0) { sp.left--; spawnEnemy(pickKind(sp.wave), sp.wave); }
     }
@@ -6580,7 +6583,7 @@ function testGive(el) {
   const slot = firstFree();
   if (!slot) { showInfo("No free slot. Sell or merge a card first."); playSfx("ash", "hit"); return; }
   const had = EL[el].totem && totemOnBoard(null, el);
-  if (had) { had.boost = totemSum(el, had.boost, 1); had.scale = 1.4; showInfo(describe(el, SPECIAL, 0, had.boost)); return; }
+  if (had) { had.boost = Math.min(TOTEM_MAX, totemSum(el, had.boost, 1)); had.scale = 1.4; showInfo(describe(el, SPECIAL, 0, had.boost)); return; }
   const c = new Card(el, testRarity(el, testPick.lvl)); rows[slot[0]][slot[1]] = c;
   const q = slotPos(slot[0], slot[1]); c.setHome(q.x, q.y, true); c.scale = 1.35;
   if (EL[el].tier === 3 && c.rarity === EPIC) c.evolveAt = c.t;
@@ -7327,7 +7330,7 @@ function drawCardInfo(dt) {
   const formName = r => r <= 2 ? `V${r + 1}` : RARITY_NAMES[r];
   line();
   if (d.totem) {
-    for (const [k, v, col] of [["Attack", "Never attacks", "#b4441f"], ["Boost", d.totem === "spd" ? "x2 attack speed to the card left and right" : "x2 damage to the card left and right", "#2f8f3f"], ["Combine", `+0.5x per extra ${d.name}, no limit`, "#7a3fb0"]]) {
+    for (const [k, v, col] of [["Attack", "Never attacks", "#b4441f"], ["Boost", d.totem === "spd" ? "x2 attack speed to the card left and right" : "x2 damage to the card left and right", "#2f8f3f"], ["Combine", `+0.5x per extra ${d.name}, up to x4`, "#7a3fb0"]]) {
       text(k, x + 30, ry, 22, INK, { align: "left", weight: 700 }); text(v, x + w - 30, ry, 20, col, { align: "right", weight: 700 }); ry += 44; line();
     }
     text("Limit", x + 30, ry, 22, INK, { align: "left", weight: 700 }); text(`1 ${d.name} on the board`, x + w - 30, ry, 20, INK, { align: "right", weight: 600 });
@@ -7631,16 +7634,16 @@ const GUIDE = [
   { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["zeus", LEGEND]]], note: "Each Myth +9%   each Epic +3%   up to 45%",
     b: "Put a Myth card on an altar to try for a LEGEND card like Zeus, the strongest in the game. Each Myth card adds 9% and each Epic adds 3%, up to 45%." },
   { t: "Stars: Myth & Legend", eq: [[["phoenix", MYTH, 0], ["phoenix", MYTH, 0], ["phoenix", MYTH, 1]], [["zeus", LEGEND, 1], ["zeus", LEGEND, 0], ["zeus", LEGEND, 2]]],
-    labels: [["Same card + same card = 1 star", "#ffd84a"], ["1 star + one more copy = 2 stars", "#ffd84a"]], labelDy: 18, note: "Every star DOUBLES the card's damage!",
+    labels: [["Same card + same card = 1 star", "#ffd84a"], ["1 star + one more copy = 2 stars", "#ffd84a"]], labelDy: 18, note: "Every star adds +1x damage!",
     b: "Myth and Legend cards can't level up, but they can earn STARS. Drag a card onto the exact same card (Phoenix onto Phoenix, Zeus onto Zeus) to give it a star. Add another copy to a starred card for one more star. Stars are shown at the bottom of the card." },
   { t: "Stacking Stars", eq: [[["hades", LEGEND, 2], ["hades", LEGEND, 2], ["hades", LEGEND, 5]], [["phoenix", MYTH, 5], ["phoenix", MYTH, 0], "x"]],
-    labels: [["2 stars + 2 stars = 5 stars (stars add up, +1)", "#9cff9c"], ["5 stars is the maximum", "#ff8a7a"]], labelDy: 18, note: "\u2605 x2   \u2605\u2605 x4   \u2605\u2605\u2605 x8   \u2605\u2605\u2605\u2605 x16   \u2605\u2605\u2605\u2605\u2605 x32",
-    b: "Starred cards combine too: their stars add up, plus one for the merge, up to 5 stars. A 5-star card deals 32x damage! Enemies keep getting stronger, so stars keep your best cards in the fight. In the Chamber a starred card counts as a normal card." },
+    labels: [["2 stars + 2 stars = 5 stars (stars add up, +1)", "#9cff9c"], ["5 stars is the maximum", "#ff8a7a"]], labelDy: 18, note: "\u2605 x2   \u2605\u2605 x3   \u2605\u2605\u2605 x4   \u2605\u2605\u2605\u2605 x5   \u2605\u2605\u2605\u2605\u2605 x6",
+    b: "Starred cards combine too: their stars add up, plus one for the merge, up to 5 stars. A 5-star card deals 6x damage! Enemies keep getting stronger, so stars keep your best cards in the fight. In the Chamber a starred card counts as a normal card." },
   { t: "MAX POWER: 5 Stars", eq: [[["zeus", LEGEND, 4], ["zeus", LEGEND, 0], ["zeus", LEGEND, 5]]], labels: [["4 stars + one more copy = 5 stars!", "#ffd84a"]], labelDy: 18,
-    note: "5 stars = 32x damage + a golden power aura",
-    b: "When a Myth or Legend card reaches 5 stars it unlocks MAX POWER: it bursts into a blazing golden aura with lightning and rising energy, so everyone can see it's your strongest card. It deals 32x its normal damage!" },
+    note: "5 stars = 6x damage + a golden power aura",
+    b: "When a Myth or Legend card reaches 5 stars it unlocks MAX POWER: it bursts into a blazing golden aura with lightning and rising energy, so everyone can see it's your strongest card. It deals 6x its normal damage!" },
   { t: "Totem: Fight", row: [["fire", 2, "No boost", "#ff8a7a"], ["zeus", LEGEND, "x2 DMG", "#ffc27a"], ["totem", SPECIAL, "FIGHT", "#ffd84a"], ["poseidon", LEGEND, "x2 DMG", "#ffc27a"], ["wind", 2, "No boost", "#ff8a7a"]],
-    note: "Drop a Fight on your Fight: +0.5x  (x2 > x2.5 > x3 ... no limit)",
+    note: "Drop a Fight on your Fight: +0.5x  (x2 > x2.5 > x3 > x3.5 > x4 max)",
     b: "Totems are Special cards that never attack. Fight gives the cards RIGHT NEXT to it (left and right) x2 DAMAGE. Cards further away get nothing. Only 1 Fight can be on the board, but every extra Fight you drop on it adds +0.5x." },
   { t: "Totem: Flight", row: [["water", 2, "No boost", "#ff8a7a"], ["hades", LEGEND, "x2 SPEED", "#9fe6ff"], ["flight", SPECIAL, "FLIGHT", "#ffd84a"], ["zeus", LEGEND, "x2 SPEED", "#9fe6ff"], ["earth", 2, "No boost", "#ff8a7a"]],
     note: "Fight + Flight on both sides of a card = x2 damage AND x2 speed!",
