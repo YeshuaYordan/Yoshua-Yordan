@@ -2391,57 +2391,64 @@ function emitTrail(pr, dt) {
   const n = rate => { pr.emit[rate] = (pr.emit[rate] || 0) + dt * rate; const c = Math.floor(pr.emit[rate]); pr.emit[rate] -= c; return c; };
   const back = (sp, j = 40) => ({ vx: -dx * sp + rand(-j, j), vy: -dy * sp + rand(-j, j) });
   const rgb = rgbOf(pr.color);
-  if (st === "voidorb") {   // dark fog streaming behind, with tiny white star glints
-    for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 80)), life: rand(0.3, 0.5), size: R * rand(0.5, 0.9), grow: -0.5, cols: VOID_COLS, a: 0.7 });
-    for (let i = n(10); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(20, 15), life: 0.7, size: R * 0.5, grow: 1.4, col: "#1c0a38", a: 0.4 });
-    for (let i = n(8); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R), y: by + rand(-R, R), vx: 0, vy: 0, life: 0.5, size: rand(2, 3.5), rgb: "255,255,255", rot: rand(0, 6) });
+  if (st === "voidorb") {   // dark fog, a spiral of matter being pulled into the orb, star glints
+    for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 80)), life: rand(0.3, 0.5), size: R * rand(0.6, 1.0), grow: -0.5, cols: VOID_COLS, a: 0.75 });
+    for (let i = n(30); i > 0; i--) { const a = rand(0, Math.PI * 2), r0 = R * rand(2.6, 3.6); addPart({ add: true, kind: "glow", x: pr.x + Math.cos(a) * r0, y: pr.y + Math.sin(a) * r0, vx: (-Math.cos(a) * 3 - Math.sin(a) * 2) * r0 + pr.vx * 0.9, vy: (-Math.sin(a) * 3 + Math.cos(a) * 2) * r0 + pr.vy * 0.9, life: 0.22, size: R * 0.28, grow: -0.6, cols: VOID_COLS, a: 0.9 }); }
+    for (let i = n(10); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(20, 15), life: 0.8, size: R * 0.6, grow: 1.5, col: "#1c0a38", a: 0.45 });
+    for (let i = n(10); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R) * 1.5, y: by + rand(-R, R) * 1.5, vx: 0, vy: 0, life: 0.6, size: rand(2, 4), rgb: "255,255,255", rot: rand(0, 6) });
     return;
   }
-  if (st === "starshard") {   // gold sparkle glints left hanging in the air
-    for (let i = n(40); i > 0; i--) addPart({ add: true, kind: "glow", x: bx, y: by, ...back(rand(30, 90), 25), life: rand(0.2, 0.35), size: R * rand(0.4, 0.7), grow: -0.6, cols: STAR_COLS, a: 0.8 });
-    for (let i = n(26); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R), y: by + rand(-R, R), vx: rand(-15, 15), vy: rand(-15, 15), life: rand(0.4, 0.7), size: rand(2.5, 5), rgb: Math.random() < 0.5 ? "255,255,255" : "255,220,120", rot: rand(0, 6) });
+  if (st === "starshard") {   // a comet tail of gold light and sparkles that keep twinkling
+    for (let i = n(60); i > 0; i--) addPart({ add: true, kind: "glow", x: bx, y: by, ...back(rand(30, 100), 25), life: rand(0.25, 0.4), size: R * rand(0.5, 0.9), grow: -0.6, cols: STAR_COLS, a: 0.85 });
+    for (let i = n(34); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R) * 1.4, y: by + rand(-R, R) * 1.4, vx: rand(-20, 20), vy: rand(10, 50), life: rand(0.5, 0.9), size: rand(3, 6), rgb: Math.random() < 0.5 ? "255,255,255" : "255,220,120", rot: rand(0, 6) });
     return;
   }
-  if (st === "hellflame") {   // crimson embers and black smoke
-    for (let i = n(75); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-3, 3), y: by + rand(-3, 3), ...back(rand(40, 130)), life: rand(0.25, 0.42), size: R * rand(0.6, 1.0), grow: -0.6, cols: HELL_COLS, a: 0.85 });
-    for (let i = n(14); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(30, 20), life: 0.8, size: R * 0.6, grow: 1.5, col: "#120408", a: 0.45 });
-    for (let i = n(16); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, vx: rand(-60, 60), vy: rand(-160, -60), life: rand(0.3, 0.6), size: 2, cols: HELL_COLS, len: 0.04 });
+  if (st === "hellflame") {   // crimson fire, black smoke, embers rising
+    for (let i = n(95); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 140)), life: rand(0.25, 0.45), size: R * rand(0.7, 1.15), grow: -0.6, cols: HELL_COLS, a: 0.9 });
+    for (let i = n(18); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(30, 20), life: 0.9, size: R * 0.7, grow: 1.6, col: "#120408", a: 0.5 });
+    for (let i = n(24); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, vx: rand(-70, 70), vy: rand(-200, -80), life: rand(0.35, 0.7), size: 2.2, cols: HELL_COLS, len: 0.05 });
     return;
   }
-  if (st === "abyssmaw") {   // dark droplets falling away and deep bubbles
-    for (let i = n(45); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 70)), life: rand(0.3, 0.5), size: R * rand(0.5, 0.8), grow: -0.5, cols: ABYSS_COLS, a: 0.7 });
-    for (let i = n(20); i > 0; i--) addPart({ kind: "drop", x: bx, y: by, vx: rand(-60, 60), vy: rand(20, 120), g: 600, life: rand(0.4, 0.6), size: rand(2, 3.4), col: "#2a3aa8" });
-    for (let i = n(8); i > 0; i--) addPart({ kind: "bubble", x: bx + rand(-8, 8), y: by + rand(-8, 8), vx: rand(-15, 15), vy: rand(-40, -10), life: 0.7, size: rand(2, 4), col: "rgba(140,160,255,0.9)", rot: rand(0, 9) });
+  if (st === "abyssmaw") {   // dark water peeling off, deep bubbles, faint dark ink
+    for (let i = n(60); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 80)), life: rand(0.3, 0.55), size: R * rand(0.6, 1.0), grow: -0.5, cols: ABYSS_COLS, a: 0.75 });
+    for (let i = n(26); i > 0; i--) addPart({ kind: "drop", x: bx, y: by, vx: rand(-80, 80), vy: rand(10, 140), g: 600, life: rand(0.4, 0.6), size: rand(2, 3.6), col: "#2a3aa8" });
+    for (let i = n(12); i > 0; i--) addPart({ kind: "bubble", x: bx + rand(-10, 10), y: by + rand(-10, 10), vx: rand(-15, 15), vy: rand(-50, -10), life: 0.8, size: rand(2, 5), col: "rgba(140,160,255,0.9)", rot: rand(0, 9) });
+    for (let i = n(8); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(15, 10), life: 0.7, size: R * 0.55, grow: 1.4, col: "#080c30", a: 0.4 });
     return;
   }
-  if (st === "tombstone") {   // grave dust shaken off the stone
-    for (let i = n(30); i > 0; i--) addPart({ kind: "smoke", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 60), 20), life: rand(0.4, 0.7), size: R * rand(0.3, 0.55), grow: 1.2, col: "#8a8898", a: 0.35 });
-    for (let i = n(14); i > 0; i--) addPart({ kind: "grain", x: bx, y: by, vx: rand(-80, 80), vy: rand(-40, 60), g: 400, life: rand(0.4, 0.7), size: rand(2, 3.5), col: "#6a6878" });
+  if (st === "tombstone") {   // grave dust, grit, and a pale ghost light following the stone
+    for (let i = n(34); i > 0; i--) addPart({ kind: "smoke", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 60), 20), life: rand(0.4, 0.75), size: R * rand(0.35, 0.6), grow: 1.3, col: "#8a8898", a: 0.38 });
+    for (let i = n(16); i > 0; i--) addPart({ kind: "grain", x: bx, y: by, vx: rand(-90, 90), vy: rand(-40, 70), g: 400, life: rand(0.4, 0.7), size: rand(2, 3.5), col: "#6a6878" });
+    for (let i = n(30); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-6, 6), y: by + rand(-6, 6), ...back(rand(20, 60), 30), life: rand(0.3, 0.5), size: R * rand(0.4, 0.7), grow: -0.4, cols: [[230, 255, 240], [150, 230, 190], [80, 160, 130]], a: 0.55 });
     return;
   }
-  if (st === "shadowblade") {   // a streak of shadow smoke
-    for (let i = n(60); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-3, 3), y: by + rand(-3, 3), ...back(rand(10, 40), 10), life: rand(0.18, 0.3), size: R * rand(0.5, 0.9), grow: -0.4, cols: SHADE_COLS, a: 0.6 });
-    for (let i = n(12); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(10, 10), life: 0.5, size: R * 0.45, grow: 1.2, col: "#2a2440", a: 0.45 });
+  if (st === "shadowblade") {   // shadow smoke and violet sparks shed by the spinning blades
+    for (let i = n(70); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-3, 3), y: by + rand(-3, 3), ...back(rand(10, 40), 10), life: rand(0.2, 0.32), size: R * rand(0.6, 1.0), grow: -0.4, cols: SHADE_COLS, a: 0.65 });
+    for (let i = n(14); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(10, 10), life: 0.55, size: R * 0.5, grow: 1.2, col: "#2a2440", a: 0.5 });
+    for (let i = n(26); i > 0; i--) { const a = rand(0, Math.PI * 2); addPart({ add: true, kind: "spark", x: pr.x + Math.cos(a) * R * 1.6, y: pr.y + Math.sin(a) * R * 1.6, vx: -Math.sin(a) * 260, vy: Math.cos(a) * 260, drag: 6, life: 0.2, size: 1.8, cols: SHADE_COLS, len: 0.05 }); }
     return;
   }
-  if (st === "corona") {   // golden fire with sparks spiralling up
-    for (let i = n(85); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 140)), life: rand(0.25, 0.42), size: R * rand(0.7, 1.1), grow: -0.6, cols: CORONA_COLS, a: 0.85 });
-    for (let i = n(20); i > 0; i--) { const a = pr.t * 20 + i; addPart({ add: true, kind: "spark", x: pr.x + Math.cos(a) * R * 1.4, y: pr.y + Math.sin(a) * R * 1.4, vx: Math.cos(a) * 60, vy: Math.sin(a) * 60 - 80, life: rand(0.3, 0.5), size: 2.2, cols: CORONA_COLS, len: 0.05 }); }
+  if (st === "corona") {   // golden fire with sparks spiralling off the corona
+    for (let i = n(100); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(40, 150)), life: rand(0.28, 0.45), size: R * rand(0.8, 1.3), grow: -0.6, cols: CORONA_COLS, a: 0.9 });
+    for (let i = n(30); i > 0; i--) { const a = pr.t * 20 + i; addPart({ add: true, kind: "spark", x: pr.x + Math.cos(a) * R * 2, y: pr.y + Math.sin(a) * R * 2, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90 - 90, life: rand(0.3, 0.55), size: 2.4, cols: CORONA_COLS, len: 0.06 }); }
     return;
   }
-  if (st === "radiantgem") {   // golden motes and twinkles
-    for (let i = n(35); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 80)), life: rand(0.3, 0.5), size: R * rand(0.35, 0.6), grow: -0.5, cols: GEM_COLS, a: 0.8 });
-    for (let i = n(12); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R), y: by + rand(-R, R), vx: 0, vy: -20, life: 0.6, size: rand(2.5, 4.5), rgb: "255,236,170", rot: rand(0, 6) });
+  if (st === "radiantgem") {   // golden motes, twinkles and refracted light
+    for (let i = n(45); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 80)), life: rand(0.3, 0.5), size: R * rand(0.45, 0.75), grow: -0.5, cols: GEM_COLS, a: 0.85 });
+    for (let i = n(18); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R) * 1.6, y: by + rand(-R, R) * 1.6, vx: 0, vy: -25, life: 0.7, size: rand(3, 5.5), rgb: Math.random() < 0.3 ? "255,255,255" : "255,236,170", rot: rand(0, 6) });
+    for (let i = n(10); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, vx: rand(-200, 200), vy: rand(-200, 200), drag: 5, life: 0.25, size: 1.6, cols: [RAINBOW_COLS[i % 5], [255, 255, 255]], len: 0.04 });
     return;
   }
-  if (st === "haloring") {   // white feathers drifting down behind it
-    for (let i = n(30); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 70)), life: rand(0.25, 0.4), size: R * rand(0.4, 0.7), grow: -0.5, cols: HALO_COLS, a: 0.7 });
-    for (let i = n(7); i > 0; i--) addPart({ kind: "leaf", x: bx, y: by, vx: rand(-40, 40), vy: rand(10, 50), drag: 2, g: 40, life: rand(0.8, 1.2), size: rand(4, 6), rot: rand(0, 6), vr: rand(-4, 4), col: "#ffffff" });
+  if (st === "haloring") {   // holy light and white feathers drifting down
+    for (let i = n(40); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 70)), life: rand(0.28, 0.45), size: R * rand(0.5, 0.85), grow: -0.5, cols: HALO_COLS, a: 0.75 });
+    for (let i = n(10); i > 0; i--) addPart({ kind: "leaf", x: bx, y: by, vx: rand(-50, 50), vy: rand(10, 60), drag: 2, g: 40, life: rand(0.9, 1.3), size: rand(4.5, 7), rot: rand(0, 6), vr: rand(-4, 4), col: "#ffffff" });
+    for (let i = n(12); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R), y: by + rand(-R, R), vx: 0, vy: 20, life: 0.6, size: rand(2.5, 4.5), rgb: "255,245,200", rot: rand(0, 6) });
     return;
   }
-  if (st === "eclipse") {   // purple and gold glow, alternating
-    for (let i = n(70); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(30, 110)), life: rand(0.28, 0.45), size: R * rand(0.6, 1.0), grow: -0.6, cols: ECL_COLS, a: 0.8 });
-    for (let i = n(10); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(20, 15), life: 0.6, size: R * 0.5, grow: 1.3, col: "#1a0c30", a: 0.35 });
+  if (st === "eclipse") {   // purple and gold glow, corona sparks and dark smoke
+    for (let i = n(85); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(30, 120)), life: rand(0.28, 0.48), size: R * rand(0.7, 1.15), grow: -0.6, cols: ECL_COLS, a: 0.85 });
+    for (let i = n(14); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(20, 15), life: 0.7, size: R * 0.6, grow: 1.4, col: "#1a0c30", a: 0.42 });
+    for (let i = n(20); i > 0; i--) { const a = rand(0, Math.PI * 2); addPart({ add: true, kind: "spark", x: pr.x + Math.cos(a) * R * 1.5, y: pr.y + Math.sin(a) * R * 1.5, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, drag: 4, life: 0.25, size: 1.8, cols: [[255, 240, 190], [255, 200, 80]], len: 0.05 }); }
     return;
   }
   if (st === "serpent") {
@@ -2520,95 +2527,130 @@ function emitTrail(pr, dt) {
   }
 }
 // The flying shot itself.
+const NEW_SHOTS = new Set(["voidorb", "starshard", "hellflame", "abyssmaw", "tombstone", "shadowblade", "corona", "radiantgem", "haloring", "eclipse"]);
 function drawShotHead(pr) {
-  const st = pr.style, R = pr.radius * VFX_SCALE * 1.1, t = pr.t;
+  const st = pr.style, t = pr.t; let R = pr.radius * VFX_SCALE * 1.1;
   ctx.save(); ctx.translate(pr.x, pr.y);
   const glow = (r, c) => { const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r); g.addColorStop(0, `rgba(${c},0.6)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); };
-  if (st === "voidorb") {   // black core, purple event horizon, a tilted accretion disk and two orbiting moons
-    glow(R * 2.6, "150,90,255");
-    ctx.save(); ctx.rotate(t * 3); ctx.scale(1, 0.38); ring(0, 0, R * 1.9, "rgba(190,140,255,0.85)", 3); ctx.restore();
-    circle(0, 0, R * 1.05, "#0a0418"); ring(0, 0, R * (1.12 + 0.06 * Math.sin(t * 18)), "#9a6aff", 2.5); ring(0, 0, R * 0.7, "rgba(120,70,220,0.6)", 1.5);
-    for (const o of [0, Math.PI]) { const a = t * 6 + o; circle(Math.cos(a) * R * 1.9, Math.sin(a) * R * 0.72, R * 0.26, "#d4c0ff"); }
+  if (NEW_SHOTS.has(st)) R *= 1.35;   // the Dark / Light family shots are drawn bigger
+  if (st === "voidorb") {   // a black hole: two crossed accretion disks, a pulsing event horizon, orbiting moons
+    glow(R * 3.2, "150,90,255");
+    ctx.save(); ctx.rotate(t * 3); ctx.scale(1, 0.36); ring(0, 0, R * 2.1, "rgba(190,140,255,0.85)", 3.5); ring(0, 0, R * 2.6, "rgba(130,90,230,0.4)", 2); ctx.restore();
+    ctx.save(); ctx.rotate(-t * 2 + 1.2); ctx.scale(1, 0.3); ring(0, 0, R * 1.8, "rgba(255,220,255,0.5)", 2); ctx.restore();
+    circle(0, 0, R * 1.05, "#05020c"); ring(0, 0, R * (1.12 + 0.08 * Math.sin(t * 18)), "#a87aff", 3); ring(0, 0, R * 0.7, "rgba(120,70,220,0.7)", 1.5);
+    for (let k = 0; k < 3; k++) { const a = t * (6 + k) + k * 2.1; circle(Math.cos(a) * R * (1.9 + k * 0.25), Math.sin(a) * R * 0.7, R * (0.28 - k * 0.06), k ? "#ffffff" : "#d4c0ff"); }
     ctx.restore(); return;
   }
-  if (st === "starshard") {   // a spinning 4-point star with a lens-flare cross
-    glow(R * 2.4, "255,220,120");
-    ctx.strokeStyle = "rgba(255,255,240,0.7)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-R * 2.6, 0); ctx.lineTo(R * 2.6, 0); ctx.moveTo(0, -R * 2.2); ctx.lineTo(0, R * 2.2); ctx.stroke();
-    ctx.rotate(t * 5);
-    const pts = []; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, rr = k % 2 ? R * 0.42 : R * 1.6; pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.6); g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, "#fff2b0"); g.addColorStop(1, "#f2b632");
-    poly(pts, g, "#a8701e", 1.5); circle(0, 0, R * 0.3, "#ffffff");
+  if (st === "starshard") {   // a blazing 4-point star, a smaller star counter-spinning inside, lens flare and orbiting sparkles
+    glow(R * 3, "255,220,120");
+    const fl = 1 + 0.15 * Math.sin(t * 22);
+    ctx.strokeStyle = "rgba(255,255,240,0.75)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-R * 3.4 * fl, 0); ctx.lineTo(R * 3.4 * fl, 0); ctx.moveTo(0, -R * 2.8 * fl); ctx.lineTo(0, R * 2.8 * fl); ctx.stroke();
+    const star = (r1, r2, rot, fill, line) => { const pts = []; for (let k = 0; k < 8; k++) { const a = rot + k * Math.PI / 4, rr = k % 2 ? r2 : r1; pts.push([Math.cos(a) * rr, Math.sin(a) * rr]); } poly(pts, fill, line, 1.5); };
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.7); g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, "#fff2b0"); g.addColorStop(1, "#f2b632");
+    star(R * 1.75 * fl, R * 0.45, t * 5, g, "#a8701e"); star(R * 0.9, R * 0.28, -t * 8 + 0.4, "rgba(255,255,255,0.9)", null);
+    for (let k = 0; k < 3; k++) { const a = t * 7 + k * 2.09; ctx.save(); ctx.translate(Math.cos(a) * R * 2.2, Math.sin(a) * R * 2.2); star(R * 0.4, R * 0.12, 0, "#fff6c8", null); ctx.restore(); }
     ctx.restore(); return;
   }
-  if (st === "hellflame") {   // a crimson flame with a black core, its tail flickering behind it
-    glow(R * 2.4, "230,60,80"); ctx.rotate(pr.ang);
-    const tip = Math.sin(t * 22) * R * 0.35, path = (s2) => { ctx.beginPath(); ctx.moveTo(R * 1.0 * s2, 0); ctx.arc(0, 0, R * s2, 0, Math.PI * 0.5); ctx.quadraticCurveTo(-R * 1.2 * s2, R * 0.6 * s2, -R * 2.6 * s2, tip * s2); ctx.quadraticCurveTo(-R * 1.2 * s2, -R * 0.6 * s2, 0, -R * s2); ctx.arc(0, 0, R * s2, -Math.PI * 0.5, 0); ctx.closePath(); };
-    path(1.15); const g = ctx.createLinearGradient(R, 0, -R * 2.6, 0); g.addColorStop(0, "#ff8a8a"); g.addColorStop(0.4, "#d81e3c"); g.addColorStop(1, "rgba(120,10,40,0)"); ctx.fillStyle = g; ctx.fill();
-    path(0.6); ctx.fillStyle = "#14040a"; ctx.fill();
-    circle(R * 0.25, 0, R * 0.2, "rgba(255,120,140,0.9)");
+  if (st === "hellflame") {   // a crimson flame with flickering tongues and a black core with demon eyes
+    glow(R * 3, "230,60,80"); ctx.rotate(pr.ang);
+    const flame = (s2, wob, col1, col2) => { const tip = Math.sin(t * 22 + wob) * R * 0.4; ctx.beginPath(); ctx.moveTo(R * s2, 0); ctx.arc(0, 0, R * s2, 0, Math.PI * 0.5); ctx.quadraticCurveTo(-R * 1.3 * s2, R * 0.7 * s2, -R * 2.9 * s2, tip * s2); ctx.quadraticCurveTo(-R * 1.3 * s2, -R * 0.7 * s2, 0, -R * s2); ctx.arc(0, 0, R * s2, -Math.PI * 0.5, 0); ctx.closePath();
+      const g = ctx.createLinearGradient(R, 0, -R * 2.9 * s2, 0); g.addColorStop(0, col1); g.addColorStop(1, col2); ctx.fillStyle = g; ctx.fill(); };
+    for (const [dy2, w2] of [[-0.55, 1.3], [0.55, 2.6]]) { ctx.save(); ctx.translate(-R * 0.3, dy2 * R); ctx.rotate(dy2 * 0.4); flame(0.6, w2, "rgba(255,90,110,0.85)", "rgba(120,10,40,0)"); ctx.restore(); }
+    flame(1.25, 0, "#ff9a9a", "rgba(120,10,40,0)"); flame(0.95, 1, "#d81e3c", "rgba(80,0,20,0)");
+    circle(0, 0, R * 0.62, "#0a0205");
+    for (const sy of [-1, 1]) { ctx.save(); ctx.translate(R * 0.22, sy * R * 0.2); ctx.rotate(sy * 0.4); ellipse(0, 0, R * 0.16, R * 0.06, "#ff3a4a"); ctx.restore(); }
     ctx.restore(); return;
   }
-  if (st === "abyssmaw") {   // a spinning deep-blue vortex with three spiral arms
-    glow(R * 2.4, "60,80,220");
-    ctx.rotate(-t * 9);
-    circle(0, 0, R * 1.25, "#0c1040"); ring(0, 0, R * 1.25, "#2a3aa8", 2.5);
-    ctx.lineCap = "round"; ctx.strokeStyle = "#6a8aff"; ctx.lineWidth = 3;
-    for (let k = 0; k < 3; k++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(R * 0.15, 0); ctx.quadraticCurveTo(R * 0.9, -R * 0.15, R * 1.05, R * 0.65); ctx.stroke(); }
-    circle(0, 0, R * 0.35, "#000"); ring(0, 0, R * 0.35, "#9ab0ff", 1.2);
+  if (st === "abyssmaw") {   // a spinning dark vortex with an eye in the middle and tentacles lashing out
+    glow(R * 3, "60,80,220");
+    ctx.save(); ctx.lineCap = "round";
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + t * 1.5; ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(R * 1.1, 0);
+      for (let q = 1; q <= 6; q++) ctx.lineTo(R * (1.1 + q * 0.32), Math.sin(t * 10 + q * 1.1 + k) * R * 0.35 * q / 6);
+      ctx.strokeStyle = "rgba(20,24,90,0.95)"; ctx.lineWidth = R * 0.32; ctx.stroke(); ctx.strokeStyle = "rgba(110,140,255,0.8)"; ctx.lineWidth = R * 0.1; ctx.stroke(); ctx.restore(); }
+    ctx.restore();
+    ctx.save(); ctx.rotate(-t * 9);
+    circle(0, 0, R * 1.3, "#0a0d38"); ring(0, 0, R * 1.3, "#3a4ac8", 3);
+    ctx.lineCap = "round"; ctx.strokeStyle = "#7a9aff"; ctx.lineWidth = 3;
+    for (let k = 0; k < 3; k++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(R * 0.2, 0); ctx.quadraticCurveTo(R * 0.95, -R * 0.15, R * 1.1, R * 0.7); ctx.stroke(); }
+    ctx.restore();
+    ellipse(0, 0, R * 0.45, R * 0.28, "#e8ecff"); circle(0, 0, R * 0.2, "#4a6aff"); ellipse(0, 0, R * 0.06, R * 0.18, "#000");
     ctx.restore(); return;
   }
-  if (st === "tombstone") {   // a tumbling tombstone with a cross and a crack
-    ctx.rotate(t * 7);
+  if (st === "tombstone") {   // a tumbling tombstone in a ghost-green aura, with a little ghost clinging to it
+    glow(R * 2.6, "120,220,170");
+    ctx.save(); ctx.rotate(t * 7);
     const w = R * 0.85, top = -R * 1.05, bot = R * 1.0;
     ctx.beginPath(); ctx.moveTo(-w, bot); ctx.lineTo(-w, top + w); ctx.arc(0, top + w, w, Math.PI, 0); ctx.lineTo(w, bot); ctx.closePath();
-    const g = ctx.createLinearGradient(-w, 0, w, 0); g.addColorStop(0, "#b8b6c4"); g.addColorStop(1, "#7a7888"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.stroke();
+    const g = ctx.createLinearGradient(-w, 0, w, 0); g.addColorStop(0, "#c8c6d4"); g.addColorStop(1, "#7a7888"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.stroke();
     ctx.strokeStyle = "#4a4858"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -R * 0.55); ctx.lineTo(0, R * 0.25); ctx.moveTo(-R * 0.35, -R * 0.25); ctx.lineTo(R * 0.35, -R * 0.25); ctx.stroke();
     ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(w * 0.6, -R * 0.1); ctx.lineTo(w * 0.25, R * 0.3); ctx.lineTo(w * 0.5, R * 0.6); ctx.stroke();
-    ctx.restore(); return;
-  }
-  if (st === "shadowblade") {   // a spinning crescent shadow blade with fading afterimages
-    // crescent = big circle minus a smaller circle shifted forward (r1 at 0, r2 at d)
-    const r1 = R * 1.6, r2 = R * 1.35, d = R * 0.75, ix = (d * d + r1 * r1 - r2 * r2) / (2 * d), iy = Math.sqrt(Math.max(0, r1 * r1 - ix * ix)), a1 = Math.atan2(iy, ix), a2 = Math.atan2(iy, ix - d);
-    const blade = (a, al) => { ctx.save(); ctx.rotate(a); ctx.globalAlpha = al; ctx.beginPath(); ctx.arc(0, 0, r1, a1, Math.PI * 2 - a1); ctx.arc(d, 0, r2, -a2, a2, true); ctx.closePath();
-      const g = ctx.createLinearGradient(-R * 1.6, 0, R * 1.6, 0); g.addColorStop(0, "#c8c0ff"); g.addColorStop(0.5, "#5a4e8a"); g.addColorStop(1, "#1e1830"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(220,215,255,0.9)"; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore(); };
-    blade(t * 16 - 0.7, 0.2); blade(t * 16 - 0.35, 0.4); blade(t * 16, 1);
-    ctx.restore(); return;
-  }
-  if (st === "corona") {   // a small sun with a turning spiky corona
-    glow(R * 3, "255,170,40");
-    ctx.save(); ctx.rotate(t * 3);
-    for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6, L = R * (k % 2 ? 1.65 : 2.1) * (1 + 0.08 * Math.sin(t * 14 + k)); poly([[Math.cos(a - 0.16) * R, Math.sin(a - 0.16) * R], [Math.cos(a) * L, Math.sin(a) * L], [Math.cos(a + 0.16) * R, Math.sin(a + 0.16) * R]], k % 2 ? "#ffcf4a" : "#ff8a1f", null); }
+    ctx.fillStyle = "rgba(90,70,60,0.8)"; ctx.fillRect(-w * 1.15, bot - R * 0.15, w * 2.3, R * 0.25);
     ctx.restore();
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.1); g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, "#ffe066"); g.addColorStop(1, "#ff9a1f"); circle(0, 0, R * 1.1, g);
+    const ga = -pr.ang + Math.PI, gx = Math.cos(pr.ang + Math.PI) * R * 2, gy = Math.sin(pr.ang + Math.PI) * R * 2 + Math.sin(t * 9) * R * 0.3;   // the ghost trails behind
+    ctx.save(); ctx.translate(gx, gy); ctx.globalAlpha = 0.85;
+    ctx.beginPath(); ctx.arc(0, -R * 0.2, R * 0.75, Math.PI, 0); for (let k = 0; k <= 4; k++) ctx.lineTo(R * 0.75 - k * R * 0.375, R * 0.65 + (k % 2 ? -R * 0.22 : 0)); ctx.closePath();
+    ctx.fillStyle = "rgba(230,255,245,0.9)"; ctx.fill(); ctx.strokeStyle = "rgba(90,170,140,0.9)"; ctx.lineWidth = 1.2; ctx.stroke();
+    circle(-R * 0.25, -R * 0.25, R * 0.12, "#1a3a30"); circle(R * 0.25, -R * 0.25, R * 0.12, "#1a3a30"); ellipse(0, R * 0.12, R * 0.12, R * 0.16, "#1a3a30");
+    ctx.restore();
     ctx.restore(); return;
   }
-  if (st === "radiantgem") {   // a spinning faceted golden gem
-    glow(R * 2.4, "255,215,120");
-    ctx.rotate(t * 4); ctx.scale(1, 1.25);
-    const pts = []; for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * Math.PI / 3; pts.push([Math.cos(a) * R * 1.25, Math.sin(a) * R * 1.25]); }
-    const g = ctx.createLinearGradient(-R, -R, R, R); g.addColorStop(0, "#fff8d8"); g.addColorStop(0.5, "#ffd24a"); g.addColorStop(1, "#c08a1e");
-    poly(pts, g, "#8a5a10", 1.5);
-    ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 1; ctx.beginPath(); for (const [x2, y2] of pts) { ctx.moveTo(0, 0); ctx.lineTo(x2, y2); } ctx.stroke();
-    poly([[0, -R * 1.25], [R * 0.45, -R * 0.5], [-R * 0.3, -R * 0.55]], "rgba(255,255,255,0.85)", null);
+  if (st === "shadowblade") {   // twin crescent shadow blades spinning against each other, with afterimages
+    glow(R * 2.6, "140,120,220");
+    const r1 = R * 1.6, r2 = R * 1.35, d = R * 0.75, ix = (d * d + r1 * r1 - r2 * r2) / (2 * d), iy = Math.sqrt(Math.max(0, r1 * r1 - ix * ix)), a1 = Math.atan2(iy, ix), a2 = Math.atan2(iy, ix - d);
+    const blade = (a, al, sc) => { ctx.save(); ctx.rotate(a); ctx.scale(sc, sc); ctx.globalAlpha = al; ctx.beginPath(); ctx.arc(0, 0, r1, a1, Math.PI * 2 - a1); ctx.arc(d, 0, r2, -a2, a2, true); ctx.closePath();
+      const g = ctx.createLinearGradient(-r1, 0, r1, 0); g.addColorStop(0, "#e0d8ff"); g.addColorStop(0.5, "#5a4e8a"); g.addColorStop(1, "#1e1830"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "rgba(230,225,255,0.95)"; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore(); };
+    for (const [k, al] of [[0.8, 0.15], [0.4, 0.35], [0, 1]]) { blade(t * 16 - k, al, 1); blade(-t * 13 + Math.PI - k, al * 0.9, 0.75); }
+    circle(0, 0, R * 0.3, "#c8c0ff");
     ctx.restore(); return;
   }
-  if (st === "haloring") {   // a tilted golden halo spinning, with small wings
-    glow(R * 2.4, "120,230,200");
-    for (const sd of [-1, 1]) { ctx.save(); ctx.scale(sd, 1); ctx.rotate(-0.3 + Math.sin(t * 14) * 0.25);
-      ctx.beginPath(); ctx.moveTo(R * 0.6, 0); ctx.quadraticCurveTo(R * 1.6, -R * 1.3, R * 2.4, -R * 0.6); ctx.quadraticCurveTo(R * 1.8, -R * 0.2, R * 2.1, R * 0.1); ctx.quadraticCurveTo(R * 1.4, R * 0.1, R * 0.6, 0);
-      ctx.fillStyle = "rgba(255,255,255,0.92)"; ctx.fill(); ctx.strokeStyle = "rgba(90,180,160,0.9)"; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore(); }
-    ctx.save(); ctx.rotate(Math.sin(t * 3) * 0.3); ctx.scale(1, 0.38 + 0.12 * Math.sin(t * 7));
-    ring(0, 0, R * 1.5, "#d8a82a", 5); ring(0, 0, R * 1.5, "#fff2b0", 2); ctx.restore();
+  if (st === "corona") {   // a small sun: turning spiky corona, solar-flare loops and a white-hot core
+    glow(R * 3.6, "255,170,40");
+    ctx.save(); ctx.rotate(t * 3);
+    for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6, L = R * (k % 2 ? 1.7 : 2.2) * (1 + 0.1 * Math.sin(t * 14 + k)); poly([[Math.cos(a - 0.16) * R, Math.sin(a - 0.16) * R], [Math.cos(a) * L, Math.sin(a) * L], [Math.cos(a + 0.16) * R, Math.sin(a + 0.16) * R]], k % 2 ? "#ffcf4a" : "#ff8a1f", null); }
+    ctx.restore();
+    ctx.save(); ctx.lineCap = "round";
+    for (let k = 0; k < 3; k++) { const a = -t * 2 + k * 2.09; ctx.beginPath(); ctx.arc(Math.cos(a) * R * 1.2, Math.sin(a) * R * 1.2, R * 0.6, a + 0.6, a + 0.6 + Math.PI * 1.2); ctx.strokeStyle = "rgba(255,240,180,0.9)"; ctx.lineWidth = 2.4; ctx.stroke(); }
+    ctx.restore();
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.15); g.addColorStop(0, "#ffffff"); g.addColorStop(0.45, "#ffe066"); g.addColorStop(1, "#ff8a1f"); circle(0, 0, R * 1.15, g);
     ctx.restore(); return;
   }
-  if (st === "eclipse") {   // a black disk in a golden corona, with a "diamond ring" flare running around its edge
-    glow(R * 3, "150,90,230");
-    const g = ctx.createRadialGradient(0, 0, R * 0.8, 0, 0, R * 1.8); g.addColorStop(0, "rgba(255,240,190,1)"); g.addColorStop(0.35, "rgba(255,200,80,0.7)"); g.addColorStop(1, "rgba(255,180,60,0)"); circle(0, 0, R * 1.8, g);
-    circle(0, 0, R * 1.0, "#0a0614"); ring(0, 0, R * 1.0, "rgba(255,230,150,0.9)", 1.5);
+  if (st === "radiantgem") {   // a faceted golden gem in turning god-rays, with orbiting sparkles
+    glow(R * 3, "255,215,120");
+    ctx.save(); ctx.rotate(-t * 1.5);
+    for (let k = 0; k < 8; k++) { ctx.rotate(Math.PI / 4); poly([[0, 0], [R * 3, -R * 0.3], [R * 3, R * 0.3]], `rgba(255,236,170,${k % 2 ? 0.18 : 0.32})`, null); }
+    ctx.restore();
+    for (let k = 0; k < 4; k++) { const a = t * 5 + k * 1.57; ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 1.3; const sx = Math.cos(a) * R * 2, sy = Math.sin(a) * R * 1.2, q = R * 0.35; ctx.beginPath(); ctx.moveTo(sx - q, sy); ctx.lineTo(sx + q, sy); ctx.moveTo(sx, sy - q); ctx.lineTo(sx, sy + q); ctx.stroke(); }
+    ctx.save(); ctx.rotate(t * 4); ctx.scale(1, 1.25);
+    const pts = []; for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + k * Math.PI / 3; pts.push([Math.cos(a) * R * 1.3, Math.sin(a) * R * 1.3]); }
+    const g = ctx.createLinearGradient(-R, -R, R, R); g.addColorStop(0, "#fffbe6"); g.addColorStop(0.5, "#ffd24a"); g.addColorStop(1, "#c08a1e");
+    poly(pts, g, "#8a5a10", 1.6);
+    ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1; ctx.beginPath(); for (const [x2, y2] of pts) { ctx.moveTo(0, 0); ctx.lineTo(x2, y2); } ctx.stroke();
+    poly([[0, -R * 1.3], [R * 0.45, -R * 0.5], [-R * 0.3, -R * 0.55]], "rgba(255,255,255,0.9)", null);
+    ctx.restore();
+    ctx.restore(); return;
+  }
+  if (st === "haloring") {   // a golden halo over a glowing orb, with big flapping angel wings
+    glow(R * 3, "120,230,200");
+    for (const sd of [-1, 1]) { ctx.save(); ctx.scale(sd, 1); ctx.rotate(-0.25 + Math.sin(t * 14) * 0.3);
+      for (const [sc, al] of [[1.25, 0.5], [1, 0.95]]) { ctx.save(); ctx.scale(sc, sc); ctx.beginPath(); ctx.moveTo(R * 0.6, 0); ctx.quadraticCurveTo(R * 1.6, -R * 1.6, R * 2.8, -R * 0.9); ctx.quadraticCurveTo(R * 2.2, -R * 0.4, R * 2.6, -R * 0.05); ctx.quadraticCurveTo(R * 1.9, R * 0.1, R * 2.2, R * 0.45); ctx.quadraticCurveTo(R * 1.3, R * 0.3, R * 0.6, 0);
+        ctx.fillStyle = `rgba(255,255,255,${al})`; ctx.fill(); ctx.strokeStyle = `rgba(90,180,160,${al})`; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore(); }
+      ctx.restore(); }
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.9); g.addColorStop(0, "#ffffff"); g.addColorStop(1, "rgba(160,255,225,0.5)"); circle(0, R * 0.2, R * 0.75, g);
+    ctx.save(); ctx.translate(0, -R * 0.9); ctx.rotate(Math.sin(t * 3) * 0.25); ctx.scale(1, 0.34 + 0.1 * Math.sin(t * 7));
+    ring(0, 0, R * 1.5, "#d8a82a", 5.5); ring(0, 0, R * 1.5, "#fff6c8", 2.2); ctx.restore();
+    ctx.restore(); return;
+  }
+  if (st === "eclipse") {   // a black disk in a golden corona with long turning streamers and a "diamond ring" flare
+    glow(R * 3.6, "150,90,230");
+    ctx.save(); ctx.rotate(t * 1.2);
+    for (let k = 0; k < 10; k++) { ctx.rotate(Math.PI / 5); const L = R * (2.2 + 0.6 * Math.sin(t * 5 + k * 1.7)); poly([[R * 0.95, -R * 0.12], [L, 0], [R * 0.95, R * 0.12]], k % 2 ? "rgba(255,220,140,0.55)" : "rgba(200,150,255,0.5)", null); }
+    ctx.restore();
+    const g = ctx.createRadialGradient(0, 0, R * 0.8, 0, 0, R * 1.9); g.addColorStop(0, "rgba(255,245,200,1)"); g.addColorStop(0.35, "rgba(255,200,80,0.75)"); g.addColorStop(1, "rgba(255,180,60,0)"); circle(0, 0, R * 1.9, g);
+    circle(0, 0, R * 1.0, "#05030a"); ring(0, 0, R * 1.0, "rgba(255,235,160,0.95)", 1.6);
     const a = t * 2.5, fx = Math.cos(a) * R, fy = Math.sin(a) * R;
-    circle(fx, fy, R * 0.42, "rgba(255,255,255,0.55)"); circle(fx, fy, R * 0.2, "#ffffff");
-    ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(fx - R * 0.8, fy); ctx.lineTo(fx + R * 0.8, fy); ctx.moveTo(fx, fy - R * 0.8); ctx.lineTo(fx, fy + R * 0.8); ctx.stroke();
-    ring(0, 0, R * 2.0, "rgba(170,120,255,0.5)", 1.5);
+    circle(fx, fy, R * 0.5, "rgba(255,255,255,0.5)"); circle(fx, fy, R * 0.24, "#ffffff");
+    ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(fx - R * 1.1, fy); ctx.lineTo(fx + R * 1.1, fy); ctx.moveTo(fx, fy - R * 1.1); ctx.lineTo(fx, fy + R * 1.1); ctx.stroke();
+    ring(0, 0, R * 2.3, "rgba(170,120,255,0.5)", 1.5);
     ctx.restore(); return;
   }
   if (st === "serpent") {
@@ -2759,67 +2801,90 @@ function impactFx(el, x, y, r, area) {
   const burst = (count, f) => { for (let i = 0; i < count; i++) { const a = rand(0, Math.PI * 2); f(Math.cos(a), Math.sin(a), i); } };
   const ringFx = (col, size, grow, w, sq = 0.55, add = true, life = 0.45) => addPart(add ? { add: true, kind: "ring", x, y, rgb: col, size, grow, w, sq, life } : { kind: "ring", x, y, col, size, grow, w, sq, life });
   addPart({ add: true, kind: "glow", x, y, life: 0.16, size: 26 * P + A * 0.3, grow: 0.3, rgb: "255,255,240", a: 0.9 });
-  if (st === "voidorb") {   // implosion: a ring collapsing inward and sparks sucked into the centre
-    addPart({ add: true, kind: "ring", x, y, rgb: "170,110,255", size: 48 * P, grow: -44 * P, w: 4, sq: 0.6, life: 0.35 });
-    burst(Math.round(14 * P), (cx, cy) => { const r0 = rand(30, 50) * P; addPart({ add: true, kind: "spark", x: x + cx * r0, y: y + cy * r0 * 0.7, vx: -cx * r0 * 4, vy: -cy * r0 * 2.8, life: 0.25, size: 2, cols: VOID_COLS, len: 0.05 }); });
-    addPart({ kind: "smoke", x, y, life: 0.5, size: 14 * P, grow: 1.2, col: "#1a0830", a: 0.5 });
+  if (st === "voidorb") {   // implosion: two rings collapse inward, matter is sucked in, then a dark shockwave and a white pop
+    addPart({ add: true, kind: "ring", x, y, rgb: "170,110,255", size: 58 * P, grow: -54 * P, w: 5, sq: 0.6, life: 0.35 });
+    addPart({ add: true, kind: "ring", x, y, rgb: "230,210,255", size: 38 * P, grow: -36 * P, w: 3, sq: 0.6, life: 0.28 });
+    burst(Math.round(20 * P), (cx, cy) => { const r0 = rand(40, 64) * P; addPart({ add: true, kind: "spark", x: x + cx * r0, y: y + cy * r0 * 0.7, vx: -cx * r0 * 4.5, vy: -cy * r0 * 3.1, life: 0.24, size: 2.2, cols: VOID_COLS, len: 0.06 }); });
+    addPart({ kind: "ring", x, y, col: "rgba(30,10,60,0.85)", size: 10, grow: 90 * P, w: 6, sq: 0.55, life: 0.5 });
+    addPart({ add: true, kind: "glow", x, y, life: 0.25, size: 30 * P, grow: -0.8, rgb: "255,255,255", a: 1 });
+    addPart({ kind: "smoke", x, y, life: 0.6, size: 18 * P, grow: 1.4, col: "#1a0830", a: 0.55 });
     return;
   }
-  if (st === "starshard") {   // starburst: eight long rays
-    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, sp = (k % 2 ? 260 : 420) * P; addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 6, life: 0.3, size: k % 2 ? 2 : 3.2, cols: STAR_COLS, len: 0.09 }); }
-    burst(6, (cx, cy) => addPart({ add: true, kind: "glint", x: x + cx * rand(8, 26), y: y + cy * rand(8, 26), vx: 0, vy: 0, life: 0.5, size: rand(3, 5.5), rgb: "255,240,180", rot: rand(0, 6) }));
+  if (st === "starshard") {   // a supernova of light: 16 rays, a white flash, a ring and glitter raining down
+    addPart({ add: true, kind: "glow", x, y, life: 0.25, size: 46 * P, grow: 0.5, rgb: "255,250,220", a: 1 });
+    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8, sp = (k % 2 ? 300 : 520) * P; addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, drag: 6, life: 0.32, size: k % 2 ? 2.2 : 3.6, cols: STAR_COLS, len: 0.1 }); }
+    addPart({ add: true, kind: "ring", x, y, rgb: "255,230,150", size: 10, grow: 80 * P, w: 5, sq: 0.6, life: 0.35 });
+    for (let i = 0; i < 12; i++) addPart({ add: true, kind: "glint", x: x + rand(-40, 40) * P, y: y + rand(-30, 10), vx: rand(-20, 20), vy: rand(30, 90), g: 80, life: rand(0.6, 1.0), size: rand(3, 6), rgb: i % 3 ? "255,240,180" : "255,255,255", rot: rand(0, 6) });
     return;
   }
-  if (st === "hellflame") {   // a pillar of crimson flame
-    for (let i = 0; i < Math.round(16 * P); i++) addPart({ add: true, kind: "glow", x: x + rand(-12, 12) * P, y: y + rand(-6, 6), vx: rand(-20, 20), vy: -rand(80, 240) * P, drag: 1.5, life: rand(0.35, 0.6), size: rand(8, 15) * P, grow: -0.5, cols: HELL_COLS, a: 0.9 });
-    for (let i = 0; i < 6; i++) addPart({ kind: "smoke", x: x + rand(-10, 10), y, vx: rand(-20, 20), vy: -rand(40, 90), life: 0.9, size: rand(8, 13) * P, grow: 1.4, col: "#120408", a: 0.45 });
-    burst(10, (cx, cy) => addPart({ add: true, kind: "spark", x, y, vx: cx * rand(80, 200), vy: cy * rand(80, 200) - 80, g: 300, life: rand(0.4, 0.7), size: 2, cols: HELL_COLS, len: 0.04 }));
+  if (st === "hellflame") {   // a pillar of crimson hellfire, a burning ring on the ground and black smoke
+    fxs.push(new Fx("pillar", { x, y: y + 8, width: 18 * P, height: 150 * P, rgb: "230,40,70", duration: 0.5 }));
+    for (let i = 0; i < Math.round(26 * P); i++) addPart({ add: true, kind: "glow", x: x + rand(-14, 14) * P, y: y + rand(-6, 6), vx: rand(-25, 25), vy: -rand(120, 340) * P, drag: 1.5, life: rand(0.4, 0.7), size: rand(9, 18) * P, grow: -0.5, cols: HELL_COLS, a: 0.95 });
+    addPart({ kind: "ring", x, y: y + 8, col: "rgba(140,10,30,0.85)", size: 12, grow: 70 * P, w: 6, sq: 0.35, life: 0.55 });
+    addPart({ add: true, kind: "ring", x, y: y + 8, rgb: "255,90,90", size: 8, grow: 60 * P, w: 3, sq: 0.35, life: 0.45 });
+    for (let i = 0; i < 8; i++) addPart({ kind: "smoke", x: x + rand(-12, 12), y, vx: rand(-25, 25), vy: -rand(50, 110), life: 1.0, size: rand(9, 15) * P, grow: 1.5, col: "#120408", a: 0.5 });
+    burst(16, (cx, cy) => addPart({ add: true, kind: "spark", x, y, vx: cx * rand(100, 240), vy: cy * rand(100, 240) - 100, g: 300, life: rand(0.45, 0.8), size: 2.2, cols: HELL_COLS, len: 0.05 }));
     return;
   }
-  if (st === "abyssmaw") {   // dark ripples and a swirl pulled inward
-    for (let i = 0; i < 3; i++) addPart({ kind: "ring", x, y, col: i === 1 ? "rgba(140,160,255,0.85)" : "rgba(30,40,150,0.85)", size: 8 + i * 10, grow: 60 + i * 30, w: 4 - i, sq: 0.45, life: 0.45 + i * 0.1 });
-    for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6, r0 = 34 * P; addPart({ add: true, kind: "glow", x: x + Math.cos(a) * r0, y: y + Math.sin(a) * r0 * 0.6, vx: (-Math.cos(a) * 2 - Math.sin(a)) * 60, vy: (-Math.sin(a) * 2 + Math.cos(a)) * 36, life: 0.4, size: 6 * P, grow: -0.5, cols: ABYSS_COLS, a: 0.8 }); }
+  if (st === "abyssmaw") {   // dark tentacles burst out of the ground, ripples and a swirl dragged inward
+    for (let k = 0; k < 6; k++) { const a = -Math.PI / 2 + (k - 2.5) * 0.45; for (let q = 0; q < 5; q++) addPart({ add: true, kind: "glow", x: x + Math.cos(a) * q * 12 * P, y: y + Math.sin(a) * q * 14 * P, vx: Math.cos(a) * 40, vy: Math.sin(a) * 60, life: 0.35 + q * 0.04, size: (10 - q * 1.4) * P, grow: -0.5, cols: ABYSS_COLS, a: 0.9 }); }
+    for (let i = 0; i < 4; i++) addPart({ kind: "ring", x, y, col: i % 2 ? "rgba(140,160,255,0.85)" : "rgba(25,30,140,0.9)", size: 8 + i * 10, grow: 70 + i * 34, w: 4.5 - i, sq: 0.45, life: 0.5 + i * 0.1 });
+    for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8, r0 = 40 * P; addPart({ add: true, kind: "glow", x: x + Math.cos(a) * r0, y: y + Math.sin(a) * r0 * 0.6, vx: (-Math.cos(a) * 2 - Math.sin(a)) * 70, vy: (-Math.sin(a) * 2 + Math.cos(a)) * 42, life: 0.45, size: 7 * P, grow: -0.5, cols: ABYSS_COLS, a: 0.85 }); }
+    for (let i = 0; i < 10; i++) addPart({ kind: "drop", x, y, vx: rand(-200, 200), vy: rand(-320, -120), g: 1000, life: rand(0.5, 0.8), size: rand(2.5, 4), col: "#2a3aa8" });
     return;
   }
-  if (st === "tombstone") {   // the stone shatters and little ghosts rise from the ground
-    for (let i = 0; i < Math.round(10 * P); i++) addPart({ kind: "chunk", x: x + rand(-8, 8), y: y + rand(-6, 6), vx: rand(-160, 160) * P, vy: rand(-260, -80) * P, g: 900, life: rand(0.5, 0.8), size: rand(3, 6) * P, rot: rand(0, 6), vr: rand(-10, 10), col: "#8a8898" });
-    for (let i = 0; i < 6; i++) addPart({ kind: "smoke", x: x + rand(-14, 14), y: y + rand(-4, 4), vx: rand(-30, 30), vy: rand(-30, -5), life: 0.8, size: rand(10, 16) * P, grow: 1.3, col: "#a8a6b4", a: 0.35 });
-    for (let i = 0; i < 3; i++) addPart({ add: true, kind: "glow", x: x + (i - 1) * 16, y, vx: (i - 1) * 10, vy: -rand(40, 70), drag: 0.5, life: 1.1, size: 9 * P, grow: 0.2, cols: [[245, 245, 255], [200, 200, 235], [150, 150, 200]], a: 0.55 });
+  if (st === "tombstone") {   // the ground cracks, the stone shatters and grinning ghosts float up
+    addPart({ kind: "ring", x, y: y + 6, col: "rgba(40,36,50,0.8)", size: 10, grow: 60 * P, w: 5, sq: 0.35, life: 0.6 });
+    for (let i = 0; i < Math.round(14 * P); i++) addPart({ kind: "chunk", x: x + rand(-8, 8), y: y + rand(-6, 6), vx: rand(-190, 190) * P, vy: rand(-300, -100) * P, g: 900, life: rand(0.55, 0.9), size: rand(3, 7) * P, rot: rand(0, 6), vr: rand(-10, 10), col: "#8a8898" });
+    for (let i = 0; i < 8; i++) addPart({ kind: "smoke", x: x + rand(-16, 16), y: y + rand(-4, 4), vx: rand(-35, 35), vy: rand(-35, -5), life: 0.9, size: rand(11, 18) * P, grow: 1.3, col: "#a8a6b4", a: 0.38 });
+    for (let i = 0; i < 4; i++) { const gx = x + (i - 1.5) * 18, vy = -rand(50, 90);
+      addPart({ add: true, kind: "glow", x: gx, y, vx: (i - 1.5) * 12, vy, drag: 0.4, life: 1.2, size: 10 * P, grow: 0.25, cols: [[245, 255, 250], [190, 240, 215], [120, 190, 160]], a: 0.6 });
+      for (const ex of [-3, 3]) addPart({ kind: "grain", x: gx + ex, y: y - 2, vx: (i - 1.5) * 12, vy, drag: 0.4, life: 1.0, size: 2.4, col: "#1a3a30" }); }   // the ghosts' eyes
     return;
   }
-  if (st === "shadowblade") {   // an X slash
-    for (const a of [Math.PI / 4, -Math.PI / 4]) for (const sd of [-1, 1]) addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * 520 * sd, vy: Math.sin(a) * 520 * sd, drag: 9, life: 0.28, size: 4, cols: SHADE_COLS, len: 0.1 });
-    addPart({ kind: "smoke", x, y, life: 0.45, size: 14 * P, grow: 1.1, col: "#2a2440", a: 0.45 });
+  if (st === "shadowblade") {   // a huge X slash that lingers, shadow mist and violet shards
+    for (const a of [Math.PI / 4, -Math.PI / 4]) for (const sd of [-1, 1]) {
+      addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * 680 * sd, vy: Math.sin(a) * 680 * sd, drag: 10, life: 0.38, size: 5, cols: SHADE_COLS, len: 0.13 });
+      addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * 520 * sd, vy: Math.sin(a) * 520 * sd, drag: 10, life: 0.3, size: 2, cols: [[255, 255, 255], [200, 190, 255]], len: 0.13 }); }
+    addPart({ kind: "smoke", x, y, life: 0.6, size: 18 * P, grow: 1.3, col: "#2a2440", a: 0.55 });
+    for (let i = 0; i < 8; i++) { const a = rand(0, Math.PI * 2); addPart({ kind: "shard", x, y, vx: Math.cos(a) * rand(100, 220), vy: Math.sin(a) * rand(100, 220), drag: 3, life: 0.5, size: rand(3, 5), rot: a, vr: rand(-8, 8), col: "#5a4e8a", edge: "#d8d0ff" }); }
     return;
   }
-  if (st === "corona") {   // a corona ring with solar flares
-    addPart({ add: true, kind: "ring", x, y, rgb: "255,190,60", size: 10, grow: 80 * P + A * 0.6, w: 8, sq: 0.6, life: 0.4 });
-    for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6 + rand(-0.1, 0.1), sp = rand(220, 380) * P; addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7, drag: 4, life: 0.35, size: 3, cols: CORONA_COLS, len: 0.06 }); }
-    burst(10, (cx, cy) => addPart({ add: true, kind: "glow", x, y, vx: cx * 140, vy: cy * 100, drag: 3, life: 0.4, size: 12 * P, grow: -0.4, cols: CORONA_COLS, a: 0.8 }));
+  if (st === "corona") {   // a mini supernova: white flash, double corona ring, 18 solar flares and heat shimmer
+    addPart({ add: true, kind: "glow", x, y, life: 0.25, size: 50 * P, grow: 0.4, rgb: "255,250,220", a: 1 });
+    addPart({ add: true, kind: "ring", x, y, rgb: "255,190,60", size: 10, grow: 95 * P + A * 0.6, w: 9, sq: 0.6, life: 0.45 });
+    addPart({ add: true, kind: "ring", x, y, rgb: "255,245,200", size: 6, grow: 60 * P + A * 0.4, w: 4, sq: 0.6, life: 0.32 });
+    for (let k = 0; k < 18; k++) { const a = k * Math.PI / 9 + rand(-0.1, 0.1), sp = rand(240, 440) * P; addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7, drag: 4, life: 0.4, size: 3.2, cols: CORONA_COLS, len: 0.07 }); }
+    burst(14, (cx, cy) => addPart({ add: true, kind: "glow", x, y, vx: cx * 160, vy: cy * 110, drag: 3, life: 0.45, size: 13 * P, grow: -0.4, cols: CORONA_COLS, a: 0.85 }));
     return;
   }
-  if (st === "prism") {   // rainbow sparkles
-    burst(Math.round(12 * P), (cx, cy, i) => addPart({ add: true, kind: "spark", x, y, vx: cx * rand(120, 260), vy: cy * rand(120, 260), drag: 4, life: rand(0.3, 0.5), size: 2.4, cols: [RAINBOW_COLS[i % 5], [255, 255, 255]], len: 0.05 }));
-    addPart({ add: true, kind: "ring", x, y, rgb: "200,240,255", size: 6, grow: 40, w: 3, sq: 0.6, life: 0.3 });
+  if (st === "prism") {   // rainbow sparkles, a crystal ring and a little rainbow arc
+    burst(Math.round(18 * P), (cx, cy, i) => addPart({ add: true, kind: "spark", x, y, vx: cx * rand(140, 300), vy: cy * rand(140, 300), drag: 4, life: rand(0.32, 0.55), size: 2.6, cols: [RAINBOW_COLS[i % 5], [255, 255, 255]], len: 0.06 }));
+    addPart({ add: true, kind: "ring", x, y, rgb: "200,240,255", size: 6, grow: 50, w: 3.5, sq: 0.6, life: 0.32 });
+    RAINBOW_COLS.forEach((c, k) => addPart({ add: true, kind: "ring", x, y: y + 6, rgb: c.join(","), size: 14 + k * 4, grow: 20, w: 2.5, sq: 0.5, life: 0.4 }));
+    for (let i = 0; i < 4; i++) addPart({ kind: "shard", x, y, vx: rand(-160, 160), vy: rand(-220, -60), g: 500, life: 0.6, size: rand(3, 5), rot: rand(0, 6), vr: rand(-10, 10), col: "rgba(210,245,255,0.9)", edge: "#ffffff" });
     return;
   }
-  if (st === "radiantgem") {   // golden crystal shards and a golden ring
-    for (let i = 0; i < Math.round(10 * P); i++) { const a = rand(0, Math.PI * 2), sp = rand(120, 280) * P; addPart({ kind: "shard", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, g: 500, life: rand(0.5, 0.8), size: rand(4, 7), rot: rand(0, 6), vr: rand(-10, 10), col: "#ffd98a", edge: "#fff6c8" }); }
-    addPart({ add: true, kind: "ring", x, y, rgb: "255,215,120", size: 10, grow: 60 * P + A * 0.6, w: 5, sq: 0.55, life: 0.4 });
-    burst(6, (cx, cy) => addPart({ add: true, kind: "glint", x: x + cx * rand(6, 30), y: y + cy * rand(6, 20), vx: 0, vy: -10, life: 0.6, size: rand(3, 5), rgb: "255,240,180", rot: rand(0, 6) }));
+  if (st === "radiantgem") {   // the gem explodes: golden shards, a pillar of light and a golden ring
+    for (let i = 0; i < Math.round(16 * P); i++) { const a = rand(0, Math.PI * 2), sp = rand(140, 320) * P; addPart({ kind: "shard", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, g: 500, life: rand(0.55, 0.9), size: rand(4, 8), rot: rand(0, 6), vr: rand(-10, 10), col: "#ffd98a", edge: "#fff6c8" }); }
+    fxs.push(new Fx("pillar", { x, y: y + 8, width: 16 * P, height: 190 * P, rgb: "255,210,110", duration: 0.55 }));
+    addPart({ add: true, kind: "ring", x, y, rgb: "255,215,120", size: 10, grow: 75 * P + A * 0.6, w: 6, sq: 0.55, life: 0.45 });
+    burst(10, (cx, cy) => addPart({ add: true, kind: "glint", x: x + cx * rand(6, 40), y: y + cy * rand(6, 26), vx: 0, vy: -14, life: 0.8, size: rand(3.5, 6), rgb: "255,240,180", rot: rand(0, 6) }));
     return;
   }
-  if (st === "haloring") {   // an expanding halo ring and a burst of feathers
-    addPart({ add: true, kind: "ring", x, y: y - 10, rgb: "255,225,140", size: 14, grow: 70 * P, w: 5, sq: 0.32, life: 0.45 });
-    for (let i = 0; i < 8; i++) { const a = rand(0, Math.PI * 2); addPart({ kind: "leaf", x, y, vx: Math.cos(a) * rand(60, 150), vy: Math.sin(a) * rand(60, 150) - 60, drag: 2.5, g: 60, life: rand(0.8, 1.2), size: rand(4, 6.5), rot: rand(0, 6), vr: rand(-5, 5), col: "#ffffff" }); }
-    burst(8, (cx, cy) => addPart({ add: true, kind: "glow", x, y, vx: cx * 90, vy: cy * 60, drag: 3, life: 0.35, size: 8 * P, grow: -0.5, cols: HALO_COLS, a: 0.7 }));
+  if (st === "haloring") {   // a beam of holy light from the sky, a halo ring and a feather storm
+    fxs.push(new Fx("pillar", { x, y: y + 10, width: 22 * P, height: 320, rgb: "150,240,210", duration: 0.6 }));
+    addPart({ add: true, kind: "ring", x, y: y - 10, rgb: "255,225,140", size: 14, grow: 85 * P, w: 6, sq: 0.32, life: 0.5 });
+    addPart({ add: true, kind: "ring", x, y: y - 10, rgb: "255,255,255", size: 10, grow: 55 * P, w: 2.5, sq: 0.32, life: 0.4 });
+    for (let i = 0; i < 12; i++) { const a = rand(0, Math.PI * 2); addPart({ kind: "leaf", x, y, vx: Math.cos(a) * rand(70, 180), vy: Math.sin(a) * rand(70, 180) - 80, drag: 2.5, g: 60, life: rand(0.9, 1.4), size: rand(4.5, 7.5), rot: rand(0, 6), vr: rand(-5, 5), col: "#ffffff" }); }
     return;
   }
-  if (st === "eclipse") {   // a gold ring, then a wider purple ring, and a dark puff
-    addPart({ add: true, kind: "ring", x, y, rgb: "255,210,110", size: 8, grow: 50 * P + A * 0.5, w: 5, sq: 0.6, life: 0.32 });
-    addPart({ add: true, kind: "ring", x, y, rgb: "160,100,240", size: 16, grow: 90 * P + A * 0.8, w: 7, sq: 0.6, life: 0.5 });
-    addPart({ kind: "smoke", x, y, life: 0.55, size: 16 * P, grow: 1.4, col: "#140a26", a: 0.5 });
-    burst(10, (cx, cy, i) => addPart({ add: true, kind: "spark", x, y, vx: cx * rand(140, 260), vy: cy * rand(100, 200), drag: 4, life: 0.35, size: 2.2, cols: i % 2 ? [[255, 240, 190], [255, 200, 80]] : [[220, 180, 255], [150, 90, 230]], len: 0.05 }));
+  if (st === "eclipse") {   // totality: a dark disk flash, a gold corona ring, a wide purple shockwave and corona streamers
+    addPart({ kind: "smoke", x, y, life: 0.55, size: 22 * P, grow: 0.9, col: "#05030a", a: 0.7 });
+    addPart({ add: true, kind: "ring", x, y, rgb: "255,215,120", size: 12, grow: 55 * P + A * 0.5, w: 6, sq: 0.6, life: 0.34 });
+    addPart({ add: true, kind: "ring", x, y, rgb: "160,100,240", size: 18, grow: 110 * P + A * 0.8, w: 8, sq: 0.6, life: 0.55 });
+    for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; addPart({ add: true, kind: "spark", x: x + Math.cos(a) * 14, y: y + Math.sin(a) * 10, vx: Math.cos(a) * 380 * P, vy: Math.sin(a) * 260 * P, drag: 6, life: 0.35, size: 2.6, cols: k % 2 ? [[255, 240, 190], [255, 200, 80]] : [[220, 180, 255], [150, 90, 230]], len: 0.08 }); }
+    addPart({ add: true, kind: "glow", x: x + 14, y: y - 10, life: 0.3, size: 14, grow: 0.5, rgb: "255,255,255", a: 1 });   // the diamond ring flash
     return;
   }
   if (st === "serpent") {
@@ -3072,12 +3137,21 @@ class Fx {
         for (const [w, col] of [[14, `rgba(70,150,255,${0.35 * fade})`], [6, `rgba(160,220,255,${0.95 * fade})`], [2.4, `rgba(255,255,255,${fade})`]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([px, py], i) => i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.stroke(); }
       }
       ctx.restore();
+    } else if (this.mode === "pillar") {   // a column of light shooting up from (x, y): grows fast, then thins and fades
+      const grow = Math.min(1, k * 5), fade = 1 - Math.max(0, (k - 0.25) / 0.75), w = this.width * (1 - k * 0.6), h = this.height * grow, top = this.y - h;
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      let g = ctx.createLinearGradient(0, top, 0, this.y); g.addColorStop(0, `rgba(${this.rgb},0)`); g.addColorStop(0.6, `rgba(${this.rgb},${0.45 * fade})`); g.addColorStop(1, `rgba(${this.rgb},${0.7 * fade})`);
+      ctx.fillStyle = g; rrect(this.x - w, top, w * 2, h, w); ctx.fill();
+      g = ctx.createLinearGradient(0, top, 0, this.y); g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(1, `rgba(255,255,255,${0.9 * fade})`);
+      ctx.fillStyle = g; rrect(this.x - w * 0.3, top + h * 0.1, w * 0.6, h * 0.9, w * 0.3); ctx.fill();
+      ctx.restore();
     } else if (this.mode === "prismray") {
       const fade = 1 - k; ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.globalCompositeOperation = "lighter";
       for (let i = 0; i < this.points.length - 1; i++) {
         const [ax, ay] = this.points[i], [bx2, by2] = this.points[i + 1], l = Math.hypot(bx2 - ax, by2 - ay) || 1, nx = -(by2 - ay) / l, ny = (bx2 - ax) / l;
-        [[-5, "255,80,90"], [0, "110,255,140"], [5, "90,170,255"]].forEach(([o, c]) => {   // the three colours spread apart along the ray
-          ctx.strokeStyle = `rgba(${c},${0.85 * fade})`; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx2 + nx * o * (1 + k), by2 + ny * o * (1 + k)); ctx.stroke(); });
+        ctx.strokeStyle = `rgba(200,240,255,${0.25 * fade})`; ctx.lineWidth = 18; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx2, by2); ctx.stroke();   // soft glow
+        [[-6, "255,80,90"], [-3, "255,200,60"], [0, "110,255,140"], [3, "90,170,255"], [6, "190,120,255"]].forEach(([o, c]) => {   // the colours spread apart along the ray
+          ctx.strokeStyle = `rgba(${c},${0.85 * fade})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx2 + nx * o * (1 + k), by2 + ny * o * (1 + k)); ctx.stroke(); });
         ctx.strokeStyle = `rgba(255,255,255,${fade})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx2, by2); ctx.stroke();
       }
       ctx.restore();
@@ -4056,6 +4130,10 @@ function fireCard(c) {
   c.kick = 1;
   playSfx(c.element, "atk");
   const ox = c.x, oy = d.gather ? c.y - CARD_H / 2 - 80 : c.y - 60;   // Kitsune fires from its gathered orb
+  if (NEW_SHOTS.has(VFX_STYLE[c.element]) || VFX_STYLE[c.element] === "prism") {   // muzzle flash in the element's colours
+    const rgb = rgbOf(d.color); addPart({ add: true, kind: "ring", x: ox, y: oy, rgb, size: 8, grow: 46, w: 4, sq: 0.6, life: 0.25 });
+    addPart({ add: true, kind: "glow", x: ox, y: oy, life: 0.18, size: 22, grow: 0.4, rgb, a: 0.9 });
+  }
   if (d.chain) { chain(c.element, c.rarity, ox, oy, targets[0], d.chain, powerMult(c)); return; }
   for (let i = 0; i < shots; i++) { const pr = new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]); pr.sm = powerMult(c); projectiles.push(pr); }
 }
