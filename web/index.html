@@ -2869,7 +2869,7 @@ function showBanner(t, c) { banner = { text: t, color: c, t: 0 }; }
 function showInfo(t) { info = { text: t, t: 0 }; }
 
 function clearBoard() {
-  storagePage = 0; storageX = 0;
+  storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
@@ -4168,12 +4168,16 @@ function hitEnemy(e, el, r, dmg, sm = 1) {
 }
 
 // ------------------------------------------------------------ Shop & merging
+// After any Special card shows up in the shop, no Special card can show up again for this long (seconds of play).
+const SPECIAL_SHOP_CD = 90;
+let specialShopCd = 0;
 function refreshShop() {
   // Each owned totem (Fight, Flight) may take one of the open slots: one roll per totem per refresh, not per slot.
   const open = [...Array(SHOP_N).keys()].filter(i => !(rows.shop[i] && rows.shop[i].locked)), special = {};
   for (const el of SPECIALS) {
+    if (specialShopCd > 0) break;   // Special cards are resting
     if (!save.specials[el] || !open.length || rows.shop.some(c => c && c.locked && c.element === el)) continue;
-    if (Math.random() < totemShopChance(el)) { const k = Math.floor(Math.random() * open.length); special[open[k]] = el; open.splice(k, 1); }
+    if (Math.random() < totemShopChance(el)) { const k = Math.floor(Math.random() * open.length); special[open[k]] = el; open.splice(k, 1); specialShopCd = SPECIAL_SHOP_CD; }
   }
   for (let i = 0; i < SHOP_N; i++) {
     if (rows.shop[i] && rows.shop[i].locked) continue;   // a locked card stays until it is bought
@@ -5252,7 +5256,7 @@ function update(dt) {
   if (paused || bookOpen || chamberOpen || settingsOpen || spell || guide || reviveOffer || speedOffer || testPick || timeStopT > 0 || state === "title" || state === "gameover") shakeT = 0;   // any menu, spell or Pause card ends the shake
   if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || settingsOpen || testPick) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
-  callCd = Math.max(0, callCd - dt); spellCd = Math.max(0, spellCd - dt);
+  callCd = Math.max(0, callCd - dt); spellCd = Math.max(0, spellCd - dt); specialShopCd = Math.max(0, specialShopCd - dt);
   if ((state === "wave" || state === "break") && updateTimeStop(realDt)) {   // Pause wild card: the battlefield is frozen
     time -= dt;   // battlefield animations stand still too
     for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead);
