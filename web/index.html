@@ -7242,7 +7242,9 @@ function drawShadowCard(el, x, y) {
   const sil = cachedSprite("shadowsil_" + el, B, B, () => {
     const c = new Card(el, showRarity(el)); c.noLabel = true; c.t = 0.6; c.x = c.hx = 0; c.y = c.hy = 0; c.scale = 0.72;
     const realText = text; text = () => {};   // no name on a shadow: keep the mystery
-    try { c.draw(); } finally { text = realText; }
+    // Pre-drawn card parts made while names are switched off must not be kept, or the real card would lose its name.
+    const had = new Set(SPR_CACHE.keys());
+    try { c.draw(); } finally { text = realText; for (const k of [...SPR_CACHE.keys()]) if (!had.has(k)) SPR_CACHE.delete(k); }
     // Turn it into a shadow: nearly black purple, but bright parts stay a little lighter, so the creature or emblem
     // inside is just barely visible as a dark shape.
     const g = ctx, id = g.getImageData(0, 0, B * 2, B * 2), px = id.data;
