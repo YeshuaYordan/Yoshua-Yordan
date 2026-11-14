@@ -153,7 +153,7 @@ const TOTEM_STEP = el => 0.5;   // Fight and Flight: each extra copy adds +0.5x
 const TOTEM_MAX = 3;   // boost 3 = x4, the most a totem can give (5 copies)
 const totemSum = (el, a, b) => (a || 1) + (b || 1) - 1 + TOTEM_STEP(el);
 const totemFull = c => (c.boost || 1) >= TOTEM_MAX;
-const powerMult = c => starMult(c) * totemMult(c, "dmg") * curseDmgMult();
+const powerMult = c => starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * totemMult(c, "dmg") * curseDmgMult();
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };   // Totem + Totem: +0.5x (see totemSum)
@@ -182,7 +182,7 @@ function mergeHint(a, b) {
   if (a.rarity !== b.rarity) return `Both cards must be the same level (like V2 + V2) to fuse.`;
   return "";
 }
-const damageOf = (el, r) => EL[el].dmg * RARITY_DMG[r] * levelMult(el);   // levelMult: card upgrades from Summon
+const damageOf = (el, r) => EL[el].dmg * RARITY_DMG[r] * levelMult(el) * runDmgMult(el);   // levelMult: card upgrades from Summon
 const rateOf = (el, r) => EL[el].rate * RARITY_RATE[r];
 const priceOf = (el, r) => RARITY_PRICE[r] * EL[el].tier;
 const sellOf = (el, r) => Math.max(1, Math.floor(priceOf(el, r) / 2));
@@ -221,7 +221,8 @@ for (const old of ["solarflare", "tidalwave", "earthquake", "tempest"]) {   // t
   if (save.copies && save.copies[old]) { save.copies.totem = (save.copies.totem || 0) + save.copies[old]; delete save.copies[old]; }
   if (save.levels && save.levels[old]) { save.levels.totem = Math.max(save.levels.totem || 1, save.levels[old]); delete save.levels[old]; }
 }
-for (const sp of ["totem", "flight"]) if (save.copies) delete save.copies[sp];   // Special cards have no copies or levels
+for (const sp of ["totem", "flight"]) if (save.copies) delete save.copies[sp];
+save.castleUp = save.castleUp || {}; save.spellLv = save.spellLv || {};   // permanent castle and spell upgrades (gems)   // Special cards have no copies or levels
 // ---- Trusted time (anti clock-cheat). The game remembers the latest time it has ever seen (save.maxSeen). If the
 // phone's clock goes back before it, time rewards pause until real time catches up, so moving the clock forward and
 // back gains nothing. When online it also reads the real time (the Android app can provide window.nativeNetTime,
@@ -1541,7 +1542,7 @@ class Enemy {
     const d = KINDS[kind], w = wave - 1;
     this.kind = kind; this.look = d.look; this.x = x; this.y = y;
     this.isBoss = !!d.boss; this.king = !!d.king; this.glow = !!d.glow; this.heavy = !!d.heavy;
-    this.hp = d.hp * (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, clamp(w - 40, 0, 20)) * Math.pow(1.06, Math.max(0, w - 60)); this.maxHp = this.hp;   // steeper mid game; from wave 60 +6% per wave
+    this.hp = d.hp * hpScale(wave); this.maxHp = this.hp;   // steeper mid game; from wave 60 +6% per wave
     this.speed = d.speed * (1 + Math.min(0.5, wave * 0.012)) * (1 + clamp((wave - 80) * 0.005, 0, 0.25)); this.size = d.size;   // +0.5% per wave after 80 (max +25%)
     this.gold = d.gold + Math.floor(wave / 8); this.dps = d.dps * (1 + wave * 0.05);
     this.flying = false; this.color = d.color; this.resist = d.resist || "";
@@ -1560,15 +1561,20 @@ class Enemy {
     const limit = FRONT_Y - this.size * 0.9;
     if (this.y < limit) {
       this.attacking = false;
-      if (this.rootT <= 0) this.y += this.speed * this.slowMult * FIELD_SPEED * dt;
+      if (this.rootT <= 0) this.y += this.speed * this.slowMult * (hasRelic("mire") ? 0.9 : 1) * FIELD_SPEED * dt;
     } else {
+      if (!this.attacking && hasRelic("frostgate") && frostGateWave !== this.wave) {   // Frost Gate: the first one at the wall freezes
+        frostGateWave = this.wave; this.stunT = 5; fxs.push(new Fx("burst", { x: this.x, y: this.y, color: "#bfefff", radius: this.size * 2.4, duration: 0.6 })); return;
+      }
       this.attacking = true; this.y = limit; damageCastle(this.dps * dt);
     }
   }
   takeDamage(a, src, color) {
     if (this.dead) return;
-    const dealt = Math.min(a, Math.max(0, this.hp));
+    if (this.isBoss && hasRelic("bossbane")) a *= 1.3;
+    let dealt = Math.min(a, Math.max(0, this.hp));
     this.hp -= a; if (a >= 1) this.flash = 1;
+    if (!this.isBoss && hasRelic("reaper") && this.hp > 0 && this.hp < this.maxHp * 0.08) { dealt += this.hp; this.hp = 0; }   // Reaper's Mark
     if (this.rush) {   // Boss Break Out: 1 gold for every 2% of its HP taken off
       this.goldAcc = (this.goldAcc || 0) + dealt / this.maxHp * BOSS_GOLD_PER_KILL;
       const g = Math.floor(this.goldAcc);
@@ -2679,6 +2685,7 @@ class Zone {
           const dx = this.x - e.x, dy = this.y - e.y, dd = Math.hypot(dx, dy);
           if (dd > 3) { const pl = this.pull * (e.isBoss ? 0 : e.heavy ? 0.5 : 1) * dt * Math.min(1, dd / 25) * Math.min(1, (this.duration - this.t) * 2); e.x += dx / dd * pl; e.y += dy / dd * pl; }
         }
+        if (this.block) e.rootT = Math.max(e.rootT, 0.12);   // Barricade: nobody gets past
         if (this.dps > 0) e.takeDamage(this.dps * dt, this.src, this.color);
         if (this.slowAmt > 0 && !e.dead) e.slow(this.slowAmt, 0.3);
         if (this.burnAmt > 0 && !e.dead) e.burn(this.burnAmt, 1);
@@ -2687,6 +2694,7 @@ class Zone {
   }
   draw() {
     if (this.whirl) { drawWhirlpool(this); return; }
+    if (this.trap) { drawTrap(this); return; }
     if (this.scratch) { drawClawField(this); return; }
     const fade = 1 - this.t / this.duration, grow = Math.min(1, this.t * 6);
     for (let i = 0; i < 6; i++) {
@@ -2831,9 +2839,71 @@ let gold = 0, castleHp = CASTLE_MAX, wave = 0, state = "title", breakTimer = -1,
 // One revive per run: when the castle falls, watching an ad (within 6 s) clears the field and restores the castle.
 const REVIVE_TIME = 6;
 let reviveOffer = null, reviveUsed = false;
+// ---- Problem solvers -------------------------------------------------------------------------------------------
+// Castle upgrades (permanent, bought with gems in the lobby). cu(id) = level.
+const CASTLE_UPS = {
+  hp:        { name: "Thick Walls",    max: 10, cost: l => 25 + 25 * l, info: l => `+${20 * l} castle max HP`, next: "+20 max HP" },
+  armor:     { name: "Stone Armor",    max: 5,  cost: l => 40 + 40 * l, info: l => `Castle takes ${3 * l}% less damage`, next: "-3% damage taken" },
+  gold:      { name: "War Chest",      max: 5,  cost: l => 30 + 30 * l, info: l => `+${10 * l} starting gold`, next: "+10 starting gold" },
+  spellcost: { name: "Arcane Study",   max: 5,  cost: l => 40 + 40 * l, info: l => `Spells cost ${5 * l}% less`, next: "spells -5% cost" },
+  archers:   { name: "Castle Archers", max: 5,  cost: l => 50 + 50 * l, info: l => l ? `Archers shoot the closest enemy (power ${l})` : "Archers on the wall shoot the closest enemy", next: "+1 archer power" },
+  revive:    { name: "Second Wind",    max: 1,  cost: () => 150,        info: l => l ? "Once per game the castle gets back up with 30% HP" : "Once per game the castle gets back up with 30% HP", next: "unlock" },
+};
+const cu = id => (save.castleUp && save.castleUp[id]) || 0;
+// Spell levels (permanent, gems). sl(id) = level 0..5.
+const SPELL_UPS = {
+  meteor: { info: l => `+${25 * l}% meteor damage`, next: "+25% damage" },
+  freeze: { info: l => `Freeze lasts +${l} s`, next: "+1 s" },
+  heal:   { info: l => `Heals +${10 * l} more HP`, next: "+10 HP" },
+  speed:  { info: l => `Speed Up lasts +${2 * l} s`, next: "+2 s" },
+  doom:   { info: l => `Doom costs ${10 * l}% less`, next: "-10% cost" },
+  quake:  { info: l => `Stun lasts +${(0.5 * l).toFixed(1)} s`, next: "+0.5 s" },
+  rewind: { info: l => `Rewinds +${l} s further`, next: "+1 s" },
+};
+const SPELL_UP_MAX = 5, spellUpCost = l => 30 + 30 * l;
+const sl = id => (save.spellLv && save.spellLv[id]) || 0;
+// Relics: after every stage the player picks 1 of 3. They last until the game ends.
+const RELICS = {
+  fire:      { name: "Ember Heart",      desc: "Fire cards deal +25% damage.", icon: "el", el: "fire" },
+  water:     { name: "Tide Pearl",       desc: "Water cards deal +25% damage.", icon: "el", el: "water" },
+  earth:     { name: "Stone Idol",       desc: "Earth cards deal +25% damage.", icon: "el", el: "earth" },
+  wind:      { name: "Gale Feather",     desc: "Wind cards deal +25% damage.", icon: "el", el: "wind" },
+  sharp:     { name: "Whetstone",        desc: "All cards deal +15% damage.", icon: "sword", col: "#d8dde6" },
+  haste:     { name: "Hourglass Charm",  desc: "All cards attack 15% faster.", icon: "clock", col: "#ffd84a" },
+  spellsale: { name: "Mage's Purse",     desc: "Spells cost 30% less.", icon: "coin", col: "#c070ff" },
+  regen:     { name: "Living Stone",     desc: "The castle heals 1 HP every second in battle.", icon: "heart", col: "#6cff8a" },
+  bossbane:  { name: "Giant Slayer",     desc: "Bosses take +30% damage.", icon: "sword", col: "#ff6a4a" },
+  bounty:    { name: "Bounty Board",     desc: "+1 gold for every kill.", icon: "coin", col: "#f2c14e" },
+  wildluck:  { name: "Lucky Clover",     desc: "Wild cards drop twice as often.", icon: "clover", col: "#5fd87a" },
+  frostgate: { name: "Frost Gate",       desc: "The first enemy to reach the wall each wave is frozen for 5 s.", icon: "snow", col: "#9fe6ff" },
+  walls:     { name: "Mason's Blessing", desc: "+40 castle max HP (and heals 40 now).", icon: "shield", col: "#cfc2ae" },
+  aegis:     { name: "Aegis",            desc: "The castle takes 10% less damage.", icon: "shield", col: "#8fc8ff" },
+  mire:      { name: "Mire Totem",       desc: "Enemies move 10% slower.", icon: "snow", col: "#7a9a5a" },
+  reaper:    { name: "Reaper's Mark",    desc: "Normal enemies under 8% HP die at once.", icon: "sword", col: "#a64dff" },
+  stars:     { name: "Star Shard",       desc: "Starred cards deal +20% damage.", icon: "star", col: "#ffd84a" },
+  vamp:      { name: "Blood Mortar",     desc: "Every kill heals the castle 0.3 HP.", icon: "heart", col: "#ff4a6a" },
+  vault:     { name: "Golden Vault",     desc: "Gold interest limit +50.", icon: "coin", col: "#ffe27a" },
+  merchant:  { name: "Merchant's Seal",  desc: "Rerolls cost 30% less.", icon: "coin", col: "#7fe6ff" },
+  sage:      { name: "Sage's Eye",       desc: "Stage weakness gives x3 damage instead of x2.", icon: "star", col: "#9fd8ff" },
+};
+let relics = new Set(), relicOffer = null, secondWindUsed = false, archerT = 0, frostGateWave = -1, weakSeed = 0, wallLog = [];
+const hasRelic = id => relics.has(id);
+// Each stage has an element its enemies are weak to (x2 damage, x3 with Sage's Eye). Not in Boss Break Out.
+const stageWeak = w => (bossMode || w < 1) ? null : BASE[(stageNum(w) * 3 + weakSeed) % BASE.length];
+function runDmgMult(el) {
+  if (state !== "wave" && state !== "break") return 1;
+  const parts = EL[el].parts || []; let m = 1;
+  for (const b of BASE) if (hasRelic(b) && parts.includes(b)) m *= 1.25;
+  if (hasRelic("sharp")) m *= 1.15;
+  const wk = stageWeak(Math.max(1, wave)); if (wk && parts.includes(wk)) m *= hasRelic("sage") ? 3 : 2;
+  return m;
+}
+// Enemy HP growth per wave (the same curve the enemies use), for things that scale with the waves.
+const hpScale = wave => { const w = wave - 1; return (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, clamp(w - 40, 0, 20)) * Math.pow(1.06, Math.max(0, w - 60)); };
 // Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
 const CALL_COOLDOWN = 3;
 let spawners = [], callCd = 0, wavesCleared = 0, rerollCost = REROLL_BASE, freeCard = true;
+const rerollPrice = () => Math.max(1, Math.round(rerollCost * (hasRelic("merchant") ? 0.7 : 1)));
 // Reroll price: 2, 3, 4 ... in stage 1; it doubles every stage (stage 2: 4, 6, 8 ...; stage 3: 8, 12, 16 ...).
 const rerollMult = () => 2 ** (stageNum(Math.max(1, state === "break" ? wave + 1 : wave)) - 1);
 let time = 0, wallFlash = 0, paused = false, bookOpen = false, bookScroll = 0;
@@ -2881,6 +2951,9 @@ function clearBoard() {
 const WILD = {
   pause: { name: "Pause", desc: "The whole battlefield stops for 10 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 10 },
   stalwart: { name: "Stalwart", desc: "The wall gets +25 max HP (and heals 25) and +0.5% damage reduction (up to 60%). Stacks.", hpUp: 25, armorUp: 0.005 },
+  spikes: { name: "Spike Trap", desc: "Drop it on the path: spikes hurt every enemy on them for 10 seconds.", trap: true },
+  barricade: { name: "Barricade", desc: "Drop it on the path: enemies there are stopped for 5 seconds.", trap: true },
+  tar: { name: "Tar Pit", desc: "Drop it on the path: enemies there move 50% slower for 12 seconds.", trap: true },
 };
 const WILD_CD = 15;   // seconds of battle before another normal enemy can drop a wild card (not shown to the player)
 let wildDropCd = 0;
@@ -2918,8 +2991,18 @@ function updateWild(dt) {
   if (!wildFan && !wildDrag) wildScroll += (Math.round(wildScroll) - wildScroll) * Math.min(1, dt * 10);
   wildScroll = clamp(wildScroll, 0, Math.max(0, wilds.length - 1));
 }
-function useWild(i) {
+function useWild(i, p) {
   const w = wilds[i], d = WILD[w.id]; if (!w) return;
+  if (d.trap) {   // traps land where they were dropped, on the path
+    const x = clamp(p ? p.x : W / 2, 60, W - 60), y = clamp(p ? p.y : (HUD_H + FRONT_Y) / 2, HUD_H + 70, FRONT_Y - 50);
+    let z;
+    if (w.id === "spikes") { z = new Zone(x, y, 90, KINDS.orc.hp * hpScale(Math.max(1, wave)) * 0.15, 10, "#c8ccd4"); z.src = "Spike Trap"; }
+    if (w.id === "barricade") { z = new Zone(x, y, 105, 0, 5, "#8a5a2a"); z.block = true; }
+    if (w.id === "tar") { z = new Zone(x, y, 115, 0, 12, "#2a2018"); z.slowAmt = 0.5; }
+    z.trap = w.id; zones.push(z);
+    fxs.push(new Fx("burst", { x, y, color: z.color, radius: z.radius, duration: 0.5 }));
+    playSfx(w.id === "tar" ? "plant" : "earth", "hit"); showInfo(`${d.name} placed!`);
+  }
   if (w.id === "stalwart") {
     castleMax += d.hpUp; castleHp = Math.min(castleMax, castleHp + d.hpUp); castleArmor = Math.min(WILD_ARMOR_MAX, castleArmor + d.armorUp); wallGlow = 1;
     for (let k = 0; k < 9; k++) fxs.push(new Fx("burst", { x: 40 + k * 80, y: WALL_Y + WALL_H / 2, color: "#cfe6ff", radius: 70, duration: 0.6 }));
@@ -3001,6 +3084,35 @@ function drawWildIcon(id, my = -10, spin = null) {
     ctx.restore();
   }
 }
+// Traps on the battlefield.
+function drawTrap(z) {
+  const fade = Math.min(1, (z.duration - z.t) * 2, z.t * 6), r = z.radius;
+  ctx.save(); ctx.globalAlpha = fade; ctx.translate(z.x, z.y);
+  if (z.trap === "spikes") {
+    ctx.save(); ctx.scale(1, 0.5); circle(0, 0, r, "rgba(60,50,45,0.55)"); ring(0, 0, r, "rgba(30,20,15,0.8)", 3); ctx.restore();
+    const up = 0.75 + 0.25 * Math.abs(Math.sin(z.t * 6));
+    for (let k = 0; k < 14; k++) { const a = k * 2.4, rr = r * 0.8 * Math.sqrt((k + 0.5) / 14), sx = Math.cos(a) * rr, sy = Math.sin(a) * rr * 0.5;
+      poly([[sx - 6, sy + 4], [sx, sy - 18 * up], [sx + 6, sy + 4]], "#d8dde6", INK, 1.5); }
+  } else if (z.trap === "barricade") {
+    for (const [dx, rot] of [[-r * 0.5, 0.5], [0, -0.5], [r * 0.5, 0.5]]) { ctx.save(); ctx.translate(dx, 0); ctx.rotate(rot);
+      rrect(-8, -34, 16, 68, 4); ctx.fillStyle = "#8a5a2a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke(); ctx.restore(); }
+    rrect(-r, -10, r * 2, 20, 5); ctx.fillStyle = "#a8743a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    for (const x of [-r * 0.7, 0, r * 0.7]) circle(x, 0, 3, "#3a2418");
+  } else if (z.trap === "tar") {
+    ctx.save(); ctx.scale(1, 0.55); circle(0, 0, r, "rgba(30,22,16,0.8)"); circle(-r * 0.3, -r * 0.2, r * 0.5, "rgba(55,42,30,0.6)"); ctx.restore();
+    for (let k = 0; k < 4; k++) { const ph = (z.t * 0.7 + k * 0.27) % 1, bx = Math.cos(k * 2.1) * r * 0.55, by = Math.sin(k * 2.1) * r * 0.25;
+      ring(bx, by, 4 + ph * 8, `rgba(120,100,80,${0.8 * (1 - ph)})`, 2); }
+  }
+  ctx.restore();
+}
+function drawTrapIcon(id) {
+  ctx.save(); ctx.translate(0, -10);
+  if (id === "spikes") { ctx.save(); ctx.scale(1, 0.5); circle(0, 16, 26, "#4a3c34"); ctx.restore(); for (const [x, h] of [[-14, 22], [0, 30], [14, 22], [-7, 14], [7, 14]]) poly([[x - 6, 10], [x, 10 - h], [x + 6, 10]], "#e6eaf2", INK, 1.6); }
+  if (id === "barricade") { for (const [dx, rot] of [[-12, 0.5], [12, -0.5]]) { ctx.save(); ctx.translate(dx, 0); ctx.rotate(rot); rrect(-5, -22, 10, 44, 3); ctx.fillStyle = "#8a5a2a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore(); }
+    rrect(-24, -6, 48, 12, 3); ctx.fillStyle = "#b07a3a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.stroke(); }
+  if (id === "tar") { ctx.save(); ctx.scale(1, 0.6); circle(0, 6, 25, "#1e1610"); ring(0, 6, 25, INK, 2); circle(-8, 0, 9, "#3a2c20"); ctx.restore(); ring(9, -2, 5, "#8a7a6a", 1.6); ring(-4, -8, 3.5, "#8a7a6a", 1.4); }
+  ctx.restore();
+}
 // A wild card at (x, y): frame and icon pre-drawn once; a shine sweeps over it; count badge for stacks.
 function drawWildCard(id, x, y, sc, rot = 0, n = 1, glow = 0) {
   const hw = CARD_W / 2, hh = CARD_H / 2;
@@ -3008,7 +3120,7 @@ function drawWildCard(id, x, y, sc, rot = 0, n = 1, glow = 0) {
   if (glow > 0) { const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(170,225,255,${0.55 * glow})`); g.addColorStop(1, "rgba(170,225,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -120, 240, 240); }   // painted (not added) so it stays blue over grass
   rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 11); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
   drawCached("wild_" + id, CARD_W + 30, CARD_H + 30, () => {
-    drawWildFrame(hw, hh); drawWildIcon(id);
+    drawWildFrame(hw, hh); if (WILD[id].trap) drawTrapIcon(id); else drawWildIcon(id);
     const py = hh - 20; rrect(-hw + 9, py - 11, CARD_W - 18, 22, 8); ctx.fillStyle = "rgba(240,248,255,0.95)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
     text(WILD[id].name, 0, py + 1, 15, "#1c3552", { font: DISPLAY, weight: 900, baseline: "middle" });
   });
@@ -3090,7 +3202,7 @@ function wildUp(p) {
   if (!wildDrag) return false;
   const d = wildDrag; wildDrag = null;
   if (!d.moved) { const w = wilds[d.i]; if (w) showInfo(`${WILD[w.id].name}: ${WILD[w.id].desc} Drag it onto the battlefield to use it.`); return true; }
-  if (wildDropOk(p) && wilds[d.i]) useWild(d.i);
+  if (wildDropOk(p) && wilds[d.i]) useWild(d.i, p);
   return true;
 }
 // ---- Curses: every boss (normal mode) leaves a random curse you don't have yet. A curse lasts until you cast its
@@ -3324,6 +3436,8 @@ function startRun() {
   clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
   gold = START_GOLD; curses = new Set(); curseHpCut = 0; curseBurnT = CURSE_BURN_CD; spellUses = {}; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
+  relics = new Set(); relicOffer = null; secondWindUsed = false; archerT = 1; frostGateWave = -1; weakSeed = Math.floor(Math.random() * 4); wallLog = [];
+  gold += 10 * cu("gold"); castleMax += 20 * cu("hp"); castleHp = castleMax;   // castle upgrades
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
   showInfo("Buy a card, then tap Next Wave (top left). You can call new waves before the last one ends.");
@@ -3340,6 +3454,7 @@ function beginWave(fromTimer = false) {
     return;
   }
   const total = Math.min(6 + wave * 2, 70) + clamp(wave - 80, 0, 50);   // +1 enemy per wave after 80 (max +50)
+  if (wave % STAGE_LEN === 1 && stageWeak(wave)) { const wk = stageWeak(wave); setTimeout(() => { if (state === "wave" || state === "break") showBanner(`Stage ${stageNum(wave)}: enemies are weak to ${EL[wk].name}! (x${hasRelic("sage") ? 3 : 2})`, EL[wk].color); }, 1600); }
   spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % STAGE_LEN === 0 });
   const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
   const st = stageOf(wave);
@@ -3347,6 +3462,116 @@ function beginWave(fromTimer = false) {
   else if (waveInStage(wave) === 1) showBanner(`Stage ${stageNum(wave)}: ${st.name}${stacked}`, GOLD);
   else showBanner(`Wave ${waveLabel(wave)}${stacked}`, PARCH);
 }
+function offerRelics() {
+  const left = Object.keys(RELICS).filter(id => !relics.has(id)); if (!left.length) return;
+  const picks = []; while (picks.length < 3 && left.length) picks.push(left.splice(Math.floor(Math.random() * left.length), 1)[0]);
+  relicOffer = { picks, t: 0 }; cancelDrag(); spell = null;
+  relicBtns = picks.map((id, i) => makeBtn("", 0, 0, 200, 300, () => pickRelic(id), 20));
+}
+let relicBtns = [];
+function pickRelic(id) {
+  relics.add(id); relicOffer = null; playUi("ui_place"); playSfx("phoenix", "atk");
+  if (id === "walls") { castleMax += 40; castleHp = Math.min(castleMax, castleHp + 40); }
+  showBanner(`Relic: ${RELICS[id].name}!`, "#ffd84a"); showInfo(RELICS[id].desc);
+}
+function drawRelicIcon(id, x, y, r) { const d = RELICS[id]; drawGlyphBadge(d.icon, d.icon === "el" ? EL[d.el].color : d.col, x, y, r, d.el); }
+function drawGlyphBadge(icon, col, x, y, r, el) {
+  const d = { icon, el };
+  ctx.save(); ctx.translate(x, y);
+  circle(0, 0, r + 4, INK); const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r); g.addColorStop(0, shade(col, 0.45)); g.addColorStop(1, shade(col, -0.35)); circle(0, 0, r, g);
+  ring(0, 0, r - 4, "rgba(255,255,255,0.35)", 2);
+  const k = r / 30; ctx.scale(k, k); ctx.lineJoin = "round"; ctx.lineCap = "round";
+  if (d.icon === "el") poly(radialPoly(0, 0, 16, EL[d.el].shape, 0, 1), "#fffaf0", INK, 2.5);
+  if (d.icon === "sword") { ctx.rotate(-0.8); poly([[-3, 14], [-3, -16], [0, -22], [3, -16], [3, 14]], "#f4f6fa", INK, 2); rrect(-10, 12, 20, 5, 2); ctx.fillStyle = "#c08a3a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke(); }
+  if (d.icon === "clock") { circle(0, 0, 16, "#fffaf0"); ring(0, 0, 16, INK, 2.5); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -10); ctx.moveTo(0, 0); ctx.lineTo(8, 4); ctx.stroke(); }
+  if (d.icon === "coin") { circle(0, 0, 15, "#f2c14e"); ring(0, 0, 15, INK, 2.5); ring(0, 0, 10, "#b07a1e", 2); }
+  if (d.icon === "heart") { ctx.beginPath(); ctx.moveTo(0, 15); ctx.bezierCurveTo(-24, -2, -12, -20, 0, -8); ctx.bezierCurveTo(12, -20, 24, -2, 0, 15); ctx.closePath(); ctx.fillStyle = "#fffaf0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke(); }
+  if (d.icon === "shield") poly([[0, -17], [15, -11], [13, 6], [0, 17], [-13, 6], [-15, -11]], "#fffaf0", INK, 2.5);
+  if (d.icon === "star") poly(Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? 7 : 17; return [Math.cos(a) * rr, Math.sin(a) * rr]; }), "#fffaf0", INK, 2.5);
+  if (d.icon === "snow") { ctx.strokeStyle = "#fffaf0"; ctx.lineWidth = 4; for (let i = 0; i < 3; i++) { ctx.beginPath(); const a = i * Math.PI / 3; ctx.moveTo(Math.cos(a) * 16, Math.sin(a) * 16); ctx.lineTo(-Math.cos(a) * 16, -Math.sin(a) * 16); ctx.stroke(); } }
+  if (d.icon === "clover") for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; circle(Math.cos(a) * 8, Math.sin(a) * 8, 8, "#fffaf0"); ring(Math.cos(a) * 8, Math.sin(a) * 8, 8, INK, 2); }
+  ctx.restore();
+}
+function drawRelicOffer() {
+  relicOffer.t = performance.now() / 1000;
+  dim(0.88);
+  const oy = Math.max(0, (H - 1280) / 2) + 180;   // below the stage-clear banner
+  text("Choose a Relic", W / 2, oy + 300, 54, GOLD, { font: DISPLAY, weight: 900, outline: 12 });
+  text("It stays with you for the rest of this game.", W / 2, oy + 350, 22, PARCH, { weight: 700, outline: 6 });
+  relicOffer.picks.forEach((id, i) => {
+    const b = relicBtns[i], w = 210, h = 330, x = W / 2 + (i - 1) * 230 - w / 2, y = oy + 400 + Math.sin(relicOffer.t * 2 + i) * 4;
+    b.x = x; b.y = y; b.w = w; b.h = h;
+    const press = b.down ? 4 : 0;
+    rrect(x + 3, y + 8, w, h, 20); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
+    rrect(x, y + press, w, h, 20); const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, "#3a2a5a"); g.addColorStop(1, "#1a1230"); ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 4; ctx.stroke();
+    drawRelicIcon(id, x + w / 2, y + press + 90, 50);
+    text(RELICS[id].name, x + w / 2, y + press + 178, RELICS[id].name.length > 14 ? 19 : 22, GOLD, { font: DISPLAY, weight: 900, outline: 5 });
+    wrapLines(RELICS[id].desc, 22, w - 30).forEach((ln, k) => text(ln, x + w / 2, y + press + 214 + k * 24, 18, "#eae0ff", { weight: 600 }));
+  });
+  if (relics.size) text(`Your relics: ${[...relics].map(id => RELICS[id].name).join(", ")}`, W / 2, oy + 770, 17, "#cbb8e8", { weight: 600 });
+}
+function wrapLines(str, size, maxW, weight = 600) {
+  ctx.font = `${weight} ${size}px ${FONT}`; const out = []; let line = "";
+  for (const w of str.split(" ")) { const t = line ? line + " " + w : w; if (ctx.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; }
+  if (line) out.push(line); return out;
+}
+// ---- Castle & spell upgrades (lobby): permanent, paid with gems.
+function drawCastleIcon() {   // a small stone keep with a flag
+  ctx.save(); ctx.translate(0, 8);
+  poly([[-34, -10], [34, -10], [34, 40], [-34, 40]], "#b8aa98", INK, 3);
+  for (const x of [-34, -17, 0, 17]) poly([[x, -22], [x + 12, -22], [x + 12, -10], [x, -10]], "#cfc2ae", INK, 2.5);
+  poly([[-14, -10], [14, -10], [14, -44], [-14, -44]], "#c9bca8", INK, 3);
+  for (const x of [-14, -2, 10]) poly([[x, -54], [x + 6, -54], [x + 6, -44], [x, -44]], "#d8ccb8", INK, 2);
+  ctx.beginPath(); ctx.moveTo(-9, 40); ctx.lineTo(-9, 22); ctx.quadraticCurveTo(0, 12, 9, 22); ctx.lineTo(9, 40); ctx.closePath(); ctx.fillStyle = "#3a2418"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+  circle(0, -30, 5, "#2a1a10");
+  ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -54); ctx.lineTo(0, -74); ctx.stroke();
+  poly([[0, -74], [20, -68], [0, -62]], "#e0533f", INK, 2);
+  ctx.restore();
+}
+const CASTLE_ICON = { hp: ["shield", "#cfc2ae"], armor: ["shield", "#8fc8ff"], gold: ["coin", "#f2c14e"], spellcost: ["star", "#c070ff"], archers: ["sword", "#ffe3a0"], revive: ["heart", "#6cff8a"] };
+const SPELL_ROWS = ["meteor", "freeze", "heal", "speed", "doom", "quake", "rewind"];
+function castleRows() {
+  if (castleTab === 0) return Object.keys(CASTLE_UPS).map(id => { const u = CASTLE_UPS[id], l = cu(id); return { id, name: u.name, lvl: l, max: u.max, cost: u.cost(l), now: l ? u.info(l) : "Not bought yet", next: u.next, buy: () => { save.castleUp[id] = l + 1; } }; });
+  return SPELL_ROWS.map(id => { const l = sl(id), sp = SPELLS[id]; return { id, spell: true, name: sp.name + (sp.minWave ? `  (wave ${sp.minWave}+)` : ""), lvl: l, max: SPELL_UP_MAX, cost: spellUpCost(l), now: l ? SPELL_UPS[id].info(l) : "Level 0", next: SPELL_UPS[id].next, buy: () => { save.spellLv[id] = l + 1; } }; });
+}
+function castleButtons() { return [btn.cuClose, btn.cuTabCastle, btn.cuTabSpells, ...castleRowBtns]; }
+function drawCastlePanel() {
+  dim(0.7);
+  const x = 24, w = W - 48, y = 110, h = H - 200;
+  rrect(x, y + 8, w, h, 24); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill();
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  text("Castle & Spells", W / 2, y + 62, 44, INK, { font: DISPLAY, weight: 900 });
+  text(`${save.gems}`, W / 2 - 6, y + 104, 26, "#2a6ad8", { weight: 900, align: "right" }); drawGem(W / 2 + 16, y + 96, 12);
+  text("Upgrades last forever.", W / 2 + 40, y + 104, 18, "#6b3a22", { weight: 700, align: "left" });
+  btn.cuTabCastle.x = W / 2 - 210; btn.cuTabSpells.x = W / 2 + 10; btn.cuTabCastle.y = btn.cuTabSpells.y = y + 124;
+  drawBtn(btn.cuTabCastle, castleTab === 0); drawBtn(btn.cuTabSpells, castleTab === 1);
+  const rows = castleRows(), top = y + 206, rh = Math.min(112, (h - 330) / rows.length);
+  castleRowBtns = [];
+  rows.forEach((r, i) => {
+    const ry = top + i * rh, maxed = r.lvl >= r.max;
+    rrect(x + 16, ry, w - 32, rh - 10, 14); ctx.fillStyle = i % 2 ? "rgba(107,58,34,0.08)" : "rgba(107,58,34,0.15)"; ctx.fill();
+    const ic = x + 16 + (rh - 10) / 2 + 4, iy = ry + (rh - 10) / 2;
+    if (r.spell) { rrect(ic - 36, iy - 36, 72, 72, 12); ctx.fillStyle = "#2a1640"; ctx.fill(); drawRuneIcon(SPELLS[r.id], ic - 26, iy - 26, 52, 52); }
+    else drawGlyphBadge(CASTLE_ICON[r.id][0], CASTLE_ICON[r.id][1], ic, iy, 32);
+    const tx = ic + 50;
+    text(r.name, tx, ry + 32, 24, INK, { align: "left", font: DISPLAY, weight: 900 });
+    text(r.now, tx, ry + 58, 17, "#6b3a22", { align: "left", weight: 700 });
+    for (let k = 0; k < Math.min(r.max, 10); k++) circle(tx + 8 + k * 18, ry + 80, 6, k < r.lvl ? GOLD : "rgba(107,58,34,0.25)");
+    const b = makeBtn(maxed ? "MAX" : `${r.cost} gems\n${r.next}`, x + w - 16 - 186, ry + (rh - 10) / 2 - 32, 176, 64, () => {
+      if (maxed) return;
+      if (save.gems < r.cost) { castleMsg = { text: "Not enough gems.", color: "#c0392b", t: performance.now() }; playUi("ui_pick"); return; }
+      save.gems -= r.cost; r.buy(); writeSave(); playUi("ui_place"); castleMsg = { text: `${r.name.replace(/  \(.*\)$/, "")} upgraded!`, color: "#2f8f3f", t: performance.now() };
+    }, 17);
+    b.fill = maxed ? "#c9b89a" : save.gems >= r.cost ? "#6cc56a" : "#e9d3a6";
+    const prev = castleRowBtnsPrev.find(o => o.label === b.label && o.y === b.y); if (prev) b.down = prev.down;
+    castleRowBtns.push(b); drawBtn(b, maxed);
+  });
+  castleRowBtnsPrev = castleRowBtns;
+  btn.cuClose.x = W / 2 - btn.cuClose.w / 2; btn.cuClose.y = y + h - 96; drawBtn(btn.cuClose);
+  if (castleMsg && performance.now() - castleMsg.t < 1800) text(castleMsg.text, W / 2, btn.cuClose.y - 22, 24, castleMsg.color, { weight: 900 });
+}
+let castleRowBtnsPrev = [], castleMsg = null;
 function waveCleared(w) {
   const bonus = 4 + w; gold += bonus; wavesCleared++;
   if (bossMode) {
@@ -3354,6 +3579,9 @@ function waveCleared(w) {
     showBanner(`Boss wave ${w} cleared!  +${bonus} gold`, "#ff8a6a"); writeSave(); return;
   }
   if (wavesCleared > save.best) save.best = wavesCleared;
+  // Gold interest: +10% of the gold you saved (up to 50, +50 with Golden Vault).
+  const interest = Math.min(hasRelic("vault") ? 100 : 50, Math.floor(gold * 0.1));
+  if (interest > 0) { gold += interest; fxs.push(new Fx("text", { x: W / 2, y: HUD_H + 250, text: `+${interest} gold interest`, color: GOLD, size: 24, duration: 1.4 })); }
   const lvlBefore = playerLevel().lvl;
   profile().waves = (profile().waves || 0) + 1; track("wave");
   fxs.push(new Fx("text", { x: W / 2, y: HUD_H + 150, text: `+${XP_PER_WAVE} XP`, color: "#9cff9c", size: 28, duration: 1.4 }));
@@ -3364,6 +3592,7 @@ function waveCleared(w) {
     // Finishing a stage (beating its boss) earns a gem for Summon.
     save.gems += GEMS_PER_STAGE; runGems += GEMS_PER_STAGE;
     showBanner(`Stage ${stageNum(w)} cleared!  +${bonus} gold  +${GEMS_PER_STAGE} gems`, "#7fe6ff");
+    offerRelics();
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running" && SAMPLES.stage_clear) {   // stage clear fanfare, at its true pitch
       const src = Sfx.ctx.createBufferSource(), g = Sfx.ctx.createGain(); src.buffer = SAMPLES.stage_clear; g.gain.value = 0.9;
       src.connect(g); g.connect(Sfx.master); src.start();
@@ -3399,7 +3628,15 @@ function spawnEnemy(kind, wave) {
 }
 function damageCastle(a) {
   if (state !== "wave") return;
-  castleHp -= a * (1 - castleArmor); wallFlash = 1; buzz(25);
+  const hit = a * (1 - castleArmor) * (1 - 0.03 * cu("armor")) * (hasRelic("aegis") ? 0.9 : 1);
+  castleHp -= hit; wallFlash = 1; buzz(25);
+  wallLog.push([time, hit]); if (wallLog.length > 600) wallLog.splice(0, 200);   // for the Rewind spell
+  if (castleHp <= 0 && cu("revive") && !secondWindUsed) {   // Second Wind: the castle gets back up once
+    secondWindUsed = true; castleHp = castleMax * 0.3; wallFlash = 0;
+    showBanner("SECOND WIND!", "#9cff9c"); playSfx("phoenix", "atk"); buzz(150);
+    for (let i = 0; i < 8; i++) fxs.push(new Fx("burst", { x: 60 + i * 86, y: (FRONT_Y + WALL_Y) / 2, color: "#c8ffc8", radius: 80, duration: 0.6 }));
+    return;
+  }
   if (castleHp <= 0) {
     castleHp = 0;
     if (!reviveUsed && !reviveOffer) { reviveOffer = { t: REVIVE_TIME }; cancelDrag(); spell = null; paused = false; }
@@ -3470,7 +3707,7 @@ function onEnemyKilled(e) {
   if (state === "wave" && !e.noGold) {
     // Hidden cooldown: after a normal enemy drops a wild card, the next one can't drop for WILD_CD seconds. Bosses always drop.
     if (e.isBoss) dropWild(pickOne(Object.keys(WILD)), e.x, e.y);
-    else if (wildDropCd <= 0 && Math.random() < WILD_DROP) { dropWild(pickOne(Object.keys(WILD)), e.x, e.y); wildDropCd = WILD_CD; }
+    else if (wildDropCd <= 0 && Math.random() < WILD_DROP * (hasRelic("wildluck") ? 2 : 1)) { dropWild(pickOne(Object.keys(WILD)), e.x, e.y); wildDropCd = WILD_CD * (hasRelic("wildluck") ? 0.5 : 1); }
   }
   // A soul cursed by Hades breaks free and hunts the nearest enemy.
   if (e.burnT > 0 && e.burnCol === "#a64dff" && projectiles.filter(p => p.element === "hades").length < 24) {
@@ -3490,8 +3727,9 @@ function onEnemyKilled(e) {
     fxs.push(new Fx("text", { x: e.x, y: e.y - 40, text: `+${BOSS_GEMS} gems`, color: "#7fe6ff", size: 30, duration: 1.2 }));
   } else if (e.noGold) fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: "0", color: "#9a9590", size: 20, duration: 0.8 }));
   else {
-    gold += e.gold;
-    fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: `+${e.gold}`, color: GOLD, size: 22, duration: 0.8 }));
+    const g = e.gold + (hasRelic("bounty") ? 1 : 0); gold += g;
+    if (hasRelic("vamp") && state === "wave") castleHp = Math.min(castleMax, castleHp + 0.3);
+    fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: `+${g}`, color: GOLD, size: 22, duration: 0.8 }));
   }
   fxs.push(new Fx("burst", { x: e.x, y: e.y, color: shade(e.color, 0.3), radius: e.size * 1.6, duration: 0.35 }));
 }
@@ -4231,8 +4469,8 @@ function drawShopLocks() {
 }
 function reroll() {
   if (state !== "break" && state !== "wave") return;
-  if (gold < rerollCost) { showInfo("Not enough gold to reroll."); return; }
-  gold -= rerollCost; rerollCost += rerollMult(); refreshShop();
+  if (gold < rerollPrice()) { showInfo("Not enough gold to reroll."); return; }
+  gold -= rerollPrice(); rerollCost += rerollMult(); refreshShop();
 }
 function cardName(c) { return `${RARITY_NAMES[c.rarity]} ${EL[c.element].name}`; }
 function firstFree() {
@@ -4510,9 +4748,22 @@ const SPELLS = {
           rune: [[[0.500, 0.200], [0.578, 0.210], [0.650, 0.240], [0.712, 0.288], [0.760, 0.350], [0.790, 0.422], [0.800, 0.500], [0.790, 0.578], [0.760, 0.650], [0.712, 0.712], [0.650, 0.760], [0.578, 0.790], [0.500, 0.800], [0.422, 0.790], [0.350, 0.760], [0.288, 0.712], [0.240, 0.650], [0.210, 0.578], [0.200, 0.500], [0.210, 0.422], [0.240, 0.350], [0.288, 0.288], [0.350, 0.240], [0.422, 0.210], [0.500, 0.200]], [[0.500, 0.280], [0.647, 0.732], [0.262, 0.453], [0.738, 0.453], [0.353, 0.732], [0.500, 0.280]], [[0.217, 0.217], [0.104, 0.104]], [[0.783, 0.217], [0.896, 0.104]], [[0.217, 0.783], [0.104, 0.896]], [[0.783, 0.783], [0.896, 0.896]]],
           desc: "A giant meteor destroys every enemy. They drop no gold." },
 };
+// Late-game spells: they can be cast from wave 40 on.
+Object.assign(SPELLS, {
+  // a zigzag crack across the ground, drawn in one line
+  quake: { name: "Earthquake", cost: 60, color: "#d89a4a", aspect: 0.45, minWave: 40,
+           rune: [[[0, 0.5], [0.2, 0.05], [0.4, 0.95], [0.6, 0.05], [0.8, 0.95], [1, 0.5]]],
+           desc: "The ground shakes: every enemy is stunned for 2 seconds." },
+  // two arrowheads pointing back (rewind)
+  rewind: { name: "Rewind", cost: 80, color: "#7fe6ff", aspect: 1, minWave: 40,
+            rune: [[[0.5, 0], [0, 0.5], [0.5, 1]], [[1, 0], [0.5, 0.5], [1, 1]]],
+            desc: "Undo the wall damage taken in the last 5 seconds." },
+});
+const spellLocked = id => SPELLS[id].minWave && wave < SPELLS[id].minWave;
 // Every cast makes that spell 1.5x more expensive for the rest of the run (Doom 200 > 300 > 450 ...).
 let spellUses = {};
-const spellCost = id => SPELLS[id].curse ? 0 : Math.round(SPELLS[id].cost * Math.pow(1.5, spellUses[id] || 0));   // cure runes are always free
+const spellCost = id => SPELLS[id].curse ? 0 : Math.round(SPELLS[id].cost * Math.pow(1.5, spellUses[id] || 0)
+  * (hasRelic("spellsale") ? 0.7 : 1) * (1 - 0.05 * cu("spellcost")) * (id === "doom" ? 1 - 0.1 * sl("doom") : 1));   // cure runes are always free
 // Cure runes: each lifts one curse (only castable while you have it).
 Object.assign(SPELLS, {
   // a brick wall: a rectangle, two mortar lines and staggered bricks
@@ -4600,6 +4851,7 @@ function recognizeRune(strokes) {
   const cloud = toCloud(lines); if (!cloud) return null;
   const all = [];
   for (const [id, sp0] of Object.entries(SPELLS)) {
+   if (spellLocked(id)) continue;   // late-game spells can't be drawn yet
    for (const rune of [sp0.rune, ...(sp0.alts || [])]) {   // a rune may have other accepted ways to draw it
     const sp = { ...sp0, rune };
     let score;
@@ -4672,14 +4924,41 @@ function castSpell() {
   if (spell.match === "heal") castHeal();
   if (spell.match === "speed") castSpeed();
   if (spell.match === "doom") castDoom();
+  if (spell.match === "quake") castQuake();
+  if (spell.match === "rewind") castRewind();
   if (sp.curse) liftCurse(sp.curse);
   showBanner(`${sp.name}!`, sp.color);
   endSpell();
 }
+// Castle Archers (castle upgrade): one arrow a second at the enemy closest to the wall; power grows with the waves.
+function updateArchers(dt) {
+  archerT -= dt; if (archerT > 0) return; archerT = 1;
+  let tgt = null; for (const e of enemies) if (!e.dead && (!tgt || e.y > tgt.y)) tgt = e;
+  if (!tgt) return;
+  const sx = clamp(tgt.x + rand(-120, 120), 30, W - 30), sy = WALL_Y + 10, dx = tgt.x - sx, dy = tgt.y - sy, d = Math.hypot(dx, dy) || 1;
+  addPart({ add: true, kind: "spark", x: tgt.x, y: tgt.y, vx: dx / d * 2200, vy: dy / d * 2200, life: 0.12, size: 3, len: 0.03, rgb: "255,236,190" });
+  tgt.takeDamage(KINDS.orc.hp * hpScale(Math.max(1, wave)) * 0.04 * cu("archers"), "Castle Archers", "#ffe3a0");
+}
+function castQuake() {
+  const dur = 2 + 0.5 * sl("quake");
+  for (const e of enemies) if (!e.dead) { e.stunT = Math.max(e.stunT, e.isBoss ? dur * 0.5 : dur); fxs.push(new Fx("burst", { x: e.x, y: e.y + e.size * 0.6, color: "#c89a6a", radius: e.size * 2, duration: 0.5 })); }
+  shakeT = Math.max(shakeT, 1.2); shakeAmp = 14;
+  for (let i = 0; i < 40; i++) addPart({ kind: "chunk", x: rand(20, W - 20), y: rand(HUD_H + 60, FRONT_Y), vx: rand(-60, 60), vy: -rand(120, 320), g: 900, life: rand(0.6, 1.1), size: rand(4, 9), rot: rand(0, 6), vr: rand(-8, 8), col: "#8a6a4a" });
+  playSfx("earth", "atk"); playSfx("earth", "hit");
+}
+function castRewind() {
+  const win = 5 + sl("rewind"); let back = 0;
+  for (const [t0, a] of wallLog) if (time - t0 <= win) back += a;
+  wallLog = [];
+  const before = castleHp; castleHp = Math.min(castleMax, castleHp + back);
+  fxs.push(new Fx("text", { x: W / 2, y: FRONT_Y - 40, text: `+${Math.round(castleHp - before)} HP rewound`, color: "#7fe6ff", size: 36, duration: 1.3 }));
+  for (let k = 0; k < 3; k++) addPart({ add: true, kind: "ring", x: W / 2, y: (FRONT_Y + WALL_Y) / 2, rgb: "127,230,255", size: 30 + k * 30, grow: 600, w: 10 - k * 3, sq: 0.5, life: 0.7 + k * 0.15 });
+  playSfx("ice", "atk");
+}
 function castMeteor() {
   const targets = enemies.filter(e => !e.dead).sort((a, b) => b.hp - a.hp).slice(0, 3);
   const spots = targets.length ? targets.map(e => [e.x, e.y]) : [[W / 2, 380]];
-  spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) }));
+  spots.forEach(([x, y], i) => meteors.push({ x0: x + 260, y0: HUD_H - 60, tx: x, ty: y, t: -i * 0.18, dur: 0.6, dmg: 180 * (1 + 0.25 * Math.max(0, wave - 1)) * (1 + 0.25 * sl("meteor")) }));
 }
 // Freeze: every enemy on the field stops (bosses too) and cannot hurt the castle for 6 seconds.
 // Doom: the most powerful spell. A pentagram portal opens in the sky, a giant meteor falls through it in slow motion,
@@ -4875,21 +5154,21 @@ function drawDoom() {
 const SPEED_MULT = 2.5, SPEED_TIME = 8;
 let speedT = 0;
 function castSpeed() {
-  speedT = SPEED_TIME;
+  speedT = SPEED_TIME + 2 * sl("speed");
   for (const c of rows.active) if (c) { c.cooldown = Math.min(c.cooldown, 0.05); fxs.push(new Fx("burst", { x: c.hx, y: c.hy, color: "#ffd84a", radius: 80, duration: 0.5 })); }
   playSfx("lightning", "atk");
 }
 // Healing: +25 castle HP (up to the maximum), with green light over the wall.
 const HEAL_AMOUNT = 25;
 function castHeal() {
-  const before = castleHp; castleHp = Math.min(castleMax, castleHp + HEAL_AMOUNT);
+  const before = castleHp; castleHp = Math.min(castleMax, castleHp + HEAL_AMOUNT + 10 * sl("heal"));
   const healed = Math.round(castleHp - before);
   for (let i = 0; i < 6; i++) fxs.push(new Fx("burst", { x: 60 + i * 120, y: (FRONT_Y + WALL_Y) / 2, color: "#6cff8a", radius: 70, duration: 0.6 }));
   fxs.push(new Fx("text", { x: W / 2, y: FRONT_Y - 40, text: `+${healed} HP`, color: "#6cff8a", size: 40, duration: 1.2 }));
   playSfx("plant", "hit");
 }
 function castFreeze() {
-  for (const e of enemies) if (!e.dead && e.stun(6)) fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#bfefff", radius: e.size * 2.2, duration: 0.5 }));
+  for (const e of enemies) if (!e.dead && e.stun(6 + sl("freeze"))) fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#bfefff", radius: e.size * 2.2, duration: 0.5 }));
   freezeFlash = 1; playSfx("ice", "hit");
 }
 let freezeFlash = 0;
@@ -4976,7 +5255,12 @@ function drawSpell() {
 
 // ------------------------------------------------------------ Buttons
 function makeBtn(label, x, y, w, h, onTap, size = 26) { return { label, x, y, w, h, onTap, size, down: false }; }
+let castleOpen = false, castleTab = 0, castleRowBtns = [];
 const btn = {
+  castleUp: makeBtn("", 14, 500, 112, 112, () => { castleOpen = true; castleTab = 0; playUi("ui_pick"); }),
+  cuClose: makeBtn("Close", 0, 0, 220, 70, () => { castleOpen = false; playUi("ui_pick"); }, 26),
+  cuTabCastle: makeBtn("Castle", 0, 0, 200, 60, () => { castleTab = 0; playUi("ui_pick"); }, 24),
+  cuTabSpells: makeBtn("Spells", 0, 0, 200, 60, () => { castleTab = 1; playUi("ui_pick"); }, 24),
   chamber: makeBtn("Chamber", 450, 9, 140, 54, () => openChamber(), 24),
   fuse: makeBtn("Fuse", 150, 520, 200, 76, () => fuseChamber(), 30),
   closeChamber: makeBtn("Close", 370, 520, 200, 76, () => closeChamber(), 28),
@@ -5091,6 +5375,7 @@ function visibleButtons() {
   if (settingsOpen) return settingsButtons();
   if (testPick) return [btn.testClose, ...testBtns];
   if (speedOffer) return shopBusy ? [] : [btn.speedBuy, btn.speedNo];
+  if (relicOffer && state !== "title") return relicBtns;
   if (missionsOpen) return [btn.missionsClose, btn.tabDaily, btn.tabAch, ...missionBtns];
   if (guide) return guideButtons();
   if (tut) return tutBlocking() ? [btn.tutNext, btn.tutSkip] : [btn.tutSkip, ...baseButtons()];
@@ -5102,6 +5387,7 @@ function baseButtons() {
   if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
   if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
   if (state === "title") {
+    if (castleOpen) return castleButtons();
     if (shopOpen) return shopButtons();
     if (adSim || adBusy) return [];
     if (bioOpen) return [btn.bioAvatar, btn.bioName, btn.bioClose, ...(TESTER_RESET ? [btn.resetAll] : [])];
@@ -5111,7 +5397,7 @@ function baseButtons() {
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.bio, btn.settingsBtn, btn.gemPill];
-    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, ...top];
+    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, btn.castleUp, ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
     return [...visibleUpgradeBtns(), ...top];
   }
@@ -5167,7 +5453,7 @@ canvas.addEventListener("pointerdown", ev => {
   if (state === "title" && !bookOpen) { lobbyDown(p); return; }   // lobby: buttons fire on release, so a swipe never presses one
   for (const b of visibleButtons()) {
     if (inRect(p, b)) {
-      if (b === btn.reroll && gold < rerollCost) { showInfo("Not enough gold to reroll."); return; }
+      if (b === btn.reroll && gold < rerollPrice()) { showInfo("Not enough gold to reroll."); return; }
       b.down = true; setTimeout(() => { b.down = false; }, 120); b.onTap(); return;
     }
   }
@@ -5247,7 +5533,7 @@ function update(dt) {
   if (state === "wave" || state === "break") updateCurseFx(realDt); else { curseFxT = 0; }
   updateSpell(dt);
   if (spell) dt *= SPELL_SLOWMO;   // slow motion while drawing / choosing a spell
-  if (gameSpeed === 2 && !spell && !reviveOffer && !speedOffer && (state === "wave" || state === "break")) dt *= 2;   // 2x speed
+  if (gameSpeed === 2 && !spell && !reviveOffer && !speedOffer && !relicOffer && (state === "wave" || state === "break")) dt *= 2;   // 2x speed
   const doomDt = dt;
   if (doom && !doom.hit) dt *= 0.3;   // the battle slows down while the Doom meteor falls
   time += dt;
@@ -5256,8 +5542,8 @@ function update(dt) {
   updateStorage(dt); updateShopTap(dt); updateRevive(dt); updateWild(dt);
   for (const r in rows) for (const c of rows[r]) if (c) { if (r === "storage" && !c.dragging && (c.hx < -CARD_W || c.hx > W + CARD_W)) { c.x = c.hx; c.y = c.hy; continue; } c.update(dt); }   // cards on a hidden storage page sleep
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
-  if (paused || bookOpen || chamberOpen || settingsOpen || spell || guide || reviveOffer || speedOffer || testPick || timeStopT > 0 || state === "title" || state === "gameover") shakeT = 0;   // any menu, spell or Pause card ends the shake
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || settingsOpen || testPick) return;
+  if (paused || bookOpen || chamberOpen || settingsOpen || spell || guide || reviveOffer || speedOffer || relicOffer || testPick || timeStopT > 0 || state === "title" || state === "gameover") shakeT = 0;   // any menu, spell or Pause card ends the shake
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || relicOffer || settingsOpen || testPick) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt); spellCd = Math.max(0, spellCd - dt); specialShopCd = Math.max(0, specialShopCd - dt);
   if ((state === "wave" || state === "break") && updateTimeStop(realDt)) {   // Pause wild card: the battlefield is frozen
@@ -5268,6 +5554,10 @@ function update(dt) {
   }
   speedT = Math.max(0, speedT - dt);
   updateCurses(dt);
+  if (state === "wave") {
+    if (hasRelic("regen")) castleHp = Math.min(castleMax, castleHp + dt);   // Living Stone
+    if (cu("archers") > 0) updateArchers(dt);
+  }
   if (state === "wave") wildDropCd = Math.max(0, wildDropCd - dt);   // counts only while a wave is being fought
   if (state === "wave") {
     for (const sp of spawners) {
@@ -5280,7 +5570,7 @@ function update(dt) {
     }
     for (const c of rows.active) {
       if (!c || (drag && drag.card === c) || EL[c.element].totem) continue;   // a Totem never attacks
-      const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult();   // Speed Up spell and a Flight totem next to it
+      const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult() * (hasRelic("haste") ? 1.15 : 1);   // Speed Up spell and a Flight totem next to it
       if (EL[c.element].beam) { updateBeam(c, dt * spd); continue; }
       if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
       c.cooldown -= dt * spd;
@@ -5535,7 +5825,7 @@ function drawWorld() {
   if (curses.has("smoke")) drawCurseSmoke();
   drawCurseBurns();
   drawCurseFx();
-  if (state === "wave" || state === "break") drawCurseBadges();
+  if (state === "wave" || state === "break") { drawCurseBadges(); drawWeakTag(); }
   if (timeStopT > 0) drawTimeStop();
   if (!chamberOpen && !spell) drawWildFan();
 }
@@ -5567,12 +5857,12 @@ function drawHud() {
   circle(gx, gy, 15, GOLD); ring(gx, gy, 15, INK, 3); ring(gx, gy, 9, hexA(INK, 0.5), 2);
   text(String(gold), gx + 24, gy + 11, 30, GOLD, { align: "left", outline: 8 });
   if (state === "gameover") return;
-  btn.reroll.label = `Reroll\n${rerollCost} gold`;
+  btn.reroll.label = `Reroll\n${rerollPrice()} gold`;
   btn.next.label = state === "break" && breakTimer > 0 && callCd <= 0 ? `Next Wave (${Math.ceil(breakTimer)})` : "Next Wave";   // after a tap only the gold bar shows the cooldown
   if (chamberOpen) {
     if (!fusion) { drawBtn(btn.fuse, chamberCount() < 3); drawBtn(btn.closeChamber); }
   } else {
-    drawBtn(btn.chamber); drawBtn(btn.pause); drawBtn(btn.reroll, gold < rerollCost);
+    drawBtn(btn.chamber); drawBtn(btn.pause); drawBtn(btn.reroll, gold < rerollPrice());
     drawSellBox();
   }
   if (!drag && !paused && !chamberOpen && !spell) {
@@ -5663,6 +5953,7 @@ function dim(a) { ctx.fillStyle = `rgba(15,8,20,${a})`; ctx.fillRect(0, 0, W, H)
 function drawOverlays() {
   if (state === "title") {
     if (!bookOpen) drawLobbyUi();
+    if (castleOpen) drawCastlePanel();
   } else if (state === "gameover" && !bookOpen) {
     dim(0.78);
     const gy = Math.max(150, H / 2 - 560);
@@ -5684,6 +5975,9 @@ function drawOverlays() {
   } else if (paused && !bookOpen) {
     dim(0.6);
     text("Paused", W / 2, 480, 60, PARCH, { font: DISPLAY, weight: 900, outline: 12 });
+    if (relics.size) { const ids = [...relics], n = ids.length, sz = Math.min(26, 300 / n);
+      ids.forEach((id, k) => drawRelicIcon(id, W / 2 + (k - (n - 1) / 2) * (sz * 2 + 8), 400, sz));
+      text(`Relics: ${ids.map(id => RELICS[id].name).join(", ")}`, W / 2, 352, 17, "#e3d4ff", { weight: 600, outline: 5 }); }
     btn.restart.label = restartArmed > 0 ? "Tap again to restart" : "Restart";
     drawBtn(btn.resume); drawBtn(btn.pauseBook); if (!bossMode) drawBtn(btn.restart); drawBtn(btn.quit); drawBtn(btn.sound);
     if (bossMode) text("Leaving ends this Boss Break Out run.", W / 2, 1075, 22, "#ff9a8a", { outline: 6 });
@@ -5772,7 +6066,7 @@ function drawBook() {
       rrect(left, y + 6, 150, 138, 14); ctx.fillStyle = "#2a1640"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
       drawRuneIcon(sp, left + 30, y + 30, 90, 90);
       text(sp.name, left + 172, y + 46, 32, shade(sp.color, -0.3), { align: "left", font: DISPLAY, weight: 900 });
-      text(sp.curse ? "Free  (cures a curse)" : `Cost: ${spellCost(l.rune)} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
+      text(sp.curse ? "Free  (cures a curse)" : spellLocked(l.rune) ? `Unlocks at wave ${sp.minWave}  ·  Cost: ${spellCost(l.rune)} gold` : `Cost: ${spellCost(l.rune)} gold`, left + 172, y + 80, 20, "#8c5a06", { align: "left", weight: 700 });
       text(sp.desc, left + 172, y + 110, 17, "#6b5a48", { align: "left", weight: 500 });
       text(sp.rune.length === 1 ? "One line. Dot = where it starts." : `${sp.rune.length} lines, any order${sp.alts ? ` (or ${sp.alts.map(a => a.length).join(" / ")}: join lines in one move)` : ""}.`, left + 172, y + 136, 15, "#a89878", { align: "left", weight: 500 });
       y += l.h; continue;
@@ -5975,7 +6269,7 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
-  if (summonReveal || ratesOpen || cardInfo || shopOpen || dailyOpen || bioOpen || guide || settingsOpen || tutBlocking()) return;
+  if (summonReveal || ratesOpen || cardInfo || castleOpen || shopOpen || dailyOpen || bioOpen || guide || settingsOpen || tutBlocking()) return;
   if (missionsOpen) { if (missionsTab === 1) { const dy = p.y - s.y0; if (Math.abs(dy) > 10) { s.vscroll = true; if (s.btn) s.btn.down = false; achScroll = (s.scroll0 ?? (s.scroll0 = achScroll)) - dy; } } return; }   // no swiping under a popup
   const dy = p.y - s.y0;
   if (s.onPlay) {   // sliding the PLAY button between Play and Boss Break Out
@@ -7487,7 +7781,7 @@ function drawLobbyUi() {
   if (dailyOpen) drawDaily(dt);
   if (bioOpen) drawBio();
   updateAdSim(dt); if (adSim) drawAdSim();
-  if (shopToast) drawShopToast(dt);
+  if (shopToast && !castleOpen) drawShopToast(dt);
 }
 
 // Lobby PLAY button = a two-mode slider. Swipe left on it for Boss Break Out, right for the normal game.
@@ -7596,6 +7890,10 @@ function drawHomeUi() {
   const sb = btn.getGems, sp = sb.down ? 0.92 : 1;
   if (CART_ICON.ready) { const sz = sb.w * sp; ctx.drawImage(CART_ICON.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, sb.x + (sb.w - sz) / 2, sb.y + (sb.h - sz) / 2, sz, sz); }
   text("Shop", sb.x + sb.w / 2, sb.y + sb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  // Castle upgrades icon on the left, under the Shop.
+  const cb = btn.castleUp, cp = cb.down ? 0.92 : 1;
+  ctx.save(); ctx.translate(cb.x + cb.w / 2, cb.y + cb.h / 2 + Math.sin(lobbyT * 2) * 2); ctx.scale(cp, cp); drawCached("castle_icon", 120, 120, drawCastleIcon); ctx.restore();
+  text("Castle", cb.x + cb.w / 2, cb.y + cb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
   const cal = CAL_ICON[dailyReady() ? "calendar_notify" : "calendar"], db = btn.daily, press = db.down ? 0.92 : 1;
   if (cal && cal.ready) {
     const sz = db.w * press, f = Math.floor(lobbyT * 12) % 12;
@@ -7898,6 +8196,16 @@ function drawTut(dt) {
   else { btn.tutNext.label = tut.i === list.length - 1 ? "Got it!" : "Next"; btn.tutNext.x = px + pw - 20 - btn.tutNext.w; btn.tutNext.y = by; drawBtn(btn.tutNext); }
 }
 
+// The current stage's weakness, as a small tag under the top buttons.
+function drawWeakTag() {
+  if (state !== "wave" && state !== "break") return;
+  const wk = stageWeak(Math.max(1, wave)); if (!wk) return;
+  const label = `Weak to ${EL[wk].name} x${hasRelic("sage") ? 3 : 2}`, x = 14, y = HUD_H + 92 + (curses.size ? 60 : 0);   // under the curse badges
+  ctx.font = `800 17px ${FONT}`; const w = ctx.measureText(label).width + 44;
+  rrect(x, y, w, 30, 15); ctx.fillStyle = "rgba(20,12,30,0.6)"; ctx.fill(); ctx.strokeStyle = hexA(EL[wk].color, 0.9); ctx.lineWidth = 2; ctx.stroke();
+  poly(radialPoly(x + 18, y + 15, 9, EL[wk].shape, 0, 1), EL[wk].color, INK, 1.5);
+  text(label, x + 32, y + 16, 17, "#fff", { align: "left", weight: 800, baseline: "middle" });
+}
 // Storage page arrow (at the row's edge) and two page dots above the row.
 function drawStorageNav() {
   const hot = storageEdgeT > 0;
@@ -7944,6 +8252,7 @@ function frame(now) {
   if (reviveOffer && state !== "title") drawReviveOffer();
   if (missionsOpen && state === "title") drawMissions(dt);
   if (speedOffer && state !== "title") drawSpeedOffer();
+  if (relicOffer && (state === "wave" || state === "break")) drawRelicOffer();
   if (testPick && state !== "title") drawTestPicker(dt);
   if (settingsOpen) drawSettings();
   if (shopToast && state !== "title") drawShopToast(dt);
