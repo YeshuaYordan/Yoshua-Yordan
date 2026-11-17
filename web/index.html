@@ -318,6 +318,175 @@ function idolRow(kind) { for (const o of rows.active) if (o && EL[o.element].tot
 let hitSrc = null;      // the card whose shot is landing right now (for idols that boost their neighbours)
 let idolTimeMult = 1;   // Hourglass: enemy speed this frame
 let bulwarkFlash = 0, chaliceGlow = 0;   // short glows on the castle wall when Bulwark blocks / Chalice heals
+// ---- Greek Legend auras: each god gets its own glow colours, a huge sigil turning behind the card,
+// its own edge decoration (instead of flame tongues) and its own effect playing over the art.
+let GOD_BACK_OFF = false;   // on the board the sigils are drawn in a pass of their own, behind every card
+function cardEdge(d, hw, hh) {
+  const W = hw * 2, H = hh * 2;
+  if (d < W) return [-hw + d, -hh, 0, -1];
+  if ((d -= W) < H) return [hw, -hh + d, 1, 0];
+  if ((d -= H) < W) return [hw - d, hh, 0, 1];
+  d -= W; return [-hw, hh - d, -1, 0];
+}
+function eachEdge(hw, hh, N, fn) { const per = 4 * (hw + hh); for (let i = 0; i < N; i++) { const [x, y, nx, ny] = cardEdge((i + 0.5) * per / N, hw, hh); fn(x, y, nx, ny, i); } }
+// Flame tongues in any three colours (used by Ares and Hephaestus).
+function edgeFlames(hw, hh, t, cols, tall) {
+  for (let layer = 0; layer < 3; layer++) {
+    const k = [1, 0.66, 0.38][layer]; ctx.fillStyle = cols[layer]; ctx.beginPath();
+    eachEdge(hw, hh, 44, (x, y, nx, ny, i) => {
+      const flick = 0.6 + 0.4 * Math.sin(t * 10 + i * 1.7) * Math.sin(t * 5.9 + i * 2.9), h = (16 + 12 * flick) * k * tall;
+      let dx = nx * 0.7, dy = ny * 0.7 - 0.8; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+      const bw = 7 * k + 2, px = -dy, py = dx, tx = x + dx * h + Math.sin(t * 8 + i) * 2.5, ty = y + dy * h;
+      ctx.moveTo(x + px * bw, y + py * bw); ctx.quadraticCurveTo(x + px * bw * 0.6 + dx * h * 0.6, y + py * bw * 0.6 + dy * h * 0.6, tx, ty);
+      ctx.quadraticCurveTo(x - px * bw * 0.6 + dx * h * 0.6, y - py * bw * 0.6 + dy * h * 0.6, x - px * bw, y - py * bw); ctx.closePath();
+    });
+    ctx.fill();
+  }
+}
+// Little sparks drifting over the art in a loop (deterministic, so cards in menus animate too).
+function artMotes(hw, hh, t, n, speed, draw) {
+  for (let i = 0; i < n; i++) { const s = (i * 0.618) % 1, ph = (t * speed + s) % 1; draw(-hw + ((i * 37) % 100) / 100 * hw * 2 + Math.sin(t * 2 + i) * 4, ph, i); }
+}
+const LEGEND_AURA = {
+  athena: {
+    glow: ["#a8781a", "#ffe7a0"], ray: ["255,232,170", "255,205,110"], border: "#ffd27a",
+    back(hw, hh, t) {   // her aegis: Greek-key rings and eight spear points turning slowly
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.rotate(t * 0.25);
+      mxMeander(86, 9, "255,215,120", 0.55, 30); ring(0, 0, 80, "rgba(255,225,150,0.35)", 2); ring(0, 0, 104, "rgba(255,225,150,0.25)", 1.5);
+      for (let i = 0; i < 8; i++) { ctx.save(); ctx.rotate(i * Math.PI / 4); poly([[100, -5], [122 + 4 * Math.sin(t * 3 + i), 0], [100, 5]], "rgba(255,225,140,0.7)", null); ctx.restore(); }
+      ctx.restore();
+    },
+    edge(hw, hh, t) {   // a crown of golden laurel leaves all around the card
+      eachEdge(hw, hh, 30, (x, y, nx, ny, i) => {
+        const a = Math.atan2(ny, nx) + Math.sin(t * 2 + i) * 0.15;
+        for (const s of [-1, 1]) { ctx.save(); ctx.translate(x, y); ctx.rotate(a + s * 0.55); ctx.beginPath(); ctx.ellipse(9, 0, 9, 3.4, 0, 0, Math.PI * 2);
+          ctx.fillStyle = i % 2 ? "#ffe08a" : "#e8b84a"; ctx.fill(); ctx.strokeStyle = "#7a5410"; ctx.lineWidth = 1; ctx.stroke(); ctx.restore(); }
+      });
+    },
+    over(hw, hh, t) {   // a sweep of golden light and drifting owl feathers
+      const sx = ((t * 0.35) % 1.6 - 0.3) * CARD_W * 1.6 - hw * 1.6, g = ctx.createLinearGradient(sx - 30, 0, sx + 30, 0);
+      g.addColorStop(0, "rgba(255,230,150,0)"); g.addColorStop(0.5, "rgba(255,240,190,0.28)"); g.addColorStop(1, "rgba(255,230,150,0)"); ctx.fillStyle = g; ctx.fillRect(-hw, -hh, CARD_W, CARD_H);
+      artMotes(hw, hh, t, 5, 0.25, (x, ph, i) => { const y = -hh + ph * CARD_H; ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(t * 3 + i) * 0.8); ellipse(0, 0, 5, 1.8, `rgba(255,245,215,${0.8 * Math.sin(ph * Math.PI)})`); ctx.restore(); });
+    },
+  },
+  ares: {
+    glow: ["#5a0606", "#ff3a1a"], ray: ["255,90,50", "200,30,20"], border: "#ff3a1a",
+    back(hw, hh, t) {   // two war spears crossed behind the card inside a ring of fire
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2 + t * 0.4, h = 14 + 10 * Math.abs(Math.sin(t * 6 + i * 1.3)); ctx.save(); ctx.rotate(a); poly([[92, -6], [92 + h, 0], [92, 6]], i % 2 ? "rgba(255,120,40,0.7)" : "rgba(255,200,80,0.6)", null); ctx.restore(); }
+      ring(0, 0, 92, "rgba(255,90,40,0.6)", 3);
+      ctx.restore();
+      for (const a of [0.7, -0.7]) { ctx.save(); ctx.rotate(a); ctx.strokeStyle = "#3a1a0a"; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-118, 0); ctx.lineTo(118, 0); ctx.stroke();
+        poly([[136, 0], [114, -9], [108, 0], [114, 9]], "#d8d0c0", "#3a1a0a", 1.5); poly([[-136, 0], [-114, -9], [-108, 0], [-114, 9]], "#d8d0c0", "#3a1a0a", 1.5); ctx.restore(); }
+    },
+    edge(hw, hh, t) { edgeFlames(hw, hh, t, ["rgba(120,8,8,0.6)", "rgba(230,50,25,0.7)", "rgba(255,190,90,0.8)"], 1.5); },
+    over(hw, hh, t) {   // a war-pulse of red light and embers rising
+      ctx.fillStyle = `rgba(255,40,20,${0.08 + 0.08 * Math.max(0, Math.sin(t * 3))})`; ctx.fillRect(-hw, -hh, CARD_W, CARD_H);
+      artMotes(hw, hh, t, 9, 0.5, (x, ph) => { const y = hh - ph * CARD_H; circle(x, y, 1.8, `rgba(255,${150 + 80 * (1 - ph)},60,${Math.sin(ph * Math.PI)})`); });
+    },
+  },
+  apollo: {
+    glow: ["#d88a10", "#fff2b0"], ray: ["255,240,180", "255,190,70"], border: "#ffd060",
+    back(hw, hh, t) {   // the sun himself blazing behind the card
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 120); g.addColorStop(0, "rgba(255,240,180,0.5)"); g.addColorStop(0.6, "rgba(255,180,60,0.2)"); g.addColorStop(1, "rgba(255,150,40,0)"); circle(0, 0, 120, g);
+      mxRays(24, 70, 60 + 8 * Math.sin(t * 4), 7, t * 0.5, "255,220,120", 0.75);
+      ring(0, 0, 80, "rgba(255,235,170,0.5)", 2);
+      ctx.restore();
+    },
+    edge(hw, hh, t) {   // sharp golden sun-spikes all round the frame
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      eachEdge(hw, hh, 36, (x, y, nx, ny, i) => { const L = (i % 2 ? 10 : 18) * (0.85 + 0.15 * Math.sin(t * 5 + i)), px = -ny, py = nx;
+        poly([[x + px * 4, y + py * 4], [x + nx * L, y + ny * L], [x - px * 4, y - py * 4]], i % 2 ? "rgba(255,240,180,0.85)" : "rgba(255,200,80,0.9)", null); });
+      ctx.restore();
+    },
+    over(hw, hh, t) {   // god rays falling across the art and a lens flare
+      ctx.save(); ctx.rotate(-0.35);
+      for (let i = 0; i < 3; i++) { const x = ((t * 18 + i * 45) % 150) - 75; const g = ctx.createLinearGradient(x - 10, 0, x + 10, 0); g.addColorStop(0, "rgba(255,240,180,0)"); g.addColorStop(0.5, "rgba(255,240,180,0.22)"); g.addColorStop(1, "rgba(255,240,180,0)"); ctx.fillStyle = g; ctx.fillRect(x - 10, -hh * 1.5, 20, CARD_H * 1.5); }
+      ctx.restore();
+      const fx = Math.sin(t * 0.7) * hw * 0.6; circle(fx, -hh * 0.55, 3.5, "rgba(255,255,230,0.75)"); circle(-fx * 0.6, -hh * 0.1, 2.5, "rgba(255,220,140,0.5)");
+    },
+  },
+  artemis: {
+    glow: ["#2a3a8a", "#cfd8ff"], ray: ["220,230,255", "140,160,240"], border: "#b8c8ff",
+    back(hw, hh, t) {   // a great silver crescent moon behind the card, stars twinkling round it
+      ctx.save(); ctx.rotate(-0.35 + Math.sin(t * 0.5) * 0.05); ctx.globalCompositeOperation = "lighter";
+      ctx.beginPath(); ctx.arc(0, 0, 112, Math.PI * 0.25, Math.PI * 1.75); ctx.arc(34, 0, 98, Math.PI * 1.62, Math.PI * 0.38, true); ctx.closePath();
+      const g = ctx.createLinearGradient(-112, 0, 60, 0); g.addColorStop(0, "rgba(235,240,255,0.65)"); g.addColorStop(1, "rgba(150,170,255,0.15)"); ctx.fillStyle = g; ctx.fill();
+      for (let i = 0; i < 10; i++) { const a = i * 0.63 + 0.3, r = 100 + (i % 3) * 14, tw = 0.5 + 0.5 * Math.sin(t * 4 + i * 2); ctx.save(); ctx.translate(Math.cos(a) * r, Math.sin(a) * r); poly([[0, -5 * tw], [1.2, -1.2], [5 * tw, 0], [1.2, 1.2], [0, 5 * tw], [-1.2, 1.2], [-5 * tw, 0], [-1.2, -1.2]], "rgba(255,255,255,0.9)", null); ctx.restore(); }
+      ctx.restore();
+    },
+    edge(hw, hh, t) {   // silver moon-mist curling off the frame, with tiny stars
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      eachEdge(hw, hh, 26, (x, y, nx, ny, i) => { const d = 9 + 5 * Math.sin(t * 2 + i); circle(x + nx * d, y + ny * d - 3, 8 + 3 * Math.sin(t * 3 + i * 1.7), "rgba(190,205,255,0.18)");
+        if (i % 3 === 0) { const tw = 0.5 + 0.5 * Math.sin(t * 5 + i); circle(x + nx * 14, y + ny * 14, 1.6 * tw + 0.6, "rgba(255,255,255,0.95)"); } });
+      ctx.restore();
+    },
+    over(hw, hh, t) {   // moonlight tint and falling stars
+      ctx.fillStyle = "rgba(160,180,255,0.08)"; ctx.fillRect(-hw, -hh, CARD_W, CARD_H);
+      artMotes(hw, hh, t, 3, 0.35, (x, ph, i) => { if (ph > 0.5) return; const k = ph / 0.5, sx = x + k * 40, sy = -hh + k * CARD_H * 0.7; ctx.strokeStyle = `rgba(235,240,255,${1 - k})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - 12, sy - 18); ctx.stroke(); circle(sx, sy, 1.8, `rgba(255,255,255,${1 - k})`); });
+    },
+  },
+  hermes: {
+    glow: ["#0a6a5a", "#c8fff0"], ray: ["210,255,245", "110,225,200"], border: "#8ae8d0",
+    back(hw, hh, t) {   // a great pair of white wings spread behind the card, beating slowly
+      const flap = Math.sin(t * 2.2) * 0.12;
+      for (const s of [-1, 1]) { ctx.save(); ctx.scale(s, 1); ctx.translate(hw - 6, -hh * 0.35); ctx.rotate(-0.35 - flap);
+        for (let f = 0; f < 7; f++) { ctx.save(); ctx.rotate(f * 0.17); ctx.beginPath(); ctx.ellipse(34 + f * 3, 0, 40 - f * 3, 7, 0, 0, Math.PI * 2);
+          ctx.fillStyle = f % 2 ? "rgba(255,255,255,0.75)" : "rgba(220,250,240,0.7)"; ctx.fill(); ctx.strokeStyle = "rgba(90,170,150,0.6)"; ctx.lineWidth = 1; ctx.stroke(); ctx.restore(); }
+        ctx.restore(); }
+    },
+    edge(hw, hh, t) {   // streams of wind racing round the frame
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round"; const per = 4 * (hw + hh);
+      for (let s = 0; s < 3; s++) { const off = 6 + s * 5; ctx.strokeStyle = `rgba(${s ? "210,255,245" : "120,230,205"},${0.7 - s * 0.15})`; ctx.lineWidth = 2.5 - s * 0.5;
+        for (let j = 0; j < 4; j++) { const d0 = ((t * (160 + s * 40) + j * per / 4 + s * 60) % per); ctx.beginPath();
+          for (let k = 0; k <= 10; k++) { const [x, y, nx, ny] = cardEdge((d0 + k * 5) % per, hw, hh); const px = x + nx * off, py = y + ny * off; k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.stroke(); } }
+      ctx.restore();
+    },
+    over(hw, hh, t) {   // speed lines flashing across the art
+      artMotes(hw, hh, t, 5, 0.9, (x, ph, i) => { const y = -hh + ((i * 53) % 100) / 100 * CARD_H, xx = -hw + ph * CARD_W * 1.4 - 20; ctx.strokeStyle = `rgba(230,255,250,${0.5 * Math.sin(ph * Math.PI)})`; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(xx, y); ctx.lineTo(xx - 26, y); ctx.stroke(); });
+    },
+  },
+  hephaestus: {
+    glow: ["#6a2a08", "#ffb050"], ray: ["255,190,90", "255,110,30"], border: "#ff8a2a",
+    back(hw, hh, t) {   // two great forge gears turning behind the card, rimmed with molten light
+      const gear = (r, teeth, rot, col) => { ctx.save(); ctx.rotate(rot); ctx.beginPath();
+        for (let i = 0; i <= teeth * 4; i++) { const a = i / (teeth * 4) * Math.PI * 2, rr = i % 4 < 2 ? r + 10 : r; i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+        ctx.closePath(); ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = "rgba(255,150,60,0.8)"; ctx.lineWidth = 2; ctx.stroke(); circle(0, 0, r * 0.35, "rgba(255,170,70,0.5)"); ctx.restore(); };
+      gear(92, 16, t * 0.3, "rgba(70,38,20,0.85)");
+      ctx.save(); ctx.translate(70, 70); gear(34, 8, -t * 0.82, "rgba(90,50,26,0.9)"); ctx.restore();
+    },
+    edge(hw, hh, t) {
+      edgeFlames(hw, hh, t, ["rgba(110,30,6,0.6)", "rgba(255,110,30,0.7)", "rgba(255,220,120,0.85)"], 1.2);
+      for (let i = 0; i < 5; i++) { const ph = (t * 0.6 + i * 0.21) % 1, x = -hw + (i + 0.5) / 5 * CARD_W; circle(x, hh + ph * 26, 3 * (1 - ph * 0.5), `rgba(255,140,40,${1 - ph})`); }   // molten drips falling off the bottom
+    },
+    over(hw, hh, t) {   // heat shimmer and forge sparks shooting up
+      ctx.fillStyle = `rgba(255,120,30,${0.06 + 0.04 * Math.sin(t * 7)})`; ctx.fillRect(-hw, -hh, CARD_W, CARD_H);
+      artMotes(hw, hh, t, 8, 0.8, (x, ph) => { const y = hh - ph * CARD_H * 1.1; ctx.strokeStyle = `rgba(255,${180 + 60 * (1 - ph)},80,${Math.sin(ph * Math.PI)})`; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 2, y + 7); ctx.stroke(); });
+    },
+  },
+  hera: {
+    glow: ["#3a1a7a", "#e8c8ff"], ray: ["230,200,255", "160,110,255"], border: "#d8a8ff",
+    back(hw, hh, t) {   // a full peacock tail fanned out behind the card, its eyes shimmering
+      for (let i = 0; i < 15; i++) {
+        const a = -Math.PI / 2 + (i - 7) * 0.2 + Math.sin(t * 1.2) * 0.03, L = 112, hue = (t * 40 + i * 14) % 360;
+        ctx.save(); ctx.rotate(a); ctx.strokeStyle = `hsla(${hue},60%,55%,0.6)`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(30, 0); ctx.lineTo(L, 0); ctx.stroke();
+        ellipse(L, 0, 12, 9, "rgba(26,122,106,0.9)"); ellipse(L + 1, 0, 8, 6, "rgba(224,184,80,0.95)"); ellipse(L + 2, 0, 4.5, 3.5, "rgba(42,80,208,0.95)"); circle(L + 2.5, 0, 1.6, "#120a30");
+        ctx.restore();
+      }
+    },
+    edge(hw, hh, t) {   // peacock eyes and jewels set into a royal border
+      eachEdge(hw, hh, 22, (x, y, nx, ny, i) => { const d = 7, cx = x + nx * d, cy = y + ny * d;
+        if (i % 2) { ellipse(cx, cy, 5.5, 4.2, "#1a7a6a"); ellipse(cx, cy, 3.5, 2.7, "#e0b850"); circle(cx, cy, 1.6, "#2a50d0"); }
+        else { const c = ["#ff5a9a", "#5ad8ff", "#ffd84a"][i % 3]; ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * 2 + i); poly([[0, -4], [3, 0], [0, 4], [-3, 0]], c, "#ffffff", 0.8); ctx.restore(); } });
+    },
+    over(hw, hh, t) {   // an iridescent sheen sliding across the art
+      const sx = ((t * 0.3) % 1.4 - 0.2) * CARD_W * 1.6 - hw * 1.4, g = ctx.createLinearGradient(sx - 40, -hh, sx + 40, hh);
+      g.addColorStop(0, "rgba(120,90,255,0)"); g.addColorStop(0.35, "rgba(90,220,200,0.18)"); g.addColorStop(0.65, "rgba(230,120,255,0.18)"); g.addColorStop(1, "rgba(255,210,90,0)"); ctx.fillStyle = g; ctx.fillRect(-hw, -hh, CARD_W, CARD_H);
+      artMotes(hw, hh, t, 4, 0.3, (x, ph, i) => circle(x, -hh + ph * CARD_H, 1.6, `hsla(${(t * 90 + i * 70) % 360},90%,75%,${Math.sin(ph * Math.PI)})`));
+    },
+  },
+};
 // What circles each Greek Legend's card (like Zeus's golden orbs, Poseidon's bubbles and Hades' skulls).
 const LEGEND_ORBIT = {
   athena: { tail: [255, 220, 130], icon: (r, t) => {   // her round aegis shield, turning
@@ -1099,8 +1268,9 @@ class Card {
       const w = CARD_W + px * 2, h = CARD_H + pt + pb, c = document.createElement("canvas"); c.width = w * res; c.height = h * res;
       const g = c.getContext("2d"), main = ctx, keep = [this.x, this.y, this.scale, this.shake, this.kick, this.t, this.dragging];
       g.scale(res, res); ctx = g;
+      const gb = GOD_BACK_OFF; GOD_BACK_OFF = true;   // the still picture never holds the big sigil (it is drawn live, behind)
       try { this.x = px + CARD_W / 2; this.y = pt + CARD_H / 2; this.scale = 1; this.shake = 0; this.kick = 0; this.t = 1; this.dragging = false; this.draw(); }
-      finally { ctx = main; [this.x, this.y, this.scale, this.shake, this.kick, this.t, this.dragging] = keep; }
+      finally { GOD_BACK_OFF = gb; ctx = main; [this.x, this.y, this.scale, this.shake, this.kick, this.t, this.dragging] = keep; }
       sp = { c, w, h, ox: px + CARD_W / 2, oy: pt + CARD_H / 2 }; CARD_SNAP.set(key, sp);
     }
     const t = this.t;
@@ -1309,8 +1479,9 @@ class Card {
       ctx.drawImage(art.card, -hw * z + px, -hh * z + py, CARD_W * z, CARD_H * z);
       ctx.restore();
     } else { ctx.fillStyle = "#2a2440"; ctx.fillRect(-hw, -hh, CARD_W, CARD_H); }
-    // Flickering lightning sparks over the art.
+    // Flickering lightning sparks over the art (each Greek Legend has its own effect instead).
     ctx.globalCompositeOperation = "lighter";
+    if (LEGEND_AURA[d.theme]) LEGEND_AURA[d.theme].over(hw, hh, t); else {
     const flash = Math.max(0, Math.sin(t * 7) * Math.sin(t * 3.1));
     if (flash > 0.6) { ctx.fillStyle = `rgba(180,210,255,${(flash - 0.6) * 0.5})`; ctx.fillRect(-hw, -hh, CARD_W, CARD_H); }
     for (let i = 0; i < 2; i++) {
@@ -1319,7 +1490,7 @@ class Card {
       ctx.strokeStyle = `rgba(200,225,255,${0.9 * (1 - ph / 0.18)})`; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(x, y);
       for (let k = 0; k < 6; k++) { x += rand(-7, 7); y += CARD_H / 8; ctx.lineTo(x, y); }
       ctx.stroke();
-    }
+    } }
     ctx.globalCompositeOperation = "source-over";
     // Darken the bottom for the name.
     const g = ctx.createLinearGradient(0, hh - 44, 0, hh); g.addColorStop(0, "rgba(20,12,30,0)"); g.addColorStop(1, "rgba(20,12,30,0.55)");
@@ -1570,6 +1741,7 @@ class Card {
       const g = ctx.createRadialGradient(0, 0, 20, 0, 0, len);
       if (theme === "sea") { g.addColorStop(0, "rgba(16,70,170,0.32)"); g.addColorStop(0.35, "rgba(90,200,255,0.22)"); g.addColorStop(1, "rgba(8,40,120,0)"); }
       else if (theme === "under") { g.addColorStop(0, "rgba(70,20,120,0.34)"); g.addColorStop(0.35, "rgba(190,110,255,0.22)"); g.addColorStop(1, "rgba(40,10,80,0)"); }
+      else if (LEGEND_AURA[theme]) { const [c1, c2] = LEGEND_AURA[theme].ray; g.addColorStop(0, `rgba(${c1},0.34)`); g.addColorStop(0.45, `rgba(${c2},0.2)`); g.addColorStop(1, `rgba(${c2},0)`); }
       else { g.addColorStop(0, "rgba(255,230,150,0.32)"); g.addColorStop(1, "rgba(255,200,80,0)"); }
       ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0);
       ctx.arc(0, 0, len, a - w, a + w); ctx.closePath(); ctx.fill();
@@ -1798,7 +1970,21 @@ class Card {
     }
   }
   // Myth cards: soft fire licking every side of the card, a hot glow and embers floating up.
+  // A Greek Legend's aura: its sigil behind the card, its colours glowing, its own edge decoration and a breathing border.
+  drawGodAura(hw, hh, t, A, theme) {
+    if (!GOD_BACK_OFF) { ctx.save(); A.back(hw, hh, t); ctx.restore(); }
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4), pq = Math.round(pulse * 12) / 12;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    drawCached(`gaura|${theme}|${pq}`, CARD_W + 90, CARD_H + 90, () => { ctx.globalCompositeOperation = "lighter";
+      for (let i = 4; i >= 0; i--) { const g = 4 + i * 7 + pq * 5; rrect(-hw - g, -hh - g, CARD_W + g * 2, CARD_H + g * 2, 12 + g); ctx.fillStyle = hexA(i > 2 ? A.glow[0] : A.glow[1], 0.08 + (4 - i) * 0.035); ctx.fill(); } }, 0, 0, 1, 1);
+    ctx.restore();
+    ctx.save(); A.edge(hw, hh, t); ctx.restore();
+    ctx.save(); const gp = Math.round(pulse * 9) / 9;
+    drawCached(`gborder|${theme}|${gp}`, CARD_W + 100, CARD_H + 100, () => { ctx.shadowColor = A.border; ctx.shadowBlur = 22 + gp * 14; rrect(-hw - 2, -hh - 2, CARD_W + 4, CARD_H + 4, 11); ctx.strokeStyle = hexA(A.border, 0.9); ctx.lineWidth = 3; ctx.stroke(); }, 0, 0, 1, 1);
+    ctx.restore();
+  }
   drawMythAura(hw, hh, t, gold = false, theme) {
+    if (LEGEND_AURA[theme]) return this.drawGodAura(hw, hh, t, LEGEND_AURA[theme], theme);
     const sea = theme === "sea", und = theme === "under";
     const pulse = 0.5 + 0.5 * Math.sin(t * 4);
     ctx.save();
@@ -7767,7 +7953,13 @@ function drawWorld() {
     for (const f of fxs) if (f.underChamber) f.draw();
     drawChamber();
   }
-  for (const r of ["active", "storage", chamberOpen ? "chamber" : "shop"]) for (const c of rows[r]) if (c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W))) c.drawBattle();
+  const boardRows = ["active", "storage", chamberOpen ? "chamber" : "shop"], onShow = (r, c) => c && !c.dragging && (r !== "storage" || (c.x > -CARD_W && c.x < W + CARD_W));
+  for (const r of boardRows) for (const c of rows[r]) {   // Greek Legend sigils first, so no card is ever covered by a neighbour's sigil
+    const A = onShow(r, c) && c.rarity === LEGEND && LEGEND_AURA[EL[c.element].theme];
+    if (A) { ctx.save(); ctx.translate(c.x, c.y - 8 * (c.kick || 0)); ctx.scale(c.scale, c.scale); A.back(CARD_W / 2, CARD_H / 2, c.t); ctx.restore(); }
+  }
+  GOD_BACK_OFF = true;
+  try { for (const r of boardRows) for (const c of rows[r]) if (onShow(r, c)) c.drawBattle(); } finally { GOD_BACK_OFF = false; }
   if (!chamberOpen) { drawStorageNav(); drawShopLocks(); drawTotemLinks(); drawGather(); }
   if (!chamberOpen) {
     drawParts(); for (const p of projectiles) p.draw();
