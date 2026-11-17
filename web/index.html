@@ -29,6 +29,9 @@ body {
 }
 #stage {
   height: 100%;
+  box-sizing: border-box;
+  /* Room for the phone's front camera at the top (the app sets --safe-top); castle bricks show there. */
+  padding-top: max(var(--safe-top, 0px), env(safe-area-inset-top, 0px));
   display: grid;
   place-items: center;
   touch-action: none;
@@ -8301,11 +8304,28 @@ function buildVignette() {
 }
 // Fits the game to the screen: width stays 720, height grows with tall phones (up to about 9:21).
 // The extra height is added to the battlefield; the castle, cards, shop and buttons keep their size.
+const stageEl = document.getElementById("stage");
+const safeTop = () => parseFloat(getComputedStyle(stageEl).paddingTop) || 0;
+// The Android app reports the camera cutout height (in CSS px); the game then sits just below it.
+window.setSafeTop = px => { document.documentElement.style.setProperty("--safe-top", Math.max(0, px || 0) + "px"); applyLayout(); };
+// Castle bricks behind the canvas (seen in the strip around the front camera).
+(function brickBackdrop() {
+  const c = Object.assign(document.createElement("canvas"), { width: 72, height: 44 }), g = c.getContext("2d");
+  g.fillStyle = "#2a1a12"; g.fillRect(0, 0, 72, 44);
+  const cols = ["#8a7c72", "#83756b", "#918378", "#7d7068"];
+  [[0, 0, 0], [36, 0, 1], [-18, 22, 2], [18, 22, 3], [54, 22, 0]].forEach(([x, y, i]) => {
+    g.fillStyle = cols[i]; g.fillRect(x + 2, y + 2, 32, 18);
+    g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(x + 4, y + 4, 28, 2);
+    g.fillStyle = "rgba(0,0,0,0.18)"; g.fillRect(x + 2, y + 17, 32, 3);
+  });
+  document.body.style.background = `#2a1a12 url(${c.toDataURL()}) 0 0 / 36px 22px repeat`;
+})();
 function applyLayout() {
-  const ratio = (window.innerHeight || BASE_H) / (window.innerWidth || W);
+  const vh = (window.innerHeight || BASE_H) - safeTop();
+  const ratio = vh / (window.innerWidth || W);
   const nh = Math.round(clamp(W * ratio, BASE_H, 1720));
   // Show the canvas as large as fits the screen (no stretching: it keeps its own shape).
-  const k = Math.min((window.innerWidth || W) / W, (window.innerHeight || nh) / nh);
+  const k = Math.min((window.innerWidth || W) / W, vh / nh);
   canvas.style.width = `${Math.floor(W * k)}px`; canvas.style.height = `${Math.floor(nh * k)}px`;
   if (nh === H && vignette) return;
   H = nh; const E = H - BASE_H;

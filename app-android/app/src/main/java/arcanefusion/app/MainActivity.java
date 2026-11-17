@@ -18,6 +18,7 @@ import androidx.webkit.WebViewAssetLoader;
 public class MainActivity extends Activity {
     private WebView web;
     private PlayBilling billing;
+    private float safeTop = 0;   // front-camera cutout height, in CSS px
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -42,7 +43,7 @@ public class MainActivity extends Activity {
                 return loader.shouldInterceptRequest(r.getUrl());
             }
             @Override
-            public void onPageFinished(WebView v, String url) { if (billing != null) billing.onPageReady(); }
+            public void onPageFinished(WebView v, String url) { sendSafeTop(); if (billing != null) billing.onPageReady(); }
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 return !"appassets.androidplatform.net".equals(r.getUrl().getHost());   // stay inside the game
@@ -50,6 +51,14 @@ public class MainActivity extends Activity {
         });
         billing = new PlayBilling(this, web);
         web.addJavascriptInterface(billing, "AndroidBilling");   // Google Play purchases (see PlayBilling)
+        // Keep the game below the front camera: tell the page how tall the cutout is.
+        web.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top = 0;
+            if (android.os.Build.VERSION.SDK_INT >= 28 && insets.getDisplayCutout() != null) top = insets.getDisplayCutout().getSafeInsetTop();
+            safeTop = top / getResources().getDisplayMetrics().density;
+            sendSafeTop();
+            return v.onApplyWindowInsets(insets);
+        });
         setContentView(web);
         hideBars();
         if (state != null) web.restoreState(state);
@@ -70,6 +79,8 @@ public class MainActivity extends Activity {
                     | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         }
     }
+
+    private void sendSafeTop() { web.evaluateJavascript("window.setSafeTop&&setSafeTop(" + safeTop + ")", null); }
 
     @Override public void onWindowFocusChanged(boolean has) { super.onWindowFocusChanged(has); if (has) hideBars(); }
     // Pause all game sound while the app is in the background, and resume it on return.
