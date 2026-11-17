@@ -32,6 +32,7 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
+        s.setTextZoom(100);   // ignore the phone's font-size setting so the game layout stays the same
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
         web.setWebViewClient(new WebViewClient() {
