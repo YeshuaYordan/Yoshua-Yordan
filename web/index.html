@@ -2904,223 +2904,340 @@ const MYTHFX = {
   },
 };
 for (const k of ["serpent", "cerberus", "basilisk", "griffin", "qilin", "kraken", "banshee"]) { VFX_STYLE[k] = "mx_" + k; delete EPV[k]; }   // Kitsune and Fenrir keep their original shots
-// ============ The Greek Legends (Athena ... Hera): each has its own shot, trail and impact.
+// ============ The Greek Legends (Athena ... Hera): each has its own shot, trail and impact, built in layers like a big-studio effect:
+// motion-blur afterimages, additive light, a character emblem, and multi-stage impacts with ground marks and (for the heavy hitters) screen shake.
 const ATH_COLS = [[255, 255, 255], [255, 244, 200], [232, 200, 110], [140, 100, 40]];
-const ARE_COLS = [[255, 230, 180], [255, 120, 60], [216, 50, 42], [80, 10, 10]];
-const APO_COLS = [[255, 255, 255], [255, 236, 150], [255, 180, 58], [220, 100, 20]];
-const ART_COLS = [[255, 255, 255], [220, 230, 255], [184, 200, 255], [90, 110, 200]];
-const HER_COLS = [[255, 255, 255], [200, 255, 240], [122, 224, 200], [30, 120, 110]];
-const HEP_COLS = [[255, 255, 220], [255, 200, 80], [255, 122, 42], [140, 30, 10]];
-const HRA_COLS = [[255, 255, 255], [240, 210, 255], [214, 138, 255], [60, 30, 130]];
+const ARE_COLS = [[255, 240, 200], [255, 130, 50], [216, 40, 30], [70, 6, 6]];
+const APO_COLS = [[255, 255, 255], [255, 240, 160], [255, 180, 58], [220, 90, 20]];
+const ART_COLS = [[255, 255, 255], [225, 235, 255], [170, 190, 255], [70, 90, 190]];
+const HER_COLS = [[255, 255, 255], [210, 255, 245], [110, 225, 200], [20, 110, 100]];
+const HEP_COLS = [[255, 255, 230], [255, 210, 90], [255, 120, 40], [130, 25, 8]];
+const HRA_COLS = [[255, 255, 255], [240, 215, 255], [200, 130, 255], [70, 30, 140]];
+// Afterimages: redraws fn at the shot's older positions, fading out (motion blur). fn(t) draws in local space.
+function mxAfter(pr, n, gap, fn) {
+  const h = pr.ahist = pr.ahist || []; h.unshift([pr.x, pr.y, pr.t]); if (h.length > n * gap + 1) h.length = n * gap + 1;
+  for (let i = n; i >= 1; i--) { const p = h[i * gap]; if (!p) continue; ctx.save(); ctx.globalAlpha = 0.32 * (1 - i / (n + 1)); ctx.translate(p[0] - pr.x, p[1] - pr.y); fn(p[2]); ctx.restore(); }
+}
+// Soft light rays fanning from the origin (local space).
+function mxRays(n, r0, len, w, rot, rgb, a) {
+  ctx.save(); ctx.rotate(rot); ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < n; i++) { ctx.rotate(Math.PI * 2 / n); const L = len * (i % 2 ? 0.6 : 1); const g = ctx.createLinearGradient(r0, 0, r0 + L, 0); g.addColorStop(0, `rgba(${rgb},${a})`); g.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(r0, -w); ctx.lineTo(r0 + L, 0); ctx.lineTo(r0, w); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+}
+// A Greek key (meander) ring drawn as a square wave around a circle.
+function mxMeander(r, w, rgb, a, seg = 28) {
+  ctx.beginPath();
+  for (let i = 0; i <= seg * 4; i++) { const ang = i / (seg * 4) * Math.PI * 2, step = i % 4, rr = step === 1 || step === 2 ? r + w : r; i ? ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr) : ctx.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr); }
+  ctx.strokeStyle = `rgba(${rgb},${a})`; ctx.lineWidth = 2; ctx.stroke();
+}
+const mxShake = (t, amp) => { shakeT = Math.max(shakeT, t); shakeAmp = Math.max(shakeAmp || 0, amp); };
 Object.assign(MYTHFX, {
-  // ---- Athena: a golden war spear with her round aegis shield spinning behind the blade.
+  // ---- ATHENA: a spear of divine gold carried by a spectral owl, her aegis spinning at the shaft.
   mx_athena: {
     trail(pr, n, back, bx, by, R) {
-      for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-3, 3), y: by + rand(-3, 3), ...back(rand(40, 120), 12), life: rand(0.22, 0.38), size: R * rand(0.3, 0.55), grow: -0.5, cols: ATH_COLS, a: 0.8 });
-      for (let i = n(10); i > 0; i--) addPart({ kind: "leaf", x: bx, y: by, vx: rand(-40, 40), vy: rand(-10, 40), drag: 2, g: 40, life: rand(0.8, 1.1), size: rand(4, 6), rot: rand(0, 6), vr: rand(-5, 5), col: "#e8dcc0" });   // owl feathers
+      for (let i = n(70); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-3, 3), y: by + rand(-3, 3), ...back(rand(40, 130), 10), life: rand(0.25, 0.4), size: R * rand(0.3, 0.55), grow: -0.5, cols: ATH_COLS, a: 0.85 });
+      for (let i = n(12); i > 0; i--) addPart({ kind: "leaf", x: bx + rand(-R, R), y: by + rand(-R, R), vx: rand(-50, 50), vy: rand(-10, 50), drag: 2, g: 40, life: rand(0.9, 1.3), size: rand(4.5, 6.5), rot: rand(0, 6), vr: rand(-5, 5), col: Math.random() < 0.5 ? "#f2e6c4" : "#c8a860" });   // owl feathers & laurel
+      for (let i = n(10); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R) * 1.4, y: by + rand(-R, R) * 1.4, vx: 0, vy: 0, life: 0.6, size: rand(3, 5), rgb: "255,245,200", rot: rand(0, 6) });
     },
     head(pr, R, t, glow) {
-      glow(R * 2.6, "255,230,150");
-      ctx.rotate(pr.ang);
-      ctx.save(); ctx.translate(-R * 0.9, 0); ctx.rotate(t * 6); ctx.scale(0.45, 1);   // the aegis, edge-on and spinning
-      circle(0, 0, R * 1.05, "#b8862a"); circle(0, 0, R * 0.85, "#f2d488"); ring(0, 0, R * 0.62, "#8a5a14", 2); circle(0, 0, R * 0.22, "#5a3a0a"); ctx.restore();
-      ctx.strokeStyle = "#6a4a1a"; ctx.lineWidth = R * 0.18; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-R * 2.4, 0); ctx.lineTo(R * 0.9, 0); ctx.stroke();   // shaft
-      const g = ctx.createLinearGradient(R * 0.6, 0, R * 2.6, 0); g.addColorStop(0, "#c8962a"); g.addColorStop(0.6, "#fff0b8"); g.addColorStop(1, "#ffffff");
-      poly([[R * 2.7, 0], [R * 1.5, -R * 0.42], [R * 0.75, -R * 0.15], [R * 0.75, R * 0.15], [R * 1.5, R * 0.42]], g, "#5a3a08", 1.5);   // leaf blade
-      ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(R * 0.8, 0); ctx.lineTo(R * 2.6, 0); ctx.stroke();
-      for (const s of [-1, 1]) poly([[R * 0.7, 0], [R * 0.45, s * R * 0.45], [R * 0.85, s * R * 0.12]], "#e8c060", "#5a3a08", 1);   // cross-guard
+      const spear = tt => {
+        ctx.save(); ctx.rotate(pr.ang);
+        ctx.strokeStyle = "#5a3a12"; ctx.lineWidth = R * 0.2; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-R * 2.8, 0); ctx.lineTo(R * 0.9, 0); ctx.stroke();
+        ctx.strokeStyle = "#e8c060"; ctx.lineWidth = R * 0.07; ctx.beginPath(); ctx.moveTo(-R * 2.7, -R * 0.03); ctx.lineTo(R * 0.8, -R * 0.03); ctx.stroke();
+        const g = ctx.createLinearGradient(R * 0.6, 0, R * 3, 0); g.addColorStop(0, "#b8862a"); g.addColorStop(0.55, "#fff0b8"); g.addColorStop(1, "#ffffff");
+        poly([[R * 3.1, 0], [R * 1.7, -R * 0.5], [R * 0.8, -R * 0.16], [R * 0.8, R * 0.16], [R * 1.7, R * 0.5]], g, "#4a2a06", 1.5);
+        ctx.restore();
+      };
+      mxAfter(pr, 4, 2, spear);   // golden motion blur
+      glow(R * 3.6, "255,225,140");
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.rotate(pr.ang);   // a spectral owl, wings spread around the spear
+      const flap = Math.sin(t * 18) * 0.25;
+      for (const s of [-1, 1]) { ctx.save(); ctx.scale(1, s); ctx.rotate(flap);
+        for (let f = 0; f < 5; f++) { ctx.save(); ctx.rotate(-0.5 - f * 0.28); ctx.beginPath(); ctx.ellipse(-R * (0.4 + f * 0.1), -R * (1.0 + f * 0.25), R * 0.22, R * (0.9 - f * 0.06), 0.4, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,236,170,${0.35 - f * 0.04})`; ctx.fill(); ctx.restore(); }
+        ctx.restore(); }
+      ctx.restore();
+      spear(t);
+      ctx.save(); ctx.rotate(pr.ang); ctx.translate(-R * 1.1, 0); ctx.rotate(t * 7); ctx.scale(0.5, 1);   // the aegis spinning edge-on
+      const sg = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 1.15); sg.addColorStop(0, "#fff6d0"); sg.addColorStop(0.6, "#e8c060"); sg.addColorStop(1, "#8a5a14");
+      circle(0, 0, R * 1.15, sg); ring(0, 0, R * 1.15, "#4a2a06", 2); ring(0, 0, R * 0.8, "rgba(90,60,10,0.8)", 1.5); circle(0, 0, R * 0.25, "#5a3a0a");
+      ctx.restore();
+      for (let k = 0; k < 3; k++) { const a = t * 6 + k * 2.1; circle(Math.cos(a) * R * 2.2, Math.sin(a) * R * 1.4, R * 0.14, "#fff6c8"); }   // orbiting motes
     },
     hit(x, y, P, A, burst, ringFx) {
-      mxFx(x, y, 0.55, (fx, k) => {   // a huge golden aegis flashes over the foe, then cracks apart (armour shattered)
-        const up = Math.min(1, k * 5), fade = 1 - Math.max(0, (k - 0.35) / 0.65), R = 46 * P * up, crack = Math.max(0, (k - 0.25) / 0.75);
-        ctx.save(); ctx.translate(fx.x, fx.y); ctx.globalAlpha = fade;
-        for (let i = 0; i < 6; i++) {   // six wedges drifting apart
-          const a0 = i / 6 * Math.PI * 2, mid = a0 + Math.PI / 6, off = crack * 26 * P;
-          ctx.save(); ctx.translate(Math.cos(mid) * off, Math.sin(mid) * off * 0.6);
+      mxFx(x, y, 0.75, (fx, k) => {
+        const fade = 1 - Math.max(0, (k - 0.45) / 0.55);
+        ctx.save(); ctx.translate(fx.x, fx.y);
+        // 1) a golden rune circle with a Greek key border, spinning on the ground
+        ctx.save(); ctx.scale(1, 0.42); ctx.rotate(k * 2); const rr = 70 * P * Math.min(1, k * 4);
+        mxMeander(rr, 7 * P, "255,220,120", 0.9 * fade, 24); ring(0, 0, rr * 0.78, `rgba(255,236,170,${0.8 * fade})`, 2); ctx.restore();
+        // 2) a pillar of light where the spear struck
+        if (k < 0.5) { const pk = 1 - k / 0.5, g = ctx.createLinearGradient(0, -170 * P, 0, 0); g.addColorStop(0, "rgba(255,240,180,0)"); g.addColorStop(1, `rgba(255,240,180,${0.85 * pk})`); ctx.fillStyle = g; ctx.fillRect(-14 * P * pk, -170 * P, 28 * P * pk, 170 * P); }
+        // 3) the aegis appears, then cracks into six plates
+        const up = Math.min(1, k * 6), crack = Math.max(0, (k - 0.22) / 0.78), R = 44 * P * up;
+        for (let i = 0; i < 6; i++) {
+          const a0 = i / 6 * Math.PI * 2, mid = a0 + Math.PI / 6, off = crack * crack * 60 * P;
+          ctx.save(); ctx.translate(Math.cos(mid) * off, Math.sin(mid) * off * 0.6 - crack * 10 * P); ctx.rotate(crack * (i % 2 ? 0.8 : -0.8)); ctx.globalAlpha = fade;
           ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, a0, a0 + Math.PI / 3); ctx.closePath();
-          ctx.fillStyle = i % 2 ? "rgba(242,212,136,0.85)" : "rgba(255,236,170,0.85)"; ctx.fill(); ctx.strokeStyle = "#8a5a14"; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+          const g = ctx.createRadialGradient(0, 0, 1, 0, 0, R); g.addColorStop(0, "#fff6d0"); g.addColorStop(1, i % 2 ? "#c89a3a" : "#e8c060"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#4a2a06"; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
         }
-        if (crack < 0.3) { circle(-R * 0.22, -R * 0.1, R * 0.1, "#5a3a0a"); circle(R * 0.22, -R * 0.1, R * 0.1, "#5a3a0a"); circle(-R * 0.22, -R * 0.1, R * 0.05, "#ffd84a"); circle(R * 0.22, -R * 0.1, R * 0.05, "#ffd84a"); }   // owl eyes
+        if (crack < 0.15) { for (const s of [-1, 1]) { circle(s * R * 0.25, -R * 0.12, R * 0.13, "#3a2406"); circle(s * R * 0.25, -R * 0.12, R * 0.07, "#ffd84a"); } poly([[0, 0], [-R * 0.08, R * 0.1], [R * 0.08, R * 0.1]], "#3a2406", null); }   // the owl's face on the shield
         ctx.restore();
       });
-      burst(18, (cx, cy) => { const sp = rand(200, 460); addPart({ kind: "shard", x, y, vx: cx * sp, vy: cy * sp - 80, g: 700, life: 0.7, size: rand(3, 5), rot: rand(0, 6), vr: rand(-10, 10), col: "#f2d488", edge: "#8a5a14" }); });
-      ringFx("255,230,150", 10, 85 * P, 5, 0.5); addPart({ add: true, kind: "glow", x, y, life: 0.3, size: 40 * P, grow: 0.4, cols: ATH_COLS, a: 0.9 });
+      mxShake(0.15, 4);
+      burst(22, (cx, cy) => { const sp = rand(200, 480); addPart({ kind: "shard", x, y, vx: cx * sp, vy: cy * sp - 100, g: 800, life: 0.8, size: rand(3, 5.5), rot: rand(0, 6), vr: rand(-12, 12), col: "#f2d488", edge: "#6a4a10" }); });
+      burst(12, (cx, cy) => { const sp = rand(80, 220); addPart({ kind: "leaf", x, y, vx: cx * sp, vy: cy * sp - 80, drag: 2.5, g: 60, life: rand(1.0, 1.4), size: rand(5, 7), rot: rand(0, 6), vr: rand(-6, 6), col: "#f2e6c4" }); });
+      ringFx("255,230,150", 10, 95 * P, 6, 0.45); addPart({ add: true, kind: "glow", x, y, life: 0.3, size: 50 * P, grow: 0.5, cols: ATH_COLS, a: 1 });
     },
   },
-  // ---- Ares: a blazing double-bladed war axe spinning end over end.
+  // ---- ARES: a war axe wreathed in a wheel of fire, a crimson war-spirit howling behind it.
   mx_ares: {
     trail(pr, n, back, bx, by, R) {
-      for (let i = n(75); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(40, 130)), life: rand(0.25, 0.45), size: R * rand(0.5, 0.9), grow: -0.6, cols: ARE_COLS, a: 0.85 });
-      for (let i = n(12); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(25, 20), life: 0.8, size: R * 0.55, grow: 1.5, col: "#2a0806", a: 0.5 });
+      for (let i = n(95); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-6, 6), y: by + rand(-6, 6), ...back(rand(40, 140)), life: rand(0.25, 0.45), size: R * rand(0.55, 1.0), grow: -0.6, cols: ARE_COLS, a: 0.9 });
+      for (let i = n(16); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(25, 25), life: 0.9, size: R * 0.6, grow: 1.6, col: "#1a0404", a: 0.55 });
+      for (let i = n(26); i > 0; i--) { const a = rand(0, Math.PI * 2); addPart({ add: true, kind: "spark", x: pr.x + Math.cos(a) * R * 1.6, y: pr.y + Math.sin(a) * R * 1.6, vx: -Math.sin(a) * 260, vy: Math.cos(a) * 260, drag: 3, life: 0.3, size: 2, cols: ARE_COLS, len: 0.04 }); }   // embers flung off the spin
     },
     head(pr, R, t, glow) {
-      glow(R * 2.8, "255,80,40");
-      ctx.rotate(t * 16);
-      ctx.strokeStyle = "#3a1a0a"; ctx.lineWidth = R * 0.22; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, -R * 1.5); ctx.lineTo(0, R * 1.5); ctx.stroke();   // haft
-      for (const s of [-1, 1]) {   // two crescent blades
-        ctx.beginPath(); ctx.moveTo(0, -R * 0.7); ctx.quadraticCurveTo(s * R * 1.9, -R * 1.2, s * R * 1.5, 0); ctx.quadraticCurveTo(s * R * 1.9, R * 1.2, 0, R * 0.7); ctx.quadraticCurveTo(s * R * 0.7, 0, 0, -R * 0.7);
-        const g = ctx.createLinearGradient(0, 0, s * R * 1.8, 0); g.addColorStop(0, "#5a1a10"); g.addColorStop(0.7, "#d8322a"); g.addColorStop(1, "#ffd0a0");
-        ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#1a0404"; ctx.lineWidth = 1.8; ctx.stroke();
-        ctx.strokeStyle = "rgba(255,230,180,0.9)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(s * R * 1.25, -R * 0.75); ctx.quadraticCurveTo(s * R * 1.7, 0, s * R * 1.25, R * 0.75); ctx.stroke();   // hot edge
-      }
-      circle(0, 0, R * 0.3, "#ffb040"); circle(0, 0, R * 0.14, "#fff0c0");
+      const axe = tt => {
+        ctx.save(); ctx.rotate(tt * 18);
+        ctx.strokeStyle = "#2a1006"; ctx.lineWidth = R * 0.24; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, -R * 1.7); ctx.lineTo(0, R * 1.7); ctx.stroke();
+        for (const s of [-1, 1]) {
+          ctx.beginPath(); ctx.moveTo(0, -R * 0.75); ctx.quadraticCurveTo(s * R * 2.1, -R * 1.35, s * R * 1.65, 0); ctx.quadraticCurveTo(s * R * 2.1, R * 1.35, 0, R * 0.75); ctx.quadraticCurveTo(s * R * 0.75, 0, 0, -R * 0.75);
+          const g = ctx.createLinearGradient(0, 0, s * R * 2, 0); g.addColorStop(0, "#3a0a06"); g.addColorStop(0.6, "#c8281e"); g.addColorStop(1, "#ffd8a8"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#0a0202"; ctx.lineWidth = 1.8; ctx.stroke();
+          ctx.strokeStyle = "rgba(255,240,200,0.95)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(s * R * 1.4, -R * 0.85); ctx.quadraticCurveTo(s * R * 1.9, 0, s * R * 1.4, R * 0.85); ctx.stroke();
+        }
+        circle(0, 0, R * 0.32, "#ffb040"); circle(0, 0, R * 0.15, "#fff4c8");
+        ctx.restore();
+      };
+      mxAfter(pr, 3, 2, axe);
+      glow(R * 3.6, "255,70,30");
+      ctx.save(); ctx.globalCompositeOperation = "lighter";   // a spinning wheel of fire around the axe
+      for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(0, 0, R * (2.1 + i * 0.25), t * 18 + i * 2, t * 18 + i * 2 + 2.4); ctx.strokeStyle = `rgba(255,${120 + i * 50},40,${0.75 - i * 0.2})`; ctx.lineWidth = R * (0.35 - i * 0.08); ctx.lineCap = "round"; ctx.stroke(); }
+      ctx.restore();
+      ctx.save(); ctx.rotate(pr.ang); ctx.globalAlpha = 0.55;   // a ghostly crested war helmet charging behind the axe
+      ctx.translate(-R * 2.6, 0); ctx.rotate(Math.PI / 2);
+      ctx.beginPath(); ctx.moveTo(-R * 0.8, R * 0.6); ctx.quadraticCurveTo(-R * 0.9, -R * 0.8, 0, -R * 0.9); ctx.quadraticCurveTo(R * 0.9, -R * 0.8, R * 0.8, R * 0.6); ctx.lineTo(R * 0.3, R * 0.6); ctx.lineTo(R * 0.15, -R * 0.1); ctx.lineTo(-R * 0.15, -R * 0.1); ctx.lineTo(-R * 0.3, R * 0.6); ctx.closePath();
+      ctx.fillStyle = "#8a1a12"; ctx.fill(); ctx.strokeStyle = "#ffb070"; ctx.lineWidth = 1.5; ctx.stroke();
+      for (let i = -3; i <= 3; i++) { ctx.beginPath(); ctx.moveTo(i * R * 0.12, -R * 0.85); ctx.lineTo(i * R * 0.16 + Math.sin(t * 20 + i) * 3, -R * 1.5 - Math.abs(i) * -R * 0.05); ctx.strokeStyle = "#ff4a2a"; ctx.lineWidth = 3; ctx.stroke(); }   // the crest of flame
+      ctx.restore();
+      axe(t);
     },
     hit(x, y, P, A, burst, ringFx) {
-      mxFx(x, y, 0.45, (fx, k) => {   // two blades clash in a burning X
-        const reveal = Math.min(1, k * 5), fade = 1 - Math.max(0, (k - 0.3) / 0.7), L = 75 * P;
-        ctx.save(); ctx.translate(fx.x, fx.y); ctx.lineCap = "round";
-        for (const a of [0.75, -0.75]) { ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(-L / 2, 0); ctx.lineTo(-L / 2 + L * reveal, 0);
-          for (const [w, c] of [[16, `rgba(216,50,42,${0.45 * fade})`], [6, `rgba(255,160,90,${fade})`], [2, `rgba(255,250,230,${fade})`]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.stroke(); } ctx.restore(); }
+      mxFx(x, y, 0.7, (fx, k) => {
+        const fade = 1 - Math.max(0, (k - 0.35) / 0.65);
+        ctx.save(); ctx.translate(fx.x, fx.y);
+        // a burning crater scar left on the ground
+        ctx.save(); ctx.scale(1, 0.4); const cr = 50 * P; const g = ctx.createRadialGradient(0, 0, 1, 0, 0, cr); g.addColorStop(0, `rgba(255,140,40,${0.8 * fade})`); g.addColorStop(0.5, `rgba(120,20,10,${0.6 * fade})`); g.addColorStop(1, "rgba(30,4,4,0)"); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, cr, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+        // the cleave: a huge X of fire, each blade drawn in fast then burning out
+        const reveal = Math.min(1, k * 6), L = 95 * P; ctx.lineCap = "round";
+        for (const a of [0.8, -0.8]) { ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(-L / 2, 0); ctx.quadraticCurveTo(0, -12 * P, -L / 2 + L * reveal, 0);
+          for (const [w, c] of [[24, `rgba(180,20,10,${0.4 * fade})`], [11, `rgba(255,110,40,${0.9 * fade})`], [4, `rgba(255,240,200,${fade})`]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.stroke(); } ctx.restore(); }
+        // the war-helmet sigil flashes over the strike
+        if (k < 0.4) { const hk = 1 - k / 0.4; ctx.globalAlpha = hk; ctx.scale(1 + k, 1 + k); ctx.beginPath(); ctx.moveTo(-22, 16); ctx.quadraticCurveTo(-24, -22, 0, -24); ctx.quadraticCurveTo(24, -22, 22, 16); ctx.lineTo(8, 16); ctx.lineTo(4, -2); ctx.lineTo(-4, -2); ctx.lineTo(-8, 16); ctx.closePath(); ctx.strokeStyle = "#ffd0a0"; ctx.lineWidth = 3; ctx.stroke(); }
         ctx.restore();
       });
-      burst(26, (cx, cy) => { const sp = rand(240, 520); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 4, life: rand(0.3, 0.5), size: 2.4, cols: ARE_COLS, len: 0.05 }); });
-      burst(Math.round(16 * P), (cx, cy) => { const sp = rand(80, 240) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.6, drag: 3, life: rand(0.35, 0.6), size: rand(10, 16) * P, grow: -0.4, cols: ARE_COLS, a: 0.9 }); });
-      ringFx("216,50,42", 10, 90 * P, 7); ringFx("255,200,140", 6, 55 * P, 3, 0.55, true, 0.35);
+      mxShake(0.22, 7);
+      burst(34, (cx, cy) => { const sp = rand(260, 600); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 4, life: rand(0.3, 0.55), size: 2.6, cols: ARE_COLS, len: 0.05 }); });
+      burst(Math.round(18 * P), (cx, cy) => { const sp = rand(80, 260) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.6 - 30, drag: 3, life: rand(0.4, 0.7), size: rand(11, 18) * P, grow: -0.4, cols: ARE_COLS, a: 0.95 }); });
+      for (let i = 0; i < 8; i++) addPart({ kind: "chunk", x, y, vx: rand(-220, 220), vy: rand(-340, -120), g: 950, life: 0.8, size: rand(3, 5), rot: rand(0, 6), vr: rand(-10, 10), col: "#3a1008", hot: true });
+      ringFx("216,40,30", 12, 100 * P, 8, 0.45); ringFx("255,210,150", 6, 60 * P, 3, 0.45, true, 0.35);
     },
   },
-  // ---- Apollo: a lance of sunlight with a blazing sun disc at its tip.
+  // ---- APOLLO: a miniature sun with a living corona and lens flare, riding a lance of light; a golden lyre hums behind it.
   mx_apollo: {
     trail(pr, n, back, bx, by, R) {
-      for (let i = n(90); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-3, 3), y: by + rand(-3, 3), ...back(rand(10, 60), 6), life: rand(0.3, 0.45), size: R * rand(0.35, 0.6), grow: -0.5, cols: APO_COLS, a: 0.85 });   // a long ray of light
-      for (let i = n(16); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R), y: by + rand(-R, R), vx: 0, vy: -20, life: 0.6, size: rand(3, 5), rgb: "255,240,180", rot: rand(0, 6) });
+      for (let i = n(110); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-3, 3), y: by + rand(-3, 3), ...back(rand(10, 60), 5), life: rand(0.35, 0.5), size: R * rand(0.35, 0.65), grow: -0.5, cols: APO_COLS, a: 0.9 });
+      for (let i = n(20); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R) * 1.5, y: by + rand(-R, R) * 1.5, vx: 0, vy: -25, life: 0.7, size: rand(3, 6), rgb: "255,240,180", rot: rand(0, 6) });
+      for (let i = n(14); i > 0; i--) { const a = pr.t * 14 + i * 1.3; addPart({ add: true, kind: "spark", x: pr.x + Math.cos(a) * R * 1.4, y: pr.y + Math.sin(a) * R * 1.4, vx: Math.cos(a) * 140, vy: Math.sin(a) * 140, life: 0.3, size: 2, cols: APO_COLS, len: 0.05 }); }   // solar prominences
     },
     head(pr, R, t, glow) {
-      glow(R * 3.4, "255,190,70");
-      ctx.save(); ctx.rotate(t * 3);
-      for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); const L = R * (i % 2 ? 1.6 : 2.2) * (1 + 0.1 * Math.sin(t * 20 + i)); poly([[R * 0.7, -R * 0.14], [L, 0], [R * 0.7, R * 0.14]], i % 2 ? "rgba(255,236,150,0.9)" : "rgba(255,200,80,0.95)", null); }   // sun rays
-      ctx.restore();
-      const g = ctx.createRadialGradient(-R * 0.2, -R * 0.2, 1, 0, 0, R * 0.85); g.addColorStop(0, "#ffffff"); g.addColorStop(0.5, "#fff0a0"); g.addColorStop(1, "#ffb43a");
-      circle(0, 0, R * 0.85, g); ring(0, 0, R * 0.85, "#c87a10", 2);
-      ctx.rotate(pr.ang); ctx.strokeStyle = "rgba(255,250,220,0.9)"; ctx.lineWidth = R * 0.25; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-R * 3.2, 0); ctx.lineTo(-R * 0.9, 0); ctx.stroke();   // the lance shaft of light
+      ctx.save(); ctx.rotate(pr.ang); ctx.globalCompositeOperation = "lighter";   // the lance of light
+      const lg = ctx.createLinearGradient(-R * 5, 0, 0, 0); lg.addColorStop(0, "rgba(255,200,80,0)"); lg.addColorStop(1, "rgba(255,250,220,0.95)"); ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(-R * 5, 0); ctx.lineTo(0, -R * 0.3); ctx.lineTo(0, R * 0.3); ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.translate(-R * 2.2, 0); ctx.rotate(Math.PI / 2); ctx.globalAlpha = 0.6;   // the golden lyre, strings trembling
+      ctx.strokeStyle = "#ffd870"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-R * 0.7, R * 0.6); ctx.quadraticCurveTo(-R * 1.1, -R * 0.4, -R * 0.5, -R * 0.9); ctx.moveTo(R * 0.7, R * 0.6); ctx.quadraticCurveTo(R * 1.1, -R * 0.4, R * 0.5, -R * 0.9); ctx.moveTo(-R * 0.6, -R * 0.75); ctx.lineTo(R * 0.6, -R * 0.75); ctx.moveTo(-R * 0.7, R * 0.6); ctx.lineTo(R * 0.7, R * 0.6); ctx.stroke();
+      ctx.lineWidth = 1; for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * R * 0.22, -R * 0.75); ctx.quadraticCurveTo(i * R * 0.22 + Math.sin(t * 60 + i) * 2, 0, i * R * 0.22, R * 0.6); ctx.stroke(); }
+      ctx.restore(); ctx.restore();
+      glow(R * 4.2, "255,190,70");
+      mxRays(16, R * 0.8, R * 2.8 * (1 + 0.08 * Math.sin(t * 25)), R * 0.2, t * 2, "255,220,110", 0.9);   // corona rays
+      mxRays(8, R * 0.8, R * 1.8, R * 0.3, -t * 3, "255,250,220", 0.7);
+      ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.strokeStyle = "rgba(255,240,200,0.6)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-R * 4, 0); ctx.lineTo(R * 4, 0); ctx.stroke(); ctx.restore();   // anamorphic lens flare
+      const g = ctx.createRadialGradient(-R * 0.25, -R * 0.25, 1, 0, 0, R * 0.9); g.addColorStop(0, "#ffffff"); g.addColorStop(0.45, "#fff2a8"); g.addColorStop(1, "#ffa22a");
+      circle(0, 0, R * 0.9, g);
+      for (let i = 0; i < 3; i++) { const a = t * 3 + i * 2; circle(Math.cos(a) * R * 0.35, Math.sin(a) * R * 0.35, R * 0.16, "rgba(255,170,40,0.55)"); }   // churning sunspots
     },
     hit(x, y, P, A, burst, ringFx) {
-      mxFx(x, y, 0.5, (fx, k) => {   // a sun flare: 16 rays burst out and fade
-        const L = 85 * P * Math.min(1, k * 4), fade = 1 - k;
-        ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.75); ctx.globalCompositeOperation = "lighter";
-        for (let i = 0; i < 16; i++) { ctx.rotate(Math.PI / 8); poly([[0, -5 * P], [L * (i % 2 ? 0.65 : 1), 0], [0, 5 * P]], `rgba(255,${i % 2 ? 236 : 190},${i % 2 ? 150 : 70},${0.8 * fade})`, null); }
-        circle(0, 0, 26 * P * (1 - k * 0.5), `rgba(255,255,240,${fade})`);
+      mxFx(x, y, 0.7, (fx, k) => {
+        const fade = 1 - k;
+        ctx.save(); ctx.translate(fx.x, fx.y);
+        ctx.save(); ctx.scale(1, 0.4); ring(0, 0, 40 * P + k * 70 * P, `rgba(255,200,90,${0.8 * fade})`, 6 * fade + 1); ctx.restore();   // heat ring on the ground
+        mxRays(20, 10 * P, 85 * P * Math.min(1, k * 5), 5 * P, k * 1.5, "255,220,110", 0.85 * fade);   // supernova rays
+        mxRays(10, 8 * P, 70 * P * Math.min(1, k * 5), 9 * P, -k * 2, "255,255,240", 0.8 * fade);
+        ctx.globalCompositeOperation = "lighter"; circle(0, 0, 18 * P * (1 - k * 0.6), `rgba(255,255,240,${0.85 * fade})`); circle(0, 0, 34 * P * (1 - k * 0.3), `rgba(255,190,70,${0.3 * fade})`);
+        if (k > 0.15) { const lk = (k - 0.15) / 0.85; ctx.globalAlpha = 1 - lk; ctx.translate(0, -30 * P - lk * 50 * P); ctx.strokeStyle = "#ffe8a0"; ctx.lineWidth = 2.5;   // a golden lyre rises from the light
+          ctx.beginPath(); ctx.moveTo(-14, 12); ctx.quadraticCurveTo(-22, -8, -10, -18); ctx.moveTo(14, 12); ctx.quadraticCurveTo(22, -8, 10, -18); ctx.moveTo(-12, -15); ctx.lineTo(12, -15); ctx.moveTo(-14, 12); ctx.lineTo(14, 12); for (let i = -2; i <= 2; i++) { ctx.moveTo(i * 4, -15); ctx.lineTo(i * 4, 12); } ctx.stroke(); }
         ctx.restore();
       });
-      burst(20, (cx, cy) => { const sp = rand(200, 480); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 5, life: 0.35, size: 2.2, cols: APO_COLS, len: 0.05 }); });
-      ringFx("255,200,80", 10, 95 * P, 6, 0.6);
+      mxShake(0.12, 3);
+      burst(26, (cx, cy) => { const sp = rand(220, 520); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 5, life: 0.4, size: 2.4, cols: APO_COLS, len: 0.05 }); });
+      burst(10, (cx, cy) => { const sp = rand(60, 180); addPart({ add: true, kind: "glint", x, y, vx: cx * sp, vy: cy * sp - 40, drag: 2, life: 0.9, size: rand(4, 6), rgb: "255,240,180", rot: rand(0, 6) }); });
     },
   },
-  // ---- Artemis: silver moonlight arrows with a crescent-moon head and a trail of stars.
+  // ---- ARTEMIS: a silver moon-arrow inside a spinning lunar halo, trailing a comet of starlight.
   mx_artemis: {
     trail(pr, n, back, bx, by, R) {
-      for (let i = n(45); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-2, 2), y: by + rand(-2, 2), ...back(rand(30, 90), 8), life: rand(0.25, 0.4), size: R * rand(0.25, 0.45), grow: -0.5, cols: ART_COLS, a: 0.8 });
-      for (let i = n(14); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R) * 0.8, y: by + rand(-R, R) * 0.8, vx: 0, vy: 10, life: rand(0.6, 0.9), size: rand(2.5, 4.5), rgb: "230,238,255", rot: rand(0, 6) });
+      for (let i = n(60); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-2, 2), y: by + rand(-2, 2), ...back(rand(30, 100), 6), life: rand(0.3, 0.45), size: R * rand(0.25, 0.45), grow: -0.5, cols: ART_COLS, a: 0.85 });
+      for (let i = n(18); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R), y: by + rand(-R, R), vx: rand(-15, 15), vy: rand(0, 20), life: rand(0.7, 1.1), size: rand(2.5, 5), rgb: Math.random() < 0.5 ? "235,240,255" : "190,205,255", rot: rand(0, 6) });
     },
     head(pr, R, t, glow) {
-      glow(R * 2.2, "190,205,255");
-      ctx.rotate(pr.ang);
-      ctx.strokeStyle = "#c8d4f0"; ctx.lineWidth = R * 0.12; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-R * 2.4, 0); ctx.lineTo(R * 0.6, 0); ctx.stroke();   // shaft
-      for (const s of [-1, 1]) poly([[-R * 2.4, 0], [-R * 2.0, 0], [-R * 2.5, s * R * 0.42], [-R * 2.8, s * R * 0.38]], "#eef2ff", "#6a7ab0", 1);   // silver fletching
-      ctx.save(); ctx.translate(R * 0.9, 0);   // crescent-moon head
-      ctx.beginPath(); ctx.arc(0, 0, R * 0.75, -Math.PI / 2, Math.PI / 2); ctx.arc(-R * 0.35, 0, R * 0.62, Math.PI / 2, -Math.PI / 2, true); ctx.closePath();
-      const g = ctx.createLinearGradient(-R * 0.4, 0, R * 0.8, 0); g.addColorStop(0, "#8a9ae0"); g.addColorStop(1, "#ffffff"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#4a5a9a"; ctx.lineWidth = 1.2; ctx.stroke();
+      const arrow = () => {
+        ctx.save(); ctx.rotate(pr.ang);
+        ctx.strokeStyle = "#d8e2ff"; ctx.lineWidth = R * 0.12; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(-R * 2.6, 0); ctx.lineTo(R * 0.6, 0); ctx.stroke();
+        for (const s of [-1, 1]) for (let f = 0; f < 2; f++) poly([[-R * (2.0 + f * 0.35), 0], [-R * (2.3 + f * 0.35), s * R * 0.45], [-R * (2.6 + f * 0.35), s * R * 0.4], [-R * (2.35 + f * 0.35), 0]], "#f2f5ff", "#6a7ab0", 1);
+        ctx.translate(R * 0.95, 0);
+        ctx.beginPath(); ctx.arc(0, 0, R * 0.8, -Math.PI / 2, Math.PI / 2); ctx.arc(-R * 0.38, 0, R * 0.66, Math.PI / 2, -Math.PI / 2, true); ctx.closePath();
+        const g = ctx.createLinearGradient(-R * 0.4, 0, R * 0.85, 0); g.addColorStop(0, "#8a9ae0"); g.addColorStop(1, "#ffffff"); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#3a4a8a"; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.restore();
+      };
+      mxAfter(pr, 4, 1, arrow);
+      glow(R * 3, "180,200,255");
+      ctx.save(); ctx.rotate(t * 4); ctx.globalCompositeOperation = "lighter";   // a lunar halo with phases of the moon around it
+      ring(0, 0, R * 1.9, "rgba(200,215,255,0.55)", 1.5); ring(0, 0, R * 2.15, "rgba(200,215,255,0.25)", 1);
+      for (let i = 0; i < 4; i++) { ctx.save(); ctx.rotate(i * Math.PI / 2); ctx.translate(R * 1.9, 0); circle(0, 0, R * 0.22, "rgba(235,240,255,0.9)"); circle(R * 0.08 * (i - 1.5), 0, R * 0.2, "rgba(40,50,110,0.85)"); ctx.restore(); }
       ctx.restore();
+      arrow();
     },
     hit(x, y, P, A, burst, ringFx) {
-      mxFx(x, y, 0.45, (fx, k) => {   // a crescent of moonlight slices across, leaving stars
-        const fade = 1 - Math.max(0, (k - 0.25) / 0.75), a = -2.4 + Math.min(1, k * 4) * 3.2, R = 40 * P;
-        ctx.save(); ctx.translate(fx.x, fx.y); ctx.lineCap = "round";
-        for (const [w, c] of [[12, `rgba(150,170,255,${0.4 * fade})`], [5, `rgba(220,230,255,${fade})`], [2, `rgba(255,255,255,${fade})`]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(0, 0, R, -2.4, a); ctx.stroke(); }
+      mxFx(x, y, 0.6, (fx, k) => {
+        const fade = 1 - Math.max(0, (k - 0.3) / 0.7);
+        ctx.save(); ctx.translate(fx.x, fx.y);
+        const mg = ctx.createRadialGradient(0, 0, 1, 0, 0, 42 * P); mg.addColorStop(0, `rgba(240,245,255,${0.55 * fade})`); mg.addColorStop(1, "rgba(160,180,255,0)"); ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(0, 0, 42 * P * Math.min(1, k * 5), 0, Math.PI * 2); ctx.fill();   // a full moon rises behind the target
+        const a = -2.6 + Math.min(1, k * 5) * 3.8, R = 46 * P; ctx.lineCap = "round";
+        for (const [w, c] of [[16, `rgba(150,170,255,${0.45 * fade})`], [6, `rgba(225,232,255,${fade})`], [2, `rgba(255,255,255,${fade})`]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(0, 0, R, -2.6, a); ctx.stroke(); }   // the crescent slash
+        for (let i = 0; i < 5; i++) { const sa = -2.6 + i * 0.9, sr = R * (1.2 + 0.15 * Math.sin(k * 20 + i)); ctx.save(); ctx.translate(Math.cos(sa) * sr, Math.sin(sa) * sr); ctx.rotate(k * 6); ctx.globalAlpha = fade; poly([[0, -6], [1.5, -1.5], [6, 0], [1.5, 1.5], [0, 6], [-1.5, 1.5], [-6, 0], [-1.5, -1.5]], "#ffffff", null); ctx.restore(); }   // stars caught in the arc
         ctx.restore();
       });
-      burst(12, (cx, cy) => { const sp = rand(60, 200); addPart({ add: true, kind: "glint", x: x + cx * 10, y: y + cy * 10, vx: cx * sp, vy: cy * sp * 0.6, drag: 3, life: rand(0.6, 0.9), size: rand(3, 6), rgb: "235,240,255", rot: rand(0, 6) }); });
-      ringFx("190,205,255", 8, 60 * P, 4, 0.5);
+      burst(14, (cx, cy) => { const sp = rand(80, 240); addPart({ add: true, kind: "glint", x, y, vx: cx * sp, vy: cy * sp * 0.6, drag: 3, life: rand(0.7, 1.0), size: rand(3, 6), rgb: "235,240,255", rot: rand(0, 6) }); });
+      ringFx("190,205,255", 8, 70 * P, 4, 0.5);
     },
   },
-  // ---- Hermes: messenger lightning on the wind, two serpents twining along each leap (the caduceus), wings at every hit.
+  // ---- HERMES: a lightning bolt of pure speed: a white-hot core, two wind serpents twining round it (the caduceus), wings and speed lines at every leap.
   mx_hermes: {
     trail() {}, head() {},
     chain(fx, k) {
       const P = fx.points, fade = 1 - k;
-      ctx.save(); ctx.lineCap = "round"; ctx.globalCompositeOperation = "lighter";
+      if (!fx.jag) { fx.jag = []; for (let i = 0; i < P.length - 1; i++) { const [ax, ay] = P[i], [bx2, by2] = P[i + 1], l = Math.hypot(bx2 - ax, by2 - ay) || 1, nx = -(by2 - ay) / l, ny = (bx2 - ax) / l; for (let s = 0; s < 6; s++) { const o = s ? rand(-9, 9) : 0; fx.jag.push([ax + (bx2 - ax) * s / 6 + nx * o, ay + (by2 - ay) * s / 6 + ny * o]); } } fx.jag.push(P[P.length - 1]); }
+      ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.globalCompositeOperation = "lighter";
+      const line = (w, c) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); fx.jag.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke(); };
+      line(22, `rgba(80,210,180,${0.25 * fade})`); line(9, `rgba(150,240,220,${0.8 * fade})`); line(3, `rgba(255,255,255,${fade})`);
       for (let i = 0; i < P.length - 1; i++) {
-        const [ax, ay] = P[i], [bx2, by2] = P[i + 1], l = Math.hypot(bx2 - ax, by2 - ay) || 1, nx = -(by2 - ay) / l, ny = (bx2 - ax) / l;
-        ctx.strokeStyle = `rgba(122,224,200,${0.35 * fade})`; ctx.lineWidth = 12; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx2, by2); ctx.stroke();
-        for (const s of [-1, 1]) {   // two intertwined serpents of wind
-          ctx.strokeStyle = s > 0 ? `rgba(220,255,245,${fade})` : `rgba(122,224,200,${fade})`; ctx.lineWidth = 3; ctx.beginPath();
-          for (let j = 0; j <= 24; j++) { const u = j / 24, o = s * Math.sin(u * Math.PI * 4 + k * 20) * 9 * Math.sin(u * Math.PI); const px = ax + (bx2 - ax) * u + nx * o, py = ay + (by2 - ay) * u + ny * o; j ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+        const [ax, ay] = P[i], [bx2, by2] = P[i + 1], l = Math.hypot(bx2 - ax, by2 - ay) || 1, nx = -(by2 - ay) / l, ny = (bx2 - ax) / l, dx = (bx2 - ax) / l, dy = (by2 - ay) / l;
+        for (const s of [-1, 1]) {   // the twin serpents, each with a little head at the end
+          ctx.strokeStyle = s > 0 ? `rgba(255,236,150,${fade})` : `rgba(130,240,215,${fade})`; ctx.lineWidth = 3.5; ctx.beginPath(); let hx = 0, hy = 0;
+          for (let j = 0; j <= 30; j++) { const u = j / 30, o = s * Math.sin(u * Math.PI * 5 + k * 25) * 11 * Math.sin(u * Math.PI); hx = ax + (bx2 - ax) * u + nx * o; hy = ay + (by2 - ay) * u + ny * o; j ? ctx.lineTo(hx, hy) : ctx.moveTo(hx, hy); }
           ctx.stroke();
         }
+        for (let j = 0; j < 4; j++) { const u = rand(0.1, 0.9), ox = ax + (bx2 - ax) * u + nx * rand(-26, 26), oy = ay + (by2 - ay) * u + ny * rand(-26, 26); ctx.strokeStyle = `rgba(255,255,255,${0.6 * fade})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox - dx * 26, oy - dy * 26); ctx.stroke(); }   // speed lines
       }
-      for (let i = 1; i < P.length; i++) {   // little wings at each enemy struck
-        ctx.save(); ctx.translate(P[i][0], P[i][1] - 18);
-        for (const s of [-1, 1]) for (let f = 0; f < 3; f++) { ctx.save(); ctx.scale(s, 1); ctx.rotate(-0.4 - f * 0.35 + Math.sin(k * 30) * 0.2); ellipse(10 + f * 2, 0, 9 - f * 2, 3, `rgba(235,255,250,${0.9 * fade})`); ctx.restore(); }
+      for (let i = 1; i < P.length; i++) {   // golden wings flare at each foe struck
+        ctx.save(); ctx.translate(P[i][0], P[i][1] - 20); const w = Math.min(1, k * 6);
+        for (const s of [-1, 1]) for (let f = 0; f < 4; f++) { ctx.save(); ctx.scale(s, 1); ctx.rotate(-0.25 - f * 0.3 + Math.sin(k * 40) * 0.15); ellipse(10 + f * 3, 0, (12 - f * 2) * w, 3.2, f % 2 ? `rgba(255,236,150,${fade})` : `rgba(240,255,250,${fade})`); ctx.restore(); }
         ctx.restore();
       }
       ctx.restore();
     },
     hit(x, y, P, A, burst, ringFx) {
-      burst(8, (cx, cy) => { const sp = rand(80, 200); addPart({ kind: "leaf", x, y, vx: cx * sp, vy: cy * sp - 40, drag: 2.5, g: 50, life: rand(0.7, 1.0), size: rand(4, 6), rot: rand(0, 6), vr: rand(-6, 6), col: "#eafff8" }); });
-      burst(14, (cx, cy) => { const sp = rand(240, 480); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 5, life: 0.25, size: 2, cols: HER_COLS, len: 0.05 }); });
-      ringFx("122,224,200", 8, 55 * P, 4, 0.5);
+      burst(10, (cx, cy) => { const sp = rand(90, 220); addPart({ kind: "leaf", x, y, vx: cx * sp, vy: cy * sp - 50, drag: 2.5, g: 50, life: rand(0.8, 1.1), size: rand(4.5, 6.5), rot: rand(0, 6), vr: rand(-6, 6), col: Math.random() < 0.5 ? "#f4fffb" : "#ffe8a0" }); });
+      burst(18, (cx, cy) => { const sp = rand(260, 520); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 5, life: 0.25, size: 2.2, cols: HER_COLS, len: 0.06 }); });
+      addPart({ add: true, kind: "glow", x, y, life: 0.2, size: 30 * P, grow: 0.5, cols: HER_COLS, a: 0.9 });
+      ringFx("110,225,200", 8, 60 * P, 4, 0.5);
     },
   },
-  // ---- Hephaestus: a red-hot forge hammer spinning through the air, dripping molten metal.
+  // ---- HEPHAESTUS: a forge hammer glowing white-hot at the faces, wrapped in heat haze, a turning gear-rune behind it.
   mx_hephaestus: {
     trail(pr, n, back, bx, by, R) {
-      for (let i = n(60); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 90)), life: rand(0.3, 0.5), size: R * rand(0.45, 0.8), grow: -0.5, cols: HEP_COLS, a: 0.85 });
-      for (let i = n(14); i > 0; i--) addPart({ kind: "drop", x: bx, y: by, vx: rand(-60, 60), vy: rand(0, 80), g: 900, life: rand(0.4, 0.6), size: rand(2.2, 3.4), col: "#ff9a3a" });   // molten drips
-      for (let i = n(20); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, vx: rand(-160, 160), vy: rand(-200, 40), drag: 2, g: 400, life: rand(0.3, 0.6), size: 1.8, cols: HEP_COLS, len: 0.04 });
+      for (let i = n(75); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 100)), life: rand(0.3, 0.5), size: R * rand(0.5, 0.85), grow: -0.5, cols: HEP_COLS, a: 0.9 });
+      for (let i = n(16); i > 0; i--) addPart({ kind: "drop", x: bx, y: by, vx: rand(-70, 70), vy: rand(0, 90), g: 900, life: rand(0.4, 0.7), size: rand(2.4, 3.8), col: "#ff9a3a" });
+      for (let i = n(28); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, vx: rand(-180, 180), vy: rand(-220, 40), drag: 2, g: 450, life: rand(0.35, 0.65), size: 1.9, cols: HEP_COLS, len: 0.04 });
+      for (let i = n(8); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(20, 20), life: 0.8, size: R * 0.5, grow: 1.5, col: "#2a1a14", a: 0.4 });
     },
     head(pr, R, t, glow) {
-      glow(R * 2.8, "255,130,40");
-      ctx.rotate(t * 12);
-      ctx.strokeStyle = "#4a2a14"; ctx.lineWidth = R * 0.3; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, R * 1.8); ctx.stroke();   // handle
-      const g = ctx.createLinearGradient(-R * 1.1, 0, R * 1.1, 0); g.addColorStop(0, "#6a3a2a"); g.addColorStop(0.5, "#ff9a3a"); g.addColorStop(1, "#6a3a2a");
-      ctx.fillStyle = g; ctx.fillRect(-R * 1.15, -R * 0.75, R * 2.3, R * 1.0); ctx.strokeStyle = "#1a0a04"; ctx.lineWidth = 2; ctx.strokeRect(-R * 1.15, -R * 0.75, R * 2.3, R * 1.0);   // hammer head
-      ctx.fillStyle = "rgba(255,240,180,0.85)"; ctx.fillRect(-R * 1.1, -R * 0.7, R * 0.22, R * 0.9); ctx.fillRect(R * 0.88, -R * 0.7, R * 0.22, R * 0.9);   // glowing striking faces
-      ctx.strokeStyle = "rgba(255,220,120,0.9)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-R * 0.5, -R * 0.6); ctx.lineTo(-R * 0.2, -R * 0.3); ctx.lineTo(-R * 0.4, 0); ctx.stroke();   // heat cracks
+      const hammer = tt => {
+        ctx.save(); ctx.rotate(tt * 13);
+        ctx.strokeStyle = "#3a200e"; ctx.lineWidth = R * 0.32; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, R * 2.0); ctx.stroke();
+        ctx.strokeStyle = "#8a5a2a"; ctx.lineWidth = R * 0.1; ctx.beginPath(); for (let i = 0; i < 4; i++) { ctx.moveTo(-R * 0.16, R * (0.6 + i * 0.35)); ctx.lineTo(R * 0.16, R * (0.75 + i * 0.35)); } ctx.stroke();   // leather wrap
+        const g = ctx.createLinearGradient(-R * 1.25, 0, R * 1.25, 0); g.addColorStop(0, "#fff0c0"); g.addColorStop(0.15, "#ff8a2a"); g.addColorStop(0.5, "#5a3020"); g.addColorStop(0.85, "#ff8a2a"); g.addColorStop(1, "#fff0c0");
+        ctx.fillStyle = g; ctx.fillRect(-R * 1.25, -R * 0.8, R * 2.5, R * 1.1); ctx.strokeStyle = "#140802"; ctx.lineWidth = 2; ctx.strokeRect(-R * 1.25, -R * 0.8, R * 2.5, R * 1.1);
+        ctx.strokeStyle = "rgba(255,210,110,0.95)"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-R * 0.5, -R * 0.7); ctx.lineTo(-R * 0.2, -R * 0.35); ctx.lineTo(-R * 0.4, R * 0.05); ctx.moveTo(R * 0.3, -R * 0.75); ctx.lineTo(R * 0.15, -R * 0.4); ctx.stroke();   // molten cracks
+        ctx.restore();
+      };
+      mxAfter(pr, 3, 2, hammer);
+      glow(R * 3.6, "255,130,40");
+      ctx.save(); ctx.rotate(-t * 3); ctx.globalCompositeOperation = "lighter";   // a turning gear-rune
+      ctx.strokeStyle = "rgba(255,170,70,0.55)"; ctx.lineWidth = 3; ctx.beginPath();
+      for (let i = 0; i <= 48; i++) { const a = i / 48 * Math.PI * 2, rr = R * (i % 4 < 2 ? 2.25 : 2.0); i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      ctx.closePath(); ctx.stroke(); ring(0, 0, R * 1.6, "rgba(255,200,110,0.35)", 1.5);
+      ctx.restore();
+      hammer(t);
     },
     hit(x, y, P, A, burst, ringFx) {
-      mxFx(x, y, 0.5, (fx, k) => {   // an anvil-strike shockwave flattening outward
-        const fade = 1 - k, r = 30 * P + k * 70 * P;
-        ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.4);
-        ring(0, 0, r, `rgba(255,122,42,${0.9 * fade})`, 10 * fade + 2); ring(0, 0, r * 0.7, `rgba(255,230,150,${fade})`, 4 * fade + 1);
+      mxFx(x, y, 0.8, (fx, k) => {
+        const fade = 1 - Math.max(0, (k - 0.3) / 0.7);
+        if (!fx.cr) { fx.cr = []; for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + rand(-0.2, 0.2), pts = [[0, 0]]; for (let s = 1; s <= 5; s++) pts.push([Math.cos(a) * s * 14 * P + rand(-5, 5), (Math.sin(a) * s * 14 * P + rand(-5, 5)) * 0.45]); fx.cr.push(pts); } }
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.lineCap = "round"; ctx.lineJoin = "round";
+        const grow = Math.min(1, k * 5);
+        for (const pts of fx.cr) { const m = Math.max(2, Math.ceil(pts.length * grow)); for (const [w, c] of [[9, `rgba(255,90,20,${0.5 * fade})`], [3.5, `rgba(255,230,140,${fade})`]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); pts.slice(0, m).forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.stroke(); } }   // molten fissures
+        ctx.save(); ctx.scale(1, 0.38); ring(0, 0, 30 * P + k * 90 * P, `rgba(255,150,60,${0.9 * (1 - k)})`, 12 * (1 - k) + 2); ring(0, 0, 20 * P + k * 60 * P, `rgba(255,240,180,${1 - k})`, 4); ctx.restore();   // anvil shockwave
+        if (k < 0.45) { const ak = 1 - k / 0.45; ctx.globalAlpha = ak; ctx.translate(0, -40 * P - k * 30 * P); ctx.fillStyle = "rgba(255,190,90,0.9)";   // the anvil sigil flashes above the strike
+          ctx.beginPath(); ctx.moveTo(-26, -8); ctx.lineTo(18, -8); ctx.quadraticCurveTo(30, -8, 34, -14); ctx.lineTo(30, -2); ctx.lineTo(14, 0); ctx.lineTo(10, 8); ctx.lineTo(16, 14); ctx.lineTo(-18, 14); ctx.lineTo(-12, 8); ctx.lineTo(-16, 0); ctx.lineTo(-26, 0); ctx.closePath(); ctx.fill(); }
         ctx.restore();
       });
-      for (let i = 0; i < 30; i++) { const a = -Math.PI / 2 + rand(-1.2, 1.2), sp = rand(250, 560); addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 900, life: rand(0.4, 0.7), size: 2.2, cols: HEP_COLS, len: 0.03 }); }   // a fountain of forge sparks
-      for (let i = 0; i < 10; i++) addPart({ kind: "drop", x, y, vx: rand(-200, 200), vy: rand(-300, -100), g: 1000, life: 0.7, size: rand(2.5, 4), col: "#ff8a2a" });
-      addPart({ add: true, kind: "glow", x, y, life: 0.3, size: 45 * P, grow: 0.4, cols: HEP_COLS, a: 0.9 });
+      mxShake(0.3, 9);
+      for (let i = 0; i < 40; i++) { const a = -Math.PI / 2 + rand(-1.3, 1.3), sp = rand(280, 650); addPart({ add: true, kind: "spark", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 950, life: rand(0.45, 0.8), size: 2.3, cols: HEP_COLS, len: 0.03 }); }   // forge-spark fountain
+      for (let i = 0; i < 12; i++) addPart({ kind: "drop", x, y, vx: rand(-220, 220), vy: rand(-340, -120), g: 1000, life: 0.75, size: rand(2.6, 4.2), col: "#ff8a2a" });
+      for (let i = 0; i < 6; i++) addPart({ kind: "smoke", x: x + rand(-25, 25), y: y + rand(-6, 6), vx: rand(-50, 50), vy: rand(-40, -5), life: 0.9, size: rand(12, 18), grow: 1.4, col: "#3a2a20", a: 0.5 });
+      addPart({ add: true, kind: "glow", x, y, life: 0.3, size: 55 * P, grow: 0.5, cols: HEP_COLS, a: 1 });
     },
   },
-  // ---- Hera: a royal peacock feather crowned with gold, its eye glowing.
+  // ---- HERA: a royal peacock feather, its eye shimmering through iridescent colours, crowned with gold and circled by jewels.
   mx_hera: {
     trail(pr, n, back, bx, by, R) {
-      for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 80)), life: rand(0.3, 0.5), size: R * rand(0.4, 0.7), grow: -0.5, cols: HRA_COLS, a: 0.75 });
-      for (let i = n(10); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R), y: by + rand(-R, R), vx: 0, vy: -15, life: 0.7, size: rand(3, 5), rgb: "255,225,150", rot: rand(0, 6) });
+      for (let i = n(65); i > 0; i--) { const c = i % 3; addPart({ add: true, kind: "glow", x: bx + rand(-6, 6), y: by + rand(-6, 6), ...back(rand(20, 90)), life: rand(0.3, 0.5), size: R * rand(0.4, 0.7), grow: -0.5, cols: c === 0 ? HRA_COLS : c === 1 ? [[220, 255, 240], [60, 190, 170], [20, 90, 90]] : [[255, 250, 210], [230, 190, 70], [140, 100, 20]], a: 0.75 }); }   // iridescent purple, teal and gold
+      for (let i = n(12); i > 0; i--) addPart({ add: true, kind: "glint", x: bx + rand(-R, R) * 1.3, y: by + rand(-R, R) * 1.3, vx: 0, vy: -15, life: 0.8, size: rand(3, 5.5), rgb: "255,225,150", rot: rand(0, 6) });
     },
     head(pr, R, t, glow) {
-      glow(R * 2.8, "200,130,255");
-      ctx.rotate(pr.ang);
-      for (let i = -2; i <= 2; i++) {   // a fan of feather barbs behind the eye
-        ctx.save(); ctx.rotate(Math.PI + i * 0.32 + Math.sin(t * 10 + i) * 0.05);
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(R * 1.2, -R * 0.4, R * 2.3, 0); ctx.quadraticCurveTo(R * 1.2, R * 0.4, 0, 0);
-        ctx.fillStyle = i % 2 ? "rgba(60,180,160,0.85)" : "rgba(120,90,220,0.85)"; ctx.fill(); ctx.restore();
+      glow(R * 3.4, "200,130,255");
+      ctx.save(); ctx.rotate(pr.ang);
+      for (let i = -3; i <= 3; i++) {   // a fan of iridescent barbs
+        ctx.save(); ctx.rotate(Math.PI + i * 0.27 + Math.sin(t * 10 + i) * 0.06);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(R * 1.4, -R * 0.45, R * (2.6 - Math.abs(i) * 0.15), 0); ctx.quadraticCurveTo(R * 1.4, R * 0.45, 0, 0);
+        const hue = (t * 120 + i * 30) % 360; ctx.fillStyle = `hsla(${hue},70%,55%,0.8)`; ctx.fill(); ctx.restore();
       }
-      ellipse(0, 0, R * 1.1, R * 0.85, "#2a8a7a"); ellipse(R * 0.1, 0, R * 0.8, R * 0.62, "#d8b040"); ellipse(R * 0.18, 0, R * 0.55, R * 0.42, "#3a60d8"); ellipse(R * 0.25, 0, R * 0.28, R * 0.22, "#1a1040");   // the peacock eye
-      circle(R * 0.32, -R * 0.08, R * 0.08, "#ffffff");
-      for (let i = -1; i <= 1; i++) poly([[R * 0.9, i * R * 0.35 - R * 0.12], [R * 1.4, i * R * 0.42], [R * 0.9, i * R * 0.35 + R * 0.12]], "#ffd84a", "#7a5a14", 1);   // golden crown points
+      const sh = 0.5 + 0.5 * Math.sin(t * 12);   // the eye shimmers
+      ellipse(0, 0, R * 1.15, R * 0.9, "#1a7a6a"); ellipse(R * 0.1, 0, R * 0.85, R * 0.66, `rgb(${210 + 40 * sh},${170 + 40 * sh},60)`); ellipse(R * 0.18, 0, R * 0.58, R * 0.45, "#2a50d0"); ellipse(R * 0.26, 0, R * 0.3, R * 0.24, "#120a30");
+      circle(R * 0.34, -R * 0.08, R * 0.08, "#ffffff");
+      for (let i = -2; i <= 2; i++) { const L = R * (i % 2 ? 1.35 : 1.6); poly([[R * 0.95, i * R * 0.22 - R * 0.1], [L, i * R * 0.28], [R * 0.95, i * R * 0.22 + R * 0.1]], "#ffd84a", "#6a4a10", 1); circle(L, i * R * 0.28, R * 0.07, i % 2 ? "#ff5a9a" : "#5ad8ff"); }   // a golden crown with jewels
+      ctx.restore();
+      for (let k = 0; k < 4; k++) { const a = t * 5 + k * Math.PI / 2; ctx.save(); ctx.translate(Math.cos(a) * R * 2.0, Math.sin(a) * R * 1.3); ctx.rotate(a); poly([[0, -R * 0.2], [R * 0.14, 0], [0, R * 0.2], [-R * 0.14, 0]], ["#ff5a9a", "#5ad8ff", "#ffd84a", "#b07aff"][k], "#ffffff", 1); ctx.restore(); }   // orbiting jewels
     },
     hit(x, y, P, A, burst, ringFx) {
       const AR = Math.max(A, 80);
-      mxFx(x, y, 0.65, (fx, k) => {   // a peacock tail fans open across the whole blast
-        const open = Math.min(1, k * 3.5), fade = 1 - Math.max(0, (k - 0.4) / 0.6), L = AR * 1.0 * open;
+      mxFx(x, y, 0.85, (fx, k) => {
+        const open = Math.min(1, k * 3.5), fade = 1 - Math.max(0, (k - 0.45) / 0.55), L = AR * open;
         ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.7); ctx.globalAlpha = fade;
-        for (let i = 0; i < 14; i++) {
-          const a = i / 14 * Math.PI * 2; ctx.save(); ctx.rotate(a);
-          ctx.strokeStyle = "rgba(60,180,160,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(L * 0.85, 0); ctx.stroke();
-          ellipse(L * 0.88, 0, 10 * P * open, 7 * P * open, "#2a8a7a"); ellipse(L * 0.89, 0, 6.5 * P * open, 4.5 * P * open, "#d8b040"); ellipse(L * 0.9, 0, 3.5 * P * open, 2.5 * P * open, "#3a60d8");
+        for (let i = 0; i < 18; i++) {   // the peacock's tail opens in a full circle, eyes shimmering through the colours
+          const a = i / 18 * Math.PI * 2 + k * 0.6; ctx.save(); ctx.rotate(a);
+          const hue = (k * 400 + i * 20) % 360; ctx.strokeStyle = `hsla(${hue},60%,55%,0.8)`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(10 * P, 0); ctx.lineTo(L * 0.85, 0); ctx.stroke();
+          for (let b = 0.3; b < 0.85; b += 0.12) { ctx.beginPath(); ctx.moveTo(L * b, 0); ctx.lineTo(L * (b + 0.08), -8 * P * open); ctx.moveTo(L * b, 0); ctx.lineTo(L * (b + 0.08), 8 * P * open); ctx.lineWidth = 1.2; ctx.stroke(); }
+          ellipse(L * 0.9, 0, 12 * P * open, 8.5 * P * open, "#1a7a6a"); ellipse(L * 0.91, 0, 8 * P * open, 5.5 * P * open, "#e0b850"); ellipse(L * 0.92, 0, 4.5 * P * open, 3 * P * open, "#2a50d0");
           ctx.restore();
         }
         ctx.restore();
+        if (k > 0.1 && k < 0.7) { const ck = (k - 0.1) / 0.6; ctx.save(); ctx.translate(fx.x, fx.y - 30 * P - ck * 40 * P); ctx.globalAlpha = 1 - ck;   // Hera's crown rises from the blast
+          poly([[-24, 10], [-28, -14], [-12, 0], [0, -22], [12, 0], [28, -14], [24, 10]], "#ffd84a", "#6a4a10", 2); circle(0, -22, 4, "#ff5a9a"); circle(-28, -14, 3, "#5ad8ff"); circle(28, -14, 3, "#5ad8ff"); ctx.restore(); }
       });
-      burst(Math.round(20 * P), (cx, cy) => { const sp = rand(100, 300) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.6, drag: 3, life: rand(0.4, 0.7), size: rand(9, 15) * P, grow: -0.3, cols: HRA_COLS, a: 0.75 }); });
-      ringFx("214,138,255", AR * 0.2, AR * 1.2, 8); ringFx("255,216,74", AR * 0.1, AR * 0.9, 3, 0.55, true, 0.5);
+      burst(Math.round(22 * P), (cx, cy) => { const sp = rand(100, 320) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.6, drag: 3, life: rand(0.45, 0.75), size: rand(9, 15) * P, grow: -0.3, cols: HRA_COLS, a: 0.8 }); });
+      burst(12, (cx, cy) => { const sp = rand(100, 260); addPart({ kind: "shard", x, y, vx: cx * sp, vy: cy * sp - 80, g: 600, life: 0.9, size: rand(3, 4.5), rot: rand(0, 6), vr: rand(-10, 10), col: ["#ff5a9a", "#5ad8ff", "#ffd84a", "#b07aff"][Math.floor(rand(0, 4))], edge: "#ffffff" }); });   // jewels scatter
+      ringFx("200,130,255", AR * 0.2, AR * 1.25, 9); ringFx("255,216,74", AR * 0.1, AR * 0.95, 3, 0.55, true, 0.55);
+      mxShake(0.12, 3);
     },
   },
 });
