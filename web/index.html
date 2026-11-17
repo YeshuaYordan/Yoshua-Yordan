@@ -3628,12 +3628,12 @@ let reviveOffer = null, reviveUsed = false;
 // ---- Problem solvers -------------------------------------------------------------------------------------------
 // Castle upgrades (permanent, bought with gems in the lobby). cu(id) = level.
 const CASTLE_UPS = {
-  hp:        { name: "Thick Walls",    max: 10, cost: l => 25 + 25 * l, info: l => `+${20 * l} castle max HP`, next: "+20 max HP" },
-  armor:     { name: "Stone Armor",    max: 5,  cost: l => 40 + 40 * l, info: l => `Castle takes ${3 * l}% less damage`, next: "-3% damage taken" },
-  gold:      { name: "War Chest",      max: 5,  cost: l => 30 + 30 * l, info: l => `+${10 * l} starting gold`, next: "+10 starting gold" },
-  spellcost: { name: "Arcane Study",   max: 5,  cost: l => 40 + 40 * l, info: l => `Spells cost ${5 * l}% less`, next: "spells -5% cost" },
-  archers:   { name: "Castle Archers", max: 5,  cost: l => 50 + 50 * l, info: l => l ? `Archers shoot the closest enemy (power ${l})` : "Archers on the wall shoot the closest enemy", next: "+1 archer power" },
-  revive:    { name: "Second Wind",    max: 1,  cost: () => 150,        info: l => l ? "Once per game the castle gets back up with 30% HP" : "Once per game the castle gets back up with 30% HP", next: "unlock" },
+  hp:        { name: "Thick Walls",    max: 10, cost: l => 100 + 100 * l, info: l => `+${20 * l} castle max HP`, next: "+20 max HP" },
+  armor:     { name: "Stone Armor",    max: 5,  cost: l => 160 + 160 * l, info: l => `Castle takes ${3 * l}% less damage`, next: "-3% damage taken" },
+  gold:      { name: "War Chest",      max: 5,  cost: l => 120 + 120 * l, info: l => `+${10 * l} starting gold`, next: "+10 starting gold" },
+  spellcost: { name: "Arcane Study",   max: 5,  cost: l => 160 + 160 * l, info: l => `Spells cost ${5 * l}% less`, next: "spells -5% cost" },
+  archers:   { name: "Castle Archers", max: 5,  cost: l => 200 + 200 * l, info: l => l ? `Archers shoot the closest enemy (power ${l})` : "Archers on the wall shoot the closest enemy", next: "+1 archer power" },
+  revive:    { name: "Second Wind",    max: 1,  cost: () => 600,        info: l => l ? "Once per game the castle gets back up with 30% HP" : "Once per game the castle gets back up with 30% HP", next: "unlock" },
 };
 const cu = id => (save.castleUp && save.castleUp[id]) || 0;
 // Spell levels (permanent, gems). sl(id) = level 0..5.
@@ -3646,7 +3646,7 @@ const SPELL_UPS = {
   quake:  { info: l => `Stun lasts +${(0.5 * l).toFixed(1)} s`, next: "+0.5 s" },
   rewind: { info: l => `Rewinds +${l} s further`, next: "+1 s" },
 };
-const SPELL_UP_MAX = 5, spellUpCost = l => 30 + 30 * l;
+const SPELL_UP_MAX = 5, spellUpCost = l => 120 + 120 * l;   // x4 of the old 30 + 30 * l
 const sl = id => (save.spellLv && save.spellLv[id]) || 0;
 // Relics: after every stage the player picks 1 of 3. They last until the game ends.
 const RELICS = {
