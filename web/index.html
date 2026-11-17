@@ -696,6 +696,8 @@ SPRITE_SRC["halo3"] = "assets/img/halo3.webp";
 SPRITE_SRC["eclipse"] = "assets/img/eclipse.webp";
 SPRITE_SRC["eclipse2"] = "assets/img/eclipse2.webp";
 SPRITE_SRC["eclipse3"] = "assets/img/eclipse3.webp";
+// Animated medals for the Myth cards with a picture (Phoenix has its own sprite).
+for (const k of ["kitsune", "fenrir", "serpent", "cerberus", "basilisk", "griffin", "qilin", "kraken", "banshee"]) SPRITE_SRC[k + "_medal"] = `assets/img/${k}_medal.webp`;
 // The 54 Dark/Light Epic emblems are separate files next to the game (sprites/epic/<key>.webp).
 for (const [k, d] of Object.entries(EL)) if (d.ext) SPRITE_SRC[k] = `sprites/epic/${k}.webp`;
 const SPRITES = {};
@@ -993,7 +995,11 @@ class Card {
     // The elemental spirit.
     const cx = 0, cy = -6 + Math.sin(t * 2.2 + this.seed) * 3, r = 26;
     circle(cx, cy, r * 1.45, hexA(d.color, 0.18));
-    if (d.art && this.drawArtMedallion(cx, cy, t, d)) {
+    const md = SPRITES[this.element + "_medal"];
+    if (md && md.ready && this.rarity !== LEGEND) {
+      // Myth cards: an animated, themed medal around the picture.
+      drawSpriteFrame(md, Math.floor((t + this.seed) * SPRITE_FPS) % SPRITE_FRAMES, cx, cy, 124);
+    } else if (d.art && this.drawArtMedallion(cx, cy, t, d)) {
       // Myth cards with a picture: the picture sits in the round medallion where the sprite would be.
     } else if (this.drawEvolve(cx, cy, t) || drawSprite(this.element, cx, cy, this.spriteSize(), t + this.seed, this.rarity)) {
       // Base elements use the animated "Main element v1" emblems.
