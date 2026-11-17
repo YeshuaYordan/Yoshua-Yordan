@@ -196,6 +196,15 @@ const EL = {
   // Once owned, they can show up (rarely) in the shop during runs. base = the element sprite they use.
   totem:      { name: "Fight", tier: 4, special: true, totem: "dmg", base: "fire", color: "#ff4a2a", shape: "flame", parts: ["fire"], desc: "War totem. Never attacks. The cards right next to it (left and right) deal x2 damage. Drop another Fight on it for +0.5x more, up to x4.", dmg: 0, rate: 1 },
   flight:     { name: "Flight", tier: 4, special: true, totem: "spd", base: "wind", color: "#5fd8ff", shape: "swirl", parts: ["wind"], desc: "Sky totem. Never attacks. The cards right next to it (left and right) attack x2 faster. Drop another Flight on it for +0.5x more, up to x4.", dmg: 0, rate: 1 },
+  // Idols: Special cards that never attack. Like the totems: 1 on the board, drop copies on it to power it up (Lv1-Lv5).
+  midas:      { name: "Midas", tier: 4, special: true, idol: true, totem: "gold", base: "earth", color: "#f2c14e", shape: "rock", parts: ["earth"], desc: "Golden idol. Kills by the cards right next to it give extra gold.", dmg: 0, rate: 1 },
+  mirror:     { name: "Mirror", tier: 4, special: true, idol: true, totem: "mirror", base: "water", color: "#bcd4ff", shape: "drop", parts: ["water"], desc: "Magic mirror. Copies the attack of the card on its LEFT at reduced damage.", dmg: 0, rate: 1 },
+  hourglass:  { name: "Hourglass", tier: 4, special: true, idol: true, totem: "time", base: "earth", color: "#e8b86a", shape: "rock", parts: ["earth"], desc: "Sands of time. Every enemy on the field moves slower.", dmg: 0, rate: 1 },
+  bulwark:    { name: "Bulwark", tier: 4, special: true, idol: true, totem: "shield", base: "earth", color: "#7aa8e0", shape: "rock", parts: ["earth"], desc: "Guardian shield. Your castle takes less damage.", dmg: 0, rate: 1 },
+  seer:       { name: "Seer", tier: 4, special: true, idol: true, totem: "crit", base: "wind", color: "#b06bff", shape: "swirl", parts: ["wind"], desc: "All-seeing orb. The cards right next to it can land critical hits (x2 damage).", dmg: 0, rate: 1 },
+  chainlink:  { name: "Chain", tier: 4, special: true, idol: true, totem: "link", base: "wind", color: "#8ad8ff", shape: "spiky", parts: ["wind"], desc: "Storm chain. Hits from the cards right next to it jump to 1 more enemy.", dmg: 0, rate: 1 },
+  chalice:    { name: "Chalice", tier: 4, special: true, idol: true, totem: "heal", base: "water", color: "#ff6a8a", shape: "drop", parts: ["water"], desc: "Holy chalice. Every kill heals your castle a little.", dmg: 0, rate: 1 },
+  hex:        { name: "Hex", tier: 4, special: true, idol: true, totem: "hex", base: "fire", color: "#9a4dff", shape: "flame", parts: ["fire"], desc: "Hex sigil. Hits from the cards right next to it curse enemies so they take more damage.", dmg: 0, rate: 1 },
   // Legend cards: separate cards (not a Legend version of another card), created in the Legend Chamber or from Summon.
   // art = a full-card illustration instead of a frame + spirit.
   zeus:      { name: "Zeus", tier: 3, legendCard: true, art: "zeus", color: "#ffd84a", shape: "spiky", parts: ["fire", "wind", "water"], desc: "King of the gods: lightning streams into 10 enemies at once, nonstop, until they fall.", dmg: 51, rate: 1.2, beam: 10, slow: 0.5 },
@@ -251,6 +260,49 @@ const TOTEM_STEP = el => 0.5;   // Fight and Flight: each extra copy adds +0.5x
 const TOTEM_MAX = 3;   // boost 3 = x4, the most a totem can give (5 copies)
 const totemSum = (el, a, b) => (a || 1) + (b || 1) - 1 + TOTEM_STEP(el);
 const totemFull = c => (c.boost || 1) >= TOTEM_MAX;
+// ---- Idols (Special cards that never attack). Power level Lv1..Lv5 = 1..5 copies dropped together.
+const idolLvl = c => Math.round(((c && c.boost) || 1) * 2) - 1;
+const lvlOfBoost = b => Math.round((b || 1) * 2) - 1;
+const IDOL_VAL = {
+  gold: L => L,                      // extra gold per kill
+  mirror: L => 0.4 + 0.1 * (L - 1),  // damage of the copied attack
+  time: L => 0.08 + 0.03 * (L - 1),  // enemies slower
+  shield: L => 0.12 + 0.04 * (L - 1),// less castle damage
+  crit: L => 0.15 + 0.05 * (L - 1),  // crit chance (x2)
+  link: L => 0.4 + 0.1 * (L - 1),    // jump damage
+  heal: L => 0.25 + 0.1 * (L - 1),   // castle HP per kill
+  hex: L => 0.1 + 0.05 * (L - 1),    // extra damage taken by cursed foes
+};
+const IDOL_NEAR = new Set(["gold", "crit", "link", "hex"]);   // these work on the cards left and right; mirror copies the left one
+const pct = v => Math.round(v * 100);
+function idolText(kind, L) {
+  const v = IDOL_VAL[kind](L);
+  return {
+    gold: `Kills by the cards left and right give +${v} extra gold`,
+    mirror: `Copies the attack of the card on its LEFT at ${pct(v)}% damage`,
+    time: `All enemies move ${pct(v)}% slower (bosses half as much)`,
+    shield: `Your castle takes ${pct(v)}% less damage`,
+    crit: `The cards left and right get a ${pct(v)}% chance to deal x2 damage`,
+    link: `Hits from the cards left and right jump to 1 more enemy for ${pct(v)}% damage`,
+    heal: `Every kill heals your castle ${v.toFixed(2).replace(/0$/, "")} HP`,
+    hex: `Hits from the cards left and right curse enemies: +${pct(v)}% damage taken for 3s`,
+  }[kind];
+}
+function idolBadge(kind, L) {
+  const v = IDOL_VAL[kind](L);
+  return { gold: `+${v}g`, mirror: `${pct(v)}%`, time: `-${pct(v)}%`, shield: `-${pct(v)}%`, crit: `${pct(v)}%`, link: `${pct(v)}%`, heal: `+${+v.toFixed(2)}`, hex: `+${pct(v)}%` }[kind];
+}
+// Level of an idol of this kind right next to card c (0 = none).
+function idolNext(c, kind) {
+  const i = rows.active.indexOf(c); if (i < 0) return 0;
+  for (const j of [i - 1, i + 1]) { const o = rows.active[j]; if (o && o !== c && EL[o.element].totem === kind && !(drag && drag.card === o)) return idolLvl(o); }
+  return 0;
+}
+// Level of an idol of this kind anywhere in the battle row (0 = none).
+function idolRow(kind) { for (const o of rows.active) if (o && EL[o.element].totem === kind && !(drag && drag.card === o)) return idolLvl(o); return 0; }
+let hitSrc = null;      // the card whose shot is landing right now (for idols that boost their neighbours)
+let idolTimeMult = 1;   // Hourglass: enemy speed this frame
+let bulwarkFlash = 0, chaliceGlow = 0;   // short glows on the castle wall when Bulwark blocks / Chalice heals
 const powerMult = c => starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
@@ -306,7 +358,7 @@ function rollRarity(wave) {
   return 0;
 }
 const randomBase = () => BASE[Math.floor(Math.random() * BASE.length)];
-const describe = (el, r, st = 0, boost = 1) => EL[el].totem ? `${EL[el].name} x${1 + boost}: never attacks. The cards right next to it (left and right) ${EL[el].totem === "spd" ? `attack x${1 + boost} faster` : `deal x${1 + boost} damage`}. Drop another ${EL[el].name} on it for +0.5x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * (1 + st))} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
+const describe = (el, r, st = 0, boost = 1) => EL[el].idol ? `${EL[el].name} Lv${lvlOfBoost(boost)}: never attacks. ${idolText(EL[el].totem, lvlOfBoost(boost))}. Drop another ${EL[el].name} on it to power it up (max Lv5).` : EL[el].totem ? `${EL[el].name} x${1 + boost}: never attacks. The cards right next to it (left and right) ${EL[el].totem === "spd" ? `attack x${1 + boost} faster` : `deal x${1 + boost} damage`}. Drop another ${EL[el].name} on it for +0.5x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * (1 + st))} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
 
 // ------------------------------------------------------------ Save (per-browser)
 const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {}, tut: {} };
@@ -366,7 +418,7 @@ const TOTEM_SHOP_CHANCES = [0.10, 0.08, 0.06, 0.04, 0.025].map(c => c / 1.5);   
 let totemBuys = {};   // per totem: how many were bought this run
 const totemShopChance = el => TOTEM_SHOP_CHANCES[Math.min(totemBuys[el] || 0, TOTEM_SHOP_CHANCES.length - 1)];
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice", "hellfire", "abyss", "grave", "shade", "sunfire", "prism", "gem", "halo", "eclipse"];
-const SPECIALS = ["totem", "flight"];
+const SPECIALS = ["totem", "flight", "midas", "mirror", "hourglass", "bulwark", "seer", "chainlink", "chalice", "hex"];
 const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth && !EL[k].legendCard);   // the 11 Epic elements
 const MYTH_ELS = Object.keys(EL).filter(k => EL[k].myth);                       // Phoenix, Serpent
 // Legend cards are separate cards (not a Legend version of a Myth card). None exist yet:
@@ -906,6 +958,7 @@ class Card {
     ctx.scale(this.scale, this.scale);
     const hw = CARD_W / 2, hh = CARD_H / 2;
     if (maxed) this.drawPowerAura(hw, hh, t, false);
+    if (d.idol) { this.drawIdolCard(hw, hh, t, d); ctx.restore(); return; }
     if (d.totem) { this.drawTotemCard(hw, hh, t, d); ctx.restore(); return; }
     if (d.special) { this.drawSpecial(hw, hh, t, d); ctx.restore(); return; }
     if (d.art && !d.myth) { this.drawIllustrated(hw, hh, t, d); this.drawStars(hh, t); if (maxed) this.drawPowerAura(hw, hh, t, true); ctx.restore(); return; }
@@ -1258,6 +1311,74 @@ class Card {
     if (!this.noLabel) text("SPECIAL", 0, -hh + 21, 10, "#ffffff", { weight: 700, outline: 4, outlineColor: CI });
     rrect(-hw + 10, hh - 36, CARD_W - 20, 25, 12); ctx.fillStyle = "rgba(255,255,255,0.92)"; ctx.fill(); ctx.strokeStyle = CI; ctx.lineWidth = 2; ctx.stroke();
     text(d.name, 0, hh - 23, d.name.length > 10 ? 13 : 15, CI, { weight: 700, baseline: "middle" });
+    if (this.inShop) {
+      const ty = hh + 4;
+      rrect(-34, ty - 13, 68, 26, 13); ctx.fillStyle = this.isFree ? "#6cc56a" : (this.affordable ? GOLD : "#c46a5a"); ctx.fill();
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+      text(this.isFree ? "FREE" : `${this.price} g`, 0, ty + 6, 17, INK, { weight: 700 });
+    }
+  }
+  // ---- Idol cards (Midas, Mirror, Hourglass, Bulwark, Seer, Chain, Chalice, Hex): a jewelled frame in the idol's
+  // colours, a living backdrop, the idol's emblem (with its own animation), a crest and a level badge.
+  drawIdolCard(hw, hh, t, d) {
+    const kind = d.totem, th = TOTEM_THEME[kind], pulse = 0.5 + 0.5 * Math.sin(t * 3 + this.seed);
+    // Aura: a soft halo and three motes circling the card.
+    const ag = ctx.createRadialGradient(0, 0, hw * 0.5, 0, 0, hh * 1.45);
+    ag.addColorStop(0, `rgba(${th.rgb},${0.32 + 0.16 * pulse})`); ag.addColorStop(1, `rgba(${th.rgb},0)`);
+    ctx.fillStyle = ag; ctx.fillRect(-hw * 2, -hh * 1.7, hw * 4, hh * 3.4);
+    for (let i = 0; i < 3; i++) {
+      const a = t * (1.1 + i * 0.25) + i * 2.1, x = Math.cos(a) * (hw + 16), y = Math.sin(a) * (hh + 10) * 0.9;
+      circle(x, y, 6, `rgba(${th.rgb},0.35)`); circle(x, y, 2.6, `rgba(${th.sparkRgb},0.95)`);
+    }
+    const gp = Math.round(pulse * 9) / 9;
+    drawCached("iglow_" + kind + gp, CARD_W + 70, CARD_H + 70, () => {
+      ctx.shadowColor = `rgba(${th.rgb},${0.6 + 0.35 * gp})`; ctx.shadowBlur = 14 + 8 * gp;
+      rrect(-hw, -hh, CARD_W, CARD_H, 12); ctx.strokeStyle = INK; ctx.lineWidth = 9; ctx.stroke();
+    }, 0, 0, 1, 1);
+    rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 12); ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fill();
+    // Backdrop with drifting motes.
+    ctx.save(); rrect(-hw, -hh, CARD_W, CARD_H, 12); ctx.clip();
+    drawCached("ibg_" + kind, CARD_W + 4, CARD_H + 4, () => idolBackdrop(kind, hw, hh));
+    for (let i = 0; i < 7; i++) {
+      const k = (t * 0.35 + i / 7 + this.seed * 0.1) % 1, x = -hw + 12 + ((i * 29) % (CARD_W - 24)) + Math.sin(t * 2 + i) * 4, y = hh - 34 - k * (CARD_H - 40);
+      circle(x, y, 1.6 + 1.2 * (1 - k), `rgba(${th.sparkRgb},${0.8 * Math.sin(Math.PI * k)})`);
+    }
+    // The emblem (static part pre-drawn) and its live animation.
+    const ey = -8 + Math.sin(t * 1.8 + this.seed) * 2;
+    ctx.save(); ctx.translate(0, ey);
+    drawCached("iemb_" + kind, 104, 104, () => drawIdolEmblem(kind), 0, 0, 0.9);
+    ctx.scale(0.9, 0.9); drawIdolLive(kind, t, this.seed);
+    ctx.restore();
+    ctx.restore();   // end of the backdrop clip
+    // Frame: animated metallic band, dashed inner line, jewelled corners and the name plaque (pre-drawn).
+    const shx = (t * 0.6) % 2 - 0.5, fg = ctx.createLinearGradient(-hw + shx * CARD_W * 2, -hh, hw + shx * CARD_W * 2, hh);
+    th.trim.forEach((c, i) => fg.addColorStop(i / (th.trim.length - 1), c));
+    rrect(-hw, -hh, CARD_W, CARD_H, 12); ctx.strokeStyle = fg; ctx.lineWidth = 6; ctx.stroke();
+    ctx.save(); ctx.setLineDash([3, 6]); ctx.lineDashOffset = -t * 14; rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, 8);
+    ctx.strokeStyle = `rgba(${th.rgb},${0.6 + 0.35 * pulse})`; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+    drawCached("iframe_" + kind, CARD_W + 40, CARD_H + 40, () => idolFrameStatic(kind, hw, hh, d.name));
+    // Two sparks racing around the border.
+    const per = 2 * (CARD_W + CARD_H), pt = u => {
+      let q = ((u % 1) + 1) % 1 * per;
+      if (q < CARD_W) return [-hw + q, -hh]; q -= CARD_W;
+      if (q < CARD_H) return [hw, -hh + q]; q -= CARD_H;
+      if (q < CARD_W) return [hw - q, hh]; q -= CARD_W;
+      return [-hw, hh - q];
+    };
+    for (const off of [0, 0.5]) {
+      const u = t * 0.25 + off;
+      for (let k = 8; k >= 0; k -= 2) { const [px, py] = pt(u - k * 0.009); circle(px, py, 3.2 - k * 0.25, `rgba(${th.sparkRgb},${0.9 * (1 - k / 9)})`); }
+    }
+    // Crest on top with a glow pulse.
+    const cyc = -hh - 6;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const eg = ctx.createRadialGradient(0, cyc, 2, 0, cyc, 22 + 6 * pulse); eg.addColorStop(0, `rgba(${th.rgb},${0.55 + 0.3 * pulse})`); eg.addColorStop(1, `rgba(${th.rgb},0)`);
+    ctx.fillStyle = eg; ctx.fillRect(-30, cyc - 30, 60, 60); ctx.restore();
+    drawCached("icrest_" + kind, 64, 64, () => idolCrest(kind), 0, cyc);
+    // Level badge.
+    const bx = hw - 10, by = -hh + 16, lab = `Lv${idolLvl(this)}`;
+    circle(bx, by, 15, INK); circle(bx, by, 13, th.main); ring(bx, by, 10.5, th.light, 1.5);
+    text(lab, bx, by + 1, 11, "#ffffff", { weight: 900, baseline: "middle", outline: 3, outlineColor: shade(th.main, -0.6) });
     if (this.inShop) {
       const ty = hh + 4;
       rrect(-34, ty - 13, 68, 26, 13); ctx.fillStyle = this.isFree ? "#6cc56a" : (this.affordable ? GOLD : "#c46a5a"); ctx.fill();
@@ -1754,7 +1875,7 @@ class Enemy {
     const limit = FRONT_Y - this.size * 0.9;
     if (this.y < limit) {
       this.attacking = false;
-      if (this.rootT <= 0) this.y += this.speed * this.slowMult * FIELD_SPEED * dt;
+      if (this.rootT <= 0) this.y += this.speed * this.slowMult * (this.isBoss ? (1 + idolTimeMult) / 2 : idolTimeMult) * FIELD_SPEED * dt;   // Hourglass
     } else {
       this.attacking = true; this.y = limit; damageCastle(this.dps * dt);
       if (hasRelic("thorns") && state === "wave") { this.takeDamage(this.maxHp * 0.05 * dt, "Thorn Wall", "#7a9a5a"); if (this.dead) return; }
@@ -3260,7 +3381,7 @@ class Projectile {
       const dx = this.tx - this.x, dy = this.ty - this.y, l = Math.hypot(dx, dy);
       if (l <= this.speed * dt + 6) {
         this.x = this.tx; this.y = this.ty; this.dead = true;
-        applyHit(this.element, this.rarity, this.x, this.y, alive ? this.target : null, this.sm); return;
+        hitSrc = this.card || null; applyHit(this.element, this.rarity, this.x, this.y, alive ? this.target : null, this.sm); hitSrc = null; return;
       }
       this.x += dx / l * this.speed * dt; this.y += dy / l * this.speed * dt; this.ang = Math.atan2(dy, dx);
     } else {
@@ -3268,7 +3389,7 @@ class Projectile {
       for (const e of enemies.slice()) {
         if (this.hit.has(e) || e.dead) continue;
         if (Math.hypot(e.x - this.x, e.y - this.y) < e.size + this.radius) {
-          this.hit.add(e); applyHit(this.element, this.rarity, this.x, this.y, e, this.sm);
+          this.hit.add(e); hitSrc = this.card || null; applyHit(this.element, this.rarity, this.x, this.y, e, this.sm); hitSrc = null;
           if (--this.pierce < 0) { this.dead = true; return; }
         }
       }
@@ -4289,7 +4410,9 @@ function spawnEnemy(kind, wave) {
 }
 function damageCastle(a) {
   if (state !== "wave") return;
-  const hit = a * (1 - castleArmor) * (1 - 0.03 * cu("armor")) * (hasRelic("aegis") ? 0.9 : 1);
+  const sh = idolRow("shield");
+  const hit = a * (1 - castleArmor) * (1 - 0.03 * cu("armor")) * (hasRelic("aegis") ? 0.9 : 1) * (sh ? 1 - IDOL_VAL.shield(sh) : 1);   // Bulwark
+  if (sh) bulwarkFlash = 1;
   castleHp -= hit; wallFlash = 1; buzz(25);
   wallLog.push([time, hit]); if (wallLog.length > 600) wallLog.splice(0, 200);   // for the Rewind spell
   if (castleHp <= 0 && cu("revive") && !secondWindUsed) {   // Second Wind: the castle gets back up once
@@ -4388,7 +4511,9 @@ function onEnemyKilled(e) {
     fxs.push(new Fx("text", { x: e.x, y: e.y - 40, text: `+${BOSS_GEMS} gems`, color: "#7fe6ff", size: 30, duration: 1.2 }));
   } else if (e.noGold) fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: "0", color: "#9a9590", size: 20, duration: 0.8 }));
   else {
-    const g = e.gold + (hasRelic("bounty") ? 1 : 0); gold += g;
+    const mid = e.lastCard ? idolNext(e.lastCard, "gold") : 0, g = e.gold + (hasRelic("bounty") ? 1 : 0) + mid; gold += g;   // Midas
+    if (mid) addPart({ add: true, kind: "glow", x: e.x, y: e.y - 20, life: 0.3, size: 26, grow: 0.5, rgb: "255,210,80", a: 0.9 });
+    const hl = idolRow("heal"); if (hl && state === "wave" && castleHp < castleMax) { castleHp = Math.min(castleMax, castleHp + IDOL_VAL.heal(hl)); chaliceGlow = 1; }   // Chalice
     if (hasRelic("vamp") && state === "wave") castleHp = Math.min(castleMax, castleHp + 0.3);
     fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: `+${g}`, color: GOLD, size: 22, duration: 0.8 }));
   }
@@ -4401,6 +4526,17 @@ function closestTo(x, y, n) {
   const d = e => (e.x - x) ** 2 + (e.y - y) ** 2;
   return enemies.filter(e => !e.dead).sort((a, b) => d(a) - d(b)).slice(0, n);
 }
+// Mirror idol: fires the attack of the card on its left (beam and lance cards can't be copied).
+function updateMirror(c, dt) {
+  const i = rows.active.indexOf(c), L = rows.active[i - 1];
+  if (!L || EL[L.element].totem || EL[L.element].beam || EL[L.element].lance || (drag && drag.card === L)) { c.mirrorOf = null; return; }
+  if (c.mirrorOf !== L) { c.mirrorOf = L; c.cooldown = 0.4; }
+  c.cooldown -= dt;
+  if (c.cooldown <= 0 && enemies.length) {
+    fireCard({ element: L.element, rarity: L.rarity, stars: L.stars, x: c.x, y: c.y, kick: 0, mirror: c });
+    c.kick = 1; c.cooldown = 1 / rateOf(L.element, L.rarity);
+  }
+}
 function fireCard(c) {
   const d = EL[c.element], shots = d.multishot || 1, targets = closestTo(c.x, c.y - 60, shots);
   if (!targets.length) return;
@@ -4411,8 +4547,9 @@ function fireCard(c) {
     const rgb = rgbOf(d.color); addPart({ add: true, kind: "ring", x: ox, y: oy, rgb, size: 8, grow: 46, w: 4, sq: 0.6, life: 0.25 });
     addPart({ add: true, kind: "glow", x: ox, y: oy, life: 0.18, size: 22, grow: 0.4, rgb, a: 0.9 });
   }
-  if (d.chain) { chain(c.element, c.rarity, ox, oy, targets[0], d.chain, powerMult(c)); return; }
-  for (let i = 0; i < shots; i++) { const pr = new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]); pr.sm = powerMult(c); projectiles.push(pr); }
+  const sm = powerMult(c) * (c.mirror ? IDOL_VAL.mirror(idolLvl(c.mirror)) : 1), src = c.mirror || c;   // a Mirror fires its copy weaker
+  if (d.chain) { hitSrc = src; chain(c.element, c.rarity, ox, oy, targets[0], d.chain, sm); hitSrc = null; return; }
+  for (let i = 0; i < shots; i++) { const pr = new Projectile(c.element, c.rarity, ox + (i - (shots - 1) / 2) * 14, oy, targets[i % targets.length]); pr.sm = sm; pr.card = src; projectiles.push(pr); }
 }
 function chain(el, r, ox, oy, first, count, sm = 1) {
   const dmg = damageOf(el, r) * sm, hit = new Set(), pts = [[ox, oy]];
@@ -4465,6 +4602,14 @@ function soulReleaseFx(x, y) {
 // ---- Totem looks. Fight: blood-red war totem with gold, horns and crossed axes. Flight: sky totem with silver,
 // a white eagle with flapping wings and drifting feathers.
 const TOTEM_THEME = {
+  gold:   { main: "#e8a91a", light: "#ffe58a", rgb: "255,200,60", sparkRgb: "255,240,170", trim: ["#7a5208", "#f2c14e", "#fff6c0", "#f2c14e", "#7a5208"], bg: ["#6a4a08", "#2a1a02"], plate: ["#8a5e0a", "#3a2402"], edge: "#ffe58a" },
+  mirror: { main: "#7a9ae0", light: "#e6f0ff", rgb: "170,200,255", sparkRgb: "240,248,255", trim: ["#5a6a8a", "#dfe8f6", "#ffffff", "#dfe8f6", "#5a6a8a"], bg: ["#3a4a7a", "#121a36"], plate: ["#4a5a8a", "#161e3c"], edge: "#e6f0ff" },
+  time:   { main: "#d8963a", light: "#ffe2a8", rgb: "240,180,90", sparkRgb: "255,236,190", trim: ["#5a3a14", "#c8904a", "#fff0c8", "#c8904a", "#5a3a14"], bg: ["#5a3a1a", "#1e1208"], plate: ["#6a4218", "#241406"], edge: "#ffd890" },
+  shield: { main: "#3a7ad8", light: "#cfe4ff", rgb: "110,170,255", sparkRgb: "225,240,255", trim: ["#3a4a6a", "#b8c8e0", "#ffffff", "#b8c8e0", "#3a4a6a"], bg: ["#1e4a8a", "#0a1a3a"], plate: ["#2a5aa8", "#0a1e44"], edge: "#dfeaff" },
+  crit:   { main: "#9a4ae8", light: "#e6c8ff", rgb: "190,120,255", sparkRgb: "245,225,255", trim: ["#4a2a7a", "#c89aff", "#f6eaff", "#c89aff", "#4a2a7a"], bg: ["#4a1e7a", "#160832"], plate: ["#5a2a9a", "#1a0a3a"], edge: "#e6c8ff" },
+  link:   { main: "#3ab0e8", light: "#cff0ff", rgb: "110,210,255", sparkRgb: "225,248,255", trim: ["#2a4a5a", "#a8c8d8", "#f0fbff", "#a8c8d8", "#2a4a5a"], bg: ["#1a3a5a", "#081622"], plate: ["#1e5a7a", "#081e2e"], edge: "#cff0ff" },
+  heal:   { main: "#e04a6a", light: "#ffd0dc", rgb: "255,110,140", sparkRgb: "255,230,236", trim: ["#7a4a10", "#f2c14e", "#fff2c0", "#f2c14e", "#7a4a10"], bg: ["#7a1a32", "#2a0612"], plate: ["#9a2040", "#300818"], edge: "#ffe08a" },
+  hex:    { main: "#8a3ae0", light: "#d8b0ff", rgb: "170,80,255", sparkRgb: "225,190,255", trim: ["#2a0a3a", "#7a3ab0", "#d8a8ff", "#7a3ab0", "#2a0a3a"], bg: ["#3a0a5a", "#10021e"], plate: ["#4a1a6a", "#160426"], edge: "#c890ff" },
   dmg: { main: "#ff4a2a", light: "#ffc27a", rgb: "255,90,40", sparkRgb: "255,230,170", trim: ["#7a4a10", "#f2b632", "#fff2b0", "#f2b632", "#7a4a10"],
     eyes: [[-6, -33, 2.4], [6, -33, 2.4], [-8, -6, 2.6], [8, -6, 2.6]] },
   spd: { main: "#4fc8ff", light: "#bff0ff", rgb: "120,220,255", sparkRgb: "235,250,255", trim: ["#4a7aa8", "#cfeaff", "#ffffff", "#cfeaff", "#4a7aa8"],
@@ -4646,6 +4791,152 @@ function drawBoostBadge(x, y, kind, mult) {
   ctx.strokeStyle = fight ? "#f2c14e" : "#bff0ff"; ctx.lineWidth = 2.2; ctx.stroke();
   ctx.save(); ctx.translate(x - bw / 2 + 14, y); drawTotemEmblem(kind, 7.5); ctx.restore();
   text(lab, x + 8, y + 1, 16, fight ? "#ffe08a" : "#eafcff", { weight: 900, baseline: "middle" });
+}
+// ---- Idol card art (all drawn in code). Static parts are pre-drawn once per idol; drawIdolLive adds the motion.
+function idolBackdrop(kind, hw, hh) {
+  const th = TOTEM_THEME[kind], g = ctx.createRadialGradient(0, -6, 6, 0, -6, 96);
+  g.addColorStop(0, shade(th.bg[0], 0.25)); g.addColorStop(0.55, th.bg[0]); g.addColorStop(1, th.bg[1]);
+  ctx.fillStyle = g; ctx.fillRect(-hw - 2, -hh - 2, CARD_W + 4, CARD_H + 4);
+  ctx.strokeStyle = `rgba(${th.rgb},0.22)`; ctx.lineWidth = 1.5;   // a faint rune circle behind the emblem
+  ring(0, -8, 44, `rgba(${th.rgb},0.22)`, 1.5); ring(0, -8, 38, `rgba(${th.rgb},0.14)`, 1);
+  for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 38, -8 + Math.sin(a) * 38); ctx.lineTo(Math.cos(a) * 44, -8 + Math.sin(a) * 44); ctx.stroke(); }
+  ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fillRect(-hw - 2, hh - 40, CARD_W + 4, 42);   // darker bottom for the plaque
+}
+function idolFrameStatic(kind, hw, hh, name) {
+  const th = TOTEM_THEME[kind];
+  rrect(-hw + 6, -hh + 6, CARD_W - 12, CARD_H - 12, 8); ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1.5; ctx.stroke();
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {   // metal corners with a jewel
+    ctx.save(); ctx.translate(sx * (hw - 2), sy * (hh - 2));
+    poly([[0, 0], [-sx * 20, 0], [-sx * 12, -sy * 5], [-sx * 5, -sy * 12], [0, -sy * 20]], th.trim[1], INK, 2);
+    circle(-sx * 7, -sy * 7, 4.2, INK); circle(-sx * 7, -sy * 7, 3.2, th.main); circle(-sx * 7 - 1, -sy * 7 - 1, 1.1, "rgba(255,255,255,0.9)");
+    ctx.restore();
+  });
+  for (const sx of [-1, 1]) for (const y of [-12, 4]) { circle(sx * hw, y, 3.6, INK); circle(sx * hw, y, 2.6, th.trim[1]); }
+  const py = hh - 18, pw = CARD_W - 18;   // name plaque
+  rrect(-pw / 2, py - 12, pw, 24, 7);
+  const g = ctx.createLinearGradient(0, py - 12, 0, py + 12); g.addColorStop(0, th.plate[0]); g.addColorStop(1, th.plate[1]);
+  ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = th.edge; ctx.lineWidth = 2.4; ctx.stroke();
+  for (const sx of [-1, 1]) circle(sx * (pw / 2 - 6), py, 2.2, th.edge);
+  const nm = name.toUpperCase();
+  text(nm, 0, py + 1, nm.length > 7 ? 14 : 17, "#ffffff", { font: DISPLAY, weight: 900, outline: 4, outlineColor: shade(th.plate[1], -0.5), baseline: "middle" });
+}
+function idolCrest(kind) {   // a round medallion with a tiny emblem, wings of the idol's colour
+  const th = TOTEM_THEME[kind];
+  for (const sx of [-1, 1]) poly([[sx * 10, -4], [sx * 26, -10], [sx * 22, 0], [sx * 27, 6], [sx * 10, 6]], th.trim[1], INK, 2);
+  circle(0, 0, 15, INK); circle(0, 0, 13, th.trim[1]); circle(0, 0, 10, shade(th.main, -0.35));
+  ctx.save(); ctx.scale(0.22, 0.22); drawIdolEmblem(kind); ctx.restore();
+}
+function drawIdolEmblem(kind) {   // about 80 px tall, centred on (0, 0)
+  const th = TOTEM_THEME[kind];
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  if (kind === "gold") {   // Midas: a crown on a pile of coins
+    for (const [x, y, w] of [[-22, 26, 1], [0, 30, 1], [22, 26, 1], [-11, 18, 1], [11, 18, 1], [0, 8, 1]]) {
+      ctx.beginPath(); ctx.ellipse(x, y, 13 * w, 6, 0, 0, Math.PI * 2); ctx.fillStyle = "#c98a10"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y - 2, 13 * w, 6, 0, 0, Math.PI * 2); ctx.fillStyle = "#f6c840"; ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(x, y - 2, 7, 3, 0, 0, Math.PI * 2); ctx.strokeStyle = "#b07a08"; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    poly([[-26, -2], [-30, -32], [-14, -16], [0, -38], [14, -16], [30, -32], [26, -2]], "#f2c14e", INK, 3);
+    rrect(-27, -8, 54, 10, 3); ctx.fillStyle = "#d89a18"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    for (const [x, c] of [[-16, "#e0301e"], [0, "#2a9ae0"], [16, "#2ab060"]]) { circle(x, -3, 3.4, INK); circle(x, -3, 2.6, c); }
+    for (const x of [-30, 0, 30]) { circle(x, x ? -33 : -39, 4, INK); circle(x, x ? -33 : -39, 3, "#fff2b0"); }
+  } else if (kind === "mirror") {   // Mirror: an oval hand mirror
+    rrect(-5, 18, 10, 26, 4); ctx.fillStyle = "#b8c4d8"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    circle(0, 46, 6, INK); circle(0, 46, 4.5, "#7a9ae0");
+    ctx.beginPath(); ctx.ellipse(0, -8, 28, 34, 0, 0, Math.PI * 2); ctx.fillStyle = "#dfe8f6"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    const g = ctx.createLinearGradient(-20, -36, 20, 20); g.addColorStop(0, "#f4fbff"); g.addColorStop(0.5, "#9fc8ff"); g.addColorStop(1, "#3a5aa8");
+    ctx.beginPath(); ctx.ellipse(0, -8, 21, 27, 0, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#5a6a8a"; ctx.lineWidth = 2; ctx.stroke();
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; circle(Math.cos(a) * 25, -8 + Math.sin(a) * 31, 2.2, "#7a9ae0"); }
+    poly([[0, -46], [5, -40], [0, -34], [-5, -40]], "#bcd4ff", INK, 2);
+  } else if (kind === "time") {     // Hourglass
+    for (const y of [-36, 36]) { rrect(-28, y - 5, 56, 10, 4); ctx.fillStyle = "#8a5a2a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke(); }
+    for (const x of [-22, 22]) { ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x, -31); ctx.lineTo(x, 31); ctx.stroke(); ctx.strokeStyle = "#b07a3a"; ctx.lineWidth = 3; ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(-17, -31); ctx.quadraticCurveTo(-17, -6, -3, 0); ctx.quadraticCurveTo(-17, 6, -17, 31); ctx.lineTo(17, 31); ctx.quadraticCurveTo(17, 6, 3, 0); ctx.quadraticCurveTo(17, -6, 17, -31); ctx.closePath();
+    ctx.fillStyle = "rgba(220,240,255,0.35)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-12, -18); ctx.quadraticCurveTo(-10, -6, -2, -2); ctx.lineTo(2, -2); ctx.quadraticCurveTo(10, -6, 12, -18); ctx.closePath(); ctx.fillStyle = "#f2c06a"; ctx.fill();   // sand top
+    ctx.beginPath(); ctx.moveTo(-16, 30); ctx.quadraticCurveTo(0, 12, 16, 30); ctx.closePath(); ctx.fillStyle = "#f2c06a"; ctx.fill();                                           // sand pile
+    ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-12, -26); ctx.quadraticCurveTo(-12, -14, -6, -8); ctx.stroke();
+  } else if (kind === "shield") {   // Bulwark: a heater shield with a tower
+    ctx.beginPath(); ctx.moveTo(0, -40); ctx.lineTo(32, -30); ctx.quadraticCurveTo(32, 18, 0, 42); ctx.quadraticCurveTo(-32, 18, -32, -30); ctx.closePath();
+    ctx.fillStyle = "#c8d4e6"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -33); ctx.lineTo(25, -25); ctx.quadraticCurveTo(25, 14, 0, 34); ctx.quadraticCurveTo(-25, 14, -25, -25); ctx.closePath();
+    const g = ctx.createLinearGradient(0, -33, 0, 34); g.addColorStop(0, "#5a9af0"); g.addColorStop(1, "#1a4a9a"); ctx.fillStyle = g; ctx.fill();
+    rrect(-10, -14, 20, 30, 2); ctx.fillStyle = "#e8eef8"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    for (const x of [-10, -2, 6]) { ctx.fillStyle = "#e8eef8"; ctx.fillRect(x, -20, 4, 7); ctx.strokeRect(x, -20, 4, 7); }
+    rrect(-4, 4, 8, 12, 4); ctx.fillStyle = "#2a3a5a"; ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-20, -22); ctx.quadraticCurveTo(-20, 4, -6, 22); ctx.stroke();
+  } else if (kind === "crit") {     // Seer: a crystal ball on a stand
+    poly([[-20, 34], [20, 34], [14, 22], [-14, 22]], "#c89aff", INK, 2.5);
+    rrect(-24, 32, 48, 9, 4); ctx.fillStyle = "#7a3ab0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    const g = ctx.createRadialGradient(-8, -14, 4, 0, -4, 32); g.addColorStop(0, "#f6eaff"); g.addColorStop(0.45, "#b07af0"); g.addColorStop(1, "#3a0a6a");
+    circle(0, -4, 29, INK); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, -4, 27, 0, Math.PI * 2); ctx.fill();
+    circle(-10, -16, 6, "rgba(255,255,255,0.75)"); circle(-3, -22, 2.5, "rgba(255,255,255,0.8)");
+  } else if (kind === "link") {     // Chain: two interlocked links
+    for (const [x, y, a] of [[-12, -10, -0.7], [12, 10, -0.7]]) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      rrect(-26, -13, 52, 26, 13); ctx.strokeStyle = INK; ctx.lineWidth = 12; ctx.stroke();
+      rrect(-26, -13, 52, 26, 13); ctx.strokeStyle = "#b8c8d8"; ctx.lineWidth = 7; ctx.stroke();
+      rrect(-26, -13, 52, 26, 13); ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
+    }
+  } else if (kind === "heal") {     // Chalice
+    poly([[-18, 40], [18, 40], [10, 32], [-10, 32]], "#f2c14e", INK, 2.5);
+    rrect(-4, 8, 8, 26, 3); ctx.fillStyle = "#e8a91a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    circle(0, 18, 6, INK); circle(0, 18, 4.5, "#e0301e");
+    ctx.beginPath(); ctx.moveTo(-28, -22); ctx.quadraticCurveTo(-28, 10, 0, 10); ctx.quadraticCurveTo(28, 10, 28, -22); ctx.closePath();
+    ctx.fillStyle = "#f2c14e"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, -22, 28, 7, 0, 0, Math.PI * 2); ctx.fillStyle = "#c0203e"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-20, -12); ctx.quadraticCurveTo(-18, 2, -8, 5); ctx.stroke();
+    for (const x of [-14, 14]) { circle(x, -6, 3.2, INK); circle(x, -6, 2.4, "#2a9ae0"); }
+  } else {                          // Hex: a pentagram sigil
+    circle(0, 0, 36, INK); circle(0, 0, 33, "#2a0a3a"); ring(0, 0, 30, "#b070ff", 2.5); ring(0, 0, 22, "rgba(176,112,255,0.5)", 1.5);
+    ctx.beginPath(); for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * 4 * Math.PI / 5; ctx[i ? "lineTo" : "moveTo"](Math.cos(a) * 28, Math.sin(a) * 28); } ctx.closePath();
+    ctx.strokeStyle = "#d8a8ff"; ctx.lineWidth = 2.5; ctx.stroke();
+    for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * 2 * Math.PI / 5; circle(Math.cos(a) * 30, Math.sin(a) * 30, 3.4, "#e0c0ff"); }
+  }
+}
+function drawIdolLive(kind, t, seed) {   // the moving parts on top of the pre-drawn emblem
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  if (kind === "gold") {
+    for (let i = 0; i < 3; i++) { const k = (t * 0.8 + i / 3) % 1, x = (i - 1) * 18, y = 20 - k * 60; circle(x, y, 3 * Math.sin(Math.PI * k), "rgba(255,240,150,0.9)"); }
+    const s = 0.5 + 0.5 * Math.sin(t * 5); circle(0, -39, 6 + 3 * s, `rgba(255,250,200,${0.35 + 0.3 * s})`);
+  } else if (kind === "mirror") {   // a shine sweeping across the glass
+    ctx.save(); ctx.beginPath(); ctx.ellipse(0, -8, 21, 27, 0, 0, Math.PI * 2); ctx.clip();
+    const x = ((t * 40 + seed * 13) % 120) - 60; ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.beginPath(); ctx.moveTo(x - 8, -40); ctx.lineTo(x + 4, -40); ctx.lineTo(x + 16, 24); ctx.lineTo(x + 4, 24); ctx.closePath(); ctx.fill(); ctx.restore();
+  } else if (kind === "time") {     // falling sand
+    ctx.globalCompositeOperation = "source-over";
+    for (let i = 0; i < 4; i++) { const k = (t * 1.6 + i / 4) % 1; circle(0, -2 + k * 26, 1.4, "#f2c06a"); }
+  } else if (kind === "shield") {
+    const k = (t * 0.6) % 1; ring(0, 0, 18 + k * 40, `rgba(150,200,255,${0.6 * (1 - k)})`, 3);
+  } else if (kind === "crit") {     // a swirl and an eye inside the ball
+    ctx.save(); ctx.translate(0, -4); ctx.rotate(t * 1.5);
+    for (let i = 0; i < 3; i++) { ctx.rotate(Math.PI * 2 / 3); ring(0, 0, 16, "rgba(230,190,255,0.55)", 2, 0, 1.4); }
+    ctx.restore();
+    ctx.globalCompositeOperation = "source-over";
+    const blink = Math.sin(t * 1.3 + seed) > 0.96 ? 0.15 : 1;
+    ctx.beginPath(); ctx.ellipse(0, -4, 11, 6.5 * blink, 0, 0, Math.PI * 2); ctx.fillStyle = "#fff6ff"; ctx.fill(); ctx.strokeStyle = "#3a0a6a"; ctx.lineWidth = 1.8; ctx.stroke();
+    if (blink > 0.5) { circle(Math.sin(t * 0.9) * 4, -4, 4, "#7a2ad0"); circle(Math.sin(t * 0.9) * 4, -4, 1.8, "#14002a"); }
+  } else if (kind === "link") {     // a crackle running along the chain
+    const ph = Math.floor(t * 12) % 4; ctx.strokeStyle = "rgba(190,240,255,0.95)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-30, 24); for (let i = 1; i <= 6; i++) ctx.lineTo(-30 + i * 10, 24 - i * 10 + (((i + ph) % 2) ? 5 : -5)); ctx.stroke();
+  } else if (kind === "heal") {     // hearts rising from the cup
+    for (let i = 0; i < 2; i++) {
+      const k = (t * 0.6 + i / 2) % 1, x = (i ? 8 : -8) + Math.sin(t * 3 + i) * 4, y = -26 - k * 30, s = 5 * Math.sin(Math.PI * k);
+      ctx.fillStyle = `rgba(255,150,180,${0.9 * Math.sin(Math.PI * k)})`; ctx.beginPath();
+      ctx.moveTo(x, y + s); ctx.bezierCurveTo(x - s * 1.6, y - s * 0.2, x - s * 0.6, y - s * 1.4, x, y - s * 0.4); ctx.bezierCurveTo(x + s * 0.6, y - s * 1.4, x + s * 1.6, y - s * 0.2, x, y + s); ctx.fill();
+    }
+  } else {                          // Hex: the sigil turns and glows
+    ctx.save(); ctx.rotate(t * 0.5); for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * 2 * Math.PI / 5; circle(Math.cos(a) * 30, Math.sin(a) * 30, 5 + 2 * Math.sin(t * 4 + i), "rgba(200,140,255,0.45)"); } ctx.restore();
+    circle(0, 0, 9 + 2 * Math.sin(t * 3), "rgba(220,170,255,0.5)"); circle(0, 0, 4, "rgba(255,240,255,0.95)");
+  }
+  ctx.restore();
+}
+// A small badge on a boosted neighbour: the idol's emblem + its value.
+function drawIdolBadge(x, y, kind, label) {
+  const th = TOTEM_THEME[kind], bw = 34 + label.length * 8;
+  rrect(x - bw / 2, y - 14, bw, 28, 14); ctx.fillStyle = shade(th.main, -0.55); ctx.fill(); ctx.strokeStyle = th.light; ctx.lineWidth = 2.2; ctx.stroke();
+  drawCached("ibadge_" + kind, 40, 40, () => { ctx.scale(0.24, 0.24); drawIdolEmblem(kind); }, x - bw / 2 + 14, y);
+  text(label, x + 8, y + 1, 14, "#ffffff", { weight: 900, baseline: "middle" });
 }
 // A small cartoon skull (Hades' orbs and his soul shots). r = radius of the cranium.
 function drawSkullIcon(x, y, r, alpha = 1, glowA = 0.8) {
@@ -4901,10 +5192,26 @@ function drawGather() {
 }
 function drawTotemLinks() {
   if (state !== "wave" && state !== "break") return;
+  // Bulwark: a shimmering barrier in front of the castle (bright when it blocks). Chalice: the wall glows when it heals.
+  if (idolRow("shield")) {
+    const y = FRONT_Y + 8, a = 0.25 + 0.35 * bulwarkFlash;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createLinearGradient(0, y - 16, 0, y + 16); g.addColorStop(0, "rgba(110,170,255,0)"); g.addColorStop(0.5, `rgba(150,200,255,${a})`); g.addColorStop(1, "rgba(110,170,255,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, y - 16, W, 32);
+    ctx.strokeStyle = `rgba(210,235,255,${0.35 + 0.4 * bulwarkFlash})`; ctx.lineWidth = 2; ctx.beginPath();
+    for (let x = 0; x <= W; x += 12) ctx.lineTo(x, y + Math.sin(x * 0.05 + time * 3) * 3); ctx.stroke();
+    ctx.restore();
+  }
+  if (chaliceGlow > 0) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createLinearGradient(0, WALL_Y - 40, 0, WALL_Y + 20); g.addColorStop(0, "rgba(255,120,150,0)"); g.addColorStop(1, `rgba(255,140,170,${0.35 * chaliceGlow})`);
+    ctx.fillStyle = g; ctx.fillRect(0, WALL_Y - 40, W, 60); ctx.restore();
+  }
   rows.active.forEach((tc, i) => {
     if (!tc || !EL[tc.element].totem || tc.dragging) return;
-    const kind = EL[tc.element].totem, th = TOTEM_THEME[kind];
-    for (const j of [i - 1, i + 1]) {
+    const kind = EL[tc.element].totem, th = TOTEM_THEME[kind], idol = EL[tc.element].idol;
+    if (idol && !IDOL_NEAR.has(kind) && kind !== "mirror") return;   // Hourglass, Bulwark, Chalice work on the whole field
+    for (const j of (kind === "mirror" ? [i - 1] : [i - 1, i + 1])) {
       const o = rows.active[j]; if (!o || o.dragging || EL[o.element].totem) continue;
       const top = -CARD_H / 2 - 4;
       totemArc(tc.x, tc.y + top + 8, o.x, o.y + top + 8, time + i, kind);
@@ -4912,7 +5219,8 @@ function drawTotemLinks() {
       const pul = 0.5 + 0.5 * Math.sin(time * 4 + j + (kind === "spd" ? 1.5 : 0));
       rrect(o.x - CARD_W / 2 - 5, o.y - CARD_H / 2 - 5, CARD_W + 10, CARD_H + 10, 14);
       ctx.strokeStyle = `rgba(${th.rgb},${0.45 + 0.35 * pul})`; ctx.lineWidth = 3.5; ctx.stroke();
-      drawBoostBadge(o.x + (kind === "dmg" ? 1 : -1) * (CARD_W / 2 - 18), o.y + top + 2, kind, totemMult(o, kind));
+      if (idol) drawIdolBadge(o.x + (tc.x > o.x ? 24 : -24), o.y + CARD_H / 2 + 14, kind, kind === "mirror" ? "copy" : idolBadge(kind, idolLvl(tc)));   // under the card, on the idol's side
+      else drawBoostBadge(o.x + (kind === "dmg" ? 1 : -1) * (CARD_W / 2 - 18), o.y + top + 2, kind, totemMult(o, kind));
     }
   });
 }
@@ -5096,13 +5404,25 @@ function applyHit(el, r, x, y, enemy, sm = 1) {
     hitEnemy(enemy, el, r, dmg, sm);
     impactFx(el, x, y, r, 0);
   }
+  if (hitSrc && enemy) { const L = idolNext(hitSrc, "link"); if (L) linkJump(enemy, el, r, dmg * IDOL_VAL.link(L), sm); }   // Chain
   if (d.scratch) { const z = new Zone(x, y, d.scratch, d.scratch_dps * rm, d.scratch_time, d.color); z.src = statKey(el, r); z.slowAmt = d.scratch_slow; z.scratch = true; zones.push(z); }
   if (d.whirl) { const z = new Zone(x, y, d.whirl, 0, d.whirl_time, d.color); z.src = statKey(el, r); z.pull = d.whirl_pull; z.whirl = true; zones.push(z); if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running" && Sfx.ctx.currentTime - (Sfx.last.whirl || 0) > 0.8) { Sfx.last.whirl = Sfx.ctx.currentTime; playSample("serpent_whirl", 0.6) || sNoise(0.9, 0.22, "bandpass", 300, 900, 2.5); } }
   if (d.cloud) { const z = new Zone(x, y, d.cloud, d.cloud_dps * rm, 2.5, d.color); z.src = statKey(el, r); z.slowAmt = d.cloud_slow || 0; zones.push(z); }
   if (d.puddle) { const z = new Zone(x, y, d.puddle, d.puddle_dps * rm, 3, d.color); z.src = statKey(el, r); z.burnAmt = 2 * rm; zones.push(z); }
 }
+// Chain idol: the hit leaps to the nearest other enemy (a little storm-chain arc).
+function linkJump(from, el, r, dmg, sm) {
+  let best = null, bd = 200;
+  for (const e of enemies) { if (e === from || e.dead) continue; const dd = Math.hypot(e.x - from.x, e.y - from.y); if (dd < bd) { bd = dd; best = e; } }
+  if (!best) return;
+  const keep = hitSrc; hitSrc = null; hitEnemy(best, el, r, dmg, sm); hitSrc = keep;
+  fxs.push(new Fx("bolt", { points: [[from.x, from.y], [best.x, best.y]], color: "#8ad8ff", duration: 0.16 }));
+  addPart({ add: true, kind: "ring", x: best.x, y: best.y, rgb: "140,220,255", size: 6, grow: 40, w: 3, sq: 0.7, life: 0.22 });
+}
 function hitEnemy(e, el, r, dmg, sm = 1) {
-  const d = EL[el], mult = elementMult(el, e.resist, e.flying) * (e.isBoss && d.bossMult ? d.bossMult : 1), amount = dmg * mult * (hasRelic("lucky") && Math.random() < 0.1 ? 2 : 1), rm = RARITY_DMG[r] * sm;
+  const d = EL[el], mult = elementMult(el, e.resist, e.flying) * (e.isBoss && d.bossMult ? d.bossMult : 1), rm = RARITY_DMG[r] * sm, sc = hitSrc;
+  let amount = dmg * mult * (hasRelic("lucky") && Math.random() < 0.1 ? 2 : 1), crit = false;
+  if (sc) { const L = idolNext(sc, "crit"); if (L && Math.random() < IDOL_VAL.crit(L)) { amount *= 2; crit = true; } e.lastCard = sc; }   // Seer
   const x = e.x, y = e.y, src = statKey(el, r);
   if (d.burn) { e.burnSrc = src; e.burnCol = d.color; e.soulR = r; e.soulSm = sm; e.burn(d.burn * rm, 2.5); }
   if (d.slow) e.slow(d.slow, 2);
@@ -5110,8 +5430,10 @@ function hitEnemy(e, el, r, dmg, sm = 1) {
   if (d.knock) e.knock(d.knock);
   e.takeDamage(amount, src, d.color);
   if (d.curse && !e.dead) { e.curseAmt = e.curseT > 0 ? Math.max(e.curseAmt, d.curse) : d.curse; e.curseT = 3; }   // Dark: cursed foes take more damage (from the next hit on)
-  const col = mult > 1.01 ? "#ffe34a" : mult < 0.99 ? "#a89878" : PARCH;
-  if (settings.dmgNums) fxs.push(new Fx("text", { x: x + rand(-14, 14), y: y - 30, text: String(Math.round(amount)), color: col, size: 18, duration: 0.8 }));
+  if (sc && !e.dead) { const L = idolNext(sc, "hex"); if (L) { const a = IDOL_VAL.hex(L); e.curseAmt = e.curseT > 0 ? Math.max(e.curseAmt, a) : a; e.curseT = Math.max(e.curseT, 3); } }   // Hex
+  if (crit) addPart({ add: true, kind: "ring", x, y, rgb: "200,140,255", size: 10, grow: 70, w: 4, sq: 0.7, life: 0.3 });
+  const col = crit ? "#e0a0ff" : mult > 1.01 ? "#ffe34a" : mult < 0.99 ? "#a89878" : PARCH;
+  if (settings.dmgNums || crit) fxs.push(new Fx("text", { x: x + rand(-14, 14), y: y - 30, text: crit ? `${Math.round(amount)}!` : String(Math.round(amount)), color: col, size: crit ? 24 : 18, duration: 0.8 }));
 }
 
 // ------------------------------------------------------------ Shop & merging
@@ -5217,7 +5539,7 @@ function updateStorage(dt) {
 const totemOnBoard = (except, el) => [...rows.active, ...rows.storage].find(c => c && c !== except && c.element === el) || null;
 function buy(si, row, i) {
   const card = rows.shop[si]; if (!card) return false;
-  if (EL[card.element].totem && !rows[row][i] && totemOnBoard(card, card.element)) { const nm = EL[card.element].name; showInfo(`Only 1 ${nm} on the board! Drop this one onto your ${nm} for +${TOTEM_STEP(card.element)}x.`); card.shake = 1; return false; }
+  if (EL[card.element].totem && !rows[row][i] && totemOnBoard(card, card.element)) { const nm = EL[card.element].name; showInfo(`Only 1 ${nm} on the board! Drop this one onto your ${nm} ${EL[card.element].idol ? "to power it up" : `for +${TOTEM_STEP(card.element)}x`}.`); card.shake = 1; return false; }
   const cost = freeCard ? 0 : card.price;
   if (gold < cost) { showInfo(`Not enough gold! This card costs ${cost}.`); card.shake = 1; return false; }
   const other = rows[row][i];
@@ -5226,7 +5548,7 @@ function buy(si, row, i) {
     const s = slotPos(row, i); card.setHome(s.x, s.y);
   } else {
     const res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
-    if (res && res.totem) { res.boost = totemSum(card.element, card.boost, other.boost); if (res.boost > TOTEM_MAX) { showInfo(`${EL[card.element].name} is already at its max (x${1 + TOTEM_MAX})!`); card.shake = 1; return false; } }
+    if (res && res.totem) { res.boost = totemSum(card.element, card.boost, other.boost); if (res.boost > TOTEM_MAX) { showInfo(`${EL[card.element].name} is already at its max (${EL[card.element].idol ? "Lv5" : "x" + (1 + TOTEM_MAX)})!`); card.shake = 1; return false; } }
     if (!res) { showInfo(mergeHint(card, other) || `${cardName(card)} can't fuse with ${cardName(other)}.`); card.shake = 1; return false; }
     rows.shop[si] = null; applyMerge(other, res);
   }
@@ -5263,7 +5585,7 @@ function applyMerge(card, res) {
     fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: th.main, radius: 110, duration: 0.45 }));
     fxs.push(new Fx("burst", { x: card.hx, y: card.hy, color: th.light, radius: 70, duration: 0.35 }));
     for (let i = 0; i < 3; i++) addPart({ add: true, kind: "ring", x: card.hx, y: card.hy + 30, rgb: th.rgb, size: 24 + i * 14, grow: 200 + i * 80, w: 5 - i, sq: 0.45, life: 0.5 + i * 0.12 });
-    fxs.push(new Fx("text", { x: card.hx, y: card.hy - 90, text: `${EL[card.element].name} x${1 + card.boost}!`, color: th.light, size: 30, duration: 1.1 }));
+    fxs.push(new Fx("text", { x: card.hx, y: card.hy - 90, text: EL[card.element].idol ? `${EL[card.element].name} Lv${idolLvl(card)}!` : `${EL[card.element].name} x${1 + card.boost}!`, color: th.light, size: 30, duration: 1.1 }));
     if (!Sfx.muted && Sfx.ctx && Sfx.ctx.state === "running") { sTone("triangle", 196, 196, 0.5, 0.14); sTone("triangle", 294, 294, 0.5, 0.1, 0.1); sTone("sine", 588, 588, 0.6, 0.08, 0.2); sNoise(0.4, 0.3, "lowpass", 400, 80, 0.8); }
     showInfo(describe(card.element, card.rarity, 0, card.boost));
     return;
@@ -5301,7 +5623,7 @@ function moveCard(fr, fi, tr, ti) {
   if (!card) return "";
   if (!other) { rows[fr][fi] = null; rows[tr][ti] = card; const s = slotPos(tr, ti); card.setHome(s.x, s.y); return "move"; }
   let res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
-  if (res && res.totem) { res.boost = totemSum(card.element, card.boost, other.boost); if (res.boost > TOTEM_MAX) { showInfo(`${EL[card.element].name} is already at its max (x${1 + TOTEM_MAX})!`); res = null; } }
+  if (res && res.totem) { res.boost = totemSum(card.element, card.boost, other.boost); if (res.boost > TOTEM_MAX) { showInfo(`${EL[card.element].name} is already at its max (${EL[card.element].idol ? "Lv5" : "x" + (1 + TOTEM_MAX)})!`); res = null; } }
   if (res) { rows[fr][fi] = null; applyMerge(other, res); return "merge"; }
   const hint = mergeHint(card, other);
   if (hint) showInfo(hint);
@@ -6258,6 +6580,7 @@ document.addEventListener("keydown", ev => {
 
 // ------------------------------------------------------------ Update
 function update(dt) {
+  bulwarkFlash = Math.max(0, bulwarkFlash - dt * 3); chaliceGlow = Math.max(0, chaliceGlow - dt * 2);
   const realDt = dt;
   if (state === "wave" || state === "break") updateCurseFx(realDt); else { curseFxT = 0; }
   updateSpell(dt);
@@ -6298,8 +6621,9 @@ function update(dt) {
       else if (sp.left > 0) { sp.left--; spawnEnemy(pickKind(sp.wave), sp.wave); }
     }
     for (const c of rows.active) {
-      if (!c || (drag && drag.card === c) || EL[c.element].totem) continue;   // a Totem never attacks
+      if (!c || (drag && drag.card === c)) continue;
       const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult() * (hasRelic("haste") ? 1.15 : 1);   // Speed Up spell and a Flight totem next to it
+      if (EL[c.element].totem) { if (EL[c.element].totem === "mirror") updateMirror(c, dt * spd); continue; }   // Totems and idols never attack (a Mirror copies)
       if (EL[c.element].beam) { updateBeam(c, dt * spd); continue; }
       if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
       c.cooldown -= dt * spd;
@@ -6308,6 +6632,7 @@ function update(dt) {
   } else if (state === "break" && breakTimer > 0) {
     breakTimer -= dt; if (breakTimer <= 0) beginWave(true);
   }
+  { const L = idolRow("time"); idolTimeMult = L ? 1 - IDOL_VAL.time(L) : 1; }
   for (const e of enemies.slice()) e.update(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
@@ -8326,7 +8651,7 @@ function drawShop(dt) {
   if (storeIsTest()) text("TEST MODE: purchases are free (no real money)", W / 2, y + 136, 17, "#c0392b", { weight: 700 });
   // Gem packs: 2 columns x 3 rows.
   text("Gems", x + 24, y + 176, 26, INK, { align: "left", weight: 800 });
-  const tw = (w - 60) / 2, th = 150;
+  const tw = (w - 60) / 2, th = 144;
   gemTiles.forEach((b, i) => {
     b.x = x + 20 + (i % 2) * (tw + 20); b.y = y + 192 + Math.floor(i / 2) * (th + 14); b.w = tw; b.h = th;
     const pr = b.pr, press = b.down ? 3 : 0;
@@ -8340,21 +8665,19 @@ function drawShop(dt) {
     }
     priceTag(b.x + tw - 132, b.y + th - 52 + press, 116, pr.price);
   });
-  // Special cards (centred).
-  const sy = y + 192 + 3 * (th + 14) + 30;
+  // Special cards: two rows of five.
+  const sy = y + 192 + 3 * (th + 14) + 26;
   text("Special Cards", x + 24, sy, 26, INK, { align: "left", weight: 800 });
   text("Each one can be bought only once", x + w - 24, sy, 16, "#6b3a22", { align: "right", weight: 600 });
-  const sw = (w - 70) / 4, sh = 272;
+  const cols = 5, gap = 8, sw = (w - 40 - (cols - 1) * gap) / cols, sh = 150;
   specialTiles.forEach((b, i) => {
-    const n = specialTiles.length; b.x = x + w / 2 - (n * sw + (n - 1) * 10) / 2 + i * (sw + 10); b.y = sy + 16; b.w = sw; b.h = sh;
+    b.x = x + 20 + (i % cols) * (sw + gap); b.y = sy + 14 + Math.floor(i / cols) * (sh + gap); b.w = sw; b.h = sh;
     const press = b.down ? 3 : 0, owned = save.specials[b.pr.special];
-    rrect(b.x, b.y + press, sw, sh, 16); ctx.fillStyle = b.down ? "#e2cfa6" : "#2a1d40"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-    const c = b.card; c.t += dt; c.x = c.hx = b.x + sw / 2; c.y = c.hy = b.y + 96 + press; c.scale = 1.1; c.draw();
-    if (!owned) text("New!", b.x + sw / 2, b.y + 200 + press, 18, "#ffe34a", { weight: 800, outline: 4 });
-    if (owned) {   // bought once, for good
-      rrect(b.x + 10, b.y + sh - 54, sw - 20, 42, 21); ctx.fillStyle = "#5a4a6a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
-      text("\u2713 Owned", b.x + sw / 2, b.y + sh - 33, 20, "#e3d4ff", { weight: 800, baseline: "middle" });
-    } else priceTag(b.x + 10, b.y + sh - 54 + press, sw - 20, b.pr.price);
+    rrect(b.x, b.y + press, sw, sh, 14); ctx.fillStyle = b.down ? "#e2cfa6" : "#2a1d40"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    const c = b.card; c.t += dt; c.x = c.hx = b.x + sw / 2; c.y = c.hy = b.y + 60 + press; c.scale = 0.62; c.draw();
+    const ty = b.y + sh - 34 + press;
+    rrect(b.x + 8, ty, sw - 16, 26, 13); ctx.fillStyle = owned ? "#5a4a6a" : "#6cc56a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+    text(owned ? "\u2713 Owned" : b.pr.price, b.x + sw / 2, ty + 14, 16, owned ? "#e3d4ff" : INK, { weight: 800, baseline: "middle" });
   });
   btn.shopClose.y = y + h - 92; drawBtn(btn.shopClose);
   if (shopConfirm) drawShopConfirm();
@@ -8473,7 +8796,7 @@ function drawCardInfo(dt) {
   rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
   // Card on the left, name and level on the right.
   const c = ci.card; c.x = c.hx = x + 120; c.y = c.hy = y + 150; c.scale = 1.5; c.draw();
-  const group = d.totem ? "Special card: Totem" : d.special ? "Special card" : d.legendCard ? "Legend card" : d.myth ? "Myth card" : d.tier === 3 ? "Epic element" : d.tier === 2 ? "Next element" : "Main element";
+  const group = d.idol ? "Special card: Idol" : d.totem ? "Special card: Totem" : d.special ? "Special card" : d.legendCard ? "Legend card" : d.myth ? "Myth card" : d.tier === 3 ? "Epic element" : d.tier === 2 ? "Next element" : "Main element";
   const tx = x + 232;
   text(d.name, tx, y + 74, d.name.length > 10 ? 34 : 40, INK, { align: "left", font: DISPLAY, weight: 900 });
   text(group, tx, y + 108, 21, RARITY_COLORS[showRarity(el)] === "#B8BEC8" ? "#6b3a22" : shade(RARITY_COLORS[showRarity(el)], -0.25), { align: "left", weight: 700 });
@@ -8487,7 +8810,18 @@ function drawCardInfo(dt) {
   const forms = d.special ? [SPECIAL] : d.legendCard ? [LEGEND_R] : d.myth ? [MYTH] : d.tier === 3 ? [EPIC] : [0, 1, 2];
   const formName = r => r <= 2 ? `V${r + 1}` : RARITY_NAMES[r];
   line();
-  if (d.totem) {
+  if (d.idol) {
+    const lines = [["Attack", "Never attacks", "#b4441f"], ["Lv1", idolText(d.totem, 1), "#2f8f3f"], ["Lv5", idolText(d.totem, 5), "#2f8f3f"], ["Power up", `Drop another ${d.name} on it (max Lv5)`, "#7a3fb0"], ["Limit", `1 ${d.name} on the board`, INK]];
+    for (const [k, v, col] of lines) {
+      text(k, x + 30, ry, 22, INK, { align: "left", weight: 700 });
+      const words = v.split(" "), rows2 = []; let cur = "";
+      ctx.font = `700 18px ${FONT}`;
+      for (const wd of words) { const tr = cur ? cur + " " + wd : wd; if (ctx.measureText(tr).width > w - 190 && cur) { rows2.push(cur); cur = wd; } else cur = tr; }
+      rows2.push(cur);
+      rows2.forEach((ln, li) => text(ln, x + w - 30, ry + li * 22, 18, col, { align: "right", weight: 700 }));
+      ry += 30 + rows2.length * 20; line();
+    }
+  } else if (d.totem) {
     for (const [k, v, col] of [["Attack", "Never attacks", "#b4441f"], ["Boost", d.totem === "spd" ? "x2 attack speed to the card left and right" : "x2 damage to the card left and right", "#2f8f3f"], ["Combine", `+0.5x per extra ${d.name}, up to x4`, "#7a3fb0"]]) {
       text(k, x + 30, ry, 22, INK, { align: "left", weight: 700 }); text(v, x + w - 30, ry, 20, col, { align: "right", weight: 700 }); ry += 44; line();
     }
