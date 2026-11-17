@@ -6032,6 +6032,9 @@ const btn = {
   speedNo: makeBtn("Not now", 0, 0, 200, 84, () => { speedOffer = false; }, 24),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: makeBtn("", 14, 372, 112, 112, () => openShop()),
+  starter: makeBtn("", 14, 640, 112, 112, () => openStarter()),
+  starterBuy: Object.assign(makeBtn("Buy $1.00", 0, 0, 340, 84, () => buyStarter(), 32), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  starterClose: makeBtn("Not now", 0, 0, 220, 64, () => { starterOpen = false; playUi("ui_pick"); }, 22),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
   shopBuy: Object.assign(makeBtn("Buy", 0, 0, 260, 80, () => { if (shopConfirm) buyProduct(shopConfirm); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   shopCancel: makeBtn("Cancel", 0, 0, 180, 80, () => { shopConfirm = null; }, 26),
@@ -6106,6 +6109,7 @@ function baseButtons() {
   if (state === "title") {
     if (castleOpen) return castleButtons();
     if (shopOpen) return shopButtons();
+    if (starterOpen) return shopBusy ? [] : [btn.starterBuy, btn.starterClose];
     if (adSim || adBusy) return [];
     if (bioOpen) return [btn.bioAvatar, btn.bioName, btn.bioClose, ...(TESTER_RESET ? [btn.resetAll] : [])];
     if (dailyOpen) return dailyReady() ? [btn.dailyClaim, btn.dailyAd, btn.dailyClose] : [btn.dailyClose];
@@ -6114,7 +6118,7 @@ function baseButtons() {
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.bio, btn.settingsBtn, btn.gemPill];
-    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, btn.castleUp, ...top];
+    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, btn.castleUp, ...(starterAvailable() ? [btn.starter] : []), ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
     return [...visibleUpgradeBtns(), ...top];
   }
@@ -8192,13 +8196,77 @@ const SHOP_GEMS = [
   { id: "gems_100000", gems: 80000, bonus: 20000, price: "$99.99", name: "Dragon Hoard" },
 ];
 const SHOP_SPECIAL_PRICE = "$4.99";
+// ---- Beginner Deal: one-time offer for new players, open for 24 hours from their first visit to the lobby.
+const STARTER_DEAL = { id: "starter_deal", starter: true, price: "$1.00", name: "Beginner Deal", gemsAmt: 2000 };
+const STARTER_TIME = 24 * 3600 * 1000;
+let starterOpen = false;
+function starterLeft() { return save.starterAt ? Math.max(0, save.starterAt + STARTER_TIME - Date.now()) : STARTER_TIME; }
+const starterAvailable = () => !save.starterBought && starterLeft() > 0;
+function fmtClock(ms) { const t = Math.ceil(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, sec = t % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`; }
+function openStarter() { starterOpen = true; playUi("ui_pick"); }
+async function buyStarter() {
+  if (shopBusy || !starterAvailable()) return;
+  shopBusy = true; let ok = false;
+  try { ok = storeIsTest() ? true : await window.nativePurchase(STARTER_DEAL.id); } catch (e) { ok = false; }
+  shopBusy = false;
+  if (ok) { grantProduct(STARTER_DEAL); starterOpen = false; }
+  else shopToast = { text: "Purchase cancelled", color: "#ff9a8a", t: 0 };
+}
+const starterCards = ["totem", "flight"].map(el => { const c = new Card(el, SPECIAL); c.noLabel = true; return c; });
+function drawStarterIcon(b) {   // a glowing gift box with a ribbon, label and countdown
+  const press = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2 + Math.sin(lobbyT * 2.4) * 3, pulse = 0.5 + 0.5 * Math.sin(lobbyT * 4);
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(press, press);
+  const g = ctx.createRadialGradient(0, 0, 8, 0, 0, 62); g.addColorStop(0, `rgba(255,214,90,${0.45 + 0.3 * pulse})`); g.addColorStop(1, "rgba(255,214,90,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 62, 0, Math.PI * 2); ctx.fill();
+  ctx.rotate(Math.sin(lobbyT * 3) * 0.06);
+  rrect(-34, -6, 68, 46, 8); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();      // box
+  rrect(-40, -24, 80, 22, 7); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.stroke();                                                  // lid
+  ctx.fillStyle = GOLD; ctx.fillRect(-7, -24, 14, 64); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeRect(-7, -24, 14, 64);  // ribbon
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sd * 14, -32, 15, 9, sd * 0.5, 0, Math.PI * 2); ctx.fillStyle = GOLD; ctx.fill(); ctx.lineWidth = 3; ctx.stroke(); }
+  circle(0, -30, 6, "#ffe38a"); ring(0, -30, 6, INK, 2.5);
+  drawGem(30, 26, 12);
+  ctx.restore();
+  rrect(b.x - 4, b.y - 12, 66, 26, 13); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+  text("NEW", b.x + 29, b.y + 1, 16, "#fff", { weight: 900, baseline: "middle" });
+  text("Beginner Deal", b.x + b.w / 2, b.y + b.h + 8, 19, PARCH, { weight: 800, outline: 6 });
+  text(fmtClock(starterLeft()), b.x + b.w / 2, b.y + b.h + 32, 18, "#ffd75a", { weight: 800, outline: 5 });
+}
+function drawStarter(dt) {
+  const w = W - 80, h = 760, x = 40, y = Math.max(100, H / 2 - h / 2);
+  dim(0.78);
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  rrect(x + w / 2 - 150, y - 22, 300, 44, 22); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+  text("ONE TIME ONLY", W / 2, y + 1, 22, "#fff", { weight: 900, baseline: "middle" });
+  text("Beginner Deal", W / 2, y + 82, 46, INK, { font: DISPLAY, weight: 900 });
+  text(`Ends in ${fmtClock(starterLeft())}`, W / 2, y + 126, 26, "#c0392b", { weight: 800 });
+  if (storeIsTest()) text("TEST MODE: purchases are free (no real money)", W / 2, y + 158, 17, "#c0392b", { weight: 700 });
+  // Contents: gems, Fight, Flight.
+  const tw = (w - 80) / 3, th = 330, ty = y + 186;
+  const items = [["2,000", "Gems"], ["1x", "Fight Totem"], ["1x", "Flight Totem"]];
+  items.forEach(([a, b], i) => {
+    const tx = x + 20 + i * (tw + 20);
+    rrect(tx, ty, tw, th, 16); ctx.fillStyle = i ? "#2a1d40" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
+    if (i === 0) gemPile(tx + tw / 2, ty + 120, 6);
+    else { const c = starterCards[i - 1]; c.t += dt; c.x = c.hx = tx + tw / 2; c.y = c.hy = ty + 120; c.scale = 1.05; c.draw(); }
+    text(a, tx + tw / 2, ty + th - 76, 30, i ? GOLD : INK, { weight: 900, outline: i ? 5 : 0 });
+    text(b, tx + tw / 2, ty + th - 40, 19, i ? PARCH : "#6b3a22", { weight: 800, outline: i ? 4 : 0 });
+    if (i && save.specials[SPECIALS[i - 1]]) text("(already owned)", tx + tw / 2, ty + th - 14, 14, "#c9b8ff", { weight: 700 });
+  });
+  text("Fight and Flight totems are unlocked for good.", W / 2, ty + th + 40, 19, "#6b3a22", { weight: 600 });
+  btn.starterBuy.label = shopBusy ? "..." : `Buy ${STARTER_DEAL.price}`;
+  btn.starterBuy.x = W / 2 - btn.starterBuy.w / 2; btn.starterBuy.y = y + h - 186; drawBtn(btn.starterBuy);
+  btn.starterClose.x = W / 2 - btn.starterClose.w / 2; btn.starterClose.y = y + h - 92; drawBtn(btn.starterClose);
+}
 const fmtNum = n => n.toLocaleString("en-US");   // 24200 -> "24,200"
 const storeIsTest = () => typeof window.nativePurchase !== "function";
 let shopOpen = false, shopConfirm = null, shopBusy = false, shopToast = null;
 function openShop() { shopOpen = true; shopConfirm = null; playUi("ui_pick"); }
 function grantProduct(pr) {
   if (pr.speed) { save.speed2x = true; writeSave(); playUi("ui_sell"); showBanner("2x Speed unlocked!", GOLD); shopToast = { text: "2x Speed unlocked!", color: GOLD, t: 0 }; return; }
-  if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; }
+  if (pr.starter) {
+    save.gems += pr.gemsAmt; save.specials.totem = true; save.specials.flight = true; save.starterBought = true;
+    shopToast = { text: `+${fmtNum(pr.gemsAmt)} gems + Totems!`, color: GOLD, t: 0 };
+  } else if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; }
   else {
     const el = pr.special;
     save.specials[el] = true;   // Special cards are bought once, for good
@@ -8562,6 +8630,7 @@ function drawLobbyUi() {
   if (cardInfo) drawCardInfo(dt);
   if (shopOpen) drawShop(dt);
   if (dailyOpen) drawDaily(dt);
+  if (starterOpen) { if (starterAvailable()) drawStarter(dt); else starterOpen = false; }
   if (bioOpen) drawBio();
   updateAdSim(dt); if (adSim) drawAdSim();
   if (shopToast && !castleOpen) drawShopToast(dt);
@@ -8677,6 +8746,7 @@ function drawHomeUi() {
   const cb = btn.castleUp, cp = cb.down ? 0.92 : 1;
   ctx.save(); ctx.translate(cb.x + cb.w / 2, cb.y + cb.h / 2 + Math.sin(lobbyT * 2) * 2); ctx.scale(cp, cp); drawCached("castle_icon", 120, 120, drawCastleIcon); ctx.restore();
   text("Castle", cb.x + cb.w / 2, cb.y + cb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  if (starterAvailable()) drawStarterIcon(btn.starter);   // Beginner Deal, under the Castle
   const cal = CAL_ICON[dailyReady() ? "calendar_notify" : "calendar"], db = btn.daily, press = db.down ? 0.92 : 1;
   if (cal && cal.ready) {
     const sz = db.w * press, f = Math.floor(lobbyT * 12) % 12;
@@ -8928,8 +8998,9 @@ function tutCheck() {
   if (tut) { const st = tutStep(); if (st.wait && st.wait()) tutNext(); return; }
   const seen = k => save.tut[k];
   if (state === "title") {
-    const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen && !bioOpen && !missionsOpen && !settingsOpen;
+    const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen && !bioOpen && !missionsOpen && !settingsOpen && !starterOpen;
     if (calm && !nameOpen && !profile().named) { openNameBox(true); return; }   // first launch: choose a name first
+    if (!save.starterAt && profile().named) { save.starterAt = Date.now(); writeSave(); }   // the Beginner Deal's 24h start now
     if (!seen("lobby") && calm && !nameOpen) tutStart("lobby");
     else if (seen("lobby") && calm && !dailyShownThisSession && dailyReady()) { dailyShownThisSession = true; dailyOpen = true; }
     return;
