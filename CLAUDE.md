@@ -34,6 +34,25 @@ The game is live and in active development (the old "wait for go" rule no longer
 - Serve with `python3 -m http.server 8765 --bind 127.0.0.1` from `web/` (file:// can't load audio); kill it after. Playwright + Chromium are installed.
 - Tests must tap once after loading (`LOAD.ready && loadShown >= 1`) to pass "TAP TO START".
 
+## Next task: ElevenLabs shot/hit sounds for 6 Myths (ready to run)
+The user asked for this; ElevenLabs couldn't be reached in the session that prepared it. Make one `_atk` (when the card fires) and one `_hit` (on impact) sound for each card below, matching its `MYTHFX` shot design.
+- How sounds work: a file `web/assets/audio/<card>_atk.mp3` / `<card>_hit.mp3` plus an entry in `SAMPLE_SRC` (top of index.html) replaces the synth sound automatically (`playSfx`). Existing recorded sounds are ~0.8-2 s mp3 (e.g. `serpent_atk.mp3` 1.0 s); keep each one short, punchy, no long tail. Trim silence and normalise loudness to match `serpent_atk.mp3`.
+- Use the ElevenLabs sound-effect generation (`creative_generate_in_flow`), one flow for all 12, and pick the best take of each.
+- Prompts:
+  - cerberus_atk: three hellhounds snarl as a flaming skull is hurled, fire whoosh with rattling hot iron chains, short
+  - cerberus_hit: ground cracks open, lava fissure hiss and a roaring flame pillar burst, deep and short
+  - basilisk_atk: venomous serpent hiss with a sharp stone fang flung through the air, gritty, short
+  - basilisk_hit: stone spikes erupting from the ground with a crunchy petrifying crackle, short
+  - griffin_atk: powerful eagle screech with a sharp wing flap and fast wind swoosh, short
+  - griffin_hit: four quick razor talon slashes with metallic shing and feathers fluttering, short
+  - qilin_atk: holy thunder crack with a bright bell chime, sacred and golden, short
+  - qilin_hit: golden lightning strike from the sky with a shimmering divine seal chime, short
+  - kraken_atk: wet slimy tentacle lashing out of deep water with bubbles, short
+  - kraken_hit: tentacles burst from the ground and squeeze, wet squelch and ink splash, short
+  - banshee_atk: eerie ghostly female wail rising into a shriek, short
+  - banshee_hit: piercing banshee scream shockwave with echoing ghostly whispers, short
+- Then: add the 12 entries to `SAMPLE_SRC`, test that they load, commit, republish the preview with a `files` map for the 12 new audio files, and send the user the link.
+
 ## To do / ideas
 - Legend cards (user sends art), ElevenLabs sounds for the new Specials and Myths.
 - Release: TESTER_RESET=false, Google Play billing (product ids must match), optional AdMob, new Android build.
