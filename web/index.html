@@ -5970,14 +5970,14 @@ const SPELLS = {
           rune: [[[0.500, 0.200], [0.578, 0.210], [0.650, 0.240], [0.712, 0.288], [0.760, 0.350], [0.790, 0.422], [0.800, 0.500], [0.790, 0.578], [0.760, 0.650], [0.712, 0.712], [0.650, 0.760], [0.578, 0.790], [0.500, 0.800], [0.422, 0.790], [0.350, 0.760], [0.288, 0.712], [0.240, 0.650], [0.210, 0.578], [0.200, 0.500], [0.210, 0.422], [0.240, 0.350], [0.288, 0.288], [0.350, 0.240], [0.422, 0.210], [0.500, 0.200]], [[0.500, 0.280], [0.647, 0.732], [0.262, 0.453], [0.738, 0.453], [0.353, 0.732], [0.500, 0.280]], [[0.217, 0.217], [0.104, 0.104]], [[0.783, 0.217], [0.896, 0.104]], [[0.217, 0.783], [0.104, 0.896]], [[0.783, 0.783], [0.896, 0.896]]],
           desc: "A giant meteor destroys every enemy. They drop no gold." },
 };
-// Late-game spells: they can be cast from wave 40 on.
+// More spells (all can be cast from the first wave; a spell can still set minWave to unlock later).
 Object.assign(SPELLS, {
   // a zigzag crack across the ground, drawn in one line
-  quake: { name: "Earthquake", cost: 60, color: "#d89a4a", aspect: 0.45, minWave: 40,
+  quake: { name: "Earthquake", cost: 60, color: "#d89a4a", aspect: 0.45,
            rune: [[[0, 0.5], [0.2, 0.05], [0.4, 0.95], [0.6, 0.05], [0.8, 0.95], [1, 0.5]]],
            desc: "The ground shakes: every enemy is stunned for 2 seconds." },
   // two arrowheads pointing back (rewind)
-  rewind: { name: "Rewind", cost: 80, color: "#7fe6ff", aspect: 1, minWave: 40,
+  rewind: { name: "Rewind", cost: 80, color: "#7fe6ff", aspect: 1,
             rune: [[[0.5, 0], [0, 0.5], [0.5, 1]], [[1, 0], [0.5, 0.5], [1, 1]]],
             desc: "Undo the wall damage taken in the last 5 seconds." },
 });
