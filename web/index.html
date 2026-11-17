@@ -9654,6 +9654,40 @@ const LOAD_TIPS = [
   "Epic cards can become Myth cards in the Fusion Chamber.",
   "Some enemies are weak to one element. Check the tag!",
 ];
+// ---- Warm-up: once every file has arrived (and the fonts), each card is drawn once off-screen in every form it can
+// appear in, so all its pre-drawn pictures exist and its art is decoded before the first tap (no stutter later).
+const WARM = { started: false, fontsOk: false, jobs: null, i: 0, done: false, canvas: null };
+function warmStart() {
+  WARM.started = true;
+  const want = ['700 40px "Cinzel Decorative"', '900 40px "Cinzel Decorative"', "500 20px Fredoka", "600 20px Fredoka", "700 20px Fredoka"];
+  const fonts = document.fonts && document.fonts.load ? Promise.all(want.map(f => document.fonts.load(f).catch(() => {}))).then(() => document.fonts.ready) : Promise.resolve();
+  Promise.race([fonts, new Promise(r => setTimeout(r, 6000))]).then(() => { WARM.fontsOk = true; });
+}
+function warmJobs() {
+  const jobs = [], at = c => { c.x = c.hx = 110; c.y = c.hy = 130; c.t = 1; return c; };
+  for (const el of UPGRADABLE) {
+    const d = EL[el], forms = d.special ? [SPECIAL] : d.legendCard ? [LEGEND_R] : d.myth ? [MYTH] : d.tier === 3 ? [EPIC] : [0, 1, 2];
+    for (const r of forms) jobs.push(() => { const c = at(new Card(el, r)); c.draw(); c.inShop = true; c.price = 5; c.draw(); });
+    jobs.push(() => {   // the Cards library version and its locked shadow
+      const c = collectionCards[el], keep = [c.x, c.y, c.hx, c.hy, c.scale];
+      at(c); c.scale = 0.72; c.draw(); [c.x, c.y, c.hx, c.hy, c.scale] = keep;
+      drawShadowCard(el, 110, 130);
+    });
+  }
+  return jobs;
+}
+function warmStep(budget) {   // runs warm-up jobs on an off-screen canvas for up to `budget` ms this frame
+  if (!WARM.jobs) { WARM.jobs = warmJobs(); WARM.canvas = document.createElement("canvas"); WARM.canvas.width = 240; WARM.canvas.height = 300; }
+  const main = ctx, t0 = performance.now(); ctx = WARM.canvas.getContext("2d");
+  try {
+    while (WARM.i < WARM.jobs.length && performance.now() - t0 < budget) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, 240, 300);
+      try { WARM.jobs[WARM.i](); } catch (e) {}
+      WARM.i++;
+    }
+  } finally { ctx = main; }
+  if (WARM.i >= WARM.jobs.length) { WARM.done = true; WARM.canvas = null; }
+}
 const LOAD_ORBS = [["#ff6a2a", "#ffd0a0"], ["#3aa8ff", "#d0ecff"], ["#c89a5a", "#f6e2c0"], ["#3ad8a8", "#d0fff0"]];   // fire, water, earth, wind
 let loadShown = 0;
 function loadRingOuter() {   // outer rune ring (pre-drawn, then rotated)
@@ -9689,7 +9723,8 @@ function loadStars(h) {   // a fixed field of stars (pre-drawn once)
   }
 }
 function drawLoading(now) {
-  const real = LOAD.total ? LOAD.done / LOAD.total : 0, t = Math.max(0, now - LOAD.t0) / 1000;   // a frame can start a hair before t0
+  const files = LOAD.total ? LOAD.done / LOAD.total : 0, warm = WARM.done ? 1 : WARM.jobs ? WARM.i / WARM.jobs.length : 0;
+  const real = files * 0.8 + warm * 0.2, t = Math.max(0, now - LOAD.t0) / 1000;   // files first, then the warm-up   // a frame can start a hair before t0
   loadShown += (Math.max(real, LOAD.ready ? 1 : 0) - loadShown) * 0.08; if (LOAD.ready && loadShown > 0.995) loadShown = 1;
   const k = loadShown, intro = Math.min(1, t / 0.8);
   // ---- Sky: deep gradient, drifting nebulas, stars, slow light rays.
@@ -9792,7 +9827,7 @@ function drawLoading(now) {
   text("v1.0", W - 20, H - 18, 15, "rgba(243,227,195,0.45)", { align: "right", weight: 600 });
   // ---- Golden flash after the tap.
   if (LOAD.go) {
-    const f = Math.min(1, (now - LOAD.go) / 450);
+    const f = clamp((now - LOAD.go) / 450, 0, 1);   // the frame clock can be a hair behind the tap
     ctx.save(); ctx.globalCompositeOperation = "lighter";
     const fg2 = ctx.createRadialGradient(cx, cy, 10, cx, cy, 120 + f * 900); fg2.addColorStop(0, `rgba(255,240,200,${0.9 * (1 - f * 0.3)})`); fg2.addColorStop(1, "rgba(255,200,120,0)");
     ctx.fillStyle = fg2; ctx.fillRect(0, 0, W, H); ctx.restore();
@@ -9801,7 +9836,10 @@ function drawLoading(now) {
 }
 function frame(now) {
   if (!LOAD.finished) {   // loading screen first
-    if (!LOAD.ready && ((LOAD.total > 0 && LOAD.done >= LOAD.total && now - LOAD.t0 > 1200) || now - LOAD.t0 > 20000)) LOAD.ready = true;   // then wait for a tap
+    const filesIn = LOAD.total > 0 && LOAD.done >= LOAD.total;
+    if (filesIn && !WARM.started) warmStart();
+    if (filesIn && WARM.fontsOk && !WARM.done) warmStep(10);   // pre-draw every card, a little each frame
+    if (!LOAD.ready && ((filesIn && WARM.done && now - LOAD.t0 > 1200) || now - LOAD.t0 > 30000)) LOAD.ready = true;   // then wait for a tap
     if (LOAD.go && now - LOAD.go > 450) { LOAD.finished = true; fadeIn = 0.5; last = now; }
     else { last = now; drawLoading(now); requestAnimationFrame(frame); return; }
   }
