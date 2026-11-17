@@ -9085,7 +9085,7 @@ function drawRates() {
 const AVATARS = ["fire", "water", "earth", "wind", "lava", "steam", "lightning", "plant", "dust", "ice"];
 let bioOpen = false;
 // TEMPORARY for testers: a button in the Profile that wipes all progress. Set to false before release.
-const TESTER_RESET = true;
+const TESTER_RESET = false;
 let resetArmed = 0;
 // TEMPORARY for testers: a TEST button in battle opens a picker with every card in the game.
 let testPick = null, testBtns = [], testDrag = null;
@@ -9825,6 +9825,25 @@ const specialTiles = SPECIALS.map(el => {
   const card = new Card(el, SPECIAL); card.noLabel = true;
   return { ...makeBtn("", 0, 0, 0, 0, () => { shopConfirm = pr; playUi("ui_pick"); }), pr, card };
 });
+// ---- Google Play bridge. The Android app adds window.AndroidBilling (Play Billing); each purchase resolves once Play confirms it.
+if (window.AndroidBilling) {
+  const waiting = {}; let seq = 0;
+  window.nativePurchase = id => new Promise(res => { const k = "p" + (++seq); waiting[k] = res; try { window.AndroidBilling.buy(id, k); } catch (e) { delete waiting[k]; res(false); } });
+  window.__purchaseDone = (k, ok) => { const r = waiting[k]; delete waiting[k]; if (r) r(!!ok); };
+}
+function productById(id) {
+  if (id === STARTER_DEAL.id) return STARTER_DEAL;
+  if (id === SPEED_PRODUCT.id) return SPEED_PRODUCT;
+  if (id.startsWith("special_") && EL[id.slice(8)]) return { id, special: id.slice(8), price: SHOP_SPECIAL_PRICE, name: EL[id.slice(8)].name };
+  return SHOP_GEMS.find(p => p.id === id) || null;
+}
+// Called by the app for purchases Play reports at start-up: one finished while the game was closed, or one-time items after a reinstall.
+// One-time items already owned are skipped, so nothing is ever granted twice.
+window.__grantOwned = id => {
+  const pr = productById(id); if (!pr) return false;
+  if ((pr.speed && save.speed2x) || (pr.starter && save.starterBought) || (pr.special && save.specials[pr.special])) return true;
+  grantProduct(pr); return true;
+};
 function shopPanel() { const h = 1120; return { x: 24, y: Math.max(96, H / 2 - h / 2), w: W - 48, h }; }
 function shopButtons() {
   if (shopConfirm) return shopBusy ? [] : [btn.shopBuy, btn.shopCancel];

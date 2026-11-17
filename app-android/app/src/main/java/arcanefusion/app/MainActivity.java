@@ -17,6 +17,7 @@ import androidx.webkit.WebViewAssetLoader;
 // Files are served from https://appassets.androidplatform.net so fetch() and storage work like on the web.
 public class MainActivity extends Activity {
     private WebView web;
+    private PlayBilling billing;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -41,10 +42,14 @@ public class MainActivity extends Activity {
                 return loader.shouldInterceptRequest(r.getUrl());
             }
             @Override
+            public void onPageFinished(WebView v, String url) { if (billing != null) billing.onPageReady(); }
+            @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 return !"appassets.androidplatform.net".equals(r.getUrl().getHost());   // stay inside the game
             }
         });
+        billing = new PlayBilling(this, web);
+        web.addJavascriptInterface(billing, "AndroidBilling");   // Google Play purchases (see PlayBilling)
         setContentView(web);
         hideBars();
         if (state != null) web.restoreState(state);
@@ -72,5 +77,5 @@ public class MainActivity extends Activity {
     @Override protected void onResume() { super.onResume(); web.onResume(); web.evaluateJavascript("window.setAway&&setAway(false)", null); hideBars(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
     @Override public void onBackPressed() { moveTaskToBack(true); }   // keep the run alive instead of closing the game
-    @Override protected void onDestroy() { web.destroy(); super.onDestroy(); }
+    @Override protected void onDestroy() { if (billing != null) billing.destroy(); web.destroy(); super.onDestroy(); }
 }

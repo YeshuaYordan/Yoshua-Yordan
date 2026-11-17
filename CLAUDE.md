@@ -4,7 +4,7 @@ The game is live and in active development (the old "wait for go" rule no longer
 
 ## Where things are
 - Game: `web/index.html` (one file, canvas 2D, width 720) plus `web/assets/img`, `web/assets/audio`, `web/sprites/epic`.
-- Android app wrapper: `app-android/` (package `arcanefusion.app`, WebView with WebViewAssetLoader; the build copies `web/`). Version 1.0.1 (code 2); bump versionCode for every new upload.
+- Android app wrapper: `app-android/` (package `arcanefusion.app`, WebView with WebViewAssetLoader; the build copies `web/`). Version 1.1.0 (code 3, not built yet); bump versionCode for every new upload. Play Billing: `PlayBilling.java` (billing 7.1.1) exposes `window.AndroidBilling`; the game's bridge is next to `productById` / `__grantOwned` in index.html. Not compiled yet (no SDK in the session that wrote it): build and fix if needed.
 - Upload key: `app-android/upload-keystore.jks` + `UPLOAD_KEY_README.txt` (git-ignored; the user has a copy). Release copies go in `play-release/` (git-ignored).
 - Branch: `claude/game-project-mzv2uw`. Web preview artifact: https://claude.ai/artifact/Hdh3dPfxfE5bTdbZwXqT9X (republish `web/index.html`; new asset files need a `files` map, e.g. `{"assets/img/x.webp": "web/assets/img/x.webp"}`).
 - Android SDK goes in `/opt/android-sdk` (the user accepted the license; host dl.google.com is allowed). Maven Central rate-limits: build with `gradle --no-daemon -q --max-workers=1 bundleRelease assembleRelease`, retry on 429.
@@ -28,7 +28,8 @@ The game is live and in active development (the old "wait for go" rule no longer
 - Castle & spell upgrades: `CASTLE_UPS`, `spellUpCost` (prices are 4x the original). Spell cast price x1.5 per cast per run (`spellCost`).
 - Player name: first-launch panel, change once per 7 days (`openNameBox`, `NAME_COOLDOWN`).
 - Loading screen: `drawLoading`, warm-up pre-draws every card (`WARM`), then "TAP TO START".
-- `TESTER_RESET = true` shows the Reset/Test-cards buttons: set false for release.
+- `TESTER_RESET` is now false (release). Set it true only for a private test build.
+- Play Console in-app products (all one-time "in-app" products): consumable gem packs gems_250, gems_1500, gems_4000, gems_10000, gems_35000, gems_100000; one-time (never consumed) speed_2x, starter_deal, special_totem, special_flight, special_midas, special_mirror, special_hourglass, special_bulwark, special_seer, special_chainlink, special_chalice, special_hex.
 
 ## Testing
 - Serve with `python3 -m http.server 8765 --bind 127.0.0.1` from `web/` (file:// can't load audio); kill it after. Playwright + Chromium are installed.
@@ -36,4 +37,4 @@ The game is live and in active development (the old "wait for go" rule no longer
 
 ## To do / ideas
 - Summon sounds: `summon_<rise|zap|step|implode|boom|boom_epic|boom_legend|flip|flip_rare>` played by `summonSfx` (synth is the fallback). Done: `_atk`/`_hit` sounds for the 7 Greek Legends. Done: Special sounds (`sp_<card>_up` on power-up for all 10, `sp_<card>` when an idol triggers, via `playSpecial` with cooldowns). Also done: `_atk`/`_hit` sounds for Serpent, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee (loudness matched to `serpent_atk.mp3`, about -12.5 LUFS, max 1.4 s).
-- Release: TESTER_RESET=false, Google Play billing (product ids must match), optional AdMob, new Android build.
+- Release: build 1.1.0 (code 3) and test a real purchase with a Play license tester; create the products above in Play Console; optional AdMob; store listing, privacy policy, data safety, content rating; closed test if the account needs it.
