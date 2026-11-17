@@ -35,5 +35,5 @@ The game is live and in active development (the old "wait for go" rule no longer
 - Tests must tap once after loading (`LOAD.ready && loadShown >= 1`) to pass "TAP TO START".
 
 ## To do / ideas
-- Legend cards (user sends art), ElevenLabs sounds for the new Specials. Done: `_atk`/`_hit` sounds for Serpent, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee (loudness matched to `serpent_atk.mp3`, about -12.5 LUFS, max 1.4 s).
+- Legend cards (user sends art). Done: Special sounds (`sp_<card>_up` on power-up for all 10, `sp_<card>` when an idol triggers, via `playSpecial` with cooldowns). Also done: `_atk`/`_hit` sounds for Serpent, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee (loudness matched to `serpent_atk.mp3`, about -12.5 LUFS, max 1.4 s).
 - Release: TESTER_RESET=false, Google Play billing (product ids must match), optional AdMob, new Android build.
