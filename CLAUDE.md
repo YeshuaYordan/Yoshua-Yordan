@@ -4,8 +4,8 @@ The game is live and in active development (the old "wait for go" rule no longer
 
 ## Where things are
 - Game: `web/index.html` (one file, canvas 2D, width 720) plus `web/assets/img`, `web/assets/audio`, `web/sprites/epic`.
-- Android app wrapper: `app-android/` (package `arcanefusion.app`, WebView with WebViewAssetLoader; the build copies `web/`). Version 1.1.0 (code 3, not built yet); bump versionCode for every new upload. Play Billing: `PlayBilling.java` (billing 7.1.1) exposes `window.AndroidBilling`; the game's bridge is next to `productById` / `__grantOwned` in index.html. Not compiled yet (no SDK in the session that wrote it): build and fix if needed.
-- Upload key: `app-android/upload-keystore.jks` + `UPLOAD_KEY_README.txt` (git-ignored; the user has a copy). Release copies go in `play-release/` (git-ignored).
+- Android app wrapper: `app-android/` (package `arcanefusion.app`, WebView with WebViewAssetLoader; the build copies `web/`). Version 1.1.0 (code 3, built and signed 2026-11-17, never uploaded to Play yet, so code 3 can still be used for the first upload); bump versionCode for every upload after that. Play Billing: `PlayBilling.java` (billing 7.1.1) exposes `window.AndroidBilling`; the game's bridge is next to `productById` / `__grantOwned` in index.html. Compiles fine; real purchases not tested yet.
+- Upload key: `app-android/upload-keystore.jks` + `UPLOAD_KEY_README.txt` (git-ignored; the user has a copy). The old key was lost; a new one was made 2026-11-17 (alias `upload`) before any Play upload, so it is the app's only upload key. If it's missing in a session, ask the user to attach the .jks and its README. Release copies go in `play-release/` (git-ignored).
 - Branch: `claude/game-project-mzv2uw`. Web preview artifact: https://claude.ai/artifact/Hdh3dPfxfE5bTdbZwXqT9X (republish `web/index.html`; new asset files need a `files` map, e.g. `{"assets/img/x.webp": "web/assets/img/x.webp"}`).
 - Android SDK goes in `/opt/android-sdk` (the user accepted the license; host dl.google.com is allowed). Maven Central rate-limits: build with `gradle --no-daemon -q --max-workers=1 bundleRelease assembleRelease`, retry on 429.
 
@@ -37,4 +37,4 @@ The game is live and in active development (the old "wait for go" rule no longer
 
 ## To do / ideas
 - Summon sounds: `summon_<rise|zap|step|implode|boom|boom_epic|boom_legend|flip|flip_rare>` played by `summonSfx` (synth is the fallback). Done: `_atk`/`_hit` sounds for the 7 Greek Legends. Done: Special sounds (`sp_<card>_up` on power-up for all 10, `sp_<card>` when an idol triggers, via `playSpecial` with cooldowns). Also done: `_atk`/`_hit` sounds for Serpent, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee (loudness matched to `serpent_atk.mp3`, about -12.5 LUFS, max 1.4 s).
-- Release: build 1.1.0 (code 3) and test a real purchase with a Play license tester; create the products above in Play Console; optional AdMob; store listing, privacy policy, data safety, content rating; closed test if the account needs it.
+- Publishing is on hold: the user wants to polish the game first. Release checklist for later: build 1.1.0 (code 3) and test a real purchase with a Play license tester; create the products above in Play Console; optional AdMob; store listing, privacy policy, data safety, content rating; closed test if the account needs it.
