@@ -8696,7 +8696,7 @@ const SHOP_GEMS = [
 ];
 const SHOP_SPECIAL_PRICE = "$4.99";
 // ---- Beginner Deal: one-time offer for new players, open for 24 hours from their first visit to the lobby.
-const STARTER_DEAL = { id: "starter_deal", starter: true, price: "$1.00", name: "Beginner Deal", gemsAmt: 2000 };
+const STARTER_DEAL = { id: "starter_deal", starter: true, price: "$1.00", name: "Beginner Deal", gemsAmt: 2000, cards: ["totem", "flight", "chalice"] };
 const STARTER_TIME = 24 * 3600 * 1000;
 let starterOpen = false;
 function starterLeft() { return save.starterAt ? Math.max(0, save.starterAt + STARTER_TIME - Date.now()) : STARTER_TIME; }
@@ -8711,7 +8711,7 @@ async function buyStarter() {
   if (ok) { grantProduct(STARTER_DEAL); starterOpen = false; }
   else shopToast = { text: "Purchase cancelled", color: "#ff9a8a", t: 0 };
 }
-const starterCards = ["totem", "flight"].map(el => { const c = new Card(el, SPECIAL); c.noLabel = true; return c; });
+const starterCards = STARTER_DEAL.cards.map(el => { const c = new Card(el, SPECIAL); c.noLabel = true; return c; });
 function drawStarterIcon(b) {   // the animated gift icon (a drawn gift box until it loads), label and countdown
   if (OFFER_ICON.ready) {
     const sz = b.w * 1.18 * (b.down ? 0.92 : 1);
@@ -8745,19 +8745,19 @@ function drawStarter(dt) {
   text("Beginner Deal", W / 2, y + 82, 46, INK, { font: DISPLAY, weight: 900 });
   text(`Ends in ${fmtClock(starterLeft())}`, W / 2, y + 126, 26, "#c0392b", { weight: 800 });
   if (storeIsTest()) text("TEST MODE: purchases are free (no real money)", W / 2, y + 158, 17, "#c0392b", { weight: 700 });
-  // Contents: gems, Fight, Flight.
-  const tw = (w - 80) / 3, th = 330, ty = y + 186;
-  const items = [["2,000", "Gems"], ["1x", "Fight Totem"], ["1x", "Flight Totem"]];
+  // Contents: gems, Fight, Flight, Chalice.
+  const items = [["2,000", "Gems"], ...STARTER_DEAL.cards.map(el => ["1x", EL[el].idol ? EL[el].name : `${EL[el].name} Totem`])];
+  const gapI = 12, tw = (w - 40 - gapI * (items.length - 1)) / items.length, th = 330, ty = y + 186;
   items.forEach(([a, b], i) => {
-    const tx = x + 20 + i * (tw + 20);
+    const tx = x + 20 + i * (tw + gapI);
     rrect(tx, ty, tw, th, 16); ctx.fillStyle = i ? "#2a1d40" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
     if (i === 0) gemPile(tx + tw / 2, ty + 120, 6);
-    else { const c = starterCards[i - 1]; c.t += dt; c.x = c.hx = tx + tw / 2; c.y = c.hy = ty + 120; c.scale = 1.05; c.draw(); }
+    else { const c = starterCards[i - 1]; c.t += dt; c.x = c.hx = tx + tw / 2; c.y = c.hy = ty + 120; c.scale = 0.95; c.draw(); }
     text(a, tx + tw / 2, ty + th - 76, 30, i ? GOLD : INK, { weight: 900, outline: i ? 5 : 0 });
     text(b, tx + tw / 2, ty + th - 40, 19, i ? PARCH : "#6b3a22", { weight: 800, outline: i ? 4 : 0 });
-    if (i && save.specials[SPECIALS[i - 1]]) text("(already owned)", tx + tw / 2, ty + th - 14, 14, "#c9b8ff", { weight: 700 });
+    if (i && save.specials[STARTER_DEAL.cards[i - 1]]) text("(already owned)", tx + tw / 2, ty + th - 14, 14, "#c9b8ff", { weight: 700 });
   });
-  text("Fight and Flight totems are unlocked for good.", W / 2, ty + th + 40, 19, "#6b3a22", { weight: 600 });
+  text("Fight, Flight and Chalice are unlocked for good.", W / 2, ty + th + 40, 19, "#6b3a22", { weight: 600 });
   btn.starterBuy.label = shopBusy ? "..." : `Buy ${STARTER_DEAL.price}`;
   btn.starterBuy.x = W / 2 - btn.starterBuy.w / 2; btn.starterBuy.y = y + h - 186; drawBtn(btn.starterBuy);
   btn.starterClose.x = W / 2 - btn.starterClose.w / 2; btn.starterClose.y = y + h - 92; drawBtn(btn.starterClose);
@@ -8769,8 +8769,8 @@ function openShop() { shopOpen = true; shopConfirm = null; playUi("ui_pick"); }
 function grantProduct(pr) {
   if (pr.speed) { save.speed2x = true; writeSave(); playUi("ui_sell"); showBanner("2x Speed unlocked!", GOLD); shopToast = { text: "2x Speed unlocked!", color: GOLD, t: 0 }; return; }
   if (pr.starter) {
-    save.gems += pr.gemsAmt; save.specials.totem = true; save.specials.flight = true; save.starterBought = true;
-    shopToast = { text: `+${fmtNum(pr.gemsAmt)} gems + Totems!`, color: GOLD, t: 0 };
+    save.gems += pr.gemsAmt; for (const el of pr.cards) save.specials[el] = true; save.starterBought = true;
+    shopToast = { text: `+${fmtNum(pr.gemsAmt)} gems + 3 cards!`, color: GOLD, t: 0 };
   } else if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; }
   else {
     const el = pr.special;
