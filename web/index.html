@@ -9333,7 +9333,7 @@ function drawHomeUi() {
 // ------------------------------------------------------------ Merge & Fusion guide (illustrated)
 // Shown once after the first cleared wave, even when the tutorial was skipped. It can't be skipped the first time.
 // Each page shows real cards in little equations: [A] + [B] = [C].
-const EPIC_RECIPES = RECIPE_LIST.filter(r => EL[r[2]].tier === 3);   // the 11 Epic fusions
+const EPIC_RECIPES = RECIPE_LIST.filter(r => EL[r[2]].tier === 3);   // all Epic fusions (the guide shows 12)
 const GUIDE = [
   { t: "Card Levels", show: [["fire", 0, "V1 = Common"], ["fire", 1, "V2 = Uncommon"], ["fire", 2, "V3 = Rare"]],
     b: "Every card has a level, shown at the top of the card. V1 is Common (grey), V2 is Uncommon (green) and V3 is Rare (blue). Higher levels hit much harder: a V3 does almost 3x the damage of a V1." },
@@ -9352,8 +9352,8 @@ const GUIDE = [
     b: "To make an Epic card, fuse two DIFFERENT Next elements that are BOTH V3 (Rare). V1 or V2 Next elements can't become Epic, so merge them up to V3 first. Epic cards have a single form and don't merge with each other." },
   { t: "Epic Recipes (1/2)", recipes: EPIC_RECIPES.slice(0, 6), rIn: 2, rOut: EPIC,
     b: "Every Epic recipe uses two V3 (Rare) Next elements. Here are the first six." },
-  { t: "Epic Recipes (2/2)", recipes: EPIC_RECIPES.slice(6), rIn: 2, rOut: EPIC,
-    b: "And the other five. All recipes are also written in the Spellbook." },
+  { t: "Epic Recipes (2/2)", recipes: EPIC_RECIPES.slice(6, 12), rIn: 2, rOut: EPIC,
+    b: "Here are six more. Every recipe you discover is written in the Spellbook." },
   { t: "Myth: Fusion Chamber", eq: [[["storm", EPIC], ["blizzard", EPIC], ["grove", EPIC], ["phoenix", MYTH]]], note: "3 Epics: 36%   4 Epics: 48%   5 Epics: 60%",
     b: "Tap Chamber and put 3 to 5 Epic cards on the altars, then tap Fuse for a chance to create one of the 10 Myth cards (Phoenix, Kitsune, Cerberus, Kraken...). More Epic cards give a better chance. If it fails, all those cards are lost!" },
   { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["zeus", LEGEND]]], note: "Each Myth +9%   each Epic +3%   up to 45%",
