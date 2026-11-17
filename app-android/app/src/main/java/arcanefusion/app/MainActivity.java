@@ -66,8 +66,9 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onWindowFocusChanged(boolean has) { super.onWindowFocusChanged(has); if (has) hideBars(); }
-    @Override protected void onPause() { super.onPause(); web.onPause(); }       // the game sees the page hidden and pauses sound
-    @Override protected void onResume() { super.onResume(); web.onResume(); hideBars(); }
+    // Pause all game sound while the app is in the background, and resume it on return.
+    @Override protected void onPause() { super.onPause(); web.evaluateJavascript("window.setAway&&setAway(true)", null); web.onPause(); }
+    @Override protected void onResume() { super.onResume(); web.onResume(); web.evaluateJavascript("window.setAway&&setAway(false)", null); hideBars(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
     @Override public void onBackPressed() { moveTaskToBack(true); }   // keep the run alive instead of closing the game
     @Override protected void onDestroy() { web.destroy(); super.onDestroy(); }

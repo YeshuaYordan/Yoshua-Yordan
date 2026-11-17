@@ -6818,7 +6818,16 @@ function applyLayout() {
   for (const r in rows) rows[r].forEach((c, i) => { if (c) { const p = slotPos(r, i); c.setHome(p.x, p.y, true); } });
 }
 window.addEventListener("resize", applyLayout);
-document.addEventListener("visibilitychange", () => { if (document.hidden) shakeT = 0; });   // switching away stops the shake
+// Leaving the game (home button, other app, locked screen, other tab) pauses all music and sounds; coming back resumes them.
+function setAway(away) {
+  if (away) shakeT = 0;   // switching away also stops the shake
+  if (!Sfx.ctx) return;
+  if (away) { if (Sfx.ctx.state === "running") Sfx.ctx.suspend(); }
+  else if (Sfx.ctx.state === "suspended") Sfx.ctx.resume();
+}
+document.addEventListener("visibilitychange", () => setAway(document.hidden));
+window.addEventListener("pagehide", () => setAway(true));
+window.addEventListener("pageshow", () => { if (!document.hidden) setAway(false); });
 function drawFilm() {
   // Only a soft, static darkening at the edges. No grain, flicker or scratches. (Off in Battery saver.)
   if (!settings.lite) ctx.drawImage(vignette, 0, 0);
