@@ -212,13 +212,13 @@ const EL = {
   hades:     { name: "Hades", tier: 3, legendCard: true, art: "hades", theme: "under", soul: true, color: "#a64dff", shape: "blob", parts: ["fire", "earth"], desc: "Lord of the underworld: hurls 3 soul skulls that curse foes. A cursed foe's soul hunts the next enemy when it dies.", dmg: 46, rate: 1.2, speed: 560, multishot: 3, burn: 6 },
   poseidon:  { name: "Poseidon", tier: 3, legendCard: true, art: "poseidon", color: "#3fb8ff", shape: "drop", parts: ["water", "wind"], desc: "God of the sea: a nonstop water beam pierces every enemy in its line.", theme: "sea", dmg: 30, rate: 1.2, lance: 46, slow: 0.75 },
   // The Greek Legends below have no art yet (wip): they stay out of Summon and the Chamber until it arrives (test cards still give them).
-  athena:    { name: "Athena", tier: 3, legendCard: true, wip: true, color: "#e8c870", shape: "crystal", parts: ["earth", "wind"], desc: "Goddess of wisdom and war: her golden spear pierces 6 enemies and shatters their armour (+20% damage taken).", dmg: 44, rate: 1.0, speed: 950, shotScale: 1.6, pierce: 6, curse: 0.2, knock: 30 },
-  ares:      { name: "Ares", tier: 3, legendCard: true, wip: true, color: "#d8322a", shape: "flame", parts: ["fire", "earth"], desc: "God of war: hurls 2 blazing axes. Battle frenzy: every throw makes him faster, up to x2 speed (resets when no enemies are left).", dmg: 40, rate: 1.0, speed: 820, shotScale: 1.6, multishot: 2, burn: 8, frenzy: 10 },
-  apollo:    { name: "Apollo", tier: 3, legendCard: true, wip: true, color: "#ffb43a", shape: "spiky", parts: ["fire", "light"], desc: "God of the sun: a lance of sunlight burns through every enemy in its path.", dmg: 42, rate: 1.1, speed: 1250, shotScale: 1.7, pierce: 99, burn: 10 },
-  artemis:   { name: "Artemis", tier: 3, legendCard: true, wip: true, color: "#b8c8ff", shape: "crystal", parts: ["wind", "light"], desc: "Goddess of the hunt: 4 moonlight arrows that never miss, chilling their targets.", dmg: 30, rate: 1.2, speed: 1150, shotScale: 1.4, multishot: 4, slow: 0.7 },
-  hermes:    { name: "Hermes", tier: 3, legendCard: true, wip: true, color: "#7ae0c8", shape: "swirl", parts: ["wind", "water"], desc: "Messenger of the gods: lightning-fast strikes leap through 8 enemies and slow them.", dmg: 34, rate: 1.3, chain: 8, slow: 0.6 },
-  hephaestus:{ name: "Hephaestus", tier: 3, legendCard: true, wip: true, color: "#ff7a2a", shape: "rock", parts: ["fire", "earth"], desc: "God of the forge: a red-hot hammer slams an area, stunning foes and leaving molten metal pools.", dmg: 50, rate: 0.9, speed: 620, shotScale: 1.8, splash: 90, root: 0.7, puddle: 60, puddle_dps: 16, burn: 6 },
-  hera:      { name: "Hera", tier: 3, legendCard: true, wip: true, color: "#d68aff", shape: "swirl", parts: ["water", "light"], desc: "Queen of the gods: a peacock feather bursts over a wide area and marks foes (+15% damage taken). Royal aura: the cards right next to her deal +25% damage.", dmg: 38, rate: 1.0, speed: 760, shotScale: 1.7, splash: 130, curse: 0.15, aura: 0.25 },
+  athena:    { name: "Athena", tier: 3, legendCard: true, wip: true, theme: "athena", color: "#e8c870", shape: "crystal", parts: ["earth", "wind"], desc: "Goddess of wisdom and war: her golden spear pierces 6 enemies and shatters their armour (+20% damage taken).", dmg: 44, rate: 1.0, speed: 950, shotScale: 1.6, pierce: 6, curse: 0.2, knock: 30 },
+  ares:      { name: "Ares", tier: 3, legendCard: true, wip: true, theme: "ares", color: "#d8322a", shape: "flame", parts: ["fire", "earth"], desc: "God of war: hurls 2 blazing axes. Battle frenzy: every throw makes him faster, up to x2 speed (resets when no enemies are left).", dmg: 40, rate: 1.0, speed: 820, shotScale: 1.6, multishot: 2, burn: 8, frenzy: 10 },
+  apollo:    { name: "Apollo", tier: 3, legendCard: true, wip: true, theme: "apollo", color: "#ffb43a", shape: "spiky", parts: ["fire", "light"], desc: "God of the sun: a lance of sunlight burns through every enemy in its path.", dmg: 42, rate: 1.1, speed: 1250, shotScale: 1.7, pierce: 99, burn: 10 },
+  artemis:   { name: "Artemis", tier: 3, legendCard: true, wip: true, theme: "artemis", color: "#b8c8ff", shape: "crystal", parts: ["wind", "light"], desc: "Goddess of the hunt: 4 moonlight arrows that never miss, chilling their targets.", dmg: 30, rate: 1.2, speed: 1150, shotScale: 1.4, multishot: 4, slow: 0.7 },
+  hermes:    { name: "Hermes", tier: 3, legendCard: true, wip: true, theme: "hermes", color: "#7ae0c8", shape: "swirl", parts: ["wind", "water"], desc: "Messenger of the gods: lightning-fast strikes leap through 8 enemies and slow them.", dmg: 34, rate: 1.3, chain: 8, slow: 0.6 },
+  hephaestus:{ name: "Hephaestus", tier: 3, legendCard: true, wip: true, theme: "hephaestus", color: "#ff7a2a", shape: "rock", parts: ["fire", "earth"], desc: "God of the forge: a red-hot hammer slams an area, stunning foes and leaving molten metal pools.", dmg: 50, rate: 0.9, speed: 620, shotScale: 1.8, splash: 90, root: 0.7, puddle: 60, puddle_dps: 16, burn: 6 },
+  hera:      { name: "Hera", tier: 3, legendCard: true, wip: true, theme: "hera", color: "#d68aff", shape: "swirl", parts: ["water", "light"], desc: "Queen of the gods: a peacock feather bursts over a wide area and marks foes (+15% damage taken). Royal aura: the cards right next to her deal +25% damage.", dmg: 38, rate: 1.0, speed: 760, shotScale: 1.7, splash: 130, curse: 0.15, aura: 0.25 },
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [168, 93, 170], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400 / 1.5, rate: (1 / 16) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 11, shotScale: 4 },   // 11 s rest + 5 s gathering = one shot every 16 s
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [150, 122, 200], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
   serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [219, 55, 180], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre (bosses resist it).", dmg: 32, rate: 0.6 / RARITY_RATE[4], speed: 680, shotScale: 1.7, whirl: 105, whirl_pull: 150, whirl_time: 2.6 },
@@ -318,6 +318,30 @@ function idolRow(kind) { for (const o of rows.active) if (o && EL[o.element].tot
 let hitSrc = null;      // the card whose shot is landing right now (for idols that boost their neighbours)
 let idolTimeMult = 1;   // Hourglass: enemy speed this frame
 let bulwarkFlash = 0, chaliceGlow = 0;   // short glows on the castle wall when Bulwark blocks / Chalice heals
+// What circles each Greek Legend's card (like Zeus's golden orbs, Poseidon's bubbles and Hades' skulls).
+const LEGEND_ORBIT = {
+  athena: { tail: [255, 220, 130], icon: (r, t) => {   // her round aegis shield, turning
+    ctx.scale(Math.abs(Math.cos(t * 3)) * 0.7 + 0.3, 1);
+    circle(0, 0, r, "#e8c060"); ring(0, 0, r, "#5a3a08", 1.2); ring(0, 0, r * 0.6, "#8a5a14", 1); circle(0, 0, r * 0.25, "#fff6d0"); } },
+  ares: { tail: [255, 90, 40], icon: (r, t) => {   // a spinning double axe
+    ctx.rotate(t * 10); ctx.strokeStyle = "#2a1006"; ctx.lineWidth = r * 0.3; ctx.beginPath(); ctx.moveTo(0, -r * 1.2); ctx.lineTo(0, r * 1.2); ctx.stroke();
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(0, -r * 0.5); ctx.quadraticCurveTo(s * r * 1.4, -r * 0.8, s * r * 1.1, 0); ctx.quadraticCurveTo(s * r * 1.4, r * 0.8, 0, r * 0.5); ctx.closePath(); ctx.fillStyle = "#e8402a"; ctx.fill(); ctx.strokeStyle = "#ffd0a0"; ctx.lineWidth = 0.8; ctx.stroke(); } } },
+  apollo: { tail: [255, 190, 70], icon: (r, t) => {   // a little sun
+    ctx.rotate(t * 2); for (let i = 0; i < 8; i++) { ctx.rotate(Math.PI / 4); poly([[r * 0.7, -r * 0.22], [r * 1.5, 0], [r * 0.7, r * 0.22]], "#ffc040", null); }
+    circle(0, 0, r * 0.8, "#fff2a8"); circle(-r * 0.2, -r * 0.2, r * 0.3, "#ffffff"); } },
+  artemis: { tail: [180, 200, 255], icon: (r) => {   // a crescent moon
+    ctx.beginPath(); ctx.arc(0, 0, r, Math.PI * 0.3, Math.PI * 1.7); ctx.arc(r * 0.45, 0, r * 0.8, Math.PI * 1.55, Math.PI * 0.45, true); ctx.closePath(); ctx.fillStyle = "#eef2ff"; ctx.fill(); ctx.strokeStyle = "#7a8ad0"; ctx.lineWidth = 0.8; ctx.stroke(); } },
+  hermes: { tail: [110, 225, 200], icon: (r, t, dir) => {   // a small flapping wing
+    ctx.scale(dir, 1); ctx.rotate(Math.sin(t * 16) * 0.35);
+    for (let f = 0; f < 3; f++) { ctx.save(); ctx.rotate(-0.4 - f * 0.35); ellipse(r * (0.6 + f * 0.15), 0, r * (1.2 - f * 0.2), r * 0.32, f % 2 ? "#ffe8a0" : "#f2fffb"); ctx.restore(); } } },
+  hephaestus: { tail: [255, 130, 40], icon: (r, t) => {   // a glowing gear
+    ctx.rotate(t * 4); ctx.beginPath();
+    for (let i = 0; i <= 32; i++) { const a = i / 32 * Math.PI * 2, rr = r * (i % 4 < 2 ? 1.15 : 0.85); i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fillStyle = "#ff8a2a"; ctx.fill(); ctx.strokeStyle = "#5a2a0a"; ctx.lineWidth = 0.8; ctx.stroke(); circle(0, 0, r * 0.38, "#fff0c0"); } },
+  hera: { tail: [200, 130, 255], icon: (r, t) => {   // a peacock eye, shimmering
+    const sh = 0.5 + 0.5 * Math.sin(t * 8);
+    ellipse(0, 0, r * 1.1, r * 0.85, "#1a8a7a"); ellipse(0, 0, r * 0.75, r * 0.58, `rgb(${210 + 40 * sh},${170 + 40 * sh},60)`); ellipse(0, 0, r * 0.45, r * 0.35, "#2a50d0"); circle(0, 0, r * 0.18, "#120a30"); } },
+};
 // Hera: the cards right next to her deal more damage.
 function heraAura(c) { const i = rows.active.indexOf(c); if (i < 0) return 1; for (const j of [i - 1, i + 1]) { const o = rows.active[j]; if (o && o !== c && EL[o.element].aura && !(drag && drag.card === o)) return 1 + EL[o.element].aura; } return 1; }
 const powerMult = c => heraAura(c) * starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
@@ -992,7 +1016,7 @@ class Card {
     if (d.totem) { this.drawTotemCard(hw, hh, t, d); ctx.restore(); return; }
     if (d.special) { this.drawSpecial(hw, hh, t, d); ctx.restore(); return; }
     if (d.art && !d.myth) { this.drawIllustrated(hw, hh, t, d); this.drawStars(hh, t); if (maxed) this.drawPowerAura(hw, hh, t, true); ctx.restore(); return; }
-    if (this.rarity === LEGEND) { this.drawLegendRays(hw, hh, t); this.drawLegendOrbit(hw, hh, t, true); }
+    if (this.rarity === LEGEND) { this.drawLegendRays(hw, hh, t, EL[this.element].theme); this.drawLegendOrbit(hw, hh, t, true, EL[this.element].theme); }
     if (this.rarity >= MYTH) this.drawMythAura(hw, hh, t, this.rarity === LEGEND);
     else if (d.tier === 3) this.drawEpicAura(hw, hh, t);
     // Card background for this rarity (falls back to a plain frame until the art has loaded).
@@ -1042,7 +1066,7 @@ class Card {
         ctx.moveTo(sx - s, sy); ctx.lineTo(sx + s, sy); ctx.moveTo(sx, sy - s); ctx.lineTo(sx, sy + s); ctx.stroke();
       }
     }
-    if (this.rarity === LEGEND) this.drawLegendOrbit(hw, hh, t, false);   // orbs in front of the art, under the text
+    if (this.rarity === LEGEND) this.drawLegendOrbit(hw, hh, t, false, EL[this.element].theme);   // orbs in front of the art, under the text
     if (!this.noLabel) text(RARITY_NAMES[this.rarity].toUpperCase(), 0, -hh + 21, 10, shade(rc, -0.55), { weight: 700, outline: 4, outlineColor: "#ffffff" });
     // Epic / Myth / Legend frames have a taller name plate (centred 51 px below the card centre), so the name is bigger.
     // Name sits exactly on the middle of each frame's white name plate (centres measured from the frame art):
@@ -1556,6 +1580,7 @@ class Card {
   drawLegendOrbit(hw, hh, t, back, theme) {
     if (theme === "sea") return this.drawBubbleOrbit(hw, hh, t, back);
     if (theme === "under") return this.drawSkullOrbit(hw, hh, t, back);
+    if (LEGEND_ORBIT[theme]) return this.drawIconOrbit(hw, hh, t, back, LEGEND_ORBIT[theme]);
     ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
     const orbits = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]];
     const rx = hw + 30, ry = 20, TRAIL = 1.5, SEG = 22;
@@ -1587,6 +1612,40 @@ class Card {
         circle(x, y, s2 * 3.4, "rgba(255,190,80,0.2)");
         circle(x, y, s2 * 1.9, "rgba(255,230,160,0.5)");
         circle(x, y, s2, "#fffaf0");
+      }
+    }
+    ctx.restore();
+  }
+  // Themed orbiting objects for the Greek Legends (shields, axes, suns, moons, wings, gears, peacock eyes), each with its own coloured tail.
+  drawIconOrbit(hw, hh, t, back, th) {
+    const orbits = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]];
+    const rx = hw + 30, ry = 20, TRAIL = 1.5, SEG = 20, [r0, g0, b0] = th.tail;
+    ctx.save();
+    for (const [tilt, speed, phase] of orbits) {
+      const ct = Math.cos(tilt), st = Math.sin(tilt);
+      const at = a => { const x = Math.cos(a) * rx, y = Math.sin(a) * ry; return [x * ct - y * st, x * st + y * ct, Math.sin(a)]; };
+      if (back) {
+        ctx.beginPath();
+        for (let k = 0; k <= 48; k++) { const [x, y] = at(k / 48 * Math.PI * 2); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+        ctx.strokeStyle = `rgba(${r0},${g0},${b0},0.16)`; ctx.lineWidth = 1.2; ctx.stroke();
+      }
+      for (const o of [0, Math.PI]) {
+        const a = t * speed + phase + o, dir = Math.sign(speed);
+        ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+        for (let k = SEG; k >= 1; k--) {
+          const [x0, y0, z0] = at(a - dir * TRAIL * k / SEG), [x1, y1] = at(a - dir * TRAIL * (k - 1) / SEG);
+          if ((z0 < 0) !== back) continue;
+          const f = 1 - k / SEG;
+          ctx.strokeStyle = `rgba(${r0},${g0},${b0},${0.5 * f * f})`; ctx.lineWidth = 1 + 5 * f;
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+          if (k % 4 === 0) circle(x0 + Math.sin(t * 9 + k) * 2, y0 + Math.cos(t * 7 + k) * 2, 1.2, `rgba(255,250,230,${0.6 * f})`);
+        }
+        const [x, y, z] = at(a);
+        if ((z < 0) !== back) { ctx.restore(); continue; }
+        const r = 7.2 + z * 1.8, gl = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+        gl.addColorStop(0, `rgba(${r0},${g0},${b0},0.45)`); gl.addColorStop(1, `rgba(${r0},${g0},${b0},0)`); ctx.fillStyle = gl; ctx.fillRect(x - r * 3, y - r * 3, r * 6, r * 6);
+        ctx.restore();
+        ctx.save(); ctx.translate(x, y); th.icon(r, t + o, dir); ctx.restore();
       }
     }
     ctx.restore();
