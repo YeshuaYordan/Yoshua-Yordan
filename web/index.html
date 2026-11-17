@@ -8098,6 +8098,9 @@ for (const [k, u] of Object.entries({"mission_notify": "assets/img/mission_notif
 // Animated shop cart icon (12 frames of 128x128, 12 fps).
 const CART_ICON = { img: new Image(), ready: false };
 CART_ICON.img.onload = () => { CART_ICON.ready = true; }; CART_ICON.img.src = "assets/img/cart_icon.webp";
+// Animated gift icon for the Beginner Deal button (12 frames of 128x128, 12 fps).
+const OFFER_ICON = { img: new Image(), ready: false };
+OFFER_ICON.img.onload = () => { OFFER_ICON.ready = true; }; OFFER_ICON.img.src = "assets/img/special_offer.webp";
 // Animated calendar icon for the Daily button (12 frames of 128x128, 12 fps); the "notify" version has a red "!".
 const CAL_ICON = {};
 for (const [k, srcUrl] of Object.entries({"calendar": "assets/img/calendar.webp", "calendar_notify": "assets/img/calendar_notify.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = srcUrl; CAL_ICON[k] = slot; }
@@ -8213,7 +8216,17 @@ async function buyStarter() {
   else shopToast = { text: "Purchase cancelled", color: "#ff9a8a", t: 0 };
 }
 const starterCards = ["totem", "flight"].map(el => { const c = new Card(el, SPECIAL); c.noLabel = true; return c; });
-function drawStarterIcon(b) {   // a glowing gift box with a ribbon, label and countdown
+function drawStarterIcon(b) {   // the animated gift icon (a drawn gift box until it loads), label and countdown
+  if (OFFER_ICON.ready) {
+    const sz = b.w * 1.18 * (b.down ? 0.92 : 1);
+    ctx.drawImage(OFFER_ICON.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, b.x + (b.w - sz) / 2, b.y + (b.h - sz) / 2, sz, sz);
+  } else drawStarterGift(b);
+  rrect(b.x - 4, b.y - 12, 66, 26, 13); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+  text("NEW", b.x + 29, b.y + 1, 16, "#fff", { weight: 900, baseline: "middle" });
+  text("Beginner Deal", b.x + b.w / 2, b.y + b.h + 8, 19, PARCH, { weight: 800, outline: 6 });
+  text(fmtClock(starterLeft()), b.x + b.w / 2, b.y + b.h + 32, 18, "#ffd75a", { weight: 800, outline: 5 });
+}
+function drawStarterGift(b) {
   const press = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2 + Math.sin(lobbyT * 2.4) * 3, pulse = 0.5 + 0.5 * Math.sin(lobbyT * 4);
   ctx.save(); ctx.translate(cx, cy); ctx.scale(press, press);
   const g = ctx.createRadialGradient(0, 0, 8, 0, 0, 62); g.addColorStop(0, `rgba(255,214,90,${0.45 + 0.3 * pulse})`); g.addColorStop(1, "rgba(255,214,90,0)");
@@ -8226,10 +8239,6 @@ function drawStarterIcon(b) {   // a glowing gift box with a ribbon, label and c
   circle(0, -30, 6, "#ffe38a"); ring(0, -30, 6, INK, 2.5);
   drawGem(30, 26, 12);
   ctx.restore();
-  rrect(b.x - 4, b.y - 12, 66, 26, 13); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
-  text("NEW", b.x + 29, b.y + 1, 16, "#fff", { weight: 900, baseline: "middle" });
-  text("Beginner Deal", b.x + b.w / 2, b.y + b.h + 8, 19, PARCH, { weight: 800, outline: 6 });
-  text(fmtClock(starterLeft()), b.x + b.w / 2, b.y + b.h + 32, 18, "#ffd75a", { weight: 800, outline: 5 });
 }
 function drawStarter(dt) {
   const w = W - 80, h = 760, x = 40, y = Math.max(100, H / 2 - h / 2);
