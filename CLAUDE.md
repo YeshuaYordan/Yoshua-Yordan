@@ -35,5 +35,5 @@ The game is live and in active development (the old "wait for go" rule no longer
 - Tests must tap once after loading (`LOAD.ready && loadShown >= 1`) to pass "TAP TO START".
 
 ## To do / ideas
-- (nothing open for the Legends). Done: `_atk`/`_hit` sounds for the 7 Greek Legends. Done: Special sounds (`sp_<card>_up` on power-up for all 10, `sp_<card>` when an idol triggers, via `playSpecial` with cooldowns). Also done: `_atk`/`_hit` sounds for Serpent, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee (loudness matched to `serpent_atk.mp3`, about -12.5 LUFS, max 1.4 s).
+- Summon sounds: `summon_<rise|zap|step|implode|boom|boom_epic|boom_legend|flip|flip_rare>` played by `summonSfx` (synth is the fallback). Done: `_atk`/`_hit` sounds for the 7 Greek Legends. Done: Special sounds (`sp_<card>_up` on power-up for all 10, `sp_<card>` when an idol triggers, via `playSpecial` with cooldowns). Also done: `_atk`/`_hit` sounds for Serpent, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee (loudness matched to `serpent_atk.mp3`, about -12.5 LUFS, max 1.4 s).
 - Release: TESTER_RESET=false, Google Play billing (product ids must match), optional AdMob, new Android build.
