@@ -2580,6 +2580,424 @@ for (const [k, head, dl, cl] of [["cerberus", "comet", "hellfire", "lava"], ["ba
 }
 if (EPV.bonefire) EPV.bonefire.head = "crossbones";   // their own one-of-a-kind heads
 if (EPV.tomb_dust) EPV.tomb_dust.head = "coffin";
+// ============ Myth shots: each of the 9 Myth cards (not Phoenix) has its own one-of-a-kind shot, trail and impact.
+// MYTHFX["mx_<card>"] = { trail(pr, n, back, bx, by, R), head(pr, R, t, glow), hit(x, y, P, A, burst, ringFx), chain?(fx, k) }
+const mxHist = (pr, len) => { pr.hist = pr.hist || []; const h = pr.hist; h.unshift([pr.x, pr.y]); if (h.length > len) h.length = len; return h; };
+const mxFx = (x, y, duration, fn, extra) => fxs.push(new Fx("mx", Object.assign({ x, y, duration, fn, seed: Math.random() * 1000 }, extra)));
+// Draws a tapered ribbon through world points; w(i, f) gives the width (f = 0 at the head, 1 at the tail).
+function mxRibbon(pts, w, col) {
+  if (pts.length < 2) return;
+  const L = [], Rt = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, ww = w(i, i / (pts.length - 1)) / 2;
+    L.push([pts[i][0] - dy / l * ww, pts[i][1] + dx / l * ww]); Rt.push([pts[i][0] + dy / l * ww, pts[i][1] - dx / l * ww]);
+  }
+  ctx.beginPath(); L.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); for (let i = Rt.length - 1; i >= 0; i--) ctx.lineTo(Rt[i][0], Rt[i][1]); ctx.closePath();
+  ctx.fillStyle = col; ctx.fill();
+}
+// Offsets world history points sideways: off(i, f) in px.
+function mxBend(h, off) {
+  return h.map(([x, y], i) => { const a = h[Math.max(0, i - 1)], b = h[Math.min(h.length - 1, i + 1)], dx = a[0] - b[0], dy = a[1] - b[1], l = Math.hypot(dx, dy) || 1, o = off(i, i / Math.max(1, h.length - 1)); return [x - dy / l * o, y + dx / l * o]; });
+}
+const KIT_COLS = [[255, 255, 255], [255, 190, 210], [255, 74, 106], [150, 10, 50]];
+const FEN_COLS = [[255, 255, 255], [190, 240, 255], [90, 180, 255], [30, 60, 200]];
+const SEA2_COLS = [[255, 255, 255], [170, 235, 255], [50, 150, 255], [10, 50, 150]];
+const CER_COLS = [[255, 255, 210], [255, 200, 60], [255, 90, 30], [120, 10, 10]];
+const BAS_COLS = [[240, 255, 220], [150, 255, 120], [60, 180, 60], [20, 70, 30]];
+const GRI_COLS = [[255, 255, 255], [255, 240, 190], [240, 200, 110], [170, 120, 40]];
+const QIL_COLS = [[255, 255, 255], [255, 240, 170], [255, 200, 60], [220, 120, 20]];
+const KRA_COLS = [[230, 220, 255], [150, 130, 255], [90, 60, 200], [30, 15, 70]];
+const BAN_COLS = [[255, 255, 255], [225, 200, 255], [170, 110, 255], [70, 30, 140]];
+const MYTHFX = {
+  // ---- Kitsune: a fox spirit made of fox-fire, nine flame tails streaming behind, spirit orbs circling it.
+  mx_kitsune: {
+    trail(pr, n, back, bx, by, R) {
+      for (let i = n(70); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-6, 6), y: by + rand(-6, 6), ...back(rand(30, 110)), life: rand(0.3, 0.5), size: R * rand(0.4, 0.75), grow: -0.5, cols: KIT_COLS, a: 0.8 });
+      for (let i = n(10); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-R, R), y: by + rand(-R, R), vx: rand(-30, 30), vy: rand(-60, -20), life: rand(0.6, 0.9), size: rand(3, 5), grow: -0.2, cols: [[255, 255, 255], [190, 230, 255], [120, 160, 255]], a: 0.9 });
+    },
+    head(pr, R, t, glow) {
+      R *= 0.6;   // Kitsune's blast is huge (shotScale 4): keep the fox a sensible size
+      ctx.restore(); ctx.save();
+      const h = mxHist(pr, 18);
+      if (h.length > 3) {
+        ctx.globalCompositeOperation = "lighter";
+        for (let j = 0; j < 9; j++) {   // nine tails fanning out behind the fox
+          const pts = mxBend(h, (i, f) => (j - 4) * R * 0.32 * f + Math.sin(i * 0.7 - t * 14 + j * 0.9) * R * 0.35 * f);
+          mxRibbon(pts, (i, f) => R * 0.9 * Math.sin(Math.min(1, f * 1.2 + 0.15) * Math.PI) , `rgba(255,60,100,${0.28})`);
+          mxRibbon(pts, (i, f) => R * 0.4 * Math.sin(Math.min(1, f * 1.2 + 0.15) * Math.PI), "rgba(255,210,225,0.45)");
+        }
+        ctx.globalCompositeOperation = "source-over";
+      }
+      ctx.translate(pr.x, pr.y);
+      glow(R * 3, "255,70,110");
+      for (let k = 0; k < 3; k++) { const a = t * 7 + k * 2.09; glow(R * 0.9, "180,220,255"); circle(Math.cos(a) * R * 2, Math.sin(a) * R * 1.3, R * 0.28, "#eaf4ff"); }   // spirit orbs
+      ctx.rotate(pr.ang + Math.PI / 2);   // a kitsune mask, ears leading (upright when it flies up)
+      for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) {   // fox-fire licking off the ears
+        const h = R * (0.7 + 0.35 * Math.sin(t * 22 + k * 2 + sx)), bx0 = sx * R * (0.55 + k * 0.17), by0 = -R * (1.2 + k * 0.12);
+        ctx.beginPath(); ctx.moveTo(bx0 - R * 0.16, by0); ctx.quadraticCurveTo(bx0 + Math.sin(t * 15 + k) * R * 0.3, by0 - h * 0.6, bx0, by0 - h); ctx.quadraticCurveTo(bx0 + R * 0.1, by0 - h * 0.4, bx0 + R * 0.16, by0); ctx.closePath();
+        ctx.fillStyle = k % 2 ? "rgba(255,90,130,0.85)" : "rgba(255,200,215,0.85)"; ctx.fill();
+      }
+      const mask = [[0, R * 1.35], [R * 0.45, R * 0.95], [R * 0.85, R * 0.3], [R * 1.0, -R * 0.4], [R * 0.95, -R * 1.65], [R * 0.4, -R * 0.85], [0, -R * 0.95], [-R * 0.4, -R * 0.85], [-R * 0.95, -R * 1.65], [-R * 1.0, -R * 0.4], [-R * 0.85, R * 0.3], [-R * 0.45, R * 0.95]];
+      const mg = ctx.createRadialGradient(0, -R * 0.2, 1, 0, 0, R * 1.7); mg.addColorStop(0, "#ffffff"); mg.addColorStop(0.7, "#fff0f4"); mg.addColorStop(1, "#ffc0d0");
+      poly(mask, mg, "#7a0a26", 2);
+      for (const sx of [-1, 1]) {
+        poly([[sx * R * 0.83, -R * 1.35], [sx * R * 0.48, -R * 0.82], [sx * R * 0.86, -R * 0.55]], "#e0203c", null);   // red inner ears
+        ctx.save(); ctx.translate(sx * R * 0.42, -R * 0.12); ctx.rotate(sx * 0.42);   // slanted eyes with red liner
+        ellipse(0, 0, R * 0.36, R * 0.13, "#e0203c"); ellipse(0, 0, R * 0.26, R * 0.07, "#1a0208"); ellipse(sx * R * 0.04, 0, R * 0.1, R * 0.05, "#ffd84a"); ctx.restore();
+        ctx.strokeStyle = "#e0203c"; ctx.lineWidth = 2.2; ctx.lineCap = "round";   // whisker swirls
+        ctx.beginPath(); ctx.moveTo(sx * R * 0.3, R * 0.55); ctx.quadraticCurveTo(sx * R * 0.7, R * 0.5, sx * R * 0.75, R * 0.2); ctx.stroke();
+      }
+      poly([[0, -R * 0.75], [R * 0.13, -R * 0.45], [0, -R * 0.3], [-R * 0.13, -R * 0.45]], "#e0203c", null);   // forehead flame mark
+      ellipse(0, R * 1.12, R * 0.15, R * 0.1, "#2a0610");   // nose
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      const AR = Math.max(A, 60);
+      mxFx(x, y, 0.6, (fx, k) => {   // a spider lily of fox-fire blooms open, then burns away
+        const open = Math.min(1, k * 3.5), fade = 1 - Math.max(0, (k - 0.4) / 0.6), L = AR * 0.95 * open;
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.75); ctx.globalCompositeOperation = "lighter";
+        for (let i = 0; i < 9; i++) {
+          const a = i / 9 * Math.PI * 2 + fx.seed;
+          ctx.save(); ctx.rotate(a);
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(L * 0.4, -L * 0.25, L * 0.85, -L * 0.1, L, L * 0.18); ctx.bezierCurveTo(L * 0.8, L * 0.05, L * 0.4, L * 0.12, 0, 0);
+          ctx.fillStyle = `rgba(255,50,90,${0.75 * fade})`; ctx.fill();
+          ctx.strokeStyle = `rgba(255,220,230,${0.9 * fade})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(L * 0.7, -L * 0.45, L * 1.15, -L * 0.3); ctx.stroke();   // stamen
+          circle(L * 1.15, -L * 0.3, 2.5, `rgba(255,240,200,${fade})`);
+          ctx.restore();
+        }
+        circle(0, 0, AR * 0.25 * open, `rgba(255,255,255,${0.8 * fade})`);
+        ctx.restore();
+      });
+      burst(Math.round(30 * P), (cx, cy) => { const sp = rand(120, 420) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.65 - 30, drag: 3, life: rand(0.45, 0.8), size: rand(12, 22) * P, grow: -0.4, cols: KIT_COLS, a: 0.85 }); });
+      burst(9, (cx, cy) => { const sp = rand(140, 260); addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.7 - 80, drag: 2, life: rand(0.9, 1.3), size: 5, grow: -0.2, cols: [[255, 255, 255], [190, 230, 255], [120, 160, 255]], a: 1 }); });   // spirit orbs fly free
+      ringFx("255,74,106", AR * 0.2, AR * 1.3, 10); ringFx("255,255,255", AR * 0.1, AR * 1.7, 3, 0.55, true, 0.7);
+      addPart({ add: true, kind: "glow", x, y, life: 0.3, size: AR * 0.7, grow: 0.6, cols: KIT_COLS, a: 0.8 });
+    },
+  },
+  // ---- Fenrir: a snarling wolf head made of lightning, leaving glowing paw prints behind it.
+  mx_fenrir: {
+    trail(pr, n, back, bx, by, R) {
+      for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 120)), life: rand(0.2, 0.35), size: R * rand(0.35, 0.7), grow: -0.6, cols: FEN_COLS, a: 0.85 });
+      for (let i = n(14); i > 0; i--) {   // paw prints: one pad and four toes
+        pr.paw = (pr.paw || 0) + 1; const s = pr.paw % 2 ? 1 : -1, nx = -Math.sin(pr.ang) * s * R * 0.6, ny = Math.cos(pr.ang) * s * R * 0.6, px = bx + nx, py = by + ny;
+        addPart({ add: true, kind: "glow", x: px, y: py, life: 0.6, size: R * 0.32, grow: -0.2, cols: FEN_COLS, a: 0.9 });
+        for (let k2 = 0; k2 < 4; k2++) { const a = pr.ang + (k2 - 1.5) * 0.5; addPart({ add: true, kind: "glow", x: px + Math.cos(a) * R * 0.45, y: py + Math.sin(a) * R * 0.45, life: 0.6, size: R * 0.13, grow: -0.2, cols: FEN_COLS, a: 0.9 }); }
+      }
+    },
+    head(pr, R, t, glow) {
+      R *= 1.3; glow(R * 3.4, "90,170,255");
+      ctx.rotate(pr.ang); ctx.lineJoin = "round"; ctx.lineCap = "round";
+      const j = () => rand(-R * 0.07, R * 0.07), bite = 0.5 + 0.5 * Math.sin(t * 22);
+      const up = [[R * 2.0, -R * 0.05], [R * 1.2, -R * 0.4], [R * 0.6, -R * 0.55], [R * 0.2, -R * 1.5], [-R * 0.2, -R * 0.8], [-R * 0.7, -R * 1.15], [-R * 1.0, -R * 0.6], [-R * 1.6, -R * 0.75], [-R * 1.4, -R * 0.25], [-R * 2.1, 0]];
+      const lo = [[-R * 2.1, 0], [-R * 1.4, R * 0.25], [-R * 1.6, R * 0.75], [-R * 1.0, R * 0.6], [-R * 0.7, R * 1.15], [-R * 0.2, R * 0.8], [R * 0.2, R * 1.5], [R * 0.6, R * 0.55], [R * 1.0, R * (0.35 + 0.25 * bite)], [R * 1.7, R * (0.2 + 0.3 * bite)]];
+      const outline = [...up, ...lo].map(([x, y]) => [x + j(), y + j()]);
+      ctx.beginPath(); outline.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
+      ctx.fillStyle = "rgba(20,50,140,0.75)"; ctx.fill();
+      for (const [w, c] of [[7, "rgba(70,150,255,0.5)"], [3, "rgba(180,230,255,0.95)"], [1.2, "#ffffff"]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.stroke(); }
+      for (let k = 0; k < 3; k++) { const fx = R * (0.95 + k * 0.3); poly([[fx, R * 0.05], [fx + R * 0.1, R * 0.4], [fx + R * 0.2, R * 0.05]], "#ffffff", null); poly([[fx, R * (0.3 + 0.25 * bite)], [fx + R * 0.1, R * 0.02], [fx + R * 0.2, R * (0.3 + 0.25 * bite)]], "#e8f6ff", null); }   // fangs
+      ctx.save(); ctx.translate(R * 0.55, -R * 0.25); ctx.rotate(-0.35); ellipse(0, 0, R * 0.32, R * 0.1, "#ffffff"); ctx.restore();   // eye, white-hot
+      glow(R * 0.6, "200,240,255");
+      for (let a = 0; a < 3; a++) {   // arcs crackling off the mane
+        const ang = Math.PI + rand(-1.2, 1.2), pts = [[-R * 0.8, 0]]; for (let k2 = 1; k2 <= 4; k2++) pts.push([-R * 0.8 + Math.cos(ang) * R * k2 * 0.55 + j() * 3, Math.sin(ang) * R * k2 * 0.55 + j() * 3]);
+        ctx.strokeStyle = "rgba(200,240,255,0.9)"; ctx.lineWidth = 1.4; ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+      }
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      mxFx(x, y, 0.4, (fx, k) => {   // giant lightning jaws snap shut on the target
+        const close = Math.min(1, k * 4), fade = 1 - Math.max(0, (k - 0.3) / 0.7), W = 62 * P, gap = 42 * P * (1 - close);
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.lineJoin = "round";
+        for (const sy of [-1, 1]) {   // upper and lower jaw: a glowing arc lined with fangs
+          const jy = sy * (gap + 6 * P);
+          ctx.beginPath(); ctx.moveTo(-W, jy * 0.3); ctx.quadraticCurveTo(0, jy + sy * 34 * P, W, jy * 0.3);
+          for (const [w, c] of [[12, `rgba(70,150,255,${0.4 * fade})`], [5, `rgba(170,225,255,${0.95 * fade})`], [2, `rgba(255,255,255,${fade})`]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.stroke(); }
+          for (let i = 0; i < 6; i++) {
+            const u = (i + 0.5) / 6, fx0 = -W + 2 * W * u, fy0 = (1 - u) * (1 - u) * jy * 0.3 + 2 * u * (1 - u) * (jy + sy * 34 * P) + u * u * jy * 0.3, L = (i === 1 || i === 4 ? 22 : 13) * P;
+            poly([[fx0 - 5 * P, fy0], [fx0, fy0 - sy * L], [fx0 + 5 * P, fy0]], `rgba(235,248,255,${fade})`, `rgba(70,150,255,${fade})`, 1.5);
+          }
+        }
+        if (close >= 1) { ctx.globalCompositeOperation = "lighter"; circle(0, 0, 30 * P * fade, `rgba(200,240,255,${0.6 * fade})`); }
+        ctx.restore();
+      });
+      burst(26, (cx, cy) => { const sp = rand(220, 520); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 4, life: rand(0.25, 0.45), size: 2.4, cols: FEN_COLS, len: 0.05 }); });
+      ringFx("120,200,255", 10, 95 * P, 6); ringFx("255,255,255", 6, 60 * P, 3, 0.55, true, 0.3);
+    },
+  },
+  // ---- Serpent: an ouroboros of water (a serpent biting its own tail) spinning around a glowing sea pearl.
+  mx_serpent: {
+    trail(pr, n, back, bx, by, R) {
+      const px = -Math.sin(pr.ang), py = Math.cos(pr.ang);
+      for (let i = n(80); i > 0; i--) { const s = Math.sin(pr.t * 22 + (i % 2) * Math.PI) * R * 1.1; addPart({ add: true, kind: "glow", x: bx + px * s, y: by + py * s, ...back(rand(10, 40), 8), life: rand(0.35, 0.5), size: R * rand(0.25, 0.42), grow: -0.4, cols: SEA2_COLS, a: 0.85 }); }   // a double helix of water
+      for (let i = n(18); i > 0; i--) addPart({ kind: "drop", x: bx, y: by, vx: rand(-110, 110), vy: rand(-150, 30), g: 700, life: rand(0.4, 0.7), size: rand(1.8, 3), col: "#c8f0ff" });
+    },
+    head(pr, R, t, glow) {
+      glow(R * 3.2, "60,170,255");
+      ctx.save(); ctx.rotate(t * 7); const RR = R * 1.45;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#0a3a8a"; ctx.lineWidth = R * 0.62; ctx.beginPath(); ctx.arc(0, 0, RR, 0.35, Math.PI * 2 - 0.15); ctx.stroke();
+      const bg = ctx.createLinearGradient(-RR, -RR, RR, RR); bg.addColorStop(0, "#bff0ff"); bg.addColorStop(0.5, "#3aa0ff"); bg.addColorStop(1, "#1a5ad8");
+      ctx.strokeStyle = bg; ctx.lineWidth = R * 0.48; ctx.stroke();
+      ctx.setLineDash([R * 0.18, R * 0.22]); ctx.lineDashOffset = -t * 30; ctx.strokeStyle = "rgba(230,250,255,0.85)"; ctx.lineWidth = R * 0.12; ctx.beginPath(); ctx.arc(0, 0, RR, 0.4, Math.PI * 2 - 0.2); ctx.stroke(); ctx.setLineDash([]);   // scales
+      ctx.save(); ctx.rotate(-0.05); ctx.translate(RR, 0); ctx.rotate(Math.PI / 2 + 0.25);   // the head, jaws closed on its tail
+      poly([[R * 0.75, 0], [R * 0.1, -R * 0.42], [-R * 0.45, -R * 0.3], [-R * 0.45, R * 0.3], [R * 0.1, R * 0.42]], "#5ab8ff", "#0a2a6a", 1.5);
+      circle(R * 0.1, -R * 0.2, R * 0.1, "#eafffc"); circle(R * 0.1, R * 0.2, R * 0.1, "#eafffc");
+      ctx.restore(); ctx.restore();
+      const pg = ctx.createRadialGradient(-R * 0.3, -R * 0.3, 1, 0, 0, R * 0.85); pg.addColorStop(0, "#ffffff"); pg.addColorStop(0.5, "#9fe0ff"); pg.addColorStop(1, "#2a7ad8");
+      circle(0, 0, R * 0.85, pg); ring(0, 0, R * 0.85, "rgba(10,40,120,0.8)", 1.5);
+      ctx.save(); ctx.rotate(-t * 4); for (let k = 0; k < 3; k++) { ctx.rotate(Math.PI * 2 / 3); ring(0, 0, R * 0.5, "rgba(255,255,255,0.7)", 1.5, 0, 1.2); } ctx.restore();   // swirling water in the pearl
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      mxFx(x, y, 0.7, (fx, k) => {   // a whirlpool opens: spiral arms of water turning inward
+        const fade = 1 - k, Rr = 75 * P * (0.5 + 0.5 * Math.min(1, k * 3));
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.5); ctx.rotate(-k * 9); ctx.lineCap = "round";
+        for (let arm = 0; arm < 4; arm++) {
+          ctx.rotate(Math.PI / 2); ctx.beginPath();
+          for (let i = 0; i <= 24; i++) { const u = i / 24, a = u * 3.6, r = Rr * (1 - u * 0.9); i ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); }
+          ctx.strokeStyle = `rgba(40,140,255,${0.7 * fade})`; ctx.lineWidth = 9; ctx.stroke(); ctx.strokeStyle = `rgba(220,250,255,${0.9 * fade})`; ctx.lineWidth = 3; ctx.stroke();
+        }
+        ctx.restore();
+      });
+      for (let i = 0; i < 24; i++) { const a = -Math.PI / 2 + rand(-0.5, 0.5), sp = rand(260, 520); addPart({ kind: "drop", x: x + rand(-8, 8), y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 1200, life: rand(0.5, 0.8), size: rand(2.5, 4.2), col: "#9fe0ff" }); }   // a water spout
+      burst(Math.round(16 * P), (cx, cy) => { const sp = rand(60, 200) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.5, drag: 3, life: rand(0.35, 0.6), size: rand(9, 15) * P, grow: -0.4, cols: SEA2_COLS, a: 0.85 }); });
+      ringFx("90,190,255", 10, 80 * P, 5, 0.45); ringFx("255,255,255", 6, 50 * P, 3, 0.45, true, 0.35);
+    },
+  },
+  // ---- Cerberus: a burning hellhound skull dragging glowing underworld chains.
+  mx_cerberus: {
+    trail(pr, n, back, bx, by, R) {
+      for (let i = n(80); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(40, 130)), life: rand(0.25, 0.45), size: R * rand(0.6, 1.0), grow: -0.6, cols: CER_COLS, a: 0.9 });
+      for (let i = n(14); i > 0; i--) addPart({ kind: "smoke", x: bx, y: by, ...back(30, 20), life: 0.8, size: R * 0.6, grow: 1.5, col: "#1a0604", a: 0.5 });
+      for (let i = n(22); i > 0; i--) addPart({ add: true, kind: "spark", x: bx, y: by, vx: rand(-70, 70), vy: rand(-200, -80), life: rand(0.35, 0.7), size: 2.2, cols: CER_COLS, len: 0.05 });
+    },
+    head(pr, R, t, glow) {
+      ctx.restore(); ctx.save();
+      const h = mxHist(pr, 14);
+      for (let i = 2; i < h.length - 1; i++) {   // the chain: alternating links, red-hot near the skull
+        const [x0, y0] = h[i], [x1, y1] = h[i + 1], a = Math.atan2(y1 - y0, x1 - x0), f = 1 - i / h.length;
+        ctx.save(); ctx.translate(x0, y0); ctx.rotate(a);
+        ctx.strokeStyle = `rgba(40,10,5,${0.9 * f})`; ctx.lineWidth = 4; ctx.beginPath(); i % 2 ? ctx.ellipse(0, 0, R * 0.42, R * 0.22, 0, 0, Math.PI * 2) : ctx.ellipse(0, 0, R * 0.42, R * 0.06, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = `rgba(255,${120 + 100 * f},40,${f})`; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+      }
+      ctx.translate(pr.x, pr.y); R *= 1.15;
+      glow(R * 3.2, "255,90,30");
+      ctx.rotate(pr.ang);
+      for (let k = -3; k <= 3; k++) {   // a mane of hellfire blowing back
+        const L = R * (1.7 + 0.5 * Math.sin(t * 24 + k * 1.9)), yy = k * R * 0.3;
+        ctx.beginPath(); ctx.moveTo(-R * 0.3, yy - R * 0.28); ctx.quadraticCurveTo(-R * 1.2, yy + Math.sin(t * 18 + k) * R * 0.4, -R * 0.3 - L, yy); ctx.quadraticCurveTo(-R * 1.0, yy + R * 0.2, -R * 0.3, yy + R * 0.28); ctx.closePath();
+        ctx.fillStyle = k % 2 ? "rgba(255,90,30,0.85)" : "rgba(255,200,60,0.85)"; ctx.fill();
+      }
+      const sk = [[R * 1.8, -R * 0.1], [R * 1.5, -R * 0.4], [R * 0.6, -R * 0.55], [R * 0.2, -R * 0.95], [-R * 0.2, -R * 1.25], [-R * 0.35, -R * 0.75], [-R * 0.8, -R * 0.55], [-R * 0.9, R * 0.1], [-R * 0.4, R * 0.7], [R * 0.4, R * 0.6], [R * 1.4, R * 0.35], [R * 1.8, R * 0.15]];
+      const sg = ctx.createLinearGradient(-R, -R, R, R); sg.addColorStop(0, "#5a2a1a"); sg.addColorStop(1, "#1a0806"); poly(sk, sg, "#ff7a2a", 2);
+      ctx.strokeStyle = "rgba(255,170,60,0.9)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-R * 0.6, -R * 0.2); ctx.lineTo(-R * 0.2, R * 0.05); ctx.lineTo(-R * 0.3, R * 0.4); ctx.stroke();   // glowing cracks
+      for (let k = 0; k < 3; k++) poly([[R * (0.8 + k * 0.3), R * 0.3], [R * (0.9 + k * 0.3), R * 0.65], [R * (1.0 + k * 0.3), R * 0.3]], "#fff0d8", null);   // fangs
+      glow(R * 0.9, "255,220,80"); ellipse(R * 0.45, -R * 0.2, R * 0.24, R * 0.16, "#ffe040"); circle(R * 0.5, -R * 0.2, R * 0.08, "#ffffff");   // burning eye
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      mxFx(x, y, 0.65, (fx, k) => {   // the ground cracks open: glowing lava fissures and a flame pillar
+        if (!fx.cr) { fx.cr = []; for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + rand(-0.3, 0.3), pts = [[0, 0]]; for (let s = 1; s <= 4; s++) pts.push([Math.cos(a) * s * 15 * P + rand(-6, 6), (Math.sin(a) * s * 15 * P + rand(-6, 6)) * 0.55]); fx.cr.push(pts); } }
+        const grow = Math.min(1, k * 4), fade = 1 - Math.max(0, (k - 0.3) / 0.7);
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.lineJoin = "round"; ctx.lineCap = "round";
+        for (const pts of fx.cr) { const m = Math.max(2, Math.ceil(pts.length * grow)); for (const [w, c] of [[8, `rgba(255,80,20,${0.5 * fade})`], [3, `rgba(255,220,90,${fade})`]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); pts.slice(0, m).forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.stroke(); } }
+        const ph = 120 * P * Math.sin(Math.min(1, k * 2) * Math.PI), g = ctx.createLinearGradient(0, 0, 0, -ph); g.addColorStop(0, `rgba(255,220,90,${0.85 * fade})`); g.addColorStop(0.5, `rgba(255,90,30,${0.6 * fade})`); g.addColorStop(1, "rgba(120,10,10,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-22 * P, 0); ctx.quadraticCurveTo(-10 * P, -ph * 0.6, 0, -ph); ctx.quadraticCurveTo(10 * P, -ph * 0.6, 22 * P, 0); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      });
+      burst(Math.round(26 * P), (cx, cy) => { const sp = rand(80, 300) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.5 - 60, drag: 3, life: rand(0.4, 0.7), size: rand(10, 18) * P, grow: -0.4, cols: CER_COLS, a: 0.9 }); });
+      for (let i = 0; i < 6; i++) addPart({ kind: "chunk", x, y, vx: rand(-200, 200), vy: rand(-320, -120), g: 900, life: 0.8, size: rand(3, 5), rot: rand(0, 6), vr: rand(-10, 10), col: "#3a1a10", hot: true });
+      ringFx("255,90,30", 10, 85 * P, 7); ringFx("255,230,120", 6, 55 * P, 3, 0.55, true, 0.35);
+    },
+  },
+  // ---- Basilisk: a curved jade fang dripping venom, with stone scales circling it.
+  mx_basilisk: {
+    trail(pr, n, back, bx, by, R) {
+      for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 80)), life: rand(0.3, 0.5), size: R * rand(0.4, 0.7), grow: -0.5, cols: BAS_COLS, a: 0.75 });
+      for (let i = n(16); i > 0; i--) addPart({ kind: "drop", x: bx, y: by, vx: rand(-40, 40), vy: rand(20, 80), g: 700, life: rand(0.4, 0.6), size: rand(2, 3.2), col: "#8aff5a" });
+      for (let i = n(14); i > 0; i--) addPart({ kind: "grain", x: bx + rand(-6, 6), y: by + rand(-6, 6), vx: rand(-60, 60), vy: rand(-30, 60), g: 300, life: rand(0.4, 0.7), size: rand(2, 3.5), col: "#8a9a88" });
+    },
+    head(pr, R, t, glow) {
+      glow(R * 3, "120,255,100");
+      for (let k = 0; k < 4; k++) {   // stone scales orbiting
+        const a = t * 5 + k * Math.PI / 2; ctx.save(); ctx.translate(Math.cos(a) * R * 1.9, Math.sin(a) * R * 1.2); ctx.rotate(a * 2);
+        const hx = []; for (let i = 0; i < 6; i++) hx.push([Math.cos(i * Math.PI / 3) * R * 0.38, Math.sin(i * Math.PI / 3) * R * 0.38]);
+        poly(hx, "#7a8a78", "#1a2a18", 1.5); ctx.strokeStyle = "rgba(150,255,120,0.9)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-R * 0.2, 0); ctx.lineTo(R * 0.2, 0); ctx.stroke(); ctx.restore();
+      }
+      ctx.rotate(pr.ang);
+      ctx.beginPath(); ctx.moveTo(-R * 1.2, -R * 0.75); ctx.quadraticCurveTo(R * 0.8, -R * 0.9, R * 2.1, R * 0.25); ctx.quadraticCurveTo(R * 0.6, -R * 0.1, -R * 1.2, R * 0.55); ctx.closePath();   // the fang
+      const g = ctx.createLinearGradient(-R * 1.2, 0, R * 2.1, 0); g.addColorStop(0, "#2a6a2a"); g.addColorStop(0.55, "#6fe05a"); g.addColorStop(1, "#f0ffe0");
+      ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#0a2a0a"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = "rgba(240,255,220,0.8)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-R * 0.9, -R * 0.45); ctx.quadraticCurveTo(R * 0.7, -R * 0.6, R * 1.8, R * 0.12); ctx.stroke();
+      ctx.fillStyle = "#3a5a38"; ctx.beginPath(); ctx.ellipse(-R * 1.2, -R * 0.1, R * 0.35, R * 0.68, 0, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#0a2a0a"; ctx.stroke();   // stone root
+      const dr = (t * 3) % 1; circle(R * 2.05, R * 0.3 + dr * R * 0.9, R * 0.16 * (1 - dr * 0.5), "#9aff6a");   // venom drop
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      mxFx(x, y, 0.75, (fx, k) => {   // stone spikes burst out of the ground around the target, veined with green venom light
+        if (!fx.sp) { fx.sp = []; for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + rand(-0.2, 0.2); fx.sp.push([Math.cos(a) * rand(20, 34) * P, Math.sin(a) * rand(10, 18) * P, rand(26, 46) * P, rand(-0.3, 0.3)]); } fx.sp.sort((a, b) => a[1] - b[1]); }
+        const up = Math.min(1, k * 5), fade = 1 - Math.max(0, (k - 0.6) / 0.4);
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.globalAlpha = fade;
+        for (const [sx, sy, hgt, tilt] of fx.sp) {
+          const hh = hgt * up, w = hgt * 0.3; ctx.save(); ctx.translate(sx, sy); ctx.rotate(tilt + sx * 0.008);
+          poly([[-w, 0], [-w * 0.3, -hh], [w * 0.1, -hh * 1.05], [w, 0]], "#8a9488", "#1a2218", 2);
+          ctx.strokeStyle = "rgba(140,255,110,0.95)"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, -2); ctx.lineTo(-w * 0.2, -hh * 0.5); ctx.lineTo(w * 0.1, -hh * 0.8); ctx.stroke();
+          ctx.restore();
+        }
+        ctx.restore();
+      });
+      addPart({ add: true, kind: "glow", x, y, life: 0.35, size: 50 * P, grow: 0.4, cols: BAS_COLS, a: 0.85 });
+      for (let i = 0; i < 10; i++) addPart({ kind: "chunk", x, y, vx: rand(-220, 220), vy: rand(-300, -100), g: 900, life: 0.8, size: rand(3, 5.5), rot: rand(0, 6), vr: rand(-10, 10), col: "#7a8478" });
+      for (let i = 0; i < 6; i++) addPart({ kind: "smoke", x: x + rand(-20, 20), y: y + rand(-6, 6), vx: rand(-40, 40), vy: rand(-30, 0), life: 0.8, size: rand(10, 16), grow: 1.4, col: "#8a9488", a: 0.5 });
+      ringFx("120,255,100", 10, 75 * P, 5, 0.5);
+    },
+  },
+  // ---- Griffin: a golden talon spear on two swept wings, cutting the wind.
+  mx_griffin: {
+    trail(pr, n, back, bx, by, R) {
+      for (let i = n(40); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 120), 15), life: rand(0.2, 0.35), size: R * rand(0.35, 0.6), grow: -0.5, cols: GRI_COLS, a: 0.75 });
+      const px = -Math.sin(pr.ang), py = Math.cos(pr.ang);
+      for (let i = n(30); i > 0; i--) { const o = rand(-1.6, 1.6) * R; addPart({ add: true, kind: "spark", x: bx + px * o, y: by + py * o, ...back(rand(500, 800), 0), drag: 3, life: 0.18, size: 1.4, rgb: "255,255,255", len: 0.04 }); }   // wind streaks
+      for (let i = n(8); i > 0; i--) addPart({ kind: "leaf", x: bx, y: by, vx: rand(-60, 60), vy: rand(-20, 50), drag: 2, g: 50, life: rand(0.9, 1.3), size: rand(5, 7.5), rot: rand(0, 6), vr: rand(-5, 5), col: "#f0d890" });   // golden feathers
+    },
+    head(pr, R, t, glow) {
+      glow(R * 2.8, "255,230,150");
+      ctx.rotate(pr.ang);
+      const flap = Math.sin(t * 26) * 0.18;
+      for (const sy of [-1, 1]) {   // two wings, five feathers each
+        for (let k = 4; k >= 0; k--) {
+          ctx.save(); ctx.translate(-R * 0.2, sy * R * 0.2); ctx.rotate(sy * (2.35 + k * 0.17 + flap));
+          const L = R * (2.3 - k * 0.22); ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(L * 0.5, -R * 0.32, L, 0); ctx.quadraticCurveTo(L * 0.5, R * 0.2, 0, 0); ctx.closePath();
+          ctx.fillStyle = k % 2 ? "#fff6dc" : "#f0c860"; ctx.fill(); ctx.strokeStyle = "#7a5a14"; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+        }
+      }
+      ctx.beginPath(); ctx.moveTo(R * 2.3, 0); ctx.quadraticCurveTo(R * 1.6, -R * 0.55, R * 0.4, -R * 0.45); ctx.lineTo(-R * 0.6, 0); ctx.lineTo(R * 0.4, R * 0.45); ctx.quadraticCurveTo(R * 1.4, R * 0.35, R * 2.0, R * 0.6); ctx.quadraticCurveTo(R * 2.1, R * 0.25, R * 2.3, 0); ctx.closePath();   // hooked talon tip
+      const g = ctx.createLinearGradient(-R * 0.6, 0, R * 2.3, 0); g.addColorStop(0, "#b8862a"); g.addColorStop(0.6, "#ffe48a"); g.addColorStop(1, "#ffffff");
+      ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = "#5a3a08"; ctx.lineWidth = 1.6; ctx.stroke();
+      circle(R * 0.3, 0, R * 0.2, "#4ac0ff"); circle(R * 0.25, -R * 0.06, R * 0.07, "#ffffff");   // sky gem
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      mxFx(x, y, 0.4, (fx, k) => {   // four golden talon slashes rake across the target
+        const reveal = Math.min(1, k * 5), fade = 1 - Math.max(0, (k - 0.3) / 0.7), L = 70 * P;
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.rotate(0.7); ctx.lineCap = "round";
+        for (let c = 0; c < 4; c++) {
+          const oy = (c - 1.5) * 13 * P; ctx.beginPath(); ctx.moveTo(-L / 2, oy); ctx.quadraticCurveTo(0, oy - 14 * P, -L / 2 + L * reveal, oy + (reveal - 0.5) * 6 * P);
+          for (const [w, col] of [[10, `rgba(240,200,110,${0.45 * fade})`], [4, `rgba(255,240,190,${fade})`], [1.5, `rgba(255,255,255,${fade})`]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke(); }
+        }
+        ctx.restore();
+      });
+      burst(12, (cx, cy) => { const sp = rand(120, 300); addPart({ kind: "leaf", x, y, vx: cx * sp, vy: cy * sp - 60, drag: 2.5, g: 60, life: rand(0.9, 1.3), size: rand(5, 7.5), rot: rand(0, 6), vr: rand(-6, 6), col: Math.random() < 0.5 ? "#f0d890" : "#fff6dc" }); });
+      burst(20, (cx, cy) => { const sp = rand(260, 520); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 5, life: 0.25, size: 1.8, cols: GRI_COLS, len: 0.05 }); });
+      ringFx("255,240,190", 8, 80 * P, 4, 0.4); ringFx("255,255,255", 6, 110 * P, 2, 0.3, true, 0.35);
+    },
+  },
+  // ---- Qilin: holy golden thunder that leaps through enemies, auspicious clouds along the bolt and a sacred seal on every hit.
+  mx_qilin: {
+    trail() {}, head() {},
+    chain(fx, k) {
+      const P = fx.points, fade = 1 - k;
+      if (!fx.jag) { fx.jag = []; for (let i = 0; i < P.length - 1; i++) { const [ax, ay] = P[i], [bx2, by2] = P[i + 1], l = Math.hypot(bx2 - ax, by2 - ay) || 1, nx = -(by2 - ay) / l, ny = (bx2 - ax) / l; for (let s = 0; s < 7; s++) { const u = s / 7, o = s ? rand(-14, 14) : 0; fx.jag.push([ax + (bx2 - ax) * u + nx * o, ay + (by2 - ay) * u + ny * o]); } } fx.jag.push(P[P.length - 1]); }
+      ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.globalCompositeOperation = "lighter";
+      const line = (w, c) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); fx.jag.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke(); };
+      line(20, `rgba(255,170,40,${0.3 * fade})`); line(8, `rgba(255,210,80,${0.9 * fade})`); line(3, `rgba(255,255,240,${fade})`);
+      for (let i = 0; i < P.length - 1; i++) {   // ruyi cloud curls along each leap
+        const mx = (P[i][0] + P[i + 1][0]) / 2, my = (P[i][1] + P[i + 1][1]) / 2;
+        for (const s of [-1, 1]) { ctx.strokeStyle = `rgba(255,236,170,${0.85 * fade})`; ctx.lineWidth = 2.5; ctx.beginPath(); for (let j = 0; j <= 20; j++) { const a = j / 20 * Math.PI * 2.2, r = 3 + j * 0.6; const px = mx + s * 14 + Math.cos(a * s) * r, py = my + Math.sin(a * s) * r * 0.7; j ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.stroke(); }
+      }
+      for (let i = 1; i < P.length; i++) {   // a sacred seal of eight trigram bars on every enemy struck
+        ctx.save(); ctx.translate(P[i][0], P[i][1]); ctx.scale(1, 0.55); ctx.rotate(k * 4 + i);
+        const r = 34 * (0.6 + 0.4 * Math.min(1, k * 4)); ring(0, 0, r, `rgba(255,220,100,${fade})`, 2.5); ring(0, 0, r * 0.62, `rgba(255,240,190,${0.8 * fade})`, 1.5);
+        for (let b = 0; b < 8; b++) { ctx.save(); ctx.rotate(b * Math.PI / 4); ctx.fillStyle = `rgba(255,236,150,${fade})`; ctx.fillRect(-6, -r * 0.92, 12, 3); if (b % 2) { ctx.fillRect(-6, -r * 0.8, 5, 3); ctx.fillRect(1, -r * 0.8, 5, 3); } else ctx.fillRect(-6, -r * 0.8, 12, 3); ctx.restore(); }
+        ctx.restore();
+      }
+      ctx.restore();
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      for (let i = 0; i < 14; i++) addPart({ add: true, kind: "spark", x: x + rand(-6, 6), y: y - rand(120, 220), vx: 0, vy: 1400, life: 0.13, size: rand(2, 4), cols: QIL_COLS, len: 0.06 });   // thunder from the sky
+      addPart({ add: true, kind: "glow", x, y, life: 0.3, size: 34 * P, grow: 0.4, cols: QIL_COLS, a: 0.9 });
+      burst(16, (cx, cy) => { const sp = rand(160, 380); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp * 0.6 - 80, drag: 4, life: rand(0.3, 0.5), size: 2.2, cols: QIL_COLS, len: 0.04 }); });
+      ringFx("255,210,80", 8, 60 * P, 5, 0.5);
+    },
+  },
+  // ---- Kraken: a giant tentacle lashing out of the deep, trailing ink.
+  mx_kraken: {
+    trail(pr, n, back, bx, by, R) {
+      for (let i = n(18); i > 0; i--) addPart({ kind: "smoke", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(20, 15), life: 0.9, size: R * rand(0.5, 0.8), grow: 1.5, col: "#1a0c3a", a: 0.5 });
+      for (let i = n(10); i > 0; i--) addPart({ kind: "bubble", x: bx + rand(-10, 10), y: by + rand(-10, 10), vx: rand(-15, 15), vy: rand(-50, -10), life: 0.8, size: rand(2, 4.5), col: "rgba(190,180,255,0.9)", rot: rand(0, 9) });
+      for (let i = n(30); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 60)), life: rand(0.3, 0.45), size: R * rand(0.35, 0.6), grow: -0.5, cols: KRA_COLS, a: 0.6 });
+    },
+    head(pr, R, t, glow) {
+      ctx.restore(); ctx.save();
+      const h = mxHist(pr, 20);
+      if (h.length > 3) {
+        const pts = mxBend(h, (i, f) => Math.sin(i * 0.55 - t * 12) * R * 0.7 * f);
+        const wf = (i, f) => R * (0.35 + 1.25 * f);   // thin tip at the front, thick behind
+        mxRibbon(pts, (i, f) => wf(i, f) + 3, "#140830");
+        mxRibbon(pts, wf, "#6a4ad8");
+        mxRibbon(pts.map(([x, y], i) => [x, y]), (i, f) => wf(i, f) * 0.45, "rgba(255,190,230,0.75)");   // pale underside
+        for (let i = 2; i < pts.length - 1; i += 2) { const f = i / (pts.length - 1); circle(pts[i][0], pts[i][1], R * 0.12 + R * 0.25 * f, "#ffd6ef"); circle(pts[i][0], pts[i][1], (R * 0.12 + R * 0.25 * f) * 0.5, "#b0508a"); }   // suckers
+      }
+      ctx.translate(pr.x, pr.y); glow(R * 2.2, "120,90,255"); ctx.rotate(pr.ang);
+      ctx.strokeStyle = "#140830"; ctx.lineWidth = R * 0.55; ctx.lineCap = "round"; ctx.beginPath();   // the curling tip
+      for (let i = 0; i <= 16; i++) { const u = i / 16, a = -Math.PI / 2 + u * 4.2 + Math.sin(t * 10) * 0.3, r = R * 0.9 * (1 - u * 0.75); const px = R * 0.4 + Math.cos(a) * r, py = Math.sin(a) * r + R * 0.9; i ? ctx.lineTo(px, py) : ctx.moveTo(0, 0); }
+      ctx.stroke(); ctx.strokeStyle = "#7a5ae8"; ctx.lineWidth = R * 0.35; ctx.stroke();
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      mxFx(x, y, 0.8, (fx, k) => {   // three tentacles erupt from the ground and wrap around the target
+        const up = Math.min(1, k * 3.5), fade = 1 - Math.max(0, (k - 0.6) / 0.4), H = 55 * P * up;
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.globalAlpha = fade; ctx.lineCap = "round";
+        for (let i = 0; i < 3; i++) {
+          const sd = i === 1 ? 0.35 : i === 0 ? -1 : 1, bx = sd * 30 * P, by = 12 * P, pts = [];
+          for (let j = 0; j <= 22; j++) {   // rises from the ground, arcs over the target, the tip curls
+            const u = j / 22, a = u * Math.PI * 0.95, wob = Math.sin(k * 18 + i + u * 5) * 3;
+            pts.push([bx * (1 - u) + Math.sin(a) * -sd * 18 * P + wob, by - Math.sin(Math.min(u * 1.3, 1) * Math.PI / 2) * H * (1 - 0.35 * u * u)]);
+          }
+          for (let j = 0; j < 6; j++) { const a = j * 0.9, r = 9 * P * (1 - j / 7); const [lx, ly] = pts[pts.length - 1]; pts.push([lx - sd * Math.sin(a) * r * 0.6 + (sd ? 0 : r * 0.5 * Math.sin(a)), ly + (1 - Math.cos(a)) * r * 0.6]); }
+          const wf = (j, f) => 14 * P * (1 - f * 0.85);
+          mxRibbon(pts, (j, f) => wf(j, f) + 3, "#140830"); mxRibbon(pts, wf, "#6a4ad8"); mxRibbon(pts, (j, f) => wf(j, f) * 0.4, "rgba(255,190,230,0.7)");
+          for (let j = 2; j < pts.length - 6; j += 3) { const f = j / (pts.length - 1); circle(pts[j][0], pts[j][1], 3 * P * (1 - f * 0.7), "#ffd6ef"); circle(pts[j][0], pts[j][1], 1.4 * P * (1 - f * 0.7), "#b0508a"); }
+        }
+        ctx.restore();
+      });
+      for (let i = 0; i < 10; i++) addPart({ kind: "smoke", x: x + rand(-20, 20), y: y + rand(-8, 8), vx: rand(-60, 60), vy: rand(-40, 10), life: 0.9, size: rand(10, 18), grow: 1.5, col: "#1a0c3a", a: 0.55 });   // ink cloud
+      for (let i = 0; i < 16; i++) addPart({ kind: "drop", x, y, vx: rand(-220, 220), vy: rand(-320, -80), g: 1000, life: rand(0.5, 0.8), size: rand(2.5, 4), col: "#3a2a8a" });
+      ringFx("140,120,255", 8, 70 * P, 5, 0.45);
+    },
+  },
+  // ---- Banshee: a screaming ghost face with flowing hair, sound waves rippling ahead of it.
+  mx_banshee: {
+    trail(pr, n, back, bx, by, R) {
+      for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-6, 6), y: by + rand(-6, 6), ...back(rand(20, 70), 25), life: rand(0.4, 0.65), size: R * rand(0.4, 0.75), grow: 0.3, cols: BAN_COLS, a: 0.55 });
+      for (let i = n(7); i > 0; i--) addPart({ add: true, kind: "ring", x: pr.x, y: pr.y, rgb: "220,190,255", size: R * 0.8, grow: R * 2.2, w: 2.5, sq: 1, life: 0.35 });   // echoes of the scream
+    },
+    head(pr, R, t, glow) {
+      ctx.restore(); ctx.save();
+      const h = mxHist(pr, 14);
+      if (h.length > 3) { ctx.globalCompositeOperation = "lighter"; for (let j = 0; j < 5; j++) mxRibbon(mxBend(h, (i, f) => (j - 2) * R * 0.35 * (0.4 + f) + Math.sin(i * 0.8 - t * 12 + j) * R * 0.4 * f), (i, f) => R * 0.45 * (1 - f * 0.8), "rgba(200,170,255,0.32)"); ctx.globalCompositeOperation = "source-over"; }   // flowing ghostly hair
+      ctx.translate(pr.x, pr.y); glow(R * 3, "170,110,255");
+      ctx.rotate(pr.ang);
+      for (let k = 0; k < 3; k++) { const u = (t * 3 + k / 3) % 1; ctx.strokeStyle = `rgba(230,210,255,${0.9 * (1 - u)})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(R * 0.6, 0, R * (1.1 + u * 1.6), -0.7, 0.7); ctx.stroke(); }   // sound waves ahead
+      ctx.rotate(-pr.ang);   // the face stays upright
+      const sc = 1 + 0.05 * Math.sin(t * 30), fg = ctx.createRadialGradient(0, -R * 0.2, 1, 0, 0, R * 1.2); fg.addColorStop(0, "#ffffff"); fg.addColorStop(0.6, "#e6dcff"); fg.addColorStop(1, "rgba(170,120,255,0.6)");
+      ctx.beginPath(); ctx.ellipse(0, 0, R * 0.85 * sc, R * 1.1 * sc, 0, 0, Math.PI * 2); ctx.fillStyle = fg; ctx.fill();
+      for (const sx of [-1, 1]) { ctx.save(); ctx.translate(sx * R * 0.32, -R * 0.25); ctx.rotate(-sx * 0.3); ellipse(0, 0, R * 0.2, R * 0.3, "#1a0a30"); circle(0, -R * 0.05, R * 0.07, "#d8b0ff"); ctx.restore(); }   // hollow eyes
+      ellipse(0, R * 0.42, R * 0.26, R * (0.36 + 0.1 * Math.sin(t * 30)), "#1a0a30");   // the screaming mouth
+    },
+    hit(x, y, P, A, burst, ringFx) {
+      const AR = Math.max(A, 70);
+      mxFx(x, y, 0.6, (fx, k) => {   // a shrieking shockwave: wobbling rings and wailing faces flying outward
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.6);
+        for (let i = 0; i < 4; i++) {
+          const u = clamp(k * 1.4 - i * 0.12, 0, 1); if (u <= 0 || u >= 1) continue; const r = AR * 1.2 * u;
+          ctx.beginPath(); for (let j = 0; j <= 48; j++) { const a = j / 48 * Math.PI * 2, rr = r * (1 + 0.08 * Math.sin(a * 9 + k * 30 + i)); j ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+          ctx.strokeStyle = `rgba(${i % 2 ? "255,255,255" : "190,140,255"},${(1 - u) * 0.9})`; ctx.lineWidth = 6 * (1 - u) + 1; ctx.stroke();
+        }
+        ctx.restore();
+        for (let i = 0; i < 5; i++) {   // little wailing ghosts
+          const a = i / 5 * Math.PI * 2 + fx.seed, d = AR * 1.1 * k, gx = fx.x + Math.cos(a) * d, gy = fx.y + Math.sin(a) * d * 0.6 - k * 20, al = 1 - k;
+          ellipse(gx, gy, 7, 9, `rgba(235,225,255,${0.85 * al})`); ellipse(gx, gy + 2, 2.5, 3.5, `rgba(26,10,48,${al})`); circle(gx - 2.5, gy - 3, 1.5, `rgba(26,10,48,${al})`); circle(gx + 2.5, gy - 3, 1.5, `rgba(26,10,48,${al})`);
+        }
+      });
+      addPart({ add: true, kind: "glow", x, y, life: 0.3, size: AR * 0.6, grow: 0.6, cols: BAN_COLS, a: 0.75 });
+      burst(Math.round(18 * P), (cx, cy) => { const sp = rand(100, 300) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.6, drag: 3, life: rand(0.4, 0.7), size: rand(8, 14) * P, grow: 0.2, cols: BAN_COLS, a: 0.6 }); });
+    },
+  },
+};
+for (const k of ["kitsune", "fenrir", "serpent", "cerberus", "basilisk", "griffin", "qilin", "kraken", "banshee"]) { VFX_STYLE[k] = "mx_" + k; delete EPV[k]; }
 function epTrail(pr, n, back, bx, by, R) {
   const v = EPV[pr.element]; if (!v) return;
   for (let i = n(45); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 100)), life: rand(0.25, 0.42), size: R * rand(0.55, 0.95), grow: -0.55, cols: v.cols, a: 0.8 });
@@ -2783,6 +3201,7 @@ function emitTrail(pr, dt) {
   const back = (sp, j = 40) => ({ vx: -dx * sp + rand(-j, j), vy: -dy * sp + rand(-j, j) });
   const rgb = rgbOf(pr.color);
   if (st === "ep") { epTrail(pr, n, back, bx, by, R); return; }
+  if (MYTHFX[st]) { MYTHFX[st].trail(pr, n, back, bx, by, R); return; }
   if (st === "voidorb") {   // dark fog, a spiral of matter being pulled into the orb, star glints
     for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 80)), life: rand(0.3, 0.5), size: R * rand(0.6, 1.0), grow: -0.5, cols: VOID_COLS, a: 0.75 });
     for (let i = n(30); i > 0; i--) { const a = rand(0, Math.PI * 2), r0 = R * rand(2.6, 3.6); addPart({ add: true, kind: "glow", x: pr.x + Math.cos(a) * r0, y: pr.y + Math.sin(a) * r0, vx: (-Math.cos(a) * 3 - Math.sin(a) * 2) * r0 + pr.vx * 0.9, vy: (-Math.sin(a) * 3 + Math.cos(a) * 2) * r0 + pr.vy * 0.9, life: 0.22, size: R * 0.28, grow: -0.6, cols: VOID_COLS, a: 0.9 }); }
@@ -2926,6 +3345,7 @@ function drawShotHead(pr) {
   const glow = (r, c) => { const q = Math.max(2, Math.round(r / 2) * 2);   // pre-drawn per colour and size (sizes rounded to 2 px)
     drawCached(`sg|${c}|${q}`, q * 2 + 2, q * 2 + 2, () => { const g = ctx.createRadialGradient(0, 0, 0, 0, 0, q); g.addColorStop(0, `rgba(${c},0.6)`); g.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, q, 0, Math.PI * 2); ctx.fill(); }, 0, 0, r / q, 1); };
   if (st === "ep") { epHead(pr, R, t); ctx.restore(); return; }
+  if (MYTHFX[st]) { MYTHFX[st].head(pr, R, t, glow); ctx.restore(); return; }
   if (NEW_SHOTS.has(st)) R *= 1.35;   // the Dark / Light family shots are drawn bigger
   if (st === "voidorb") {   // a black hole: two crossed accretion disks, a pulsing event horizon, orbiting moons
     glow(R * 3.2, "150,90,255");
@@ -3201,6 +3621,7 @@ function impactFx(el, x, y, r, area) {
   const ringFx = (col, size, grow, w, sq = 0.55, add = true, life = 0.45) => addPart(add ? { add: true, kind: "ring", x, y, rgb: col, size, grow, w, sq, life } : { kind: "ring", x, y, col, size, grow, w, sq, life });
   addPart({ add: true, kind: "glow", x, y, life: 0.16, size: 26 * P + A * 0.3, grow: 0.3, rgb: "255,255,240", a: 0.9 });
   if (st === "ep") { epHit(el, x, y, P, A, burst); return; }
+  if (MYTHFX[st]) { MYTHFX[st].hit(x, y, P, A, burst, ringFx); return; }
   if (st === "voidorb") {   // implosion: two rings collapse inward, matter is sucked in, then a dark shockwave and a white pop
     addPart({ add: true, kind: "ring", x, y, rgb: "170,110,255", size: 58 * P, grow: -54 * P, w: 5, sq: 0.6, life: 0.35 });
     addPart({ add: true, kind: "ring", x, y, rgb: "230,210,255", size: 38 * P, grow: -36 * P, w: 3, sq: 0.6, life: 0.28 });
@@ -3537,6 +3958,8 @@ class Fx {
         for (const [w, col] of [[14, `rgba(70,150,255,${0.35 * fade})`], [6, `rgba(160,220,255,${0.95 * fade})`], [2.4, `rgba(255,255,255,${fade})`]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); pts.forEach(([px, py], i) => i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)); ctx.stroke(); }
       }
       ctx.restore();
+    } else if (this.mode === "mx") { ctx.save(); this.fn(this, k); ctx.restore();
+    } else if (this.mode === "mxchain") { MYTHFX[VFX_STYLE[this.el]].chain(this, k);
     } else if (this.mode === "epchain") {   // the bouncing Dark/Light Epics: each Dark/Light parent draws its chain its own way
       const v = EPV[this.el], fade = 1 - k, P = this.points; ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
       if (!this.jag) { this.jag = []; for (let i = 0; i < P.length - 1; i++) { const [ax, ay] = P[i], [bx2, by2] = P[i + 1], l = Math.hypot(bx2 - ax, by2 - ay) || 1, nx = -(by2 - ay) / l, ny = (bx2 - ax) / l; this.jag.push([ax, ay]); for (let j = 1; j < 6; j++) { const o = rand(-12, 12); this.jag.push([lerp(ax, bx2, j / 6) + nx * o, lerp(ay, by2, j / 6) + ny * o]); } } this.jag.push(P[P.length - 1]); }
@@ -4563,7 +4986,7 @@ function fireCard(c) {
   c.kick = 1;
   playSfx(c.element, "atk");
   const ox = c.x, oy = d.gather ? c.y - CARD_H / 2 - 80 : c.y - 60;   // Kitsune fires from its gathered orb
-  if (NEW_SHOTS.has(VFX_STYLE[c.element]) || VFX_STYLE[c.element] === "prism" || VFX_STYLE[c.element] === "ep") {   // muzzle flash in the element's colours
+  if (NEW_SHOTS.has(VFX_STYLE[c.element]) || VFX_STYLE[c.element] === "prism" || VFX_STYLE[c.element] === "ep" || MYTHFX[VFX_STYLE[c.element]]) {   // muzzle flash in the element's colours
     const rgb = rgbOf(d.color); addPart({ add: true, kind: "ring", x: ox, y: oy, rgb, size: 8, grow: 46, w: 4, sq: 0.6, life: 0.25 });
     addPart({ add: true, kind: "glow", x: ox, y: oy, life: 0.18, size: 22, grow: 0.4, rgb, a: 0.9 });
   }
@@ -4582,7 +5005,8 @@ function chain(el, r, ox, oy, first, count, sm = 1) {
     for (const e of enemies) { if (hit.has(e) || e.dead) continue; const dd = Math.hypot(e.x - pts[pts.length - 1][0], e.y - pts[pts.length - 1][1]); if (dd < bd) { bd = dd; best = e; } }
     cur = best;
   }
-  if (EPV[el]) fxs.push(new Fx("epchain", { points: pts, el, duration: 0.28 }));
+  if (MYTHFX[VFX_STYLE[el]] && MYTHFX[VFX_STYLE[el]].chain) fxs.push(new Fx("mxchain", { points: pts, el, duration: 0.32 }));
+  else if (EPV[el]) fxs.push(new Fx("epchain", { points: pts, el, duration: 0.28 }));
   else fxs.push(new Fx(VFX_STYLE[el] === "prism" ? "prismray" : "bolt", { points: pts, color: EL[el].color, duration: el === "prism" ? 0.26 : 0.18 }));
   if (hit.size) playSfx(el, "hit");
 }
@@ -5375,7 +5799,7 @@ function drawGather() {
       circle(x, y, 3.4, `rgba(255,${190 + 60 * u | 0},${205 + 50 * u | 0},${al})`);
     }
     // The orb is drawn exactly like the shot, growing to the shot's full size, so the shot leaves seamlessly.
-    if (k > 0.02) drawShotHead({ style: "foxfire", x: ox, y: oy, t: time, ang: -Math.PI / 2, radius: (7 + c.rarity * 1.2) * (d.shotScale || 1) * k });
+    if (k > 0.02) drawShotHead({ style: VFX_STYLE.kitsune, x: ox, y: oy, t: time, ang: -Math.PI / 2, radius: (7 + c.rarity * 1.2) * (d.shotScale || 1) * k });
     ctx.restore();
   }
 }
