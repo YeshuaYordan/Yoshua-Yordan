@@ -22,7 +22,7 @@ The game is live and in active development (the old "wait for go" rule no longer
 ## Game systems (quick map, search these names in index.html)
 - Cards: `EL` table. Myth = `myth: true` + `art` (448x544 webp) + `medal: [x, y, size]` face crop. Legend = `legendCard: true`. Special = `special: true`; totems/idols use `totem` kind, never attack, 1 per board, power up by dropping copies (Lv1-5).
 - 10 Specials: Fight, Flight, Midas, Mirror, Hourglass, Bulwark, Seer, Chain(`chainlink`), Chalice, Hex (`IDOL_VAL`, `drawIdolCard`, `drawIdolEmblem`).
-- 10 Myths: Kitsune, Fenrir, Serpent, Phoenix, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee. 10 Legends: Zeus, Hades, Poseidon + Athena, Ares, Apollo, Artemis, Hermes, Hephaestus, Hera (shots in `MYTHFX`). The 7 new ones have `wip: true` (no art yet: kept out of Summon/Chamber via `LEGEND_ELS`; test cards use `LEGEND_ALL`). When the user sends art: save `assets/img/<god>.webp` 448x544, add it to the art list (`CARD_ILLUS` loader), set `art`, remove `wip`. Ares `frenzy`, Hera `aura` (`heraAura`).
+- 10 Myths: Kitsune, Fenrir, Serpent, Phoenix, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee. 10 Legends: Zeus, Hades, Poseidon + Athena, Ares, Apollo, Artemis, Hermes, Hephaestus, Hera (shots in `MYTHFX`). Their art is in `assets/img/<god>.webp` (448x544, cropped from the user's 1024x1536 art); orbit icons in `LEGEND_ORBIT` (theme = god name). A card with `wip: true` stays out of drops (`LEGEND_ELS`). Ares `frenzy`, Hera `aura` (`heraAura`).
 - Shots: `VFX_STYLE`, `EPV` (head + trail + impact mixes). Sounds: `SAMPLE_SRC` (recorded) else `SOUND_OF` synth; `playSfx`.
 - Shop / IAP: `SHOP_GEMS`, specials $4.99, Beginner Deal `STARTER_DEAL` ($1: 2,000 gems + Fight + Flight + Chalice, 24h, id `starter_deal`). Test mode when `window.nativePurchase` is missing.
 - Castle & spell upgrades: `CASTLE_UPS`, `spellUpCost` (prices are 4x the original). Spell cast price x1.5 per cast per run (`spellCost`).
@@ -35,5 +35,5 @@ The game is live and in active development (the old "wait for go" rule no longer
 - Tests must tap once after loading (`LOAD.ready && loadShown >= 1`) to pass "TAP TO START".
 
 ## To do / ideas
-- Legend art for the 7 new Greek gods (user will send), then their ElevenLabs `_atk`/`_hit` sounds. Done: Special sounds (`sp_<card>_up` on power-up for all 10, `sp_<card>` when an idol triggers, via `playSpecial` with cooldowns). Also done: `_atk`/`_hit` sounds for Serpent, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee (loudness matched to `serpent_atk.mp3`, about -12.5 LUFS, max 1.4 s).
+- ElevenLabs `_atk`/`_hit` sounds for the 7 Greek Legends. Done: Special sounds (`sp_<card>_up` on power-up for all 10, `sp_<card>` when an idol triggers, via `playSpecial` with cooldowns). Also done: `_atk`/`_hit` sounds for Serpent, Cerberus, Basilisk, Griffin, Qilin, Kraken, Banshee (loudness matched to `serpent_atk.mp3`, about -12.5 LUFS, max 1.4 s).
 - Release: TESTER_RESET=false, Google Play billing (product ids must match), optional AdMob, new Android build.
