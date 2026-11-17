@@ -17,6 +17,7 @@ The game is live and in active development (the old "wait for go" rule no longer
 - After every game change, republish the web preview artifact and send the user the link.
 - Ask before unexpected changes. Keep replies short; skip browser tests and screenshots for simple changes (save the user's credits).
 - All Legend cards use the gold frame; Myth cards use the Phoenix Myth frame.
+- Kitsune and Fenrir keep their original shots (`foxfire`, `fenrir`): don't redesign them. The other 7 Myths use `MYTHFX` (`mx_<card>`) shots; Myth medals are `assets/img/<card>_medal.webp`.
 
 ## Game systems (quick map, search these names in index.html)
 - Cards: `EL` table. Myth = `myth: true` + `art` (448x544 webp) + `medal: [x, y, size]` face crop. Legend = `legendCard: true`. Special = `special: true`; totems/idols use `totem` kind, never attack, 1 per board, power up by dropping copies (Lv1-5).
