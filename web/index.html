@@ -2580,7 +2580,7 @@ for (const [k, head, dl, cl] of [["cerberus", "comet", "hellfire", "lava"], ["ba
 }
 if (EPV.bonefire) EPV.bonefire.head = "crossbones";   // their own one-of-a-kind heads
 if (EPV.tomb_dust) EPV.tomb_dust.head = "coffin";
-// ============ Myth shots: each of the 9 Myth cards (not Phoenix) has its own one-of-a-kind shot, trail and impact.
+// ============ Myth shots: 7 Myth cards (not Phoenix, Kitsune or Fenrir) has its own one-of-a-kind shot, trail and impact.
 // MYTHFX["mx_<card>"] = { trail(pr, n, back, bx, by, R), head(pr, R, t, glow), hit(x, y, P, A, burst, ringFx), chain?(fx, k) }
 const mxHist = (pr, len) => { pr.hist = pr.hist || []; const h = pr.hist; h.unshift([pr.x, pr.y]); if (h.length > len) h.length = len; return h; };
 const mxFx = (x, y, duration, fn, extra) => fxs.push(new Fx("mx", Object.assign({ x, y, duration, fn, seed: Math.random() * 1000 }, extra)));
@@ -2599,8 +2599,6 @@ function mxRibbon(pts, w, col) {
 function mxBend(h, off) {
   return h.map(([x, y], i) => { const a = h[Math.max(0, i - 1)], b = h[Math.min(h.length - 1, i + 1)], dx = a[0] - b[0], dy = a[1] - b[1], l = Math.hypot(dx, dy) || 1, o = off(i, i / Math.max(1, h.length - 1)); return [x - dy / l * o, y + dx / l * o]; });
 }
-const KIT_COLS = [[255, 255, 255], [255, 190, 210], [255, 74, 106], [150, 10, 50]];
-const FEN_COLS = [[255, 255, 255], [190, 240, 255], [90, 180, 255], [30, 60, 200]];
 const SEA2_COLS = [[255, 255, 255], [170, 235, 255], [50, 150, 255], [10, 50, 150]];
 const CER_COLS = [[255, 255, 210], [255, 200, 60], [255, 90, 30], [120, 10, 10]];
 const BAS_COLS = [[240, 255, 220], [150, 255, 120], [60, 180, 60], [20, 70, 30]];
@@ -2609,118 +2607,6 @@ const QIL_COLS = [[255, 255, 255], [255, 240, 170], [255, 200, 60], [220, 120, 2
 const KRA_COLS = [[230, 220, 255], [150, 130, 255], [90, 60, 200], [30, 15, 70]];
 const BAN_COLS = [[255, 255, 255], [225, 200, 255], [170, 110, 255], [70, 30, 140]];
 const MYTHFX = {
-  // ---- Kitsune: a fox spirit made of fox-fire, nine flame tails streaming behind, spirit orbs circling it.
-  mx_kitsune: {
-    trail(pr, n, back, bx, by, R) {
-      for (let i = n(70); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-6, 6), y: by + rand(-6, 6), ...back(rand(30, 110)), life: rand(0.3, 0.5), size: R * rand(0.4, 0.75), grow: -0.5, cols: KIT_COLS, a: 0.8 });
-      for (let i = n(10); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-R, R), y: by + rand(-R, R), vx: rand(-30, 30), vy: rand(-60, -20), life: rand(0.6, 0.9), size: rand(3, 5), grow: -0.2, cols: [[255, 255, 255], [190, 230, 255], [120, 160, 255]], a: 0.9 });
-    },
-    head(pr, R, t, glow) {
-      R *= 0.6;   // Kitsune's blast is huge (shotScale 4): keep the fox a sensible size
-      ctx.restore(); ctx.save();
-      const h = mxHist(pr, 18);
-      if (h.length > 3) {
-        ctx.globalCompositeOperation = "lighter";
-        for (let j = 0; j < 9; j++) {   // nine tails fanning out behind the fox
-          const pts = mxBend(h, (i, f) => (j - 4) * R * 0.32 * f + Math.sin(i * 0.7 - t * 14 + j * 0.9) * R * 0.35 * f);
-          mxRibbon(pts, (i, f) => R * 0.9 * Math.sin(Math.min(1, f * 1.2 + 0.15) * Math.PI) , `rgba(255,60,100,${0.28})`);
-          mxRibbon(pts, (i, f) => R * 0.4 * Math.sin(Math.min(1, f * 1.2 + 0.15) * Math.PI), "rgba(255,210,225,0.45)");
-        }
-        ctx.globalCompositeOperation = "source-over";
-      }
-      ctx.translate(pr.x, pr.y);
-      glow(R * 3, "255,70,110");
-      for (let k = 0; k < 3; k++) { const a = t * 7 + k * 2.09; glow(R * 0.9, "180,220,255"); circle(Math.cos(a) * R * 2, Math.sin(a) * R * 1.3, R * 0.28, "#eaf4ff"); }   // spirit orbs
-      ctx.rotate(pr.ang + Math.PI / 2);   // a kitsune mask, ears leading (upright when it flies up)
-      for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) {   // fox-fire licking off the ears
-        const h = R * (0.7 + 0.35 * Math.sin(t * 22 + k * 2 + sx)), bx0 = sx * R * (0.55 + k * 0.17), by0 = -R * (1.2 + k * 0.12);
-        ctx.beginPath(); ctx.moveTo(bx0 - R * 0.16, by0); ctx.quadraticCurveTo(bx0 + Math.sin(t * 15 + k) * R * 0.3, by0 - h * 0.6, bx0, by0 - h); ctx.quadraticCurveTo(bx0 + R * 0.1, by0 - h * 0.4, bx0 + R * 0.16, by0); ctx.closePath();
-        ctx.fillStyle = k % 2 ? "rgba(255,90,130,0.85)" : "rgba(255,200,215,0.85)"; ctx.fill();
-      }
-      const mask = [[0, R * 1.35], [R * 0.45, R * 0.95], [R * 0.85, R * 0.3], [R * 1.0, -R * 0.4], [R * 0.95, -R * 1.65], [R * 0.4, -R * 0.85], [0, -R * 0.95], [-R * 0.4, -R * 0.85], [-R * 0.95, -R * 1.65], [-R * 1.0, -R * 0.4], [-R * 0.85, R * 0.3], [-R * 0.45, R * 0.95]];
-      const mg = ctx.createRadialGradient(0, -R * 0.2, 1, 0, 0, R * 1.7); mg.addColorStop(0, "#ffffff"); mg.addColorStop(0.7, "#fff0f4"); mg.addColorStop(1, "#ffc0d0");
-      poly(mask, mg, "#7a0a26", 2);
-      for (const sx of [-1, 1]) {
-        poly([[sx * R * 0.83, -R * 1.35], [sx * R * 0.48, -R * 0.82], [sx * R * 0.86, -R * 0.55]], "#e0203c", null);   // red inner ears
-        ctx.save(); ctx.translate(sx * R * 0.42, -R * 0.12); ctx.rotate(sx * 0.42);   // slanted eyes with red liner
-        ellipse(0, 0, R * 0.36, R * 0.13, "#e0203c"); ellipse(0, 0, R * 0.26, R * 0.07, "#1a0208"); ellipse(sx * R * 0.04, 0, R * 0.1, R * 0.05, "#ffd84a"); ctx.restore();
-        ctx.strokeStyle = "#e0203c"; ctx.lineWidth = 2.2; ctx.lineCap = "round";   // whisker swirls
-        ctx.beginPath(); ctx.moveTo(sx * R * 0.3, R * 0.55); ctx.quadraticCurveTo(sx * R * 0.7, R * 0.5, sx * R * 0.75, R * 0.2); ctx.stroke();
-      }
-      poly([[0, -R * 0.75], [R * 0.13, -R * 0.45], [0, -R * 0.3], [-R * 0.13, -R * 0.45]], "#e0203c", null);   // forehead flame mark
-      ellipse(0, R * 1.12, R * 0.15, R * 0.1, "#2a0610");   // nose
-    },
-    hit(x, y, P, A, burst, ringFx) {
-      const AR = Math.max(A, 60);
-      mxFx(x, y, 0.6, (fx, k) => {   // a spider lily of fox-fire blooms open, then burns away
-        const open = Math.min(1, k * 3.5), fade = 1 - Math.max(0, (k - 0.4) / 0.6), L = AR * 0.95 * open;
-        ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.75); ctx.globalCompositeOperation = "lighter";
-        for (let i = 0; i < 9; i++) {
-          const a = i / 9 * Math.PI * 2 + fx.seed;
-          ctx.save(); ctx.rotate(a);
-          ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(L * 0.4, -L * 0.25, L * 0.85, -L * 0.1, L, L * 0.18); ctx.bezierCurveTo(L * 0.8, L * 0.05, L * 0.4, L * 0.12, 0, 0);
-          ctx.fillStyle = `rgba(255,50,90,${0.75 * fade})`; ctx.fill();
-          ctx.strokeStyle = `rgba(255,220,230,${0.9 * fade})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(L * 0.7, -L * 0.45, L * 1.15, -L * 0.3); ctx.stroke();   // stamen
-          circle(L * 1.15, -L * 0.3, 2.5, `rgba(255,240,200,${fade})`);
-          ctx.restore();
-        }
-        circle(0, 0, AR * 0.25 * open, `rgba(255,255,255,${0.8 * fade})`);
-        ctx.restore();
-      });
-      burst(Math.round(30 * P), (cx, cy) => { const sp = rand(120, 420) * P; addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.65 - 30, drag: 3, life: rand(0.45, 0.8), size: rand(12, 22) * P, grow: -0.4, cols: KIT_COLS, a: 0.85 }); });
-      burst(9, (cx, cy) => { const sp = rand(140, 260); addPart({ add: true, kind: "glow", x, y, vx: cx * sp, vy: cy * sp * 0.7 - 80, drag: 2, life: rand(0.9, 1.3), size: 5, grow: -0.2, cols: [[255, 255, 255], [190, 230, 255], [120, 160, 255]], a: 1 }); });   // spirit orbs fly free
-      ringFx("255,74,106", AR * 0.2, AR * 1.3, 10); ringFx("255,255,255", AR * 0.1, AR * 1.7, 3, 0.55, true, 0.7);
-      addPart({ add: true, kind: "glow", x, y, life: 0.3, size: AR * 0.7, grow: 0.6, cols: KIT_COLS, a: 0.8 });
-    },
-  },
-  // ---- Fenrir: a snarling wolf head made of lightning, leaving glowing paw prints behind it.
-  mx_fenrir: {
-    trail(pr, n, back, bx, by, R) {
-      for (let i = n(55); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(40, 120)), life: rand(0.2, 0.35), size: R * rand(0.35, 0.7), grow: -0.6, cols: FEN_COLS, a: 0.85 });
-      for (let i = n(14); i > 0; i--) {   // paw prints: one pad and four toes
-        pr.paw = (pr.paw || 0) + 1; const s = pr.paw % 2 ? 1 : -1, nx = -Math.sin(pr.ang) * s * R * 0.6, ny = Math.cos(pr.ang) * s * R * 0.6, px = bx + nx, py = by + ny;
-        addPart({ add: true, kind: "glow", x: px, y: py, life: 0.6, size: R * 0.32, grow: -0.2, cols: FEN_COLS, a: 0.9 });
-        for (let k2 = 0; k2 < 4; k2++) { const a = pr.ang + (k2 - 1.5) * 0.5; addPart({ add: true, kind: "glow", x: px + Math.cos(a) * R * 0.45, y: py + Math.sin(a) * R * 0.45, life: 0.6, size: R * 0.13, grow: -0.2, cols: FEN_COLS, a: 0.9 }); }
-      }
-    },
-    head(pr, R, t, glow) {
-      R *= 1.3; glow(R * 3.4, "90,170,255");
-      ctx.rotate(pr.ang); ctx.lineJoin = "round"; ctx.lineCap = "round";
-      const j = () => rand(-R * 0.07, R * 0.07), bite = 0.5 + 0.5 * Math.sin(t * 22);
-      const up = [[R * 2.0, -R * 0.05], [R * 1.2, -R * 0.4], [R * 0.6, -R * 0.55], [R * 0.2, -R * 1.5], [-R * 0.2, -R * 0.8], [-R * 0.7, -R * 1.15], [-R * 1.0, -R * 0.6], [-R * 1.6, -R * 0.75], [-R * 1.4, -R * 0.25], [-R * 2.1, 0]];
-      const lo = [[-R * 2.1, 0], [-R * 1.4, R * 0.25], [-R * 1.6, R * 0.75], [-R * 1.0, R * 0.6], [-R * 0.7, R * 1.15], [-R * 0.2, R * 0.8], [R * 0.2, R * 1.5], [R * 0.6, R * 0.55], [R * 1.0, R * (0.35 + 0.25 * bite)], [R * 1.7, R * (0.2 + 0.3 * bite)]];
-      const outline = [...up, ...lo].map(([x, y]) => [x + j(), y + j()]);
-      ctx.beginPath(); outline.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
-      ctx.fillStyle = "rgba(20,50,140,0.75)"; ctx.fill();
-      for (const [w, c] of [[7, "rgba(70,150,255,0.5)"], [3, "rgba(180,230,255,0.95)"], [1.2, "#ffffff"]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.stroke(); }
-      for (let k = 0; k < 3; k++) { const fx = R * (0.95 + k * 0.3); poly([[fx, R * 0.05], [fx + R * 0.1, R * 0.4], [fx + R * 0.2, R * 0.05]], "#ffffff", null); poly([[fx, R * (0.3 + 0.25 * bite)], [fx + R * 0.1, R * 0.02], [fx + R * 0.2, R * (0.3 + 0.25 * bite)]], "#e8f6ff", null); }   // fangs
-      ctx.save(); ctx.translate(R * 0.55, -R * 0.25); ctx.rotate(-0.35); ellipse(0, 0, R * 0.32, R * 0.1, "#ffffff"); ctx.restore();   // eye, white-hot
-      glow(R * 0.6, "200,240,255");
-      for (let a = 0; a < 3; a++) {   // arcs crackling off the mane
-        const ang = Math.PI + rand(-1.2, 1.2), pts = [[-R * 0.8, 0]]; for (let k2 = 1; k2 <= 4; k2++) pts.push([-R * 0.8 + Math.cos(ang) * R * k2 * 0.55 + j() * 3, Math.sin(ang) * R * k2 * 0.55 + j() * 3]);
-        ctx.strokeStyle = "rgba(200,240,255,0.9)"; ctx.lineWidth = 1.4; ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
-      }
-    },
-    hit(x, y, P, A, burst, ringFx) {
-      mxFx(x, y, 0.4, (fx, k) => {   // giant lightning jaws snap shut on the target
-        const close = Math.min(1, k * 4), fade = 1 - Math.max(0, (k - 0.3) / 0.7), W = 62 * P, gap = 42 * P * (1 - close);
-        ctx.save(); ctx.translate(fx.x, fx.y); ctx.lineJoin = "round";
-        for (const sy of [-1, 1]) {   // upper and lower jaw: a glowing arc lined with fangs
-          const jy = sy * (gap + 6 * P);
-          ctx.beginPath(); ctx.moveTo(-W, jy * 0.3); ctx.quadraticCurveTo(0, jy + sy * 34 * P, W, jy * 0.3);
-          for (const [w, c] of [[12, `rgba(70,150,255,${0.4 * fade})`], [5, `rgba(170,225,255,${0.95 * fade})`], [2, `rgba(255,255,255,${fade})`]]) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.stroke(); }
-          for (let i = 0; i < 6; i++) {
-            const u = (i + 0.5) / 6, fx0 = -W + 2 * W * u, fy0 = (1 - u) * (1 - u) * jy * 0.3 + 2 * u * (1 - u) * (jy + sy * 34 * P) + u * u * jy * 0.3, L = (i === 1 || i === 4 ? 22 : 13) * P;
-            poly([[fx0 - 5 * P, fy0], [fx0, fy0 - sy * L], [fx0 + 5 * P, fy0]], `rgba(235,248,255,${fade})`, `rgba(70,150,255,${fade})`, 1.5);
-          }
-        }
-        if (close >= 1) { ctx.globalCompositeOperation = "lighter"; circle(0, 0, 30 * P * fade, `rgba(200,240,255,${0.6 * fade})`); }
-        ctx.restore();
-      });
-      burst(26, (cx, cy) => { const sp = rand(220, 520); addPart({ add: true, kind: "spark", x, y, vx: cx * sp, vy: cy * sp, drag: 4, life: rand(0.25, 0.45), size: 2.4, cols: FEN_COLS, len: 0.05 }); });
-      ringFx("120,200,255", 10, 95 * P, 6); ringFx("255,255,255", 6, 60 * P, 3, 0.55, true, 0.3);
-    },
-  },
   // ---- Serpent: an ouroboros of water (a serpent biting its own tail) spinning around a glowing sea pearl.
   mx_serpent: {
     trail(pr, n, back, bx, by, R) {
@@ -2997,7 +2883,7 @@ const MYTHFX = {
     },
   },
 };
-for (const k of ["kitsune", "fenrir", "serpent", "cerberus", "basilisk", "griffin", "qilin", "kraken", "banshee"]) { VFX_STYLE[k] = "mx_" + k; delete EPV[k]; }
+for (const k of ["serpent", "cerberus", "basilisk", "griffin", "qilin", "kraken", "banshee"]) { VFX_STYLE[k] = "mx_" + k; delete EPV[k]; }   // Kitsune and Fenrir keep their original shots
 function epTrail(pr, n, back, bx, by, R) {
   const v = EPV[pr.element]; if (!v) return;
   for (let i = n(45); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 100)), life: rand(0.25, 0.42), size: R * rand(0.55, 0.95), grow: -0.55, cols: v.cols, a: 0.8 });
