@@ -37,6 +37,23 @@ canvas {
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+/* Player name panel (an HTML form so the phone keyboard works everywhere, also inside the Android app). */
+#nameBox { position: fixed; inset: 0; z-index: 50; display: flex; justify-content: center; align-items: flex-start;
+  padding-top: 14vh; background: rgba(10, 4, 16, 0.72); }
+#nameBox[hidden] { display: none; }
+#nameBox form { width: min(88vw, 420px); background: var(--parchment); color: var(--ink); border: 4px solid var(--ink);
+  border-radius: 20px; padding: 22px 22px 18px; box-shadow: 0 10px 0 rgba(0,0,0,0.35); box-sizing: border-box; text-align: center; }
+#nameBox h2 { font-family: var(--font-display); font-size: 25px; margin: 0 0 8px; }
+#nameBox p { margin: 0 0 14px; font-size: 16px; line-height: 1.35; color: #6b3a22; }
+#nameBox input { width: 100%; box-sizing: border-box; font: 600 22px var(--font-body); padding: 10px 14px; border-radius: 12px;
+  border: 3px solid var(--ink); background: #fffaf0; color: var(--ink); text-align: center; outline: none; }
+#nameBox input:focus { border-color: #7a3fb0; }
+#nameBox .err { min-height: 22px; margin: 8px 0 4px; font-size: 15px; font-weight: 600; color: #b8322a; }
+#nameBox .row { display: flex; gap: 12px; justify-content: center; }
+#nameBox button { flex: 1; font: 700 20px var(--font-body); padding: 11px 0; border-radius: 14px; border: 3px solid var(--ink);
+  background: #e9d3a6; color: var(--ink); box-shadow: 0 5px 0 #8a6a4a; cursor: pointer; }
+#nameBox button.ok { background: #6cc56a; box-shadow: 0 5px 0 #2f7a3a; }
+#nameBox button:active { transform: translateY(4px); box-shadow: 0 1px 0 #8a6a4a; }
 </style>
 
 <div id="stage"><canvas id="game" width="720" height="1280" aria-label="Arcane Fusion game"></canvas></div>
@@ -6228,6 +6245,7 @@ canvas.addEventListener("wheel", ev => {
   else if (state === "title" && lobbyPage === -1) { cardsScroll = clamp(cardsScroll + ev.deltaY, 0, cardsMaxScroll()); ev.preventDefault(); }
 }, { passive: false });
 document.addEventListener("keydown", ev => {
+  if (nameOpen) { if (ev.key === "Escape" && !nameFirst) closeNameBox(); return; }   // typing a name
   if (state === "title" && !bookOpen && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) setLobbyPage(lobbyPage + (ev.key === "ArrowRight" ? 1 : -1));
   if (ev.key === "Escape") { if (bookOpen) bookOpen = false; else if (chamberOpen && !fusion) closeChamber(); else if (state === "wave" || state === "break") paused = !paused; }
 });
@@ -7643,17 +7661,53 @@ function resetAllProgress() {
 function profile() {
   const pr = (save.profile = save.profile || { name: "Player", avatar: "fire", waves: 0 });
   if (!pr.seeded) { pr.waves = Math.max(pr.waves || 0, save.best || 0); pr.seeded = true; }
+  if (pr.named === undefined) pr.named = pr.name !== "Player";   // older saves: a name they already chose counts
   return pr;
 }
 const XP_PER_WAVE = 10;   // XP for every wave cleared
 // Player level: grows with every wave you clear (all runs together); each level needs a few more waves.
 function playerLevel() { const xp = (profile().waves || 0) * XP_PER_WAVE; let lvl = 1, need = 50, left = xp; while (left >= need) { left -= need; lvl++; need += 50; } return { lvl, into: left, need }; }
+// ---- Player name: chosen on first launch, then changeable once every 7 days.
+const NAME_COOLDOWN = 7 * 24 * 3600 * 1000;
+let nameOpen = false, nameFirst = false;
+function nameWait() { const at = profile().nameAt || 0; return at ? Math.max(0, at + NAME_COOLDOWN - Date.now()) : 0; }
+function fmtWait(ms) { const h = Math.ceil(ms / 3600000); return h >= 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : `${h}h`; }
+function cleanName(n) { return n.replace(/[^\p{L}\p{N} _.-]/gu, "").replace(/\s+/g, " ").trim().slice(0, 14); }
+function nameBoxEl() {
+  let box = document.getElementById("nameBox"); if (box) return box;
+  box = document.createElement("div"); box.id = "nameBox"; box.hidden = true;
+  box.innerHTML = '<form autocomplete="off"><h2></h2><p></p><input name="n" maxlength="14" spellcheck="false" autocapitalize="words" enterkeyhint="done">'
+    + '<div class="err"></div><div class="row"><button type="button" class="cancel">Cancel</button><button type="submit" class="ok">Save</button></div></form>';
+  document.body.appendChild(box);
+  const form = box.querySelector("form"), input = box.querySelector("input"), err = box.querySelector(".err");
+  input.addEventListener("input", () => { err.textContent = ""; });
+  box.querySelector(".cancel").addEventListener("click", () => closeNameBox());
+  form.addEventListener("submit", ev => {
+    ev.preventDefault();
+    const n = cleanName(input.value), pr = profile();
+    if (n.length < 3) { err.textContent = "Use 3-14 letters or numbers."; input.focus(); return; }
+    if (!nameFirst && n === pr.name) { closeNameBox(); return; }   // nothing changed: no cooldown
+    if (!nameFirst && nameWait() > 0) { err.textContent = `You can change it again in ${fmtWait(nameWait())}.`; return; }
+    pr.name = n; if (!nameFirst) pr.nameAt = Date.now(); pr.named = true; writeSave(); playUi("ui_pick");
+    closeNameBox();
+  });
+  return box;
+}
+function openNameBox(first) {
+  const box = nameBoxEl(), pr = profile(); nameFirst = first; nameOpen = true; cancelDrag();
+  box.querySelector("h2").textContent = first ? "Welcome, wizard!" : "Change name";
+  box.querySelector("p").textContent = first ? "What should we call you? You can change it later, once every 7 days."
+    : "Pick a new name. After changing it you have to wait 7 days to change it again.";
+  box.querySelector(".cancel").hidden = first;
+  const input = box.querySelector("input"); input.value = first ? "" : pr.name; input.placeholder = "Your name";
+  box.querySelector(".err").textContent = "";
+  box.hidden = false; setTimeout(() => { input.focus(); input.select(); }, 60);
+}
+function closeNameBox() { const box = document.getElementById("nameBox"); if (box) { box.hidden = true; box.querySelector("input").blur(); } nameOpen = false; }
 function editName() {
-  let n = null;
-  try { n = window.prompt("Your player name (max 14 letters):", profile().name); } catch (e) {}
-  if (n === null) return;
-  n = n.replace(/[^\p{L}\p{N} _.-]/gu, "").trim().slice(0, 14);
-  if (n) { profile().name = n; writeSave(); }
+  if (!profile().named) { openNameBox(true); return; }
+  if (nameWait() > 0) { playUi("ui_pick"); return; }   // the button shows how long is left
+  openNameBox(false);
 }
 function nextAvatar() {
   const pr = profile(), unlocked = AVATARS.filter(el => EL[el].tier === 1 || save.discovered[el]);
@@ -7692,7 +7746,8 @@ function drawBio() {
   drawAvatar(ax, ay, 62);
   text("tap to change", ax, ay + 90, 15, "#8a6a4a", { weight: 600 });
   text(pr.name, x + 210, y + 150, 34, INK, { align: "left", weight: 900 });
-  btn.bioName.x = x + 206; btn.bioName.y = y + 168; drawBtn(btn.bioName);
+  const nw = nameWait(); btn.bioName.label = nw > 0 ? `Change in ${fmtWait(nw)}` : "Edit name"; btn.bioName.size = nw > 0 ? 16 : 20;
+  btn.bioName.x = x + 206; btn.bioName.y = y + 168; drawBtn(btn.bioName, nw > 0);
   text(`Level ${lv.lvl}`, x + 210, y + 262, 26, "#2f8f3f", { align: "left", weight: 800 });
   const bx = x + 210, bw = w - 250;
   rrect(bx, y + 276, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.fill();
@@ -8874,7 +8929,8 @@ function tutCheck() {
   const seen = k => save.tut[k];
   if (state === "title") {
     const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen && !bioOpen && !missionsOpen && !settingsOpen;
-    if (!seen("lobby") && calm) tutStart("lobby");
+    if (calm && !nameOpen && !profile().named) { openNameBox(true); return; }   // first launch: choose a name first
+    if (!seen("lobby") && calm && !nameOpen) tutStart("lobby");
     else if (seen("lobby") && calm && !dailyShownThisSession && dailyReady()) { dailyShownThisSession = true; dailyOpen = true; }
     return;
   }
