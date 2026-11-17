@@ -214,6 +214,12 @@ const EL = {
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [118, 48, 224], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400 / 1.5, rate: (1 / 16) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 11, shotScale: 4 },   // 11 s rest + 5 s gathering = one shot every 16 s
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [112, 78, 262], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
   serpent:   { name: "Serpent", tier: 3, myth: true, art: "serpent", medal: [178, 40, 230], color: "#2f8cff", shape: "drop", parts: ["water"], desc: "Sea serpent: its water shot opens a whirlpool that drags nearby enemies into the centre (bosses resist it).", dmg: 32, rate: 0.6 / RARITY_RATE[4], speed: 680, shotScale: 1.7, whirl: 105, whirl_pull: 150, whirl_time: 2.6 },
+  cerberus:  { name: "Cerberus", tier: 3, myth: true, art: "cerberus", medal: [110, 30, 228], color: "#ff5a2a", shape: "flame", parts: ["fire", "dark"], desc: "Hound of the underworld: its three heads spit 3 hellfire comets at 3 different enemies, setting them ablaze.", dmg: 11, rate: 0.6 / RARITY_RATE[4], speed: 760, shotScale: 1.5, multishot: 3, burn: 6 },
+  basilisk:  { name: "Basilisk", tier: 3, myth: true, art: "basilisk", medal: [94, 84, 261], color: "#5fbf4a", shape: "rock", parts: ["earth", "dark"], desc: "King of serpents: its petrifying gaze turns the enemy to stone for a moment, and stone takes +15% damage.", dmg: 30, rate: 0.55 / RARITY_RATE[4], speed: 720, shotScale: 1.6, root: 0.9, curse: 0.15 },
+  griffin:   { name: "Griffin", tier: 3, myth: true, art: "griffin", medal: [110, 74, 228], color: "#f0d890", shape: "swirl", parts: ["wind", "light"], desc: "Royal griffin: razor feathers pierce 3 enemies and knock them back.", dmg: 28, rate: 0.65 / RARITY_RATE[4], speed: 1100, shotScale: 1.5, pierce: 3, knock: 60 },
+  qilin:     { name: "Qilin", tier: 3, myth: true, art: "qilin", medal: [107, 42, 233], color: "#ffcf4a", shape: "spiky", parts: ["light", "fire"], desc: "Sacred qilin: holy lightning leaps through 5 enemies.", dmg: 26, rate: 0.6 / RARITY_RATE[4], chain: 5 },
+  kraken:    { name: "Kraken", tier: 3, myth: true, art: "kraken", medal: [93, 53, 262], color: "#7a6aff", shape: "drop", parts: ["water", "dark"], desc: "Terror of the deep: 3 tentacles grab 3 enemies, holding them in place and slowing them.", dmg: 13, rate: 0.5 / RARITY_RATE[4], speed: 640, shotScale: 1.6, multishot: 3, root: 1.1, slow: 0.7 },
+  banshee:   { name: "Banshee", tier: 3, myth: true, art: "banshee", medal: [157, 51, 196], color: "#c08aff", shape: "swirl", parts: ["dark", "wind"], desc: "Wailing spirit: her scream bursts over an area, slowing every enemy hit and cursing them (+20% damage taken).", dmg: 22, rate: 0.55 / RARITY_RATE[4], speed: 820, shotScale: 1.7, splash: 110, slow: 0.6, curse: 0.2 },
   phoenix:   { name: "Phoenix", tier: 3, myth: true, color: "#ff5a1f", shape: "flame", parts: ["fire", "wind"], desc: "Reborn in flame: scorches and burns a wide area.", dmg: 30, rate: 1.0, speed: 720, splash: 85, burn: 14 },
 };
 // Element tiers:
@@ -421,7 +427,7 @@ const totemShopChance = el => TOTEM_SHOP_CHANCES[Math.min(totemBuys[el] || 0, TO
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice", "hellfire", "abyss", "grave", "shade", "sunfire", "prism", "gem", "halo", "eclipse"];
 const SPECIALS = ["totem", "flight", "midas", "mirror", "hourglass", "bulwark", "seer", "chainlink", "chalice", "hex"];
 const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth && !EL[k].legendCard);   // the 11 Epic elements
-const MYTH_ELS = Object.keys(EL).filter(k => EL[k].myth);                       // Phoenix, Serpent
+const MYTH_ELS = Object.keys(EL).filter(k => EL[k].myth);                       // the 10 Myth cards
 // Legend cards are separate cards (not a Legend version of a Myth card). None exist yet:
 // until they are added, the Legend slot in Summon gives a Myth copy instead.
 const LEGEND_ELS = Object.keys(EL).filter(k => EL[k].legendCard);
@@ -914,6 +920,7 @@ const SOUND_OF = {
   storm: "zap", blizzard: "ice", obsidian: "magma", grove: "plant", wildfire: "blaze",
   geyser: "geyser", ash: "hiss", magmabloom: "magma", frostveil: "hiss", aurora: "zap", sandstorm: "dust",
   phoenix: "phoenix", zeus: "thunder", hades: "soul", serpent: "water", fenrir: "zap", kitsune: "phoenix",
+  cerberus: "blaze", basilisk: "earth", griffin: "wind", qilin: "thunder", kraken: "geyser", banshee: "soul",
   dark: "soul", light: "zap", eclipse: "soul", hellfire: "blaze",
   ...Object.fromEntries(Object.entries(EL).filter(([, d]) => d.look).map(([k, d]) => [k, d.look === "eclipse" ? "soul" : d.look === "hellfire" ? "blaze" : "zap"])), abyss: "water", grave: "earth", shade: "wind", sunfire: "fire", prism: "zap", gem: "ice", halo: "wind",
 };
@@ -1841,7 +1848,7 @@ function shrunkArt(img, sx, sy, sw, sh, w, h) {
   const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(src, x, y, cw, ch, 0, 0, w, h);
   return c;
 }
-for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
+for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp", "cerberus": "assets/img/cerberus.webp", "basilisk": "assets/img/basilisk.webp", "griffin": "assets/img/griffin.webp", "qilin": "assets/img/qilin.webp", "kraken": "assets/img/kraken.webp", "banshee": "assets/img/banshee.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
 const GRAD_CACHE = new Map();
 // Fine decorations are skipped when many enemies are on screen, to keep the frame rate smooth.
 let EN_DETAIL = true;
@@ -2556,6 +2563,12 @@ for (const [a, b, k] of RECIPE_LIST) {
   if (dl === "halo" && (cl === "steam" || cl === "dust" || cl === "plant")) head = "feather"; else if (dl === "halo") head = "arrow";
   const c1 = hexArr(EL[k].color), c2 = hexArr(EL[dl].color), c3 = hexArr(EL[cl].color);
   const lit = arr => mixArr(arr, [255, 255, 255], 0.55);
+  EPV[k] = { head, dl, cl, c1, c2, c3, h1: arrHex(c1), h2: arrHex(c2), h3: arrHex(c3), hl: arrHex(lit(c1)), cols: [[255, 255, 255], lit(c1), c1, mixArr(c1, [0, 0, 0], 0.5)], cols2: [lit(c2), c2, mixArr(c2, [0, 0, 0], 0.5)], rgb: c1.join(","), rgb2: c2.join(",") };
+  VFX_STYLE[k] = "ep";
+}
+// The new Myth cards: each its own head + trail + impact mix, in its own colours.
+for (const [k, head, dl, cl] of [["cerberus", "comet", "hellfire", "lava"], ["basilisk", "eye", "shade", "dust"], ["griffin", "feather", "halo", "steam"], ["qilin", "boltarrow", "sunfire", "lightning"], ["kraken", "bubble", "abyss", "plant"], ["banshee", "wisp", "grave", "steam"]]) {
+  const c1 = hexArr(EL[k].color), c2 = hexArr(EL[dl].color), c3 = hexArr(EL[cl].color), lit = arr => mixArr(arr, [255, 255, 255], 0.55);
   EPV[k] = { head, dl, cl, c1, c2, c3, h1: arrHex(c1), h2: arrHex(c2), h3: arrHex(c3), hl: arrHex(lit(c1)), cols: [[255, 255, 255], lit(c1), c1, mixArr(c1, [0, 0, 0], 0.5)], cols2: [lit(c2), c2, mixArr(c2, [0, 0, 0], 0.5)], rgb: c1.join(","), rgb2: c2.join(",") };
   VFX_STYLE[k] = "ep";
 }
@@ -9342,7 +9355,7 @@ const GUIDE = [
   { t: "Epic Recipes (2/2)", recipes: EPIC_RECIPES.slice(6), rIn: 2, rOut: EPIC,
     b: "And the other five. All recipes are also written in the Spellbook." },
   { t: "Myth: Fusion Chamber", eq: [[["storm", EPIC], ["blizzard", EPIC], ["grove", EPIC], ["phoenix", MYTH]]], note: "3 Epics: 36%   4 Epics: 48%   5 Epics: 60%",
-    b: "Tap Chamber and put 3 to 5 Epic cards on the altars, then tap Fuse for a chance to create a Myth card (Phoenix, Serpent, Fenrir or Kitsune). More Epic cards give a better chance. If it fails, all those cards are lost!" },
+    b: "Tap Chamber and put 3 to 5 Epic cards on the altars, then tap Fuse for a chance to create one of the 10 Myth cards (Phoenix, Kitsune, Cerberus, Kraken...). More Epic cards give a better chance. If it fails, all those cards are lost!" },
   { t: "Legend Cards", eq: [[["phoenix", MYTH], ["storm", EPIC], ["aurora", EPIC], ["zeus", LEGEND]]], note: "Each Myth +9%   each Epic +3%   up to 45%",
     b: "Put a Myth card on an altar to try for a LEGEND card like Zeus, the strongest in the game. Each Myth card adds 9% and each Epic adds 3%, up to 45%." },
   { t: "Stars: Myth & Legend", eq: [[["phoenix", MYTH, 0], ["phoenix", MYTH, 0], ["phoenix", MYTH, 1]], [["zeus", LEGEND, 1], ["zeus", LEGEND, 0], ["zeus", LEGEND, 2]]],
