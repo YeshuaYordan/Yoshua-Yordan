@@ -14,6 +14,7 @@ The game is live and in active development (the old "wait for go" rule no longer
 - Do NOT send .apk/.aab files or make Android builds unless the user asks.
 - Don't make the public itch build unless asked; give the tester zip only when asked.
 - Don't weaken enemies. Ads always optional. Keep graphics unchanged when optimizing.
+- After every game change, republish the web preview artifact and send the user the link.
 - Ask before unexpected changes. Keep replies short; skip browser tests and screenshots for simple changes (save the user's credits).
 - All Legend cards use the gold frame; Myth cards use the Phoenix Myth frame.
 
