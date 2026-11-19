@@ -13,12 +13,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import androidx.webkit.WebViewAssetLoader;
 
-// Runs the game (bundled in assets/game) in a full-screen WebView.
-// Files are served from https://appassets.androidplatform.net so fetch() and storage work like on the web.
 public class MainActivity extends Activity {
     private WebView web;
     private PlayBilling billing;
-    private float safeTop = 0;   // front-camera cutout height, in CSS px
+    private float safeTop = 0;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -34,7 +32,7 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setTextZoom(100);   // ignore the phone's font-size setting so the game layout stays the same
+        s.setTextZoom(100);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
         web.setWebViewClient(new WebViewClient() {
@@ -46,12 +44,11 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView v, String url) { sendSafeTop(); if (billing != null) billing.onPageReady(); }
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
-                return !"appassets.androidplatform.net".equals(r.getUrl().getHost());   // stay inside the game
+                return !"appassets.androidplatform.net".equals(r.getUrl().getHost());
             }
         });
         billing = new PlayBilling(this, web);
-        web.addJavascriptInterface(billing, "AndroidBilling");   // Google Play purchases (see PlayBilling)
-        // Keep the game below the front camera: tell the page how tall the cutout is.
+        web.addJavascriptInterface(billing, "AndroidBilling");
         web.setOnApplyWindowInsetsListener((v, insets) -> {
             int top = 0;
             if (android.os.Build.VERSION.SDK_INT >= 28 && insets.getDisplayCutout() != null) top = insets.getDisplayCutout().getSafeInsetTop();
@@ -83,10 +80,9 @@ public class MainActivity extends Activity {
     private void sendSafeTop() { web.evaluateJavascript("window.setSafeTop&&setSafeTop(" + safeTop + ")", null); }
 
     @Override public void onWindowFocusChanged(boolean has) { super.onWindowFocusChanged(has); if (has) hideBars(); }
-    // Pause all game sound while the app is in the background, and resume it on return.
     @Override protected void onPause() { super.onPause(); web.evaluateJavascript("window.setAway&&setAway(true)", null); web.onPause(); }
     @Override protected void onResume() { super.onResume(); web.onResume(); web.evaluateJavascript("window.setAway&&setAway(false)", null); hideBars(); }
     @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
-    @Override public void onBackPressed() { moveTaskToBack(true); }   // keep the run alive instead of closing the game
+    @Override public void onBackPressed() { moveTaskToBack(true); }
     @Override protected void onDestroy() { if (billing != null) billing.destroy(); web.destroy(); super.onDestroy(); }
 }

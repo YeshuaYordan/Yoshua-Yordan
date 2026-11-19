@@ -22,16 +22,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-// Google Play Billing for the game. The page calls AndroidBilling.buy(productId, key); when Play confirms the
-// payment the game is told through window.__purchaseDone(key, true). Gem packs are consumed (they can be bought
-// again); Specials, 2x Speed and the Beginner Deal are one-time items (acknowledged, kept for good).
-// At start-up, purchases Play still holds are handed to window.__grantOwned(productId): one that finished while
-// the game was closed, or one-time items after a reinstall (the game skips anything it already owns).
 public class PlayBilling implements PurchasesUpdatedListener {
     private final Activity act;
     private final WebView web;
     private final BillingClient client;
-    private final Map<String, String> waiting = new ConcurrentHashMap<>();   // productId -> the page's callback key
+    private final Map<String, String> waiting = new ConcurrentHashMap<>();
     private volatile boolean pageReady = false;
 
     PlayBilling(Activity act, WebView web) {
@@ -53,11 +48,10 @@ public class PlayBilling implements PurchasesUpdatedListener {
             @Override public void onBillingSetupFinished(BillingResult r) {
                 if (r.getResponseCode() == BillingClient.BillingResponseCode.OK && pageReady) restore();
             }
-            @Override public void onBillingServiceDisconnected() { /* reconnects on the next purchase */ }
+            @Override public void onBillingServiceDisconnected() {  }
         });
     }
 
-    // Called when the game page has loaded.
     void onPageReady() {
         pageReady = true;
         if (client.isReady()) restore();
@@ -92,7 +86,6 @@ public class PlayBilling implements PurchasesUpdatedListener {
         if (r.getResponseCode() == BillingClient.BillingResponseCode.OK && purchases != null) {
             for (Purchase p : purchases) handle(p);
         } else {
-            // Cancelled or failed: every open request answers "no".
             for (String key : waiting.values()) done(key, false);
             waiting.clear();
         }
@@ -102,7 +95,7 @@ public class PlayBilling implements PurchasesUpdatedListener {
         if (p.getProducts().isEmpty()) return;
         final String id = p.getProducts().get(0);
         final String key = waiting.remove(id);
-        if (p.getPurchaseState() != Purchase.PurchaseState.PURCHASED) {   // pending (e.g. cash payment): delivered on a later start-up
+        if (p.getPurchaseState() != Purchase.PurchaseState.PURCHASED) {
             if (key != null) done(key, false);
             return;
         }
@@ -114,7 +107,6 @@ public class PlayBilling implements PurchasesUpdatedListener {
                 else if (key != null) done(key, false);
             });
         } else {
-            // Consume first, then grant, so a gem pack is never handed out twice.
             client.consumeAsync(ConsumeParams.newBuilder().setPurchaseToken(p.getPurchaseToken()).build(), (res, token) -> {
                 if (res.getResponseCode() == BillingClient.BillingResponseCode.OK) grant.run();
                 else if (key != null) done(key, false);
@@ -122,7 +114,6 @@ public class PlayBilling implements PurchasesUpdatedListener {
         }
     }
 
-    // Purchases Play still holds: unconsumed gem packs and owned one-time items.
     private void restore() {
         client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build(),
                 (r, list) -> { if (r.getResponseCode() == BillingClient.BillingResponseCode.OK && list != null) for (Purchase p : list) handle(p); });

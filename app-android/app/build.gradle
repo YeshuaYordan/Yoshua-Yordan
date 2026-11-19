@@ -1,6 +1,5 @@
 plugins { id 'com.android.application' }
 
-// Upload-key signing. keystore.properties is never committed (see .gitignore).
 def ksFile = rootProject.file('keystore.properties')
 def ks = new Properties()
 if (ksFile.exists()) ksFile.withInputStream { ks.load(it) }
@@ -35,7 +34,6 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-    // The game files come straight from ../web, so the app always ships the current game.
     sourceSets { main { assets.srcDirs += ["$buildDir/generated/gameAssets"] } }
 }
 
@@ -47,5 +45,5 @@ tasks.named('preBuild') { dependsOn copyGame }
 
 dependencies {
     implementation 'androidx.webkit:webkit:1.12.1'
-    implementation 'com.android.billingclient:billing:7.1.1'   // Google Play in-app purchases
+    implementation 'com.android.billingclient:billing:7.1.1'
 }

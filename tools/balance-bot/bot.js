@@ -1,5 +1,3 @@
-// Medium-effort autoplayer: buys, merges, fuses, keeps its 5 strongest cards in battle, rerolls when rich,
-// cures curses after a while, takes the first relic offered. No spells, no Chamber, no wild cards, no revive, no meta upgrades.
 window.BOT = {
   power(c) {
     const d = EL[c.element]; if (d.special || d.totem) return 0;
@@ -17,7 +15,7 @@ window.BOT = {
         const [ra, ia, a] = b[x], [rb, ib, c] = b[y];
         const res = merge(a.element, a.rarity, c.element, c.rarity, a.stars, c.stars);
         if (!res || res.totem) continue;
-        if (ra === "active" && rb !== "active") continue;   // merge into the active one
+        if (ra === "active" && rb !== "active") continue;
         moveCard(ra, ia, rb, ib); did = true; break outer; }
     }
   },
@@ -26,7 +24,6 @@ window.BOT = {
     let bought = false;
     for (let si = 0; si < rows.shop.length; si++) { const c = rows.shop[si]; if (!this.ok(c)) continue;
       const cost = freeCard ? 0 : c.price; if (gold < cost) continue;
-      // a merge target first
       const t = this.board().find(([, , o]) => this.ok(o) && (() => { const r = merge(c.element, c.rarity, o.element, o.rarity, c.stars, o.stars); return r && !r.totem; })());
       if (t) { if (buy(si, t[0], t[1])) { bought = true; continue; } }
       const f = this.free(); if (f && buy(si, f[0], f[1])) bought = true;
@@ -46,7 +43,7 @@ window.BOT = {
     const w = rows.storage.map((c, i) => [i, c ? this.power(c) : 1e18]).sort((a, b) => a[1] - b[1])[0];
     if (w) sell("storage", w[0]);
   },
-  chamber() {   // like a player: 4-5 spare Epics on the altars for a Myth; 5 spare Myths for a Legend
+  chamber() {
     const spare = (rar) => rows.storage.map((c, i) => [i, c]).filter(([, c]) => c && this.ok(c) && c.rarity === rar);
     for (const [rar, need, out, pool] of [[MYTH, 5, LEGEND, LEGEND_ELS], [EPIC, 4, MYTH, MYTH_ELS]]) {
       const sp = spare(rar).sort((a, b) => this.power(a[1]) - this.power(b[1])); if (sp.length < need) continue;
