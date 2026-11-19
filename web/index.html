@@ -1133,7 +1133,8 @@ function playSample(name, vol, rate = 1, delay = 0) {
 // Interface sounds (picking up and putting down a card).
 // Death cry of each enemy kind. Goblins use the orc cry pitched up; bosses sound deeper and louder.
 // Limited to a few at once so a big wave doesn't turn into noise.
-const DEATH_SFX = { slime: ["dead_slime", 1], boar: ["dead_boar", 1], mummy: ["dead_mummy", 1], orc: ["dead_orc", 1], goblin: ["dead_orc", 1.45] };
+const DEATH_SFX = { slime: ["dead_slime", 1], boar: ["dead_boar", 1], mummy: ["dead_mummy", 1], orc: ["dead_orc", 1], goblin: ["dead_orc", 1.45],
+  wolf: ["dead_boar", 1.25], yeti: ["dead_orc", 0.8], imp: ["dead_slime", 1.4], golem: ["dead_mummy", 0.75], bat: ["dead_boar", 1.7], skeleton: ["dead_mummy", 1.25], ghost: ["dead_mummy", 1.5], toad: ["dead_slime", 0.75], dragon: ["dead_orc", 0.6] };
 function playDeath(e) {
   if (Sfx.muted || !Sfx.ctx || Sfx.ctx.state !== "running") return;
   const d = DEATH_SFX[e.look]; if (!d) return;
@@ -2177,12 +2178,15 @@ class Card {
 
 // ------------------------------------------------------------ Stages & enemies
 // Every 10 waves is a stage with its own background and enemies; wave 10 of each stage is a boss.
-// After stage 3 the stages repeat (stage 4 = Grass Field again) with stronger enemies.
+// After stage 6 the stages repeat (stage 7 = Grass Field again) with stronger enemies.
 // Pool entries: [kind, weight, first wave of the stage it appears on].
 const STAGES = [
   { name: "Grass Field", bg: "grass", boss: "kingGoblin", pool: [["slime", 10, 1], ["boar", 6, 3], ["goblin", 5, 5]] },
   { name: "Desert Sands", bg: "sand", boss: "kingOrc", pool: [["goblin", 10, 1], ["mummy", 5, 3], ["orc", 6, 5]] },
   { name: "Crystal Cave", bg: "cave", boss: "kingSlime", pool: [["darkSlime", 10, 1], ["redSlime", 6, 2], ["blueSlime", 6, 3], ["purpleSlime", 5, 5]] },
+  { name: "Frozen Peaks", bg: "snow", boss: "frostGiant", pool: [["snowWolf", 10, 1], ["iceImp", 6, 2], ["yeti", 5, 5]] },
+  { name: "Volcano", bg: "volcano", boss: "lavaDragon", pool: [["fireImp", 10, 1], ["ashBat", 7, 2], ["magmaGolem", 5, 5]] },
+  { name: "Haunted Swamp", bg: "swamp", boss: "lichKing", pool: [["skeleton", 10, 1], ["bogGhost", 6, 2], ["swampToad", 6, 3]] },
 ];
 const stageNum = w => Math.floor((Math.max(1, w) - 1) / STAGE_LEN) + 1;
 const stageOf = w => STAGES[(stageNum(w) - 1) % STAGES.length];
@@ -2203,6 +2207,21 @@ const KINDS = {
   blueSlime:   { name: "Glowy Blue Slime", look: "slime", glow: true, resist: "water", hp: 60, speed: 46, size: 22, gold: 2, dps: 8, color: "#4fb8ff" },
   purpleSlime: { name: "Glowy Purple Slime", look: "slime", glow: true, heavy: true, resist: "wind", hp: 100, speed: 30, size: 27, gold: 3, dps: 11, color: "#b36bff" },
   kingSlime:   { name: "King Slime", look: "slime", king: true, boss: true, hp: 1500, speed: 14, size: 58, gold: 50, dps: 50, color: "#8a4fe0" },
+  // Frozen Peaks
+  snowWolf:    { name: "Snow Wolf", look: "wolf", hp: 50, speed: 95, size: 21, gold: 2, dps: 8, color: "#cdd8ea" },
+  iceImp:      { name: "Ice Imp", look: "imp", resist: "water", hp: 55, speed: 58, size: 20, gold: 2, dps: 8, color: "#8fd4ff" },
+  yeti:        { name: "Yeti", look: "yeti", heavy: true, resist: "wind", hp: 140, speed: 26, size: 30, gold: 3, dps: 13, color: "#eef3fa" },
+  frostGiant:  { name: "Frost Giant", look: "yeti", king: true, boss: true, hp: 1800, speed: 13, size: 62, gold: 60, dps: 60, color: "#bcdaf2" },
+  // Volcano
+  fireImp:     { name: "Fire Imp", look: "imp", resist: "fire", hp: 55, speed: 64, size: 20, gold: 2, dps: 8, color: "#ff6a2a" },
+  ashBat:      { name: "Ash Bat", look: "bat", flying: true, hp: 42, speed: 88, size: 19, gold: 2, dps: 7, color: "#5e4e56" },
+  magmaGolem:  { name: "Magma Golem", look: "golem", heavy: true, resist: "earth", hp: 160, speed: 22, size: 31, gold: 3, dps: 14, color: "#5a3e36" },
+  lavaDragon:  { name: "Lava Dragon", look: "dragon", king: true, boss: true, hp: 2100, speed: 12, size: 62, gold: 70, dps: 70, color: "#c8442a" },
+  // Haunted Swamp
+  skeleton:    { name: "Skeleton", look: "skeleton", hp: 62, speed: 52, size: 21, gold: 2, dps: 9, color: "#ece6d6" },
+  bogGhost:    { name: "Bog Ghost", look: "ghost", resist: "dark", hp: 72, speed: 40, size: 22, gold: 2, dps: 9, color: "#9ad8c0" },
+  swampToad:   { name: "Swamp Toad", look: "toad", heavy: true, hp: 125, speed: 30, size: 27, gold: 3, dps: 12, color: "#6a8a3a" },
+  lichKing:    { name: "Lich King", look: "skeleton", king: true, boss: true, hp: 2400, speed: 12, size: 60, gold: 80, dps: 80, color: "#5a4a8a" },
 };
 // Reusable gradients for enemy art (they are drawn in each enemy's own coordinates, so they can be shared).
 // Full-card illustrations (Legend cards).
@@ -2238,7 +2257,7 @@ class Enemy {
     this.hp = d.hp * hpScale(wave); this.maxHp = this.hp;   // steeper mid game; from wave 60 +6% per wave
     this.speed = d.speed * (1 + Math.min(0.5, wave * 0.012)) * (1 + clamp((wave - 80) * 0.005, 0, 0.25)); this.size = d.size;   // +0.5% per wave after 80 (max +25%)
     this.gold = d.gold + Math.floor(wave / 8); this.dps = d.dps * (1 + wave * 0.05);
-    this.flying = false; this.color = d.color; this.resist = d.resist || "";
+    this.flying = !!d.flying; this.color = d.color; this.resist = d.resist || "";
     this.dead = false; this.t = Math.random() * 10; this.flash = 0;
     this.burnDps = 0; this.burnT = 0; this.slowMult = 1; this.slowT = 0; this.rootT = 0; this.attacking = false;
     this.knockN = 0; this.stunN = 0; this.stunT = 0;   // after CC_LIMIT of each, the enemy becomes immune to it
@@ -2319,6 +2338,15 @@ class Enemy {
       else if (this.look === "goblin") this.fGoblin(s, t, 0, body);
       else if (this.look === "mummy") this.fMummy(s, t, 0, body);
       else if (this.look === "orc") this.fOrc(s, t, 0, body);
+      else if (this.look === "wolf") this.fWolf(s, t, 0, body);
+      else if (this.look === "yeti") this.fYeti(s, t, 0, body);
+      else if (this.look === "imp") this.fImp(s, t, 0, body);
+      else if (this.look === "golem") this.fGolem(s, t, 0, body);
+      else if (this.look === "bat") this.fBat(s, t, 0, body);
+      else if (this.look === "skeleton") this.fSkeleton(s, t, 0, body);
+      else if (this.look === "ghost") this.fGhost(s, t, 0, body);
+      else if (this.look === "toad") this.fToad(s, t, 0, body);
+      else if (this.look === "dragon") this.fDragon(s, t, 0, body);
       ctx.restore(); }
     if (this.king) this.drawCrown(s, cy - s * (this.look === "slime" ? 0.95 : 1.0));
     };
@@ -2589,6 +2617,178 @@ class Enemy {
     this.eyes(0, cy - s * 0.3, s * 0.13, "#ffcf4a", this.attacking || this.king ? "#ff8a3a" : null);
     this.fMouth(0, cy + s * 0.04, s * 0.28, s * 0.1, 4);
     this.layer("tusks", () => { for (const sd of [-1, 1]) this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.12, cy + s * 0.14); ctx.quadraticCurveTo(sd * s * 0.36, cy + s * 0.08, sd * s * 0.34, cy - s * 0.3); ctx.quadraticCurveTo(sd * s * 0.24, cy - s * 0.04, sd * s * 0.04, cy + s * 0.08); ctx.closePath(); }, "#fff6e0", 0.05, 2); });   // big tusks
+  }
+  // ---- New lands (stages 4-6): Frozen Peaks, Volcano, Haunted Swamp. Same cel style: flat colour + hard shadow + ink.
+  fWolf(s, t, cy, body) {
+    const lg = Math.sin(t * 15) * s * 0.13;
+    if (EN_DETAIL) for (let i = 0; i < 3; i++) { const k = ((t * 2.4 + i / 3) % 1); circle((i - 1) * s * 0.5, cy - s * (0.55 + k * 0.6), s * (0.12 + k * 0.2), `rgba(235,245,255,${0.5 * (1 - k)})`); }   // kicked-up snow
+    const leg = () => this.cel(() => { ctx.beginPath(); rrect(-s * 0.1, s * 0.35, s * 0.2, s * 0.45, s * 0.08); }, shade(body, -0.28), 0.08, 2.2);
+    for (const [lx, o] of [[-0.7, lg], [-0.3, -lg], [0.3, lg], [0.7, -lg]]) this.layer("leg", leg, lx * s, cy + o);
+    ctx.save(); ctx.translate(0, cy + s * 0.1); ctx.rotate(Math.sin(t * 7) * 0.35);
+    this.layer("tail", () => this.cel(() => { ctx.beginPath(); ctx.moveTo(-s * 0.16, 0); ctx.quadraticCurveTo(-s * 0.3, -s * 1.0, s * 0.02, -s * 1.38); ctx.quadraticCurveTo(s * 0.3, -s * 0.9, s * 0.16, 0); ctx.closePath(); }, shade(body, -0.1), 0.1));
+    ctx.restore();
+    this.layer("torso", () => {
+      this.cel(() => { ctx.beginPath(); const n = 12; for (let i = 0; i <= n; i++) { const a = Math.PI + (i / n) * Math.PI, r = i % 2 ? s * 1.25 : s * 0.98, px = Math.cos(a) * r, py = s * 0.1 + Math.sin(a) * r * 0.62; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); }, shade(body, -0.18), 0.12);
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, s * 0.2, s * 1.05, s * 0.58, 0, 0, Math.PI * 2); }, body, 0.22);
+    }, 0, cy);
+    this.layer("head", () => {
+      for (const sd of [-1, 1]) { this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.2, -s * 0.6); ctx.lineTo(sd * s * 0.62, -s * 1.2); ctx.lineTo(sd * s * 0.66, -s * 0.38); ctx.closePath(); }, shade(body, -0.12), 0.08, 2.2);
+        poly([[sd * s * 0.32, -s * 0.6], [sd * s * 0.58, -s * 1.02], [sd * s * 0.58, -s * 0.5]], "#6a7a9a", null); }
+      this.cel(() => { ctx.beginPath(); ctx.arc(0, -s * 0.2, s * 0.66, 0, Math.PI * 2); }, body, 0.2);
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, s * 0.12, s * 0.36, s * 0.26, 0, 0, Math.PI * 2); }, "#f4f8ff", 0.1, 2.2);
+      ellipse(0, s * 0.0, s * 0.12, s * 0.08, "#1a0b12");
+      this.shine(-s * 0.3, -s * 0.6, s * 0.13, s * 0.05);
+    }, 0, cy);
+    this.fEyes(0, cy - s * 0.32, s * 0.15, "#7fe6ff", 1.3);
+    this.fMouth(0, cy + s * 0.24, s * 0.24, s * 0.1, 4);
+  }
+  fYeti(s, t, cy, body) {
+    const walk = Math.sin(t * 6) * s * 0.07, LN = "#1a0b12";
+    if (this.king) { const g = 0.5 + 0.5 * Math.sin(t * 3); circle(0, cy, s * 1.6, `rgba(140,210,255,${0.12 + 0.08 * g})`); }   // Frost Giant: a cold glow
+    for (const sd of [-1, 1]) this.layer("foot" + sd, () => this.cel(() => { ctx.beginPath(); ctx.ellipse(sd * s * 0.4, s * 0.82, s * 0.3, s * 0.16, 0, 0, Math.PI * 2); }, shade(body, -0.2), 0.06, 2.2), 0, cy + sd * walk);
+    for (const sd of [-1, 1]) { const sw = this.attacking ? Math.sin(t * 9 + sd) * 0.5 : Math.sin(t * 3 + sd) * 0.12;
+      ctx.save(); ctx.translate(sd * s * 0.85, cy - s * 0.2); ctx.rotate(sd * (0.25 + sw));
+      this.layer("arm" + sd, () => { this.cel(() => { ctx.beginPath(); rrect(-s * 0.22, 0, s * 0.44, s * 0.95, s * 0.2); }, body, 0.12);
+        for (let i = 0; i < 3; i++) poly([[(i - 1) * s * 0.13 - s * 0.05, s * 0.9], [(i - 1) * s * 0.13, s * 1.08], [(i - 1) * s * 0.13 + s * 0.05, s * 0.9]], "#2a3448", null); });
+      ctx.restore(); }
+    this.layer("body", () => {
+      const fur = () => { ctx.beginPath(); const n = 16; for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2, r = s * (i % 2 ? 0.98 : 0.86), px = Math.cos(a) * r, py = s * 0.05 + Math.sin(a) * r * 0.95; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); };
+      this.cel(fur, body, 0.24);
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, -s * 0.28, s * 0.5, s * 0.4, 0, 0, Math.PI * 2); }, this.king ? "#7aa8d8" : "#8fb4d8", 0.1, 2.4);   // blue face
+      for (const sd of [-1, 1]) this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.35, -s * 0.85); ctx.quadraticCurveTo(sd * s * 0.75, -s * 1.15, sd * s * 0.62, -s * 1.42); ctx.quadraticCurveTo(sd * s * 0.55, -s * 1.1, sd * s * 0.2, -s * 0.82); ctx.closePath(); }, "#e8e2d0", 0.06, 2);   // horns
+      this.shine(-s * 0.45, -s * 0.55, s * 0.18, s * 0.07);
+    }, 0, cy);
+    this.fEyes(0, cy - s * 0.36, s * 0.12, this.king ? "#ff5a5a" : "#5ad0ff", 1.4);
+    this.fMouth(0, cy - s * 0.08, s * 0.3, s * 0.13, 5);
+  }
+  fImp(s, t, cy, body) {
+    const fire = this.kind === "fireImp", hover = Math.sin(t * 5) * s * 0.1, LN = "#1a0b12";
+    const glowC = fire ? "255,140,40" : "140,220,255";
+    if (EN_DETAIL) { circle(0, cy + hover, s * 1.25, `rgba(${glowC},0.18)`); for (let i = 0; i < 4; i++) { const k = ((t * 1.6 + i / 4) % 1); circle(Math.sin(i * 2.1 + t * 2) * s * 0.6, cy + hover + s * 0.5 - k * s * 1.6, s * (0.08 - k * 0.05), `rgba(${glowC},${0.8 * (1 - k)})`); } }
+    for (const sd of [-1, 1]) { ctx.save(); ctx.translate(sd * s * 0.45, cy + hover - s * 0.15); ctx.rotate(sd * (0.3 + Math.sin(t * 16) * 0.35));
+      this.layer("wing" + sd, () => this.cel(() => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(sd * s * 0.95, -s * 0.55); ctx.lineTo(sd * s * 0.7, -s * 0.1); ctx.lineTo(sd * s * 0.95, s * 0.15); ctx.lineTo(sd * s * 0.55, s * 0.25); ctx.closePath(); }, shade(body, -0.35), 0.08, 2));
+      ctx.restore(); }
+    ctx.save(); ctx.translate(0, cy + hover);
+    this.layer("body", () => {
+      ctx.strokeStyle = LN; ctx.lineWidth = s * 0.12; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, s * 0.5); ctx.quadraticCurveTo(s * 0.6, s * 0.9, s * 0.8, s * 0.5); ctx.stroke();
+      ctx.strokeStyle = shade(body, -0.2); ctx.lineWidth = s * 0.06; ctx.stroke(); poly([[s * 0.8, s * 0.32], [s * 0.95, s * 0.55], [s * 0.7, s * 0.6]], shade(body, -0.2), LN, 1.6);   // pointy tail
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, s * 0.22, s * 0.42, s * 0.42, 0, 0, Math.PI * 2); }, shade(body, -0.08), 0.15);
+      for (const sd of [-1, 1]) this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.25, -s * 0.62); ctx.lineTo(sd * s * 0.48, -s * 1.15); ctx.lineTo(sd * s * 0.52, -s * 0.5); ctx.closePath(); }, fire ? "#2a1a14" : "#e8f4ff", 0.06, 2);   // horns
+      this.cel(() => { ctx.beginPath(); ctx.arc(0, -s * 0.25, s * 0.55, 0, Math.PI * 2); }, body, 0.2);
+      this.shine(-s * 0.24, -s * 0.52, s * 0.12, s * 0.05);
+    });
+    this.fEyes(0, -s * 0.3, s * 0.13, fire ? "#ffe34a" : "#ffffff", 1.35);
+    this.fMouth(0, -s * 0.02, s * 0.22, s * 0.09, 4);
+    ctx.restore();
+  }
+  fGolem(s, t, cy, body) {
+    const walk = Math.sin(t * 5) * s * 0.06, glow = 0.6 + 0.4 * Math.sin(t * 4), LN = "#1a0b12";
+    for (const sd of [-1, 1]) this.layer("leg" + sd, () => this.cel(() => { ctx.beginPath(); rrect(sd * s * 0.4 - s * 0.2, s * 0.5, s * 0.4, s * 0.42, s * 0.1); }, shade(body, -0.15), 0.08), 0, cy + sd * walk);
+    for (const sd of [-1, 1]) { ctx.save(); ctx.translate(sd * s * 0.95, cy - s * 0.15); ctx.rotate(this.attacking ? sd * (Math.sin(t * 8) * 0.6) : 0);
+      this.layer("arm" + sd, () => this.cel(() => { ctx.beginPath(); ctx.moveTo(-s * 0.25, -s * 0.2); ctx.lineTo(s * 0.25, -s * 0.25); ctx.lineTo(s * 0.32, s * 0.7); ctx.lineTo(-s * 0.3, s * 0.75); ctx.closePath(); }, body, 0.12));
+      ctx.restore(); }
+    const rock = () => { ctx.beginPath(); ctx.moveTo(-s * 0.85, -s * 0.5); ctx.lineTo(-s * 0.35, -s * 0.95); ctx.lineTo(s * 0.4, -s * 0.9); ctx.lineTo(s * 0.88, -s * 0.4); ctx.lineTo(s * 0.8, s * 0.55); ctx.lineTo(-s * 0.75, s * 0.6); ctx.closePath(); };
+    this.layer("body", () => this.cel(rock, body, 0.24), 0, cy);
+    // Glowing magma cracks (they pulse).
+    ctx.save(); ctx.translate(0, cy); rock(); ctx.clip();
+    ctx.strokeStyle = `rgba(255,${120 + 60 * glow},40,${0.75 + 0.25 * glow})`; ctx.lineWidth = s * 0.08; ctx.lineCap = "round"; ctx.beginPath();
+    ctx.moveTo(-s * 0.5, -s * 0.7); ctx.lineTo(-s * 0.2, -s * 0.2); ctx.lineTo(-s * 0.45, s * 0.3); ctx.moveTo(s * 0.5, -s * 0.6); ctx.lineTo(s * 0.2, s * 0.05); ctx.lineTo(s * 0.5, s * 0.45); ctx.moveTo(-s * 0.2, -s * 0.2); ctx.lineTo(s * 0.2, s * 0.05); ctx.stroke();
+    ctx.restore();
+    if (EN_DETAIL) circle(0, cy - s * 0.35, s * 0.6, `rgba(255,140,40,${0.12 * glow})`);
+    this.fEyes(0, cy - s * 0.42, s * 0.13, "#ffb02a", 1.45, false);
+    this.fMouth(0, cy - s * 0.1, s * 0.3, s * 0.1, 5);
+  }
+  fBat(s, t, cy, body) {
+    const flap = Math.sin(t * 18), hover = Math.sin(t * 4) * s * 0.18, LN = "#1a0b12";
+    if (EN_DETAIL) for (let i = 0; i < 3; i++) { const k = ((t * 1.3 + i / 3) % 1); circle((i - 1) * s * 0.7, cy + hover + s * 0.4 + k * s, s * (0.1 + k * 0.15), `rgba(90,80,85,${0.35 * (1 - k)})`); }   // ash trail
+    ctx.save(); ctx.translate(0, cy + hover);
+    for (const sd of [-1, 1]) { ctx.save(); ctx.scale(1, 0.55 + 0.45 * Math.abs(flap)); ctx.rotate(sd * flap * 0.15);
+      this.layer("wing" + sd, () => this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.3, -s * 0.2); ctx.quadraticCurveTo(sd * s * 1.0, -s * 0.9, sd * s * 1.55, -s * 0.5); ctx.lineTo(sd * s * 1.3, -s * 0.05); ctx.lineTo(sd * s * 1.05, s * 0.25); ctx.lineTo(sd * s * 0.75, s * 0.05); ctx.lineTo(sd * s * 0.45, s * 0.3); ctx.closePath(); }, shade(body, -0.25), 0.1, 2.2));
+      ctx.restore(); }
+    this.layer("body", () => {
+      for (const sd of [-1, 1]) this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.12, -s * 0.45); ctx.lineTo(sd * s * 0.42, -s * 0.95); ctx.lineTo(sd * s * 0.45, -s * 0.3); ctx.closePath(); }, body, 0.06, 2);
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, 0, s * 0.48, s * 0.55, 0, 0, Math.PI * 2); }, body, 0.2);
+      for (let i = 0; i < 4; i++) { const ex = Math.cos(i * 1.6 + 0.4) * s * 0.3, ey = Math.sin(i * 1.6 + 0.4) * s * 0.35 + s * 0.1; circle(ex, ey, s * 0.05, "#ff8a3a"); }   // embers in the fur
+    });
+    this.fEyes(0, -s * 0.15, s * 0.13, "#ff6a2a", 1.3);
+    this.fMouth(0, s * 0.15, s * 0.18, s * 0.08, 4);
+    ctx.restore();
+  }
+  fSkeleton(s, t, cy, body) {
+    const walk = Math.sin(t * 8) * s * 0.08, LN = "#1a0b12", bone = "#efe8d6";
+    if (this.king) {   // Lich King: a torn royal robe and a glowing staff
+      this.cel(() => { ctx.beginPath(); ctx.moveTo(-s * 0.7, -s * 0.35); ctx.lineTo(s * 0.7, -s * 0.35); for (let i = 0; i <= 8; i++) ctx.lineTo(s * (0.95 - i * 0.24), s * (i % 2 ? 0.9 : 1.05) + Math.sin(t * 4 + i) * s * 0.05); ctx.closePath(); }, body, 0.2);
+    } else for (const sd of [-1, 1]) this.layer("leg" + sd, () => { ctx.strokeStyle = LN; ctx.lineWidth = s * 0.16; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(sd * s * 0.22, s * 0.35); ctx.lineTo(sd * s * 0.26, s * 0.85); ctx.stroke(); ctx.strokeStyle = bone; ctx.lineWidth = s * 0.08; ctx.stroke(); }, 0, cy + sd * walk);
+    this.layer("ribs", () => {
+      if (!this.king) { ctx.strokeStyle = LN; ctx.lineWidth = s * 0.14; ctx.beginPath(); ctx.moveTo(0, -s * 0.3); ctx.lineTo(0, s * 0.4); ctx.stroke(); ctx.strokeStyle = bone; ctx.lineWidth = s * 0.07; ctx.stroke();
+        for (let i = 0; i < 3; i++) { const y = -s * 0.15 + i * s * 0.17, w = s * (0.45 - i * 0.07); ctx.strokeStyle = LN; ctx.lineWidth = s * 0.11; ctx.beginPath(); ctx.moveTo(-w, y + s * 0.05); ctx.quadraticCurveTo(0, y - s * 0.08, w, y + s * 0.05); ctx.stroke(); ctx.strokeStyle = bone; ctx.lineWidth = s * 0.05; ctx.stroke(); } }
+      this.cel(() => { ctx.beginPath(); ctx.arc(0, -s * 0.62, s * 0.5, Math.PI * 0.85, Math.PI * 2.15); ctx.lineTo(s * 0.3, -s * 0.18); ctx.lineTo(-s * 0.3, -s * 0.18); ctx.closePath(); }, bone, 0.18);   // skull
+      for (const sd of [-1, 1]) ellipse(sd * s * 0.2, -s * 0.6, s * 0.15, s * 0.13, "#1a0b12");   // eye holes
+      poly([[0, -s * 0.48], [-s * 0.05, -s * 0.38], [s * 0.05, -s * 0.38]], "#1a0b12", null);
+      ctx.strokeStyle = LN; ctx.lineWidth = 1.6; ctx.beginPath(); for (let i = -2; i <= 2; i++) { ctx.moveTo(i * s * 0.08, -s * 0.3); ctx.lineTo(i * s * 0.08, -s * 0.2); } ctx.stroke();   // teeth
+    }, 0, cy);
+    const flick = 0.7 + 0.3 * Math.sin(t * 11), ec = this.king ? "120,255,190" : "120,200,255";
+    for (const sd of [-1, 1]) { circle(sd * s * 0.2, cy - s * 0.6, s * 0.16 * flick, `rgba(${ec},0.4)`); circle(sd * s * 0.2, cy - s * 0.6, s * 0.06, `rgb(${ec})`); }
+    if (this.king) {   // the Lich King's staff, held in front, with a glowing soul orb
+      ctx.save(); ctx.translate(s * 0.78, cy + s * 0.1); ctx.rotate(this.attacking ? -0.5 + Math.sin(t * 8) * 0.4 : 0.12);
+      ctx.strokeStyle = "#1a0b12"; ctx.lineWidth = s * 0.12; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(0, s * 0.8); ctx.lineTo(0, -s * 0.8); ctx.stroke(); ctx.strokeStyle = "#6a4a34"; ctx.lineWidth = s * 0.06; ctx.stroke();
+      const pg = 0.6 + 0.4 * Math.sin(t * 5); circle(0, -s * 0.92, s * 0.32, `rgba(120,255,190,${0.35 * pg})`); circle(0, -s * 0.92, s * 0.15, "#9affd0"); ring(0, -s * 0.92, s * 0.15, "#1a0b12", 1.8); circle(-s * 0.05, -s * 0.97, s * 0.05, "#ffffff");
+      ctx.restore();
+    }
+    // A rusty sword arm.
+    if (!this.king) { ctx.save(); ctx.translate(-s * 0.5, cy - s * 0.05); ctx.rotate(this.attacking ? 0.4 - Math.abs(Math.sin(t * 9)) * 1.4 : 0.2);
+      this.layer("sword", () => { ctx.strokeStyle = LN; ctx.lineWidth = s * 0.09; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -s * 0.9); ctx.stroke(); ctx.strokeStyle = "#b8a890"; ctx.lineWidth = s * 0.05; ctx.stroke(); ctx.fillStyle = "#6a4a2a"; ctx.fillRect(-s * 0.15, -s * 0.06, s * 0.3, s * 0.08); });
+      ctx.restore(); }
+  }
+  fGhost(s, t, cy, body) {
+    const hover = Math.sin(t * 3) * s * 0.15, wob = t * 5;
+    ctx.save(); ctx.translate(0, cy + hover); ctx.globalAlpha *= 0.85;
+    if (EN_DETAIL) circle(0, 0, s * 1.4, hexA(body, 0.2));
+    const path = () => { ctx.beginPath(); ctx.moveTo(-s * 0.75, s * 0.3); ctx.bezierCurveTo(-s * 0.85, -s * 0.6, -s * 0.45, -s * 1.05, 0, -s * 1.05); ctx.bezierCurveTo(s * 0.45, -s * 1.05, s * 0.85, -s * 0.6, s * 0.75, s * 0.3);
+      for (let i = 0; i <= 5; i++) { const x = s * (0.75 - i * 0.3), y = s * (0.75 + (i % 2 ? -0.15 : 0.1) + Math.sin(wob + i) * 0.08); ctx.lineTo(x, y); } ctx.closePath(); };
+    this.cel(path, body, 0.22);
+    this.shine(-s * 0.35, -s * 0.65, s * 0.15, s * 0.06);
+    for (const [sd, ph] of [[-1, 0], [1, 1.5]]) { ctx.strokeStyle = "#1a0b12"; ctx.lineWidth = s * 0.14; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(sd * s * 0.7, -s * 0.1); ctx.quadraticCurveTo(sd * s * 1.15, s * 0.05 + Math.sin(t * 4 + ph) * s * 0.15, sd * s * 1.05, s * 0.35); ctx.stroke(); ctx.strokeStyle = body; ctx.lineWidth = s * 0.08; ctx.stroke(); }   // wispy arms
+    this.fEyes(0, -s * 0.4, s * 0.15, "#ffffff", 1.35, false);
+    ellipse(0, -s * 0.02, s * 0.16, s * (this.attacking ? 0.24 : 0.16), "#1a0b12");   // wailing mouth
+    ctx.restore();
+  }
+  fToad(s, t, cy, body) {
+    const hop = Math.abs(Math.sin(t * 4)) * s * 0.15, throat = 0.5 + 0.5 * Math.sin(t * 6), LN = "#1a0b12";
+    ctx.save(); ctx.translate(0, cy - hop);
+    for (const sd of [-1, 1]) this.layer("leg" + sd, () => this.cel(() => { ctx.beginPath(); ctx.ellipse(sd * s * 0.8, s * 0.5, s * 0.38, s * 0.22, sd * 0.4, 0, Math.PI * 2); }, shade(body, -0.15), 0.08));
+    this.layer("body", () => {
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, s * 0.15, s * 1.0, s * 0.72, 0, 0, Math.PI * 2); }, body, 0.24);
+      for (const [x, y, r] of [[-0.5, -0.1, 0.12], [0.45, 0.0, 0.1], [0.1, 0.35, 0.09], [-0.25, 0.5, 0.08], [0.6, 0.4, 0.07]]) { circle(x * s, y * s, r * s, shade(body, -0.25)); ring(x * s, y * s, r * s, hexA(LN, 0.5), 1.4); }   // warts
+      for (const sd of [-1, 1]) this.cel(() => { ctx.beginPath(); ctx.arc(sd * s * 0.42, -s * 0.5, s * 0.3, 0, Math.PI * 2); }, body, 0.14);   // eye bumps
+    });
+    if (EN_DETAIL) circle(0, s * 0.45, s * (0.25 + 0.15 * throat), "rgba(230,220,120,0.55)");   // puffing throat
+    for (const sd of [-1, 1]) { circle(sd * s * 0.42, -s * 0.52, s * 0.2, "#ffe36a"); ellipse(sd * s * 0.42, -s * 0.52, s * 0.06, s * 0.17, LN); circle(sd * s * 0.36, -s * 0.6, s * 0.05, "#ffffff"); }
+    ctx.strokeStyle = LN; ctx.lineWidth = Math.max(2.2, s * 0.08); ctx.beginPath(); ctx.moveTo(-s * 0.55, s * 0.05); ctx.quadraticCurveTo(0, s * 0.3, s * 0.55, s * 0.05); ctx.stroke();
+    if (this.attacking) { const k = Math.max(0, Math.sin(t * 9)); ctx.strokeStyle = "#d8506a"; ctx.lineWidth = s * 0.12; ctx.beginPath(); ctx.moveTo(0, s * 0.15); ctx.lineTo(0, s * (0.15 + k * 0.9)); ctx.stroke(); circle(0, s * (0.15 + k * 0.9), s * 0.1, "#d8506a"); }   // tongue lash
+    ctx.restore();
+  }
+  fDragon(s, t, cy, body) {
+    const flap = Math.sin(t * 5), LN = "#1a0b12", belly = "#ffb04a";
+    for (const sd of [-1, 1]) { ctx.save(); ctx.translate(sd * s * 0.5, cy - s * 0.3); ctx.rotate(sd * flap * 0.25);
+      this.layer("wing" + sd, () => { this.cel(() => { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(sd * s * 1.25, -s * 0.85); ctx.lineTo(sd * s * 1.15, -s * 0.2); ctx.lineTo(sd * s * 1.35, s * 0.15); ctx.lineTo(sd * s * 0.95, s * 0.2); ctx.lineTo(sd * s * 0.9, s * 0.5); ctx.lineTo(sd * s * 0.4, s * 0.35); ctx.closePath(); }, shade(body, -0.3), 0.1);
+        ctx.strokeStyle = hexA(LN, 0.5); ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(sd * s * 1.15, -s * 0.2); ctx.moveTo(0, 0); ctx.lineTo(sd * s * 0.95, s * 0.2); ctx.stroke(); });
+      ctx.restore(); }
+    ctx.save(); ctx.translate(0, cy + s * 0.5); ctx.rotate(Math.sin(t * 2.5) * 0.2);
+    this.layer("tail", () => { this.cel(() => { ctx.beginPath(); ctx.moveTo(-s * 0.2, 0); ctx.quadraticCurveTo(-s * 0.6, s * 0.6, s * 0.1, s * 0.75); ctx.lineTo(s * 0.4, s * 0.62); ctx.lineTo(s * 0.18, s * 0.55); ctx.quadraticCurveTo(-s * 0.2, s * 0.4, s * 0.2, 0); ctx.closePath(); }, body, 0.1); });
+    ctx.restore();
+    this.layer("body", () => {
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, s * 0.2, s * 0.72, s * 0.62, 0, 0, Math.PI * 2); }, body, 0.22);
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, s * 0.3, s * 0.4, s * 0.42, 0, 0, Math.PI * 2); }, belly, 0.08, 2);
+      ctx.strokeStyle = hexA(LN, 0.45); ctx.lineWidth = 1.6; ctx.beginPath(); for (let i = 0; i < 4; i++) { const y = s * (0.0 + i * 0.16); ctx.moveTo(-s * 0.32, y); ctx.quadraticCurveTo(0, y + s * 0.06, s * 0.32, y); } ctx.stroke();
+      for (const sd of [-1, 1]) this.cel(() => { ctx.beginPath(); ctx.moveTo(sd * s * 0.18, -s * 0.75); ctx.quadraticCurveTo(sd * s * 0.55, -s * 1.05, sd * s * 0.6, -s * 1.4); ctx.quadraticCurveTo(sd * s * 0.38, -s * 1.0, sd * s * 0.05, -s * 0.85); ctx.closePath(); }, "#3a2a24", 0.06, 2);   // horns
+      this.cel(() => { ctx.beginPath(); ctx.ellipse(0, -s * 0.55, s * 0.48, s * 0.4, 0, 0, Math.PI * 2); }, body, 0.18);   // head
+      this.cel(() => { ctx.beginPath(); ctx.moveTo(-s * 0.26, -s * 0.42); ctx.quadraticCurveTo(0, -s * 0.5, s * 0.26, -s * 0.42); ctx.quadraticCurveTo(s * 0.22, -s * 0.12, 0, -s * 0.1); ctx.quadraticCurveTo(-s * 0.22, -s * 0.12, -s * 0.26, -s * 0.42); ctx.closePath(); }, shade(body, -0.12), 0.06, 2);   // snout
+      for (const sd of [-1, 1]) ellipse(sd * s * 0.08, -s * 0.2, s * 0.035, s * 0.025, LN);
+      this.shine(-s * 0.25, -s * 0.78, s * 0.12, s * 0.05);
+    }, 0, cy);
+    this.fEyes(0, cy - s * 0.62, s * 0.11, "#ffe34a", 1.6);
+    if (this.attacking || (t % 3) < 0.6) for (let i = 0; i < 4; i++) { const k = ((t * 3 + i / 4) % 1); circle(Math.sin(i * 1.7 + t * 9) * s * 0.12, cy - s * 0.15 + k * s * 0.9, s * (0.08 + k * 0.18), `rgba(255,${200 - k * 120},40,${0.9 * (1 - k)})`); }   // fire breath
   }
   // ---- Detailed enemy art. Every body part is shaded with gradients and outlined in ink.
   // Helpers (local to enemies): gradient fills, outlined shapes.
@@ -5214,7 +5414,7 @@ function curseTap(p) {
 // After a run the mode rests for 6 hours, or only 3 hours if you beat 10+ bosses. An optional ad skips one rest.
 let bossMode = false, bossKills = 0, bossSeq = 0, bossModeOver = false, bossLastRun = 0;
 const BOSS_GEMS = 10;   // gems for each boss killed in Boss Break Out
-const BOSS_ROTATION = ["kingGoblin", "kingOrc", "kingSlime"];
+const BOSS_ROTATION = STAGES.map(st => st.boss);
 const BOSS_HP_MULT = 0.5, BOSS_WAVE_STEP = 3, BOSS_MAX_PER_WAVE = 5, BOSS_GOLD_PER_KILL = 50;
 const BOSS_CD_LONG = 6 * 3600e3, BOSS_CD_SHORT = 3 * 3600e3, BOSS_GOAL = 10;
 const bossReadyIn = () => Math.max(0, (save.bossReadyAt || 0) - gameNow());
@@ -5516,6 +5716,8 @@ function deathFx(e) {
   if (e.look === "slime") {
     burst(14 * big, (cx, cy) => { const sp = rand(120, 300); addPart({ kind: "drop", x: e.x, y: e.y, vx: cx * sp, vy: -Math.abs(cy) * sp - 80, g: 900, life: rand(0.5, 0.8), size: rand(3, 6) * (e.isBoss ? 1.6 : 1), col: e.color }); });
     addPart({ kind: "ring", x: e.x, y: e.y + s * 0.6, size: s * 0.5, grow: s * 1.4, w: 6, sq: 0.35, life: 0.45, col: e.color });
+  } else if (e.look === "ghost") {
+    burst(12 * big, (cx, cy) => addPart({ add: true, kind: "glow", x: e.x + cx * 8, y: e.y + cy * 8, vx: cx * 70, vy: cy * 50 - 50, drag: 1.5, life: 0.9, size: s * 0.35, grow: 0.8, rgb: "160,255,210", a: 0.6 }));
   } else if (e.look === "mummy") {
     burst(16 * big, (cx, cy) => { const sp = rand(60, 220); addPart({ kind: "grain", x: e.x, y: e.y, vx: cx * sp, vy: cy * sp - 60, g: 500, life: rand(0.5, 0.9), size: rand(2, 4), col: Math.random() < 0.5 ? "#e8dcc0" : "#c8b48a" }); });
     burst(6, (cx, cy) => addPart({ kind: "smoke", x: e.x + cx * 8, y: e.y + cy * 8, vx: cx * 60, vy: -40, life: 0.8, size: s * 0.4, grow: 1.5, col: "#d9c8a0", a: 0.5 }));
@@ -7966,10 +8168,111 @@ function drawCaveCrystalPulse() {
     circle(fx(c[0]), fy(c[1]), (16 + c[2] * 14) * 1.8, hexA(CRYSTAL_COLORS[i % 3], 0.08 * pulse));
   });
 }
+// Frozen Peaks: packed snow, frozen ponds, snowy pines and rocks along the sides; snow falls (drawSnowFall).
+function drawBgSnow() {
+  ctx.fillStyle = "#e6eef7"; ctx.fillRect(0, FIELD_T, W, FRONT_Y - FIELD_T);
+  for (const p of DECOR.patches) ellipse(fx(p[0]), fy(p[1]), 44 + p[2] * 56, 22 + p[2] * 24, p[2] > 0.5 ? "#f4f8fc" : "#d6e2ef");
+  // The trampled trail the enemies march along.
+  ctx.strokeStyle = "rgba(150,175,210,0.35)"; ctx.lineWidth = 70; ctx.lineCap = "round"; ctx.beginPath();
+  ctx.moveTo(W * 0.5, FIELD_T); ctx.bezierCurveTo(W * 0.75, 300, W * 0.25, 480, W * 0.5, FRONT_Y); ctx.stroke();
+  // Frozen ponds.
+  for (const s of DECOR.stones.slice(0, 3)) {
+    const x = fx(0.2 + s[0] * 0.6), y = fy(0.15 + s[1] * 0.7), r = 34 + s[2] * 22;
+    ellipse(x, y, r, r * 0.55, "#a9d6f2"); ctx.save(); ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.55, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x - r * 0.6, y - r * 0.1); ctx.lineTo(x - r * 0.1, y - r * 0.35); ctx.moveTo(x - r * 0.2, y + r * 0.2); ctx.lineTo(x + r * 0.4, y - r * 0.1); ctx.stroke(); ctx.restore();
+    ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.55, 0, 0, Math.PI * 2); ctx.strokeStyle = "#5a86b0"; ctx.lineWidth = 3; ctx.stroke();
+  }
+  ctx.fillStyle = "#c2d2e4"; for (const p of DECOR.pebbles) circle(fx(p[0]), fy(p[1]), 1.2 + p[2] * 2.2, "#c2d2e4");
+  // Snowy rocks.
+  for (const s of DECOR.stones.slice(3)) { const x = fx(s[0]), y = fy(s[1]), r = 7 + s[2] * 9; ellipse(x, y, r, r * 0.8, "#8e98a8"); ellipse(x - r * 0.15, y - r * 0.25, r * 0.75, r * 0.45, "#ffffff"); ring(x, y, r * 0.9, INK, 2); }
+  // Pines seen from above, kept near the sides.
+  for (const b of [...DECOR.bushes, ...DECOR.cacti]) {
+    const x = b[0] < 0.5 ? fx(0.02 + b[0] * 0.18) : fx(0.8 + b[0] * 0.18), y = fy(b[1]), r = 20 + b[2] * 12;
+    const star = (rr, col) => { const pts = []; for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8, q = i % 2 ? rr * 0.55 : rr; pts.push([x + Math.cos(a) * q, y + Math.sin(a) * q]); } poly(pts, col, INK, 2.5); };
+    star(r, "#2f6a52"); star(r * 0.68, "#3c8064"); star(r * 0.36, "#4a967a");
+    for (let i = 0; i < 6; i++) { const a = i * 1.05 + b[2] * 3; circle(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5, r * 0.13, "#ffffff"); }
+  }
+}
+function drawSnowFall() {
+  const n = liteBattle() ? 18 : 40;
+  for (let i = 0; i < n; i++) {
+    const sp = 30 + (i * 37) % 40, y = FIELD_T + ((time * sp + i * 97) % (FRONT_Y - FIELD_T)), x = (i * 131 + Math.sin(time * 1.3 + i) * 18) % W;
+    circle(x, y, 1.6 + (i % 3) * 0.8, "rgba(255,255,255,0.85)");
+  }
+}
+// Volcano: dark basalt, cracks and lava rivers along both sides; the lava glows and embers rise (drawVolcanoGlow).
+const LAVA_SIDES = [0, 1].map(side => Array.from({ length: 13 }, (_, i) => [side ? 0.93 + Math.sin(i * 0.9) * 0.025 : 0.07 + Math.sin(i * 0.8 + 1) * 0.025, i / 12]));
+function drawBgVolcano() {
+  ctx.fillStyle = "#3e2a26"; ctx.fillRect(0, FIELD_T, W, FRONT_Y - FIELD_T);
+  for (const p of DECOR.patches) ellipse(fx(p[0]), fy(p[1]), 44 + p[2] * 56, 22 + p[2] * 26, p[2] > 0.5 ? "#4a322c" : "#33221f");
+  ctx.strokeStyle = "rgba(20,10,8,0.35)"; ctx.lineWidth = 70; ctx.lineCap = "round"; ctx.beginPath();
+  ctx.moveTo(W * 0.45, FIELD_T); ctx.bezierCurveTo(W * 0.7, 320, W * 0.3, 470, W * 0.55, FRONT_Y); ctx.stroke();
+  // Glowing cracks in the floor.
+  for (const c of DECOR.cracks) {
+    let x = fx(0.15 + c[0] * 0.7), y = fy(c[1]); const pts = [[x, y]];
+    for (let i = 0; i < 4; i++) { x += (c[2] - 0.5) * 30 + (i % 2 ? 12 : -10); y += 10 + i * 4; pts.push([x, y]); }
+    for (const [w, col] of [[7, "rgba(255,90,20,0.35)"], [3, "#ff8a2a"], [1.2, "#ffe08a"]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = "round"; ctx.beginPath(); pts.forEach(([px, py], i) => (i ? ctx.lineTo(px, py) : ctx.moveTo(px, py))); ctx.stroke(); }
+  }
+  for (const r of DECOR.rubble) circle(fx(r[0]), fy(r[1]), 1.5 + r[2] * 3, r[2] > 0.6 ? "#1e1412" : "#5a423a");
+  // Lava rivers on both sides, with crusted rock banks.
+  for (const side of LAVA_SIDES) {
+    const pts = side.map(([u, v]) => [fx(u), fy(v)]);
+    const curve = () => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length - 1; i++) ctx.quadraticCurveTo(pts[i][0], pts[i][1], (pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2); ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]); };
+    for (const [w, col] of [[54, INK], [48, "#2a1a16"], [34, "#c8401a"], [20, "#ff7a1a"], [8, "#ffd04a"]]) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = "round"; ctx.lineJoin = "round"; curve(); ctx.stroke(); }
+  }
+  // Obsidian boulders.
+  for (const s of DECOR.stones) { const x = fx(0.18 + s[0] * 0.64), y = fy(s[1]), r = 7 + s[2] * 9; poly([[x - r, y], [x - r * 0.4, y - r * 0.8], [x + r * 0.6, y - r * 0.6], [x + r, y + r * 0.2], [x + r * 0.2, y + r * 0.7], [x - r * 0.7, y + r * 0.5]], "#1e1620", INK, 2); poly([[x - r * 0.4, y - r * 0.5], [x + r * 0.3, y - r * 0.45], [x - r * 0.1, y - r * 0.1]], "rgba(180,160,220,0.45)", null); }
+}
+function drawVolcanoGlow() {
+  const pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
+  for (const side of LAVA_SIDES) for (let i = 0; i < side.length; i += 2) circle(fx(side[i][0]), fy(side[i][1]), 40, `rgba(255,110,30,${0.06 + 0.06 * pulse})`);
+  const n = liteBattle() ? 10 : 24;
+  for (let i = 0; i < n; i++) {
+    const side = LAVA_SIDES[i % 2], v = (i * 0.137) % 1, k = (time * (0.35 + (i % 5) * 0.07) + i * 0.31) % 1;
+    const x = fx(side[Math.floor(v * 12)][0]) + Math.sin(time * 2 + i) * 10, y = fy(v) - k * 90;
+    circle(x, y, 2 + (i % 2), `rgba(255,${150 + (i % 4) * 25},60,${0.9 * (1 - k)})`);
+  }
+}
+// Haunted Swamp: murky ground, dark pools with lily pads, reeds and dead stumps; fog drifts and wisps float (drawSwampMist).
+function drawBgSwamp() {
+  ctx.fillStyle = "#3d5537"; ctx.fillRect(0, FIELD_T, W, FRONT_Y - FIELD_T);
+  for (const p of DECOR.patches) ellipse(fx(p[0]), fy(p[1]), 44 + p[2] * 56, 22 + p[2] * 26, p[2] > 0.5 ? "#465f3e" : "#344a30");
+  ctx.strokeStyle = "rgba(70,55,35,0.4)"; ctx.lineWidth = 70; ctx.lineCap = "round"; ctx.beginPath();
+  ctx.moveTo(W * 0.5, FIELD_T); ctx.bezierCurveTo(W * 0.3, 310, W * 0.7, 470, W * 0.5, FRONT_Y); ctx.stroke();
+  // Dark pools.
+  for (const s of DECOR.stones) {
+    const x = s[0] < 0.5 ? fx(0.04 + s[0] * 0.3) : fx(0.66 + (s[0] - 0.5) * 0.6), y = fy(s[1]), r = 24 + s[2] * 22;
+    ellipse(x, y, r, r * 0.6, "#24372f"); ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.6, 0, 0, Math.PI * 2); ctx.strokeStyle = "#16241e"; ctx.lineWidth = 3; ctx.stroke();
+    ellipse(x - r * 0.3, y - r * 0.2, r * 0.3, r * 0.08, "rgba(160,200,180,0.25)");
+    for (let i = 0; i < 2; i++) { const lx = x + (i ? r * 0.35 : -r * 0.15), ly = y + (i ? r * 0.1 : r * 0.2), lr = r * 0.22; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.arc(lx, ly, lr, 0.4, Math.PI * 2 - 0.1); ctx.closePath(); ctx.fillStyle = "#5a8a44"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.stroke(); }
+  }
+  // Reed tufts.
+  ctx.strokeStyle = "#6a7a3a"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.beginPath();
+  for (const t of DECOR.tufts) { const x = fx(t[0]), y = fy(t[1]); ctx.moveTo(x - 4, y); ctx.lineTo(x - 7, y - 9); ctx.moveTo(x, y); ctx.lineTo(x, y - 11); ctx.moveTo(x + 4, y); ctx.lineTo(x + 7, y - 9); }
+  ctx.stroke();
+  // Dead stumps seen from above.
+  for (const b of DECOR.bushes) {
+    const x = b[0] < 0.5 ? fx(0.05 + b[0] * 0.15) : fx(0.8 + b[0] * 0.15), y = fy(b[1]), r = 13 + b[2] * 7;
+    for (let i = 0; i < 5; i++) { const a = i * 1.26 + b[2]; ctx.strokeStyle = INK; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * r * 1.6, y + Math.sin(a) * r * 1.2); ctx.stroke(); ctx.strokeStyle = "#5a4636"; ctx.lineWidth = 4; ctx.stroke(); }
+    circle(x, y, r, "#6a5442"); ring(x, y, r, INK, 2.5); ring(x, y, r * 0.65, "#4a3a2c", 1.5); ring(x, y, r * 0.3, "#4a3a2c", 1.5);
+  }
+  for (const f of DECOR.flowers.slice(0, 10)) { const x = fx(f[0]), y = fy(f[1]); circle(x, y, 4, "#b8a0d8"); circle(x, y, 1.6, "#ffe38a"); }   // pale swamp flowers
+}
+function drawSwampMist() {
+  const lite = liteBattle();
+  for (let i = 0; i < (lite ? 3 : 6); i++) {
+    const y = fy((i + 0.5) / 6), x = ((time * (12 + i * 3) + i * 170) % (W + 300)) - 150;
+    ellipse(x, y, 150, 30, "rgba(200,220,210,0.08)");
+  }
+  for (let i = 0; i < (lite ? 6 : 14); i++) {   // will-o'-wisps
+    const x = fx(((i * 0.173) % 1)) + Math.sin(time * 0.8 + i * 2) * 30, y = fy(((i * 0.311) % 1)) + Math.cos(time * 0.6 + i) * 20, a = 0.5 + 0.5 * Math.sin(time * 3 + i * 1.7);
+    circle(x, y, 7, `rgba(140,255,200,${0.12 * a})`); circle(x, y, 2.2, `rgba(200,255,220,${0.8 * a})`);
+  }
+}
 function drawBackground() {
   const w = state === "title" ? 1 : (state === "break" ? wave + 1 : wave);
   const bg = curStage(w).bg;
-  if (bg === "sand") drawBgSand(); else if (bg === "cave") drawBgCave(); else drawBgGrass();
+  if (bg === "sand") drawBgSand(); else if (bg === "cave") drawBgCave(); else if (bg === "snow") drawBgSnow(); else if (bg === "volcano") drawBgVolcano(); else if (bg === "swamp") drawBgSwamp(); else drawBgGrass();
 }
 
 // The parts of the battlefield that never move (ground, rampart, wall, courtyard, shop table) are painted once into
@@ -8031,6 +8334,7 @@ function drawWorld() {
     ctx.drawImage(worldCache, 0, 0);
     if (bgName === "cave") drawCaveCrystalPulse();
   }
+  if (bgName === "snow") drawSnowFall(); else if (bgName === "volcano") drawVolcanoGlow(); else if (bgName === "swamp") drawSwampMist();   // moving parts of the new lands
 
   // Rune circles under battle slots.
   for (let i = 0; i < SLOTS; i++) {
