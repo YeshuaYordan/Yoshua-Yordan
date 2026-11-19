@@ -7771,7 +7771,9 @@ const btn = {
   tabDaily: makeBtn("Daily Missions", 0, 0, 300, 60, () => { missionsTab = 0; }, 22),
   tabAch: makeBtn("Achievements", 0, 0, 300, 60, () => { missionsTab = 1; achScroll = 0; }, 22),
   speed: makeBtn("1x", W - 124, HUD_H + 14, 110, 60, () => tapSpeed(), 26),
-  testCards: Object.assign(makeBtn("TEST", W - 124, HUD_H + 84, 110, 50, () => { testPick = { lvl: testPick ? testPick.lvl : 0 }; cancelDrag(); playUi("ui_pick"); }, 22), { fill: "#e0533f", fillDown: "#b8402f" }),
+  quests: makeBtn("Quests", W - 124, HUD_H + 84, 110, 50, () => { questsOpen = true; cancelDrag(); playUi("ui_pick"); }, 22),
+  questsClose: makeBtn("Close", W / 2 - 110, 0, 220, 64, () => { questsOpen = false; }, 24),
+  testCards: Object.assign(makeBtn("TEST", W - 124, HUD_H + 144, 110, 50, () => { testPick = { lvl: testPick ? testPick.lvl : 0 }; cancelDrag(); playUi("ui_pick"); }, 22), { fill: "#e0533f", fillDown: "#b8402f" }),
   testClose: makeBtn("Close", 0, 0, 120, 50, () => { testPick = null; }, 22),
   speedBuy: Object.assign(makeBtn("Buy", 0, 0, 260, 84, () => { if (!shopBusy) buyProduct(SPEED_PRODUCT).then(() => { if (save.speed2x) { speedOffer = false; gameSpeed = 2; save.speedOn = true; writeSave(); } }); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   speedNo: makeBtn("Not now", 0, 0, 200, 84, () => { speedOffer = false; }, 24),
@@ -7842,6 +7844,7 @@ function visibleButtons() {
   if (speedOffer) return shopBusy ? [] : [btn.speedBuy, btn.speedNo];
   if (relicOffer && state !== "title") return relicBtns;
   if (missionsOpen) return [btn.missionsClose, btn.tabDaily, btn.tabAch, ...missionBtns];
+  if (questsOpen && state !== "title") return [btn.questsClose, ...questBtns];
   if (guide) return guideButtons();
   if (tut) return tutBlocking() ? [btn.tutNext, btn.tutSkip] : [btn.tutSkip, ...baseButtons()];
   return baseButtons();
@@ -7870,7 +7873,7 @@ function baseButtons() {
   if (state === "gameover") return bossModeOver ? [btn.title] : [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, ...(bossMode ? [] : [btn.restart]), btn.quit, btn.sound];
   const list = [btn.chamber, btn.pause, btn.reroll, btn.storNext, btn.storPrev];
-  if (!drag) list.push(btn.next, btn.runes, btn.spell, btn.speed, ...(TESTER_RESET ? [btn.testCards] : []));
+  if (!drag) list.push(btn.next, btn.runes, btn.spell, btn.speed, ...(bossMode ? [] : [btn.quests]), ...(TESTER_RESET ? [btn.testCards] : []));
   return list;
 }
 // The bubbly body shared by every button: drop shadow, darker 3D base, gradient face, gloss and a sparkle.
@@ -8016,7 +8019,7 @@ function update(dt) {
   for (const r in rows) for (const c of rows[r]) if (c) { if (r === "storage" && !c.dragging && (c.hx < -CARD_W || c.hx > W + CARD_W)) { c.x = c.hx; c.y = c.hy; continue; } c.update(dt); }   // cards on a hidden storage page sleep
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
   if (paused || bookOpen || chamberOpen || settingsOpen || spell || guide || reviveOffer || speedOffer || relicOffer || testPick || timeStopT > 0 || state === "title" || state === "gameover") shakeT = 0;   // any menu, spell or Pause card ends the shake
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || relicOffer || settingsOpen || testPick) return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || relicOffer || settingsOpen || testPick || questsOpen) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt); spellCd = Math.max(0, spellCd - dt); specialShopCd = Math.max(0, specialShopCd - dt);
   if ((state === "wave" || state === "break") && updateTimeStop(realDt)) {   // Pause wild card: the battlefield is frozen
@@ -8453,6 +8456,7 @@ function drawHud() {
     drawBtn(btn.spell, spellCd > 0);
     if (spellCd > 0) { const b = btn.spell; rrect(b.x + 10, b.y + b.h - 12, (b.w - 20) * (1 - spellCd / SPELL_COOLDOWN), 6, 3); ctx.fillStyle = "#c9a6ff"; ctx.fill(); }
     drawBtn(btn.next, callCd > 0); drawBtn(btn.runes); drawSpeedButton();
+    if (!bossMode) { drawBtn(btn.quests); if (QUESTS.some(questReady)) { const b = btn.quests, bx = b.x + b.w - 6, by = b.y + 4, pl = 1 + 0.12 * Math.sin(time * 6); circle(bx, by, 13 * pl, "#e0533f"); ring(bx, by, 13 * pl, INK, 2.5); text("!", bx, by + 1, 19, "#fff", { weight: 900, baseline: "middle" }); } }
     if (TESTER_RESET) drawBtn(btn.testCards);
     // Cooldown bar along the bottom of the button.
     if (callCd > 0) {
@@ -8750,7 +8754,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const FH = H + TOP, s = Math.max(W / 1080, FH / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (FH - 1920 * s) / 2 - TOP }; }
-function goToLobby() { endBossRun(); paused = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
+function goToLobby() { endBossRun(); paused = false; questsOpen = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -9707,8 +9711,28 @@ function changeVolume(d) { settings.vol = clamp(Math.round((settings.vol + d) * 
 // ------------------------------------------------------------ Lifetime counters, daily missions, achievements
 // Every event of interest calls track(type, n). It feeds the lifetime stats (achievements) and today's missions.
 let metaDirty = false;
+// Battle quests: chains that repeat forever. Each step has a goal; progress stops at the goal until it is claimed
+// (extra kills before claiming are not saved up), then the next step starts from 0. After step 3 it goes back to step 1.
+const QUESTS = [
+  { id: "kill", ev: "kill", goals: [100, 500, 1000], t: n => `Defeat ${fmtNum(n)} enemies` },
+  { id: "boss", ev: "boss", goals: [1, 5, 10], t: n => `Defeat ${n} boss${n > 1 ? "es" : ""}` },
+  { id: "wave", ev: "wave", goals: [10, 50, 100], t: n => `Clear ${n} waves` },
+  { id: "merge", ev: "merge", goals: [20, 100, 200], t: n => `Level up ${n} cards by merging` },
+  { id: "fusion", ev: "fusion", goals: [10, 50, 100], t: n => `Fuse ${n} new element cards` },
+  { id: "epic", ev: "epic", goals: [3, 15, 30], t: n => `Make ${n} Epic cards` },
+  { id: "spell", ev: "spell", goals: [5, 25, 50], t: n => `Cast ${n} spells` },
+];
+const QUEST_GEMS = [20, 100, 200];
+const questOf = q => { const all = (save.quests = save.quests || {}); return all[q.id] = all[q.id] || { step: 0, p: 0 }; };
+const questReady = q => questOf(q).p >= q.goals[questOf(q).step];
+function claimQuest(q) {
+  const st = questOf(q); if (st.p < q.goals[st.step]) return;
+  giveGems(QUEST_GEMS[st.step]);
+  st.step = (st.step + 1) % q.goals.length; st.p = 0; writeSave();
+}
 function track(type, n = 1) {
   const st = (save.stats = save.stats || {}); st[type] = (st[type] || 0) + n;
+  for (const q of QUESTS) if (q.ev === type) { const qs = questOf(q); qs.p = Math.min(q.goals[qs.step], qs.p + n); }
   const m = dailyMissions();
   for (const it of m.list) { const def = MISSION_POOL.find(d => d.id === it.id); if (def && def.ev === type && !it.claimed) it.prog = Math.min(def.n, (it.prog || 0) + n); }
   metaDirty = true;
@@ -9832,6 +9856,31 @@ function drawMissions(dt) {
   btn.missionsClose.y = y + h - 76; drawBtn(btn.missionsClose);
 }
 let missionPress = null;
+// Battle quests panel (the battle is paused while it is open).
+let questsOpen = false, questBtns = [];
+function drawQuests() {
+  dim(0.75);
+  const x = 24, w = W - 48, rowH = 118, h = Math.min(H - 120, 160 + QUESTS.length * rowH + 90), y = Math.max(60, (H - h) / 2);
+  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  text("QUESTS", W / 2, y + 58, 44, INK, { font: DISPLAY, weight: 900 });
+  text("They repeat forever. Claim to start the next step.", W / 2, y + 92, 18, "#6b3a22", { weight: 700 });
+  text("Progress stops at the goal until you claim it.", W / 2, y + 116, 16, "#8a6a4a", { weight: 600 });
+  questBtns = [];
+  QUESTS.forEach((q, i) => {
+    const st = questOf(q), goal = q.goals[st.step], done = st.p >= goal, gems = QUEST_GEMS[st.step];
+    const rx = x + 24, ry = y + 140 + i * rowH, rw = w - 48;
+    rrect(rx, ry, rw, rowH - 12, 16); ctx.fillStyle = done ? "#eaffd8" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    text(q.t(goal), rx + 18, ry + 34, 22, INK, { align: "left", weight: 800 });
+    text(`Step ${st.step + 1} of ${q.goals.length}`, rx + 18, ry + 58, 16, "#6b3a22", { align: "left", weight: 600 });
+    const bx = rx + 18, bw = rw - 300, by = ry + 72;
+    rrect(bx, by, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fill();
+    rrect(bx, by, Math.max(16, bw * Math.min(1, st.p / goal)), 16, 8); ctx.fillStyle = done ? "#6cc56a" : "#c9a6ff"; ctx.fill();
+    text(`${fmtNum(st.p)} / ${fmtNum(goal)}`, bx + bw + 10, by + 14, 16, "#6b3a22", { align: "left", weight: 700 });
+    drawGem(rx + rw - 132, ry + 32, 12); text(`${gems}`, rx + rw - 116, ry + 40, 22, INK, { align: "left", weight: 800 });
+    if (done) { const b = Object.assign(makeBtn("Claim", rx + rw - 136, ry + 54, 120, 44, () => claimQuest(q), 20), { fill: "#6cc56a", fillDown: "#4fa84d" }); questBtns.push(b); drawBtn(b); }
+  });
+  btn.questsClose.y = y + h - 80; drawBtn(btn.questsClose);
+}
 
 // ------------------------------------------------------------ Damage report (this run)
 let runStats = { dmg: {}, kills: {} };
@@ -11257,6 +11306,7 @@ function frame(now) {
   if (guide) drawGuide(dt);
   if (reviveOffer && state !== "title") drawReviveOffer();
   if (missionsOpen && state === "title") drawMissions(dt);
+  if (questsOpen && state !== "title") drawQuests();
   if (speedOffer && state !== "title") drawSpeedOffer();
   if (relicOffer && (state === "wave" || state === "break")) drawRelicOffer();
   if (testPick && state !== "title") drawTestPicker(dt);
