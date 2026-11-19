@@ -709,7 +709,7 @@ syncTime().then(() => { if (!clockWentBack()) noteTime(); });
 setInterval(() => { if (!clockWentBack()) { noteTime(); writeSave(); } }, 30000);
 function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} }
 // ---- Summon (gacha), gems and card upgrades
-const STAGE_LEN = 15;            // waves per stage; the map changes after each stage
+const STAGE_LEN = 10;            // waves per stage; the map changes after each stage
 const GEMS_PER_STAGE = 20;       // gems for clearing a stage
 const PULL_COST = 100;           // gems per summon (x10 costs 900)
 const PITY = 100;                // a Special card is guaranteed on this pull
@@ -2184,14 +2184,16 @@ const STAGES = [
   { name: "Grass Field", bg: "grass", boss: "kingGoblin", pool: [["slime", 10, 1], ["boar", 6, 3], ["goblin", 5, 5]] },
   { name: "Desert Sands", bg: "sand", boss: "kingOrc", pool: [["goblin", 10, 1], ["mummy", 5, 3], ["orc", 6, 5]] },
   { name: "Crystal Cave", bg: "cave", boss: "kingSlime", pool: [["darkSlime", 10, 1], ["redSlime", 6, 2], ["blueSlime", 6, 3], ["purpleSlime", 5, 5]] },
-  { name: "Frozen Peaks", bg: "snow", boss: "frostGiant", pool: [["snowWolf", 10, 1], ["iceImp", 6, 2], ["yeti", 5, 5]] },
-  { name: "Volcano", bg: "volcano", boss: "lavaDragon", pool: [["fireImp", 10, 1], ["ashBat", 7, 2], ["magmaGolem", 5, 5]] },
+  { name: "Frozen Peaks", bg: "snow", boss: "frostGiant", pool: [["snowWolf", 10, 1], ["iceImp", 5, 2], ["yeti", 4, 5]] },
+  { name: "Volcano", bg: "volcano", boss: "lavaDragon", pool: [["ashBat", 10, 1], ["fireImp", 5, 2], ["magmaGolem", 5, 5]] },
   { name: "Haunted Swamp", bg: "swamp", boss: "lichKing", pool: [["skeleton", 10, 1], ["bogGhost", 6, 2], ["swampToad", 6, 3]] },
 ];
 const stageNum = w => Math.floor((Math.max(1, w) - 1) / STAGE_LEN) + 1;
 const stageOf = w => STAGES[(stageNum(w) - 1) % STAGES.length];
 const waveInStage = w => ((Math.max(1, w) - 1) % STAGE_LEN) + 1;
 const waveLabel = w => `${stageNum(w)}-${waveInStage(w)}`;
+// Each time all the lands are cleared they start again from Grass Field with one more boss per boss wave (1, 2, 3 ...).
+const bossCount = w => Math.floor((stageNum(w) - 1) / STAGES.length) + 1;
 
 // look: how the enemy is drawn. resist: element it shrugs off (and its counter hits it harder).
 const KINDS = {
@@ -2208,19 +2210,19 @@ const KINDS = {
   purpleSlime: { name: "Glowy Purple Slime", look: "slime", glow: true, heavy: true, resist: "wind", hp: 100, speed: 30, size: 27, gold: 3, dps: 11, color: "#b36bff" },
   kingSlime:   { name: "King Slime", look: "slime", king: true, boss: true, hp: 1500, speed: 14, size: 58, gold: 50, dps: 50, color: "#8a4fe0" },
   // Frozen Peaks
-  snowWolf:    { name: "Snow Wolf", look: "wolf", hp: 50, speed: 95, size: 21, gold: 2, dps: 8, color: "#cdd8ea" },
+  snowWolf:    { name: "Snow Wolf", look: "wolf", hp: 34, speed: 90, size: 21, gold: 2, dps: 8, color: "#cdd8ea" },
   iceImp:      { name: "Ice Imp", look: "imp", resist: "water", hp: 55, speed: 58, size: 20, gold: 2, dps: 8, color: "#8fd4ff" },
-  yeti:        { name: "Yeti", look: "yeti", heavy: true, resist: "wind", hp: 140, speed: 26, size: 30, gold: 3, dps: 13, color: "#eef3fa" },
+  yeti:        { name: "Yeti", look: "yeti", heavy: true, resist: "wind", hp: 110, speed: 26, size: 30, gold: 3, dps: 13, color: "#eef3fa" },
   frostGiant:  { name: "Frost Giant", look: "yeti", king: true, boss: true, hp: 1800, speed: 13, size: 62, gold: 60, dps: 60, color: "#bcdaf2" },
   // Volcano
-  fireImp:     { name: "Fire Imp", look: "imp", resist: "fire", hp: 55, speed: 64, size: 20, gold: 2, dps: 8, color: "#ff6a2a" },
-  ashBat:      { name: "Ash Bat", look: "bat", flying: true, hp: 42, speed: 88, size: 19, gold: 2, dps: 7, color: "#5e4e56" },
-  magmaGolem:  { name: "Magma Golem", look: "golem", heavy: true, resist: "earth", hp: 160, speed: 22, size: 31, gold: 3, dps: 14, color: "#5a3e36" },
+  fireImp:     { name: "Fire Imp", look: "imp", resist: "fire", hp: 50, speed: 62, size: 20, gold: 2, dps: 8, color: "#ff6a2a" },
+  ashBat:      { name: "Ash Bat", look: "bat", flying: true, hp: 36, speed: 86, size: 19, gold: 2, dps: 7, color: "#5e4e56" },
+  magmaGolem:  { name: "Magma Golem", look: "golem", heavy: true, resist: "earth", hp: 140, speed: 22, size: 31, gold: 3, dps: 14, color: "#5a3e36" },
   lavaDragon:  { name: "Lava Dragon", look: "dragon", king: true, boss: true, hp: 2100, speed: 12, size: 62, gold: 70, dps: 70, color: "#c8442a" },
   // Haunted Swamp
-  skeleton:    { name: "Skeleton", look: "skeleton", hp: 62, speed: 52, size: 21, gold: 2, dps: 9, color: "#ece6d6" },
+  skeleton:    { name: "Skeleton", look: "skeleton", hp: 55, speed: 50, size: 21, gold: 2, dps: 9, color: "#ece6d6" },
   bogGhost:    { name: "Bog Ghost", look: "ghost", resist: "dark", hp: 72, speed: 40, size: 22, gold: 2, dps: 9, color: "#9ad8c0" },
-  swampToad:   { name: "Swamp Toad", look: "toad", heavy: true, hp: 125, speed: 30, size: 27, gold: 3, dps: 12, color: "#6a8a3a" },
+  swampToad:   { name: "Swamp Toad", look: "toad", heavy: true, hp: 110, speed: 30, size: 27, gold: 3, dps: 12, color: "#6a8a3a" },
   lichKing:    { name: "Lich King", look: "skeleton", king: true, boss: true, hp: 2400, speed: 12, size: 60, gold: 80, dps: 80, color: "#5a4a8a" },
 };
 // Reusable gradients for enemy art (they are drawn in each enemy's own coordinates, so they can be shared).
@@ -2254,7 +2256,7 @@ class Enemy {
     const d = KINDS[kind], w = wave - 1;
     this.kind = kind; this.look = d.look; this.x = x; this.y = y;
     this.isBoss = !!d.boss; this.king = !!d.king; this.glow = !!d.glow; this.heavy = !!d.heavy;
-    this.hp = d.hp * hpScale(wave); this.maxHp = this.hp;   // steeper mid game; from wave 60 +6% per wave
+    this.hp = d.hp * hpScale(wave); this.maxHp = this.hp;   // grows smoothly with the wave (see hpScale)
     this.speed = d.speed * (1 + Math.min(0.5, wave * 0.012)) * (1 + clamp((wave - 80) * 0.005, 0, 0.25)); this.size = d.size;   // +0.5% per wave after 80 (max +25%)
     this.gold = d.gold + Math.floor(wave / 8); this.dps = d.dps * (1 + wave * 0.05);
     this.flying = !!d.flying; this.color = d.color; this.resist = d.resist || "";
@@ -4915,13 +4917,17 @@ function runDmgMult(el) {
   return m;
 }
 // Enemy HP growth per wave (the same curve the enemies use), for things that scale with the waves.
-const hpScale = wave => { const w = wave - 1; return (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, clamp(w - 40, 0, 20)) * Math.pow(1.06, Math.max(0, w - 60)) * (1 + 0.03 * Math.max(0, w - 15)); };   // last factor: tougher from stage 2 on (offsets relics, weakness, upgrades)
+// Enemy HP per wave: a smooth climb (+3.4% a wave plus a slow linear part), no sudden walls. Tuned with a test bot that
+// plays like an average player (no spells, no upgrades): it reaches about wave 55 (best runs 75+), so real players can pass 70.
+const hpScale = wave => { const w = wave - 1; return (1 + 0.18 * w) * Math.pow(1.034, w); };
+// Boss Break Out keeps its own (older, steeper) curve so that mode plays exactly as before.
+const hpScaleBoss = wave => { const w = wave - 1; return (1 + 0.25 * w) * Math.pow(1.055, Math.min(w, 40)) * Math.pow(1.04, clamp(w - 40, 0, 20)) * Math.pow(1.06, Math.max(0, w - 60)) * (1 + 0.03 * Math.max(0, w - 15)); };
 // Waves can overlap: each called wave has its own spawner. callCd is the Next Wave button cooldown.
 const CALL_COOLDOWN = 3;
 let spawners = [], callCd = 0, wavesCleared = 0, rerollCost = REROLL_BASE, freeCard = true;
 const rerollPrice = () => Math.max(1, Math.round(rerollCost * (hasRelic("merchant") ? 0.7 : 1)));
-// Reroll price: 2, 3, 4 ... in stage 1; it doubles every stage (stage 2: 4, 6, 8 ...; stage 3: 8, 12, 16 ...).
-const rerollMult = () => 2 ** (stageNum(Math.max(1, state === "break" ? wave + 1 : wave)) - 1);
+// Reroll price: 2, 3, 4 ... in stage 1; it grows x1.6 every stage (about the old x2 per 15 waves).
+const rerollMult = () => Math.round(1.6 ** (stageNum(Math.max(1, state === "break" ? wave + 1 : wave)) - 1));
 let time = 0, wallFlash = 0, paused = false, bookOpen = false, bookScroll = 0;
 let drag = null; // { card, from, index, ox, oy, px, py, moved }
 let hover = null;
@@ -5446,8 +5452,8 @@ async function watchAdForBoss() {
 }
 function spawnRushBoss(w) {
   const kind = BOSS_ROTATION[bossSeq++ % BOSS_ROTATION.length];
-  const e = new Enemy(kind, 1 + (w - 1) * BOSS_WAVE_STEP, rand(100, W - 100), HUD_H + 20);
-  e.hp = e.maxHp = e.hp * BOSS_HP_MULT; e.gold = 0; e.rush = true; e.wave = w; enemies.push(e);
+  const e = new Enemy(kind, 1 + (w - 1) * BOSS_WAVE_STEP, rand(100, W - 100), HUD_H + 20); e.waveN = 1 + (w - 1) * BOSS_WAVE_STEP;
+  e.hp = e.maxHp = e.hp * BOSS_HP_MULT * hpScaleBoss(e.waveN) / hpScale(e.waveN); e.gold = 0; e.rush = true; e.wave = w; enemies.push(e);
 }
 // Map of the run: Boss Break Out changes land every wave.
 const curStage = w => bossMode ? STAGES[Math.max(0, w - 1) % STAGES.length] : stageOf(w);
@@ -5478,7 +5484,7 @@ function beginWave(fromTimer = false) {
   spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % STAGE_LEN === 0 });
   const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
   const st = stageOf(wave);
-  if (wave % STAGE_LEN === 0) showBanner(`Wave ${waveLabel(wave)}: ${KINDS[st.boss].name.toUpperCase()}!${stacked}`, "#e0533f");
+  if (wave % STAGE_LEN === 0) showBanner(`Wave ${waveLabel(wave)}: ${bossCount(wave) > 1 ? bossCount(wave) + " " : ""}${KINDS[st.boss].name.toUpperCase()}${bossCount(wave) > 1 ? "S" : ""}!${stacked}`, "#e0533f");
   else if (waveInStage(wave) === 1) showBanner(`Stage ${stageNum(wave)}: ${st.name}${stacked}`, GOLD);
   else showBanner(`Wave ${waveLabel(wave)}${stacked}`, PARCH);
 }
@@ -8032,7 +8038,7 @@ function update(dt) {
       if (sp.timer > 0) continue;
       if (sp.rush) { if (sp.left > 0) { sp.left--; spawnRushBoss(sp.wave); } sp.timer = 2.4; continue; }
       sp.timer = Math.max(clamp(0.28 - (sp.wave - 80) * 0.002, 0.18, 0.28), 1.2 - sp.wave * 0.035);   // spawns get quicker after wave 80
-      if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; spawnEnemy(stageOf(sp.wave).boss, sp.wave); if (stageNum(sp.wave) === 1) { const e = enemies[enemies.length - 1]; e.hp = e.maxHp = e.maxHp * 0.75; } }   // the first boss is a bit softer
+      if (sp.boss && sp.left <= sp.total / 2) { sp.boss = false; for (let b = 1; b < bossCount(sp.wave); b++) spawnEnemy(stageOf(sp.wave).boss, sp.wave); spawnEnemy(stageOf(sp.wave).boss, sp.wave); if (stageNum(sp.wave) === 1) { const e = enemies[enemies.length - 1]; e.hp = e.maxHp = e.maxHp * 0.75; } }   // the first boss is a bit softer
       else if (sp.left > 0) { sp.left--; spawnEnemy(pickKind(sp.wave), sp.wave); }
     }
     for (const c of rows.active) {
@@ -10884,7 +10890,7 @@ const TUT = {
   lobby: [
     { t: "Welcome to Arcane Fusion!", b: "Monsters march toward your castle in endless waves. Buy elemental cards, merge them into stronger spirits and survive as long as you can. Between runs you collect and upgrade cards." },
     { t: "Your profile", hl: () => btnRect(btn.bio), b: "This is you! Tap it to change your name and avatar and to see your records. Every wave you clear gives 10 XP, and XP raises your level." },
-    { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (15 waves) gives you 20 gems, and the daily reward gives more. Tap the green + or the cart to open the Shop." },
+    { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (10 waves) gives you 20 gems, and the daily reward gives more. Tap the green + or the cart to open the Shop." },
     { t: "Summon", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe left to open Summon (the dots up here show which page you are on). One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
     { t: "Your cards", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
     { t: "Daily reward", hl: () => ({ x: btn.daily.x - 4, y: btn.daily.y - 4, w: btn.daily.w + 8, h: btn.daily.h + 26 }), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. If you like, watch an ad to double it (always optional). The calendar shows a red ! when your reward is waiting." },
@@ -10920,7 +10926,7 @@ const TUT = {
     { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 9% and each Epic adds 3%, up to 45%." },
   ],
   boss: [
-    { t: "Boss wave!", b: "Every 15th wave a boss appears. Beat it to clear the stage: you earn 20 gems for Summon, and the map changes to a new land with new enemies." },
+    { t: "Boss wave!", b: "Every 10th wave a boss appears. Beat it to clear the stage: you earn 20 gems for Summon, and the map changes to a new land with new enemies." },
     { t: "Special cards", b: "Special cards from Summon or the Shop can show up in the shop during runs. They are very strong, but they can't be merged or fused." },
   ],
 };
