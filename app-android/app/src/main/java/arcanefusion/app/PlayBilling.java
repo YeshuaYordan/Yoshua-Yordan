@@ -45,7 +45,7 @@ public class PlayBilling implements PurchasesUpdatedListener {
     }
 
     private static boolean oneTime(String id) {
-        return id.startsWith("special_") || id.equals("speed_2x") || id.equals("starter_deal");
+        return id.startsWith("special_") || id.equals("speed_2x") || id.equals("starter_deal") || id.equals("no_ads");
     }
 
     private void connect() {

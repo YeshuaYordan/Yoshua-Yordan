@@ -5726,11 +5726,12 @@ function drawReviveOffer() {
   ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 12; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = k > 0.33 ? GOLD : "#e0533f"; ctx.lineCap = "round"; ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke();
   text(String(Math.ceil(Math.max(0, r.t))), cx, cy + 2, 64, PARCH, { font: DISPLAY, weight: 900, outline: 10, baseline: "middle" });
-  text("Watch an ad to clear the field and restore the castle.", W / 2, H * 0.5 + 120, 21, PARCH, { weight: 600, outline: 6 });
+  text(save.noAds ? "Revive to clear the field and restore the castle." : "Watch an ad to clear the field and restore the castle.", W / 2, H * 0.5 + 120, 21, PARCH, { weight: 600, outline: 6 });
   text("You can only revive once per run.", W / 2, H * 0.5 + 150, 19, hexA(PARCH, 0.75), { weight: 600, outline: 5 });
+  btn.revive.label = save.noAds ? "Revive (No Ads)" : "Watch ad: Revive";
   btn.revive.y = H * 0.5 + 190; drawBtn(btn.revive, adBusy);
   const px = btn.revive.x + 34, py = btn.revive.y + btn.revive.h / 2;
-  poly([[px - 9, py - 13], [px + 13, py], [px - 9, py + 13]], INK, null);
+  if (!save.noAds) poly([[px - 9, py - 13], [px + 13, py], [px - 9, py + 13]], INK, null);
   btn.reviveNo.y = btn.revive.y + btn.revive.h + 20; drawBtn(btn.reviveNo);
 }
 // Each kind breaks apart in its own way, and a little spirit floats up.
@@ -10029,6 +10030,8 @@ function drawDamageReport(top) {
 // ------------------------------------------------------------ 2x speed (bought once for $0.99, then a toggle)
 let gameSpeed = 1, speedOffer = false;
 const SPEED_PRODUCT = { id: "speed_2x", speed: true, price: "$0.99", name: "2x Speed" };
+// No Ads (one-time): every "Watch ad" reward is given straight away, with no ad.
+const NOADS_PRODUCT = { id: "no_ads", noads: true, price: "$4.99", name: "No Ads" };
 function tapSpeed() {
   if (!save.speed2x) { speedOffer = true; cancelDrag(); playUi("ui_pick"); return; }
   gameSpeed = gameSpeed === 1 ? 2 : 1; save.speedOn = gameSpeed === 2; metaDirty = true; playUi("ui_pick");
@@ -10134,6 +10137,7 @@ const CAL_ICON = {};
 for (const [k, srcUrl] of Object.entries({"calendar": "assets/img/calendar.webp", "calendar_notify": "assets/img/calendar_notify.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = srcUrl; CAL_ICON[k] = slot; }
 const adsAreTest = () => typeof window.nativeShowRewardedAd !== "function";
 function showRewardedAd() {
+  if (save.noAds) return Promise.resolve(true);   // No Ads bought: the reward is given at once
   if (!adsAreTest()) return Promise.resolve(window.nativeShowRewardedAd()).catch(() => false);
   return new Promise(res => { adSim = { t: 0, dur: 5, res }; });
 }
@@ -10200,7 +10204,7 @@ function drawDaily(dt) {
   if (ready) {
     // Free claim, or (optional) watch an ad for double.
     btn.dailyClaim.label = `Claim ${DAILY_GEMS[d.day]}`; btn.dailyClaim.y = by; drawBtn(btn.dailyClaim);
-    btn.dailyAd.label = `Watch ad: x2 (${DAILY_GEMS[d.day] * 2})`; btn.dailyAd.y = by; drawBtn(btn.dailyAd, adBusy);
+    btn.dailyAd.label = save.noAds ? `Claim x2 (${DAILY_GEMS[d.day] * 2})` : `Watch ad: x2 (${DAILY_GEMS[d.day] * 2})`; btn.dailyAd.y = by; drawBtn(btn.dailyAd, adBusy);
     // Little "play" mark on the ad button.
     const px = btn.dailyAd.x + 30, py = by + btn.dailyAd.h / 2;
     poly([[px - 8, py - 11], [px + 11, py], [px - 8, py + 11]], INK, null);
@@ -10226,7 +10230,7 @@ const SHOP_GEMS = [
   { id: "gems_35000", gems: 28000, bonus: 7000, price: "$49.99", name: "Vault" },
   { id: "gems_100000", gems: 80000, bonus: 20000, price: "$99.99", name: "Dragon Hoard" },
 ];
-const SHOP_SPECIAL_PRICE = "$4.99";
+const SHOP_SPECIAL_PRICE = "$2.99";
 // ---- Beginner Deal: one-time offer for new players, open for 24 hours from their first visit to the lobby.
 const STARTER_DEAL = { id: "starter_deal", starter: true, price: "$1.00", name: "Beginner Deal", gemsAmt: 2000, cards: ["totem", "flight", "chalice"] };
 const STARTER_TIME = 24 * 3600 * 1000;
@@ -10343,6 +10347,7 @@ const storeIsTest = () => typeof window.nativePurchase !== "function";
 let shopOpen = false, shopConfirm = null, shopBusy = false, shopToast = null;
 function openShop() { shopOpen = true; shopConfirm = null; playUi("ui_pick"); }
 function grantProduct(pr) {
+  if (pr.noads) { save.noAds = true; writeSave(); playUi("ui_sell"); showBanner("No more ads!", GOLD); shopToast = { text: "No Ads: rewards are instant!", color: GOLD, t: 0 }; return; }
   if (pr.speed) { save.speed2x = true; writeSave(); playUi("ui_sell"); showBanner("2x Speed unlocked!", GOLD); shopToast = { text: "2x Speed unlocked!", color: GOLD, t: 0 }; return; }
   if (pr.starter) {
     save.gems += pr.gemsAmt; for (const el of pr.cards) save.specials[el] = true; save.starterBought = true;
@@ -10380,6 +10385,7 @@ if (window.AndroidBilling) {
 function productById(id) {
   if (id === STARTER_DEAL.id) return STARTER_DEAL;
   if (id === SPEED_PRODUCT.id) return SPEED_PRODUCT;
+  if (id === NOADS_PRODUCT.id) return NOADS_PRODUCT;
   if (id.startsWith("special_") && EL[id.slice(8)]) return { id, special: id.slice(8), price: SHOP_SPECIAL_PRICE, name: EL[id.slice(8)].name };
   return SHOP_GEMS.find(p => p.id === id) || null;
 }
@@ -10387,13 +10393,13 @@ function productById(id) {
 // One-time items already owned are skipped, so nothing is ever granted twice.
 window.__grantOwned = id => {
   const pr = productById(id); if (!pr) return false;
-  if ((pr.speed && save.speed2x) || (pr.starter && save.starterBought) || (pr.special && save.specials[pr.special])) return true;
+  if ((pr.noads && save.noAds) || (pr.speed && save.speed2x) || (pr.starter && save.starterBought) || (pr.special && save.specials[pr.special])) return true;
   grantProduct(pr); return true;
 };
-function shopPanel() { const h = 1120; return { x: 24, y: Math.max(96, H / 2 - h / 2), w: W - 48, h }; }
+function shopPanel() { const h = 1160; return { x: 24, y: Math.max(96, H / 2 - h / 2), w: W - 48, h }; }
 function shopButtons() {
   if (shopConfirm) return shopBusy ? [] : [btn.shopBuy, btn.shopCancel];
-  return [btn.shopClose, ...gemTiles, ...specialTiles.filter(b => !save.specials[b.pr.special])];   // owned Specials can't be bought again
+  return [btn.shopClose, ...(save.noAds ? [] : [noAdsTile]), ...gemTiles, ...specialTiles.filter(b => !save.specials[b.pr.special])];   // owned Specials can't be bought again
 }
 function priceTag(x, y, w, label) {
   rrect(x, y, w, 40, 20); ctx.fillStyle = "#6cc56a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
@@ -10413,24 +10419,26 @@ function drawShop(dt) {
   const haveW = ctx.measureText(`You have ${fmtNum(save.gems)} gems`).width;
   drawGem(W / 2 - haveW / 2 - 6, y + 100, 12); text(`You have ${fmtNum(save.gems)} gems`, W / 2 + 12, y + 108, 22, "#6b3a22", { weight: 700 });
   if (storeIsTest()) text("TEST MODE: purchases are free (no real money)", W / 2, y + 136, 17, "#c0392b", { weight: 700 });
+  drawNoAdsBanner(x + 20, y + 150, w - 40, 96);
   // Gem packs: 2 columns x 3 rows.
-  text("Gems", x + 24, y + 176, 26, INK, { align: "left", weight: 800 });
-  const tw = (w - 60) / 2, th = 144;
+  const gy = y + 120 + 160;
+  text("Gems", x + 24, gy, 26, INK, { align: "left", weight: 800 });
+  const tw = (w - 60) / 2, th = 126;
   gemTiles.forEach((b, i) => {
-    b.x = x + 20 + (i % 2) * (tw + 20); b.y = y + 192 + Math.floor(i / 2) * (th + 14); b.w = tw; b.h = th;
+    b.x = x + 20 + (i % 2) * (tw + 20); b.y = gy + 16 + Math.floor(i / 2) * (th + 12); b.w = tw; b.h = th;
     const pr = b.pr, press = b.down ? 3 : 0;
     rrect(b.x, b.y + press, tw, th, 16); ctx.fillStyle = b.down ? "#e2cfa6" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-    gemPile(b.x + 60, b.y + 66 + press, Math.min(6, i + 1));
-    text(fmtNum(pr.gems + pr.bonus), b.x + 112, b.y + 60 + press, 34, INK, { align: "left", weight: 800 });
-    text(pr.name, b.x + 120, b.y + 86 + press, 18, "#6b3a22", { align: "left", weight: 600 });
+    gemPile(b.x + 60, b.y + 60 + press, Math.min(6, i + 1));
+    text(fmtNum(pr.gems + pr.bonus), b.x + 112, b.y + 48 + press, 34, INK, { align: "left", weight: 800 });
+    text(pr.name, b.x + 120, b.y + 72 + press, 18, "#6b3a22", { align: "left", weight: 600 });
     if (pr.bonus) {
       rrect(b.x + tw - 124, b.y - 10 + press, 116, 28, 14); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
       text(`+${fmtNum(pr.bonus)} free`, b.x + tw - 66, b.y + 5 + press, 16, "#fff", { weight: 800, baseline: "middle" });
     }
-    priceTag(b.x + tw - 132, b.y + th - 52 + press, 116, pr.price);
+    priceTag(b.x + tw - 132, b.y + th - 44 + press, 116, pr.price);
   });
   // Special cards: two rows of five.
-  const sy = y + 192 + 3 * (th + 14) + 26;
+  const sy = gy + 16 + 3 * (th + 12) + 24;
   text("Special Cards", x + 24, sy, 26, INK, { align: "left", weight: 800 });
   text("Each one can be bought only once", x + w - 24, sy, 16, "#6b3a22", { align: "right", weight: 600 });
   const cols = 5, gap = 8, sw = (w - 40 - (cols - 1) * gap) / cols, sh = 150;
@@ -10445,6 +10453,30 @@ function drawShop(dt) {
   });
   btn.shopClose.y = y + h - 92; drawBtn(btn.shopClose);
   if (shopConfirm) drawShopConfirm();
+}
+// The No Ads offer: a wide gold banner across the top of the shop.
+const noAdsTile = makeBtn("", 0, 0, 0, 0, () => { shopConfirm = NOADS_PRODUCT; playUi("ui_pick"); });
+function drawNoAdsBanner(x, y, w, h) {
+  const b = noAdsTile, owned = !!save.noAds, press = b.down ? 3 : 0, t = performance.now() / 1000;
+  b.x = x; b.y = y; b.w = w; b.h = h; y += press;
+  ctx.save(); if (!owned) { ctx.shadowColor = "rgba(255,200,80,0.7)"; ctx.shadowBlur = 16 + 8 * Math.sin(t * 3); }
+  const g = ctx.createLinearGradient(x, y, x + w, y + h); g.addColorStop(0, owned ? "#3a3048" : "#ffb340"); g.addColorStop(0.5, owned ? "#2e2640" : "#ffd86a"); g.addColorStop(1, owned ? "#3a3048" : "#e0862a");
+  rrect(x, y, w, h, 20); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+  rrect(x, y, w, h, 20); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
+  rrect(x + 6, y + 6, w - 12, h - 12, 15); ctx.strokeStyle = owned ? "rgba(242,193,78,0.35)" : "rgba(255,255,255,0.6)"; ctx.lineWidth = 2; ctx.stroke();
+  if (!owned) { ctx.save(); rrect(x, y, w, h, 20); ctx.clip(); const sx = x + ((t * 220) % (w + 300)) - 150, sg = ctx.createLinearGradient(sx - 60, 0, sx + 60, 0);
+    sg.addColorStop(0, "rgba(255,255,255,0)"); sg.addColorStop(0.5, "rgba(255,255,255,0.55)"); sg.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = sg; ctx.fillRect(sx - 60, y, 120, h); ctx.restore(); }
+  // "AD" crossed out in a red circle.
+  const cx = x + 58, cy = y + h / 2;
+  circle(cx, cy, 34, "#ffffff"); ring(cx, cy, 34, INK, 3);
+  lightTheme(() => text("AD", cx, cy + 2, 24, INK, { weight: 900, baseline: "middle" }));
+  ring(cx, cy, 28, "#e0533f", 6); ctx.strokeStyle = "#e0533f"; ctx.lineWidth = 6; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(cx - 20, cy - 20); ctx.lineTo(cx + 20, cy + 20); ctx.stroke();
+  lightTheme(() => {
+    text("NO ADS", x + 110, y + 44, 34, owned ? GOLD : "#3a1a0a", { align: "left", font: DISPLAY, weight: 900 });
+    text(owned ? "Active: every reward is instant" : "Claim every reward instantly • no ads ever", x + 112, y + 72, 17, owned ? PARCH : "#5a2a0a", { align: "left", weight: 800 });
+  });
+  if (owned) lightTheme(() => text("\u2713 Owned", x + w - 70, y + h / 2 + 1, 20, "#86e890", { weight: 900, baseline: "middle" }));
+  else priceTag(x + w - 132, y + h / 2 - 20, 116, NOADS_PRODUCT.price);
 }
 function drawShopConfirm() {
   const pr = shopConfirm, w = 520, h = 330, x = W / 2 - w / 2, y = H / 2 - h / 2;
@@ -10797,7 +10829,7 @@ function drawPlaySlider() {
   text(pos < 0.5 ? "Boss ›" : "‹ Play", W / 2 + (pos < 0.5 ? 66 : -66), dy + 6, 17, pos < 0.5 ? `rgba(255,150,120,${ha})` : `rgba(255,224,140,${ha})`, { weight: 800 });
   if (pos > 0.5) {
     if (!wait && save.bossBest) text(`Best: ${save.bossBest} bosses`, W / 2, dy - 26, 18, "#ffb08a", { weight: 800, outline: 5 });
-    if (wait && bossAdAvailable()) { const a = btn.bossAd; a.w = 240; a.h = 56; a.x = W / 2 - 120; a.y = dy - 82; a.label = "▶ Watch ad: play now"; a.size = 20; drawBtn(a); }
+    if (wait && bossAdAvailable()) { const a = btn.bossAd; a.w = 240; a.h = 56; a.x = W / 2 - 120; a.y = dy - 82; a.label = save.noAds ? "Play now (No Ads)" : "▶ Watch ad: play now"; a.size = 20; drawBtn(a); }
   }
 }
 // Three bosses in shadow, eyes glowing, peeking over the window sill in Boss mode (lobby art coordinates).
