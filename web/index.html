@@ -5445,7 +5445,7 @@ const bossAdAvailable = () => bossReadyIn() > 0 && save.bossAdFor !== save.bossR
 function fmtTime(ms) { const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60; return `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`; }
 function startBossRun() {
   if (bossReadyIn() > 0) return;
-  startRun(); bossMode = true; bossKills = 0; bossSeq = 0;
+  startRun(); bossMode = true; bossKills = 0; bossSeq = 0; runStats.best0 = save.bossBest || 0;
   save.bossReadyAt = gameNow() + BOSS_CD_LONG; writeSave();   // leaving early can't be used to skip the rest
   fadeIn = 0.5;
   showBanner("BOSS BREAK OUT!", "#e0533f");
@@ -5476,7 +5476,7 @@ function spawnRushBoss(w) {
 const curStage = w => bossMode ? STAGES[Math.max(0, w - 1) % STAGES.length] : stageOf(w);
 function startRun() {
   clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
-  gold = START_GOLD; curses = new Set(); curseHpCut = 0; curseBurnT = CURSE_BURN_CD; spellUses = {}; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {} }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
+  gold = START_GOLD; curses = new Set(); curseHpCut = 0; curseBurnT = CURSE_BURN_CD; spellUses = {}; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {}, ev: {}, time: 0, best0: save.best }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   relics = new Set(); relicOffer = null; secondWindUsed = false; archerT = 1; frostGateWave = -1; weakSeed = Math.floor(Math.random() * 4); wallLog = [];
   gold += 10 * cu("gold"); castleMax += 20 * cu("hp"); castleHp = castleMax;   // castle upgrades
@@ -5657,7 +5657,7 @@ function toBreak() {
   }
 }
 function gameOver() {
-  state = "gameover"; cancelDrag();
+  state = "gameover"; cancelDrag(); goT0 = performance.now();
   if (bossMode) { bossLastRun = bossKills; endBossRun(); bossModeOver = true; return; }
   bossModeOver = false;
   if (wavesCleared > save.best) save.best = wavesCleared;
@@ -8047,6 +8047,7 @@ function update(dt) {
     return;
   }
   speedT = Math.max(0, speedT - dt);
+  if (state === "wave" || state === "break") runStats.time = (runStats.time || 0) + realDt;   // time played this run
   updateCurses(dt);
   if (state === "wave") {
     if (hasRelic("regen")) castleHp = Math.min(castleMax, castleHp + dt);   // Living Stone
@@ -8560,23 +8561,7 @@ function drawOverlays() {
     if (!bookOpen) drawLobbyUi();
     if (castleOpen) drawCastlePanel();
   } else if (state === "gameover" && !bookOpen) {
-    dim(0.78);
-    const gy = Math.max(150, H / 2 - 560);
-    if (bossModeOver) {
-      text("The Bosses Broke Through!", W / 2, gy, 36, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
-      text(`You defeated ${bossLastRun} boss${bossLastRun === 1 ? "" : "es"}  ·  +${runGems} gem${runGems === 1 ? "" : "s"}`, W / 2, gy + 56, 28, PARCH, { outline: 8 });
-      text(`Best: ${save.bossBest || 0} bosses   ·   Next run in ${bossLastRun >= BOSS_GOAL ? "3" : "6"} hours`, W / 2, gy + 96, 22, GOLD, { outline: 8 });
-      const rb = drawDamageReport(gy + 130);
-      btn.title.y = rb + 60; drawBtn(btn.title);
-      return;
-    }
-    text("The Castle Has Fallen!", W / 2, gy, 46, "#e0533f", { font: DISPLAY, weight: 900, outline: 12 });
-    const n = wavesCleared;
-    text(`You cleared ${n} wave${n === 1 ? "" : "s"}.`, W / 2, gy + 56, 28, PARCH, { outline: 8 });
-    text(`Best: ${save.best}` + (runGems ? `   ·   +${runGems} gem${runGems > 1 ? "s" : ""}` : ""), W / 2, gy + 96, 24, GOLD, { outline: 8 });
-    const rb = drawDamageReport(gy + 130);
-    btn.again.y = rb + 40; btn.title.y = rb + 144;
-    drawBtn(btn.again); drawBtn(btn.title);
+    drawGameOver();
   } else if (paused && !bookOpen) {
     dim(0.6);
     text("Paused", W / 2, 480, 60, PARCH, { font: DISPLAY, weight: 900, outline: 12 });
@@ -9750,6 +9735,7 @@ function claimQuest(q) {
 }
 function track(type, n = 1) {
   const st = (save.stats = save.stats || {}); st[type] = (st[type] || 0) + n;
+  if (runStats && runStats.ev && (state === "wave" || state === "break")) runStats.ev[type] = (runStats.ev[type] || 0) + n;   // this run's numbers (game over board)
   for (const q of QUESTS) if (q.ev === type) { const qs = questOf(q); qs.p = Math.min(q.goals[qs.step], qs.p + n); }
   const m = dailyMissions();
   for (const it of m.list) { const def = MISSION_POOL.find(d => d.id === it.id); if (def && def.ev === type && !it.claimed) it.prog = Math.min(def.n, (it.prog || 0) + n); }
@@ -9995,8 +9981,114 @@ function drawQuests(dt = 0) {
   questFx = questFx.filter(p => p.t < p.life);
 }
 
+// ---- Game over: a results board in the Quests style. Big wave count (NEW BEST badge), the land reached,
+// six stat tiles that count up, and the top damage dealers with rank medals.
+let goT0 = 0;
+const fmtRunTime = s => { s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60; return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}:${String(ss).padStart(2, "0")}`; };
+function drawGameOver() {
+  const t = (performance.now() - goT0) / 1000, boss = bossModeOver;
+  const ease = (d, len = 0.6) => { const k = clamp((t - d) / len, 0, 1); return 1 - Math.pow(1 - k, 3); };
+  dim(0.82 * ease(0, 0.3));
+  const vg = ctx.createRadialGradient(W / 2, H * 0.3, 60, W / 2, H * 0.3, H * 0.8); vg.addColorStop(0, boss ? "rgba(200,40,40,0.22)" : "rgba(200,40,40,0.18)"); vg.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = vg; ctx.fillRect(0, -TOP, W, H + TOP);
+  const ev = runStats.ev || {}, kills = Object.values(runStats.kills).reduce((a, b) => a + b, 0), dmg = Object.values(runStats.dmg).reduce((a, b) => a + b, 0);
+  const keys = Object.keys(runStats.dmg).sort((a, b) => runStats.dmg[b] - runStats.dmg[a]).slice(0, 5);
+  const hasLand = !boss, nRows = Math.max(1, keys.length), x = 22, w = W - 44;
+  const h = Math.min(H - 60, 20 + 112 + 172 + (hasLand ? 76 : 0) + 2 * 116 + 26 + 18 + nRows * 50 + 150), y = Math.max(30, (H - h) / 2), a0 = ease(0.05, 0.45);
+  ctx.save(); ctx.globalAlpha = a0; ctx.translate(W / 2, y + h / 2); ctx.scale(0.94 + 0.06 * a0, 0.94 + 0.06 * a0); ctx.translate(-W / 2, -(y + h / 2));
+  PANEL_DARK++;
+  try {
+  questFrame(x, y, w, h, 28);
+  // Title on a crimson ribbon.
+  const ty = y + 20;
+  const rb = ctx.createLinearGradient(0, ty + 12, 0, ty + 80); rb.addColorStop(0, "#ff8a6a"); rb.addColorStop(0.5, "#c8302a"); rb.addColorStop(1, "#7a1418");
+  for (const sd of [-1, 1]) poly([[W / 2 + sd * 230, ty + 28], [W / 2 + sd * 296, ty + 28], [W / 2 + sd * 272, ty + 52], [W / 2 + sd * 296, ty + 76], [W / 2 + sd * 230, ty + 76]], "#6a1014", INK, 3);
+  poly([[W / 2 - 246, ty + 14], [W / 2 + 246, ty + 14], [W / 2 + 260, ty + 46], [W / 2 + 246, ty + 78], [W / 2 - 246, ty + 78], [W / 2 - 260, ty + 46]], rb, INK, 3.5);
+  ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(W / 2 - 236, ty + 21); ctx.lineTo(W / 2 + 236, ty + 21); ctx.stroke();
+  lightTheme(() => text(boss ? "THE BOSSES BROKE THROUGH" : "THE CASTLE HAS FALLEN", W / 2, ty + 57, boss ? 25 : 29, "#fff0d8", { font: DISPLAY, weight: 900, outline: 6, outlineColor: "#3a0608" }));
+  // Hero number.
+  const hy = ty + 112, big = boss ? bossLastRun : wavesCleared, best = boss ? (save.bossBest || 0) : save.best;
+  const newBest = boss ? (bossLastRun > 0 && bossLastRun >= best && bossLastRun > (runStats.best0 || 0)) : (wavesCleared > 0 && wavesCleared > (runStats.best0 || 0));
+  const hk = ease(0.25, 0.5), hs = 0.6 + 0.4 * hk + (hk < 1 ? 0.12 * Math.sin(hk * Math.PI) : 0);
+  const glow = ctx.createRadialGradient(W / 2, hy + 62, 10, W / 2, hy + 62, 210); glow.addColorStop(0, "rgba(255,200,90,0.32)"); glow.addColorStop(1, "rgba(255,200,90,0)");
+  ctx.fillStyle = glow; ctx.fillRect(x + 20, hy - 20, w - 40, 170);
+  text(boss ? "BOSSES DEFEATED" : "WAVES CLEARED", W / 2, hy + 10, 18, hexA("#f3e3c3", 0.75), { weight: 800 });
+  ctx.save(); ctx.translate(W / 2, hy + 78); ctx.scale(hs, hs);
+  lightTheme(() => text(fmtNum(Math.round(big * ease(0.25, 1.0))), 0, 0, 96, GOLD, { font: DISPLAY, weight: 900, outline: 12, outlineColor: "#140a20", baseline: "middle" }));
+  ctx.restore();
+  if (newBest && t > 1.1) {   // a stamped NEW BEST badge
+    const k = ease(1.1, 0.35), bx = W / 2 + 170, by = hy + 52;
+    ctx.save(); ctx.translate(bx, by); ctx.rotate(-0.18); ctx.scale(1.6 - 0.6 * k, 1.6 - 0.6 * k); ctx.globalAlpha *= k;
+    const pts = []; for (let i = 0; i < 24; i++) { const an = i * Math.PI / 12, r = i % 2 ? 44 : 54; pts.push([Math.cos(an) * r, Math.sin(an) * r]); }
+    poly(pts, "#e0533f", INK, 3); ring(0, 0, 38, "#ffd84a", 2.5);
+    lightTheme(() => { text("NEW", 0, -6, 20, "#fff", { weight: 900, baseline: "middle" }); text("BEST!", 0, 15, 20, "#ffd84a", { weight: 900, baseline: "middle" }); });
+    ctx.restore();
+  }
+  text(boss ? `Best: ${fmtNum(best)} bosses  •  +${fmtNum(runGems)} gems` : `Best: ${fmtNum(best)} waves` + (runGems ? `  •  +${fmtNum(runGems)} gems` : ""), W / 2, hy + 148, 20, "#ffd27a", { weight: 800, outline: 4, outlineColor: "#140a20" });
+  // The land reached.
+  const ly = hy + 172, st = boss ? null : stageOf(Math.max(1, wave));
+  if (st) {
+    const lx = x + 40, lw = w - 80;
+    rrect(lx, ly, lw, 54, 16); ctx.fillStyle = "rgba(10,4,18,0.55)"; ctx.fill(); ctx.strokeStyle = hexA("#f2c14e", 0.4); ctx.lineWidth = 2; ctx.stroke();
+    text("Reached", lx + 20, ly + 34, 17, hexA("#f3e3c3", 0.7), { align: "left", weight: 700 });
+    lightTheme(() => text(`${st.name}  ${waveLabel(Math.max(1, wave))}`, lx + 104, ly + 35, 22, "#fff4dc", { align: "left", weight: 900 }));
+    const loop = bossCount(Math.max(1, wave)); if (loop > 1) lightTheme(() => text(`Loop ${loop}`, lx + lw - 20, ly + 34, 17, "#ff9a7a", { align: "right", weight: 900 }));
+  }
+  // Six stat tiles.
+  const tiles = [
+    ["swords", "#ff5a46", "Enemies", kills], ["skull", "#b36bff", "Bosses", ev.boss || 0], ["crystal", "#ff9a3a", "Damage", dmg],
+    ["orbs", "#ff7ac8", "Fusions", (ev.fusion || 0)], ["arrows", "#5fd36a", "Merges", ev.merge || 0], ["rune", "#5ff0ff", boss ? "Spells" : "Time", boss ? (ev.spell || 0) : (runStats.time || 0)],
+  ];
+  const gy = ly + (st ? 76 : 0), cw = (w - 80 - 24) / 3, chh = 104;
+  tiles.forEach(([icon, col, label, val], i) => {
+    const k = ease(0.45 + i * 0.07, 0.4), cx = x + 40 + (i % 3) * (cw + 12), cy = gy + Math.floor(i / 3) * (chh + 12) + (1 - k) * 24;
+    ctx.save(); ctx.globalAlpha *= k;
+    const cg = ctx.createLinearGradient(0, cy, 0, cy + chh); cg.addColorStop(0, "#3a2752"); cg.addColorStop(1, "#24163a");
+    rrect(cx, cy, cw, chh, 16); ctx.fillStyle = cg; ctx.fill(); ctx.strokeStyle = hexA(col, 0.6); ctx.lineWidth = 2; ctx.stroke();
+    const mx = cx + 34, my = cy + chh / 2; circle(mx, my, 26, "#1a0b12"); circle(mx, my, 24, "#f2c14e");
+    const mg = ctx.createRadialGradient(mx - 6, my - 8, 3, mx, my, 22); mg.addColorStop(0, shade(col, 0.35)); mg.addColorStop(1, shade(col, -0.45)); circle(mx, my, 22, mg);
+    drawQuestIcon(icon, mx, my, 15, col);
+    const shown = label === "Time" ? fmtRunTime(val * ease(0.5 + i * 0.07, 1.0)) : fmtNum(Math.round(val * ease(0.5 + i * 0.07, 1.0)));
+    lightTheme(() => text(shown, cx + 68, cy + 50, shown.length > 6 ? 20 : 25, "#fff4dc", { align: "left", weight: 900, outline: 4, outlineColor: "#140a20" }));
+    text(label.toUpperCase(), cx + 68, cy + 76, 13, hexA("#f3e3c3", 0.65), { align: "left", weight: 800 });
+    ctx.restore();
+  });
+  // Top damage dealers.
+  const dy0 = gy + 2 * (chh + 12) + 26;
+  text("TOP DAMAGE", W / 2, dy0, 22, GOLD, { font: DISPLAY, weight: 900, outline: 5, outlineColor: "#140a20" });
+  const max = keys.length ? runStats.dmg[keys[0]] : 1, rowH = 50;
+  if (!keys.length) text("No damage dealt this run.", W / 2, dy0 + 48, 18, hexA("#f3e3c3", 0.7), { weight: 600 });
+  const medal = ["#ffd84a", "#d8dde8", "#e0995a"];
+  keys.forEach((k, i) => {
+    const kk = ease(0.9 + i * 0.08, 0.35), ry = dy0 + 18 + i * rowH, rx = x + 40, rw = w - 80, frac = runStats.dmg[k] / max;
+    let col = statColor[k] || "#f3e3c3"; if (col.startsWith("#") && col.length === 7) { const n = parseInt(col.slice(1), 16), lum = (0.3 * (n >> 16) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255)) / 255; if (lum < 0.5) col = shade(col, 0.5 - lum + 0.15); }   // keep dark colours readable
+    ctx.save(); ctx.globalAlpha *= kk; ctx.translate((1 - kk) * 40, 0);
+    rrect(rx, ry, rw, rowH - 8, 12); ctx.fillStyle = "rgba(10,4,18,0.5)"; ctx.fill();
+    ctx.save(); rrect(rx, ry, rw, rowH - 8, 12); ctx.clip();
+    const bg = ctx.createLinearGradient(rx, 0, rx + rw, 0); bg.addColorStop(0, hexA(col.startsWith("#") ? col : "#f3e3c3", 0.55)); bg.addColorStop(1, hexA(col.startsWith("#") ? col : "#f3e3c3", 0.15));
+    ctx.fillStyle = bg; ctx.fillRect(rx, ry, rw * frac * ease(1.0 + i * 0.08, 0.8), rowH - 8); ctx.restore();
+    rrect(rx, ry, rw, rowH - 8, 12); ctx.strokeStyle = i === 0 ? hexA("#ffd84a", 0.8) : "rgba(255,255,255,0.12)"; ctx.lineWidth = i === 0 ? 2.5 : 1.5; ctx.stroke();
+    const mx = rx + 24, my = ry + (rowH - 8) / 2;
+    if (i < 3) { circle(mx, my, 15, medal[i]); ring(mx, my, 15, INK, 2.5); ring(mx, my, 10, hexA(INK, 0.35), 1.5); }
+    else circle(mx, my, 13, "rgba(255,255,255,0.12)");
+    lightTheme(() => {
+      text(String(i + 1), mx, my + 1, 16, i < 3 ? INK : "#f3e3c3", { weight: 900, baseline: "middle" });
+      text(k, rx + 50, my + 1, 19, col, { align: "left", weight: 800, baseline: "middle", outline: 4, outlineColor: "#140a20" });
+      text(`${fmtNum(Math.round(runStats.dmg[k]))}`, rx + rw - 96, my + 1, 18, "#fff4dc", { align: "right", weight: 800, baseline: "middle" });
+      text(`${Math.round(runStats.dmg[k] / Math.max(1, dmg) * 100)}%`, rx + rw - 16, my + 1, 16, "#ffd27a", { align: "right", weight: 900, baseline: "middle" });
+    });
+    ctx.restore();
+  });
+  } finally { PANEL_DARK--; }
+  // Buttons.
+  const by = y + h - 104, kb = ease(1.2, 0.4);
+  ctx.globalAlpha *= kb;
+  if (boss) { btn.title.w = 360; btn.title.h = 80; btn.title.x = W / 2 - btn.title.w / 2; btn.title.y = by; drawBtn(btn.title); }
+  else { btn.again.w = btn.title.w = 290; btn.again.h = btn.title.h = 80; btn.again.x = x + 40; btn.again.y = by - 6; btn.title.x = x + w - 40 - btn.title.w; btn.title.y = by; drawBtn(btn.again); drawBtn(btn.title); }
+  ctx.restore();
+}
 // ------------------------------------------------------------ Damage report (this run)
-let runStats = { dmg: {}, kills: {} };
+let runStats = { dmg: {}, kills: {}, ev: {}, time: 0, best0: 0 };
 const statKey = (el, r) => (r <= 2 ? `V${r + 1} ` : "") + EL[el].name;
 const statColor = {};
 function noteDamage(src, dealt, killed, color) {
