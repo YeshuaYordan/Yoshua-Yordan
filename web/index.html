@@ -823,12 +823,29 @@ function poly(pts, fill, stroke = INK, w = 3) {
   ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
   if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = w; ctx.lineJoin = "round"; ctx.stroke(); }
 }
+// Dark panel theme: while PANEL_DARK > 0 (a panel is being drawn), its dark text turns light and its parchment
+// boxes turn deep purple, so every panel matches the Quests board. Buttons and cards drawn inside keep their colours.
+let PANEL_DARK = 0;
+const PANEL_TEXT = { "#2a1a12": "#fff4dc", "#6b3a22": "#f3e3c3", "#8a6a4a": "#cdb894", "#4a2c1c": "#eadbbd", "#8a6a5a": "#cdb8a8", "#a08060": "#d8c4a0",
+  "#6b5a48": "#cfc0aa", "#a89878": "#cfc2a8", "#8c5a06": "#ffd27a", "#7a3fb0": "#d4a6ff", "#2f8f3f": "#86e890", "#2f9a3a": "#86e890", "#c0392b": "#ff7a6a",
+  "#2a6ad8": "#8cc0ff", "#2f6fb4": "#8cc0ff", "#b4441f": "#ff9a6a", "#8a7a60": "#b8a888", "#5a2a0a": "#ffd8a0" };
+const PANEL_FILL = { "#f3e3c3": "#2b1a3d", "#fff6e0": "#3a2752", "#eaffd8": "#2c4424", "#e6dcc4": "#2a2232", "#e9d3a6": "#4a3560", "#efdcb4": "#2b1a3d", "#fff3d6": "#3a2752", "#f6e7c8": "#3a2752",
+  "#d8c9a6": "#241c2c", "#fff3c4": "#5a4220", "#ffe7a8": "#4a3518", "#e2cfa6": "#4a3560" };
+const panelText = c => { if (typeof c !== "string") return c; const m = PANEL_TEXT[c.toLowerCase()]; if (m) return m; if (c.startsWith("rgba(42,26,18,")) return "rgba(255,244,220," + c.slice(14); return c; };
+{ const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, "fillStyle");
+  Object.defineProperty(CanvasRenderingContext2D.prototype, "fillStyle", { get() { return d.get.call(this); }, set(v) {
+    if (PANEL_DARK > 0 && typeof v === "string") { const m = PANEL_FILL[v.toLowerCase()]; if (m) v = m; else if (v.startsWith("rgba(42,26,18,")) v = "rgba(255,255,255," + (parseFloat(v.slice(14)) * 0.5).toFixed(3) + ")"; }
+    d.set.call(this, v); } }); }
+// Runs fn with the dark theme off (buttons, cards).
+const lightTheme = fn => { const k = PANEL_DARK; PANEL_DARK = 0; try { return fn(); } finally { PANEL_DARK = k; } };
 function text(s, x, y, size, color, opt = {}) {
+  if (PANEL_DARK > 0) { if (opt.font === DISPLAY && (color === INK || color === "#6b3a22")) { color = GOLD; opt = { ...opt, outline: opt.outline || 7, outlineColor: "#140a20" }; } else color = panelText(color); }
   ctx.font = `${opt.weight || 600} ${size}px ${opt.font || FONT}`;
   ctx.textAlign = opt.align || "center";
   ctx.textBaseline = opt.baseline || "alphabetic";
   if (opt.outline) { ctx.lineWidth = opt.outline; ctx.strokeStyle = opt.outlineColor || INK; ctx.lineJoin = "round"; ctx.strokeText(s, x, y); }
-  ctx.fillStyle = color; ctx.fillText(s, x, y);
+  const k = PANEL_DARK; PANEL_DARK = 0; ctx.fillStyle = color; PANEL_DARK = k;   // text colours are already themed above
+  ctx.fillText(s, x, y);
 }
 function radialPoly(cx, cy, r, shape, t, seed, n = 28) {
   const pts = [];
@@ -5566,7 +5583,7 @@ function drawCastlePanel() {
   dim(0.7);
   const x = 24, w = W - 48, y = 110, h = H - 200;
   rrect(x, y + 8, w, h, 24); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill();
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   text("Castle & Spells", W / 2, y + 62, 44, INK, { font: DISPLAY, weight: 900 });
   text(`${save.gems}`, W / 2 - 6, y + 104, 26, "#2a6ad8", { weight: 900, align: "right" }); drawGem(W / 2 + 16, y + 96, 12);
   text("Upgrades last forever.", W / 2 + 40, y + 104, 18, "#6b3a22", { weight: 700, align: "left" });
@@ -8638,7 +8655,7 @@ function drawBook() {
   dim(0.6);
   const bx = 30, by = 110, bw = 660, bh = 1060;
   rrect(bx, by + 10, bw, bh, 18); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill();
-  rrect(bx, by, bw, bh, 18); ctx.fillStyle = "#6b3a22"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.stroke();
+  questFrame(bx, by, bw, bh, 22);
   rrect(bx + 12, by + 12, bw - 24, bh - 24, 10); ctx.fillStyle = "#efdcb4"; ctx.fill();
   const top = by + 96, bottom = by + bh - 110, left = bx + 46;
   ctx.save(); ctx.beginPath(); ctx.rect(bx + 12, top - 12, bw - 24, bottom - top + 12); ctx.clip();
@@ -9444,7 +9461,7 @@ function hexOrHsl(c, a) { return c.startsWith("hsl(") ? c.replace("hsl(", "hsla(
 function drawRates() {
   dim(0.7);
   const x = 50, y = H / 2 - 360, w = W - 100, h = 720;
-  rrect(x, y, w, h, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 22);
   text("Summon Rates", W / 2, y + 62, 36, INK, { font: DISPLAY, weight: 900 });
   const rows = [
     ["Main element copy", "50%", `${BASE.length} main elements: ${+(50 / BASE.length).toFixed(2)}% each`],
@@ -9614,7 +9631,7 @@ function drawBio() {
   const pr = profile(), lv = playerLevel();
   dim(0.72);
   const x = 40, w = W - 80, h = TESTER_RESET ? 850 : 780, y = Math.max(100, H / 2 - h / 2);
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   text("Profile", W / 2, y + 60, 40, INK, { font: DISPLAY, weight: 900 });
   // Big avatar (tap to change) and name (tap to edit).
   const ax = x + 110, ay = y + 170; btn.bioAvatar.x = ax - 70; btn.bioAvatar.y = ay - 70;
@@ -9680,7 +9697,7 @@ const settingRows = [
 function drawSettings() {
   dim(0.75);
   const x = 40, w = W - 80, h = 890, y = Math.max(60, H / 2 - h / 2);
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   text("Settings", W / 2, y + 64, 44, INK, { font: DISPLAY, weight: 900 });
   settingRows.forEach((r, i) => {
     const ry = y + 130 + i * 130;
@@ -9803,7 +9820,7 @@ let missionsOpen = false, missionsTab = 0, achScroll = 0, missionBtns = [];
 function drawMissions(dt) {
   dim(0.75);
   const x = 24, w = W - 48, h = Math.min(H - 140, 1080), y = (H - h) / 2;
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   // Tabs.
   btn.tabDaily.x = x + 24; btn.tabAch.x = x + w / 2 + 4; btn.tabDaily.y = btn.tabAch.y = y + 22; btn.tabDaily.w = btn.tabAch.w = w / 2 - 28;
   btn.tabDaily.fill = missionsTab === 0 ? GOLD : "#e9d3a6"; btn.tabAch.fill = missionsTab === 1 ? GOLD : "#e9d3a6";
@@ -10019,7 +10036,7 @@ function tapSpeed() {
 function drawSpeedOffer() {
   dim(0.72);
   const w = 560, h = 420, x = W / 2 - w / 2, y = H / 2 - h / 2;
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   text("2x Speed", W / 2, y + 66, 44, INK, { font: DISPLAY, weight: 900 });
   text("Play the battle twice as fast.", W / 2, y + 120, 23, "#4a2c1c", { weight: 700 });
   text("Buy once, then switch 1x / 2x any time.", W / 2, y + 156, 20, "#6b3a22", { weight: 600 });
@@ -10160,7 +10177,7 @@ function drawDaily(dt) {
   const d = dailyData(), ready = dailyReady(), today = ready ? d.day : (d.day + DAILY_GEMS.length - 1) % DAILY_GEMS.length;
   dim(0.72);
   const x = 30, w = W - 60, h = 790, y = Math.max(96, H / 2 - h / 2);
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   text("Daily Reward", W / 2, y + 64, 44, INK, { font: DISPLAY, weight: 900 });
   text("Come back every day for free gems!", W / 2, y + 102, 21, "#6b3a22", { weight: 600 });
   // Days 1-6 in two rows of three, day 7 as a big tile underneath.
@@ -10270,7 +10287,7 @@ function drawStarter(dt) {
   // Gold glow behind the panel.
   const pg = ctx.createRadialGradient(W / 2, y + h / 2, 100, W / 2, y + h / 2, 520); pg.addColorStop(0, `rgba(255,210,90,${0.22 + 0.08 * Math.sin(t * 3)})`); pg.addColorStop(1, "rgba(255,210,90,0)");
   ctx.fillStyle = pg; ctx.fillRect(0, y - 60, W, h + 120);
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   rrect(x + 8, y + 8, w - 16, h - 16, 18); ctx.strokeStyle = "rgba(216,154,24,0.6)"; ctx.lineWidth = 2; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -t * 20; ctx.stroke(); ctx.setLineDash([]);
   rrect(x + w / 2 - 160, y - 22, 320, 44, 22); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
   text("ONE TIME ONLY", W / 2, y + 1, 22, "#fff", { weight: 900, baseline: "middle" });
@@ -10390,7 +10407,7 @@ function gemPile(cx, cy, n) {
 function drawShop(dt) {
   const P = shopPanel(), { x, y, w, h } = P;
   dim(0.75);
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   text("SHOP", W / 2, y + 66, 52, INK, { font: DISPLAY, weight: 900 });
   ctx.font = `700 22px ${FONT}`;
   const haveW = ctx.measureText(`You have ${fmtNum(save.gems)} gems`).width;
@@ -10432,7 +10449,7 @@ function drawShop(dt) {
 function drawShopConfirm() {
   const pr = shopConfirm, w = 520, h = 330, x = W / 2 - w / 2, y = H / 2 - h / 2;
   dim(0.55);
-  rrect(x, y, w, h, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 22);
   const what = pr.gems ? `${fmtNum(pr.gems + pr.bonus)} gems` : `${pr.name} (unlock)`;
   text("Buy", W / 2, y + 62, 30, "#6b3a22", { weight: 700 });
   text(what, W / 2, y + 112, what.length > 18 ? 32 : 40, INK, { font: DISPLAY, weight: 900 });
@@ -10540,7 +10557,7 @@ function drawCardInfo(dt) {
   const el = ci.el, d = EL[el], lvl = levelOf(el), lm = levelMult(el), locked = d.special && !save.specials[el];
   dim(0.75);
   const x = 36, w = W - 72, h = 780, y = Math.max(100, H / 2 - h / 2);
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(x, y, w, h, 24);
   // Card on the left, name and level on the right.
   const c = ci.card; c.x = c.hx = x + 120; c.y = c.hy = y + 150; c.scale = 1.5; c.draw();
   const group = d.idol ? "Special card: Idol" : d.totem ? "Special card: Totem" : d.special ? "Special card" : d.legendCard ? "Legend card" : d.myth ? "Myth card" : d.tier === 3 ? "Epic element" : d.tier === 2 ? "Next element" : "Main element";
@@ -10941,7 +10958,7 @@ function drawGuide(dt) {
   const pg = GUIDE[g.page];
   dim(0.82);
   const px = 20, pw = W - 40, ph = Math.min(H - 120, 1060), py = (H - ph) / 2;
-  rrect(px, py, pw, ph, 26); ctx.fillStyle = "#2a1d40"; ctx.fill(); ctx.strokeStyle = GOLD; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(px, py, pw, ph, 26);
   text("MERGE & FUSION GUIDE", W / 2, py + 44, 22, "#c9a6ff", { weight: 800 });
   text(pg.t, W / 2, py + 96, 44, GOLD, { font: DISPLAY, weight: 900, outline: 10 });
   // Explanation text.
@@ -11126,7 +11143,7 @@ function drawTut(dt) {
   if (!hl) py = H / 2 - ph / 2;
   else if (hl.y + hl.h / 2 < H / 2) py = Math.min(H - ph - 20, hl.y + hl.h + 44);
   else py = Math.max(84, hl.y - ph - 44);
-  rrect(px, py, pw, ph, 22); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
+  questFrame(px, py, pw, ph, 22);
   const list = TUT[tut.ch];
   text(`${tut.i + 1} / ${list.length}`, px + pw - 24, py + 36, 18, "#a08060", { align: "right", weight: 700 });
   text(st.t, px + 24, py + 52, 32, INK, { align: "left", font: DISPLAY, weight: 900 });
@@ -11414,6 +11431,15 @@ function frame(now) {
   try { syncBeamLoops(); } catch (e) {}
   try { syncMusic(); } catch (e) {}
   requestAnimationFrame(frame);
+}
+// Every panel uses the dark gold theme of the Quests board (see PANEL_DARK); buttons and cards keep their own colours.
+{ const dark = f => function (...a) { PANEL_DARK++; try { return f.apply(this, a); } finally { PANEL_DARK--; } };
+  drawCastlePanel = dark(drawCastlePanel); drawRates = dark(drawRates); drawBio = dark(drawBio); drawSettings = dark(drawSettings);
+  drawMissions = dark(drawMissions); drawSpeedOffer = dark(drawSpeedOffer); drawDaily = dark(drawDaily); drawStarter = dark(drawStarter);
+  drawShop = dark(drawShop); drawShopConfirm = dark(drawShopConfirm); drawCardInfo = dark(drawCardInfo); drawTut = dark(drawTut);
+  drawBook = dark(drawBook); drawGuide = dark(drawGuide);
+  const keep = f => function (...a) { return PANEL_DARK ? lightTheme(() => f.apply(this, a)) : f.apply(this, a); };
+  drawBtn = keep(drawBtn); Card.prototype.draw = keep(Card.prototype.draw); Card.prototype.drawBattle = keep(Card.prototype.drawBattle);
 }
 prefetchAudio();
 requestAnimationFrame(frame);
