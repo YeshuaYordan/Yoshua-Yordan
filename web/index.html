@@ -7771,7 +7771,7 @@ const btn = {
   tabDaily: makeBtn("Daily Missions", 0, 0, 300, 60, () => { missionsTab = 0; }, 22),
   tabAch: makeBtn("Achievements", 0, 0, 300, 60, () => { missionsTab = 1; achScroll = 0; }, 22),
   speed: makeBtn("1x", W - 124, HUD_H + 14, 110, 60, () => tapSpeed(), 26),
-  quests: makeBtn("Quests", W - 124, HUD_H + 84, 110, 50, () => { questsOpen = true; cancelDrag(); playUi("ui_pick"); }, 22),
+  quests: makeBtn("Quests", W - 124, HUD_H + 84, 110, 50, () => { questsOpen = true; questT = 0; cancelDrag(); playUi("ui_pick"); }, 22),
   questsClose: makeBtn("Close", W / 2 - 110, 0, 220, 64, () => { questsOpen = false; }, 24),
   testCards: Object.assign(makeBtn("TEST", W - 124, HUD_H + 144, 110, 50, () => { testPick = { lvl: testPick ? testPick.lvl : 0 }; cancelDrag(); playUi("ui_pick"); }, 22), { fill: "#e0533f", fillDown: "#b8402f" }),
   testClose: makeBtn("Close", 0, 0, 120, 50, () => { testPick = null; }, 22),
@@ -9856,30 +9856,125 @@ function drawMissions(dt) {
   btn.missionsClose.y = y + h - 76; drawBtn(btn.missionsClose);
 }
 let missionPress = null;
-// Battle quests panel (the battle is paused while it is open).
-let questsOpen = false, questBtns = [];
-function drawQuests() {
-  dim(0.75);
-  const x = 24, w = W - 48, rowH = 118, h = Math.min(H - 120, 160 + QUESTS.length * rowH + 90), y = Math.max(60, (H - h) / 2);
-  rrect(x, y, w, h, 24); ctx.fillStyle = PARCH; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 5; ctx.stroke();
-  text("QUESTS", W / 2, y + 58, 44, INK, { font: DISPLAY, weight: 900 });
-  text("They repeat forever. Claim to start the next step.", W / 2, y + 92, 18, "#6b3a22", { weight: 700 });
-  text("Progress stops at the goal until you claim it.", W / 2, y + 116, 16, "#8a6a4a", { weight: 600 });
+// Battle quests panel (the battle is paused while it is open): a gold-trimmed quest board.
+let questsOpen = false, questBtns = [], questT = 0, questFx = [], questFlash = {};
+const QUEST_LOOK = {
+  kill: ["#ff5a46", "swords"], boss: ["#b36bff", "skull"], wave: ["#4fb8ff", "flag"], merge: ["#5fd36a", "arrows"],
+  fusion: ["#ff7ac8", "orbs"], epic: ["#c98aff", "crystal"], spell: ["#5ff0ff", "rune"],
+};
+function drawQuestIcon(kind, x, y, r, col) {
+  const LN = "#1a0b12";
+  ctx.save(); ctx.translate(x, y); ctx.lineJoin = "round"; ctx.lineCap = "round";
+  if (kind === "swords") for (const sd of [-1, 1]) { ctx.save(); ctx.rotate(sd * 0.78);
+    poly([[0, -r * 0.95], [r * 0.16, -r * 0.7], [r * 0.12, r * 0.35], [-r * 0.12, r * 0.35], [-r * 0.16, -r * 0.7]], "#eef2fa", LN, 2);
+    ctx.fillStyle = "#f2c14e"; ctx.fillRect(-r * 0.36, r * 0.32, r * 0.72, r * 0.14); ctx.strokeStyle = LN; ctx.lineWidth = 1.8; ctx.strokeRect(-r * 0.36, r * 0.32, r * 0.72, r * 0.14);
+    ctx.fillStyle = "#7a4a28"; ctx.fillRect(-r * 0.08, r * 0.46, r * 0.16, r * 0.38); circle(0, r * 0.9, r * 0.1, "#f2c14e"); ctx.restore(); }
+  else if (kind === "skull") { drawSkullIcon(0, r * 0.12, r * 0.62, 1, 0.9);
+    poly([[-r * 0.45, -r * 0.38], [-r * 0.5, -r * 0.78], [-r * 0.22, -r * 0.55], [0, -r * 0.88], [r * 0.22, -r * 0.55], [r * 0.5, -r * 0.78], [r * 0.45, -r * 0.38]], "#f2c14e", LN, 1.8); }
+  else if (kind === "flag") { ctx.strokeStyle = LN; ctx.lineWidth = r * 0.16; ctx.beginPath(); ctx.moveTo(-r * 0.45, r * 0.85); ctx.lineTo(-r * 0.45, -r * 0.85); ctx.stroke(); ctx.strokeStyle = "#c8a070"; ctx.lineWidth = r * 0.08; ctx.stroke();
+    const wv = Math.sin(questT * 5) * r * 0.08;
+    poly([[-r * 0.4, -r * 0.8], [r * 0.7, -r * 0.62 + wv], [r * 0.45, -r * 0.3], [r * 0.75, r * 0.05 - wv], [-r * 0.4, r * 0.05]], col, LN, 2);
+    poly([[-r * 0.05, -r * 0.55], [r * 0.12, -r * 0.42], [-r * 0.05, -r * 0.2], [-r * 0.2, -r * 0.42]], "#ffffff", null); }
+  else if (kind === "arrows") for (let i = 0; i < 2; i++) { const yy = r * (0.3 - i * 0.55) - ((questT * 0.6) % 1) * r * 0.12;
+    poly([[0, yy - r * 0.55], [r * 0.62, yy + r * 0.05], [r * 0.32, yy + r * 0.05], [r * 0.32, yy + r * 0.35], [-r * 0.32, yy + r * 0.35], [-r * 0.32, yy + r * 0.05], [-r * 0.62, yy + r * 0.05]], i ? "#b8ffb8" : col, LN, 2); }
+  else if (kind === "orbs") { const a = questT * 2.5;
+    for (const k of [0, Math.PI]) { const ox = Math.cos(a + k) * r * 0.38, oy = Math.sin(a + k) * r * 0.22; circle(ox, oy, r * 0.38, k ? "#4fb8ff" : "#ff7a2f"); ring(ox, oy, r * 0.38, LN, 2); circle(ox - r * 0.12, oy - r * 0.12, r * 0.1, "rgba(255,255,255,0.8)"); }
+    poly([[0, -r * 0.2], [r * 0.08, -r * 0.05], [r * 0.22, 0], [r * 0.08, r * 0.05], [0, r * 0.2], [-r * 0.08, r * 0.05], [-r * 0.22, 0], [-r * 0.08, -r * 0.05]], "#fff6c8", null); }
+  else if (kind === "crystal") { poly([[0, -r * 0.92], [r * 0.6, -r * 0.3], [r * 0.35, r * 0.85], [-r * 0.35, r * 0.85], [-r * 0.6, -r * 0.3]], col, LN, 2.2);
+    poly([[0, -r * 0.92], [r * 0.6, -r * 0.3], [0, -r * 0.05], [-r * 0.6, -r * 0.3]], "#f0dcff", null); poly([[0, -r * 0.05], [r * 0.35, r * 0.85], [0, r * 0.85]], hexA("#3a1a6a", 0.4), null); }
+  else if (kind === "rune") { ctx.rotate(questT * 0.6); ring(0, 0, r * 0.78, col, 2.5); ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.beginPath();
+    for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 4 / 5; i ? ctx.lineTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7) : ctx.moveTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7); } ctx.stroke();
+    circle(0, 0, r * 0.14, "#ffffff"); }
+  ctx.restore();
+}
+// A gold frame with corner gems, used for the panel.
+function questFrame(x, y, w, h, r) {
+  const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, "#2e1b44"); g.addColorStop(0.5, "#1f1130"); g.addColorStop(1, "#140a20");
+  rrect(x, y, w, h, r); ctx.fillStyle = g; ctx.fill();
+  const gl = ctx.createLinearGradient(0, y, 0, y + h); gl.addColorStop(0, "#fff0a8"); gl.addColorStop(0.3, "#f2c14e"); gl.addColorStop(0.7, "#b07a1e"); gl.addColorStop(1, "#f2c14e");
+  rrect(x, y, w, h, r); ctx.strokeStyle = INK; ctx.lineWidth = 9; ctx.stroke();
+  rrect(x, y, w, h, r); ctx.strokeStyle = gl; ctx.lineWidth = 5; ctx.stroke();
+  rrect(x + 11, y + 11, w - 22, h - 22, r - 8); ctx.strokeStyle = hexA("#f2c14e", 0.45); ctx.lineWidth = 1.6; ctx.stroke();
+  for (const [cx, cy] of [[x + 14, y + 14], [x + w - 14, y + 14], [x + 14, y + h - 14], [x + w - 14, y + h - 14]]) {
+    poly([[cx, cy - 13], [cx + 13, cy], [cx, cy + 13], [cx - 13, cy]], "#f2c14e", INK, 2.5); poly([[cx, cy - 7], [cx + 7, cy], [cx, cy + 7], [cx - 7, cy]], "#b36bff", null); circle(cx - 2, cy - 2, 1.8, "#ffffff");
+  }
+}
+function drawQuests(dt = 0) {
+  questT += dt;
+  const open = Math.min(1, questT / 0.25), ease = 1 - Math.pow(1 - open, 3);
+  dim(0.78 * ease);
+  const vg = ctx.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, H * 0.7); vg.addColorStop(0, "rgba(120,60,200,0.18)"); vg.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = vg; ctx.fillRect(0, -TOP, W, H + TOP);
+  const x = 22, w = W - 44, rowH = 116, h = Math.min(H - 110, 214 + QUESTS.length * rowH + 96), y = Math.max(54, (H - h) / 2);
+  ctx.save(); ctx.translate(W / 2, y + h / 2); ctx.scale(0.92 + 0.08 * ease, 0.92 + 0.08 * ease); ctx.globalAlpha = ease; ctx.translate(-W / 2, -(y + h / 2));
+  questFrame(x, y, w, h, 28);
+  // Header: a gold ribbon with the title, a soft light behind it.
+  const hy = y + 18;
+  const rg = ctx.createRadialGradient(W / 2, hy + 44, 10, W / 2, hy + 44, 260); rg.addColorStop(0, "rgba(255,200,90,0.28)"); rg.addColorStop(1, "rgba(255,200,90,0)");
+  ctx.fillStyle = rg; ctx.fillRect(x + 20, hy - 10, w - 40, 130);
+  const rb = ctx.createLinearGradient(0, hy + 14, 0, hy + 78); rb.addColorStop(0, "#ffe9a0"); rb.addColorStop(0.5, "#f2c14e"); rb.addColorStop(1, "#b07a1e");
+  for (const sd of [-1, 1]) poly([[W / 2 + sd * 200, hy + 30], [W / 2 + sd * 262, hy + 30], [W / 2 + sd * 238, hy + 52], [W / 2 + sd * 262, hy + 76], [W / 2 + sd * 200, hy + 76]], "#a8731c", INK, 3);   // ribbon tails
+  poly([[W / 2 - 215, hy + 16], [W / 2 + 215, hy + 16], [W / 2 + 228, hy + 46], [W / 2 + 215, hy + 78], [W / 2 - 215, hy + 78], [W / 2 - 228, hy + 46]], rb, INK, 3.5);
+  ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(W / 2 - 205, hy + 23); ctx.lineTo(W / 2 + 205, hy + 23); ctx.stroke();
+  text("QUESTS", W / 2, hy + 63, 46, "#3a1a0a", { font: DISPLAY, weight: 900 });
+  text("Repeat forever  •  claim to start the next step", W / 2, hy + 112, 18, "#f3e3c3", { weight: 700 });
+  text("Progress stops at the goal until you claim it", W / 2, hy + 136, 15, hexA("#f3e3c3", 0.6), { weight: 600 });
   questBtns = [];
+  const ready = QUESTS.filter(questReady).length;
   QUESTS.forEach((q, i) => {
-    const st = questOf(q), goal = q.goals[st.step], done = st.p >= goal, gems = QUEST_GEMS[st.step];
-    const rx = x + 24, ry = y + 140 + i * rowH, rw = w - 48;
-    rrect(rx, ry, rw, rowH - 12, 16); ctx.fillStyle = done ? "#eaffd8" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
-    text(q.t(goal), rx + 18, ry + 34, 22, INK, { align: "left", weight: 800 });
-    text(`Step ${st.step + 1} of ${q.goals.length}`, rx + 18, ry + 58, 16, "#6b3a22", { align: "left", weight: 600 });
-    const bx = rx + 18, bw = rw - 300, by = ry + 72;
-    rrect(bx, by, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.fill();
-    rrect(bx, by, Math.max(16, bw * Math.min(1, st.p / goal)), 16, 8); ctx.fillStyle = done ? "#6cc56a" : "#c9a6ff"; ctx.fill();
-    text(`${fmtNum(st.p)} / ${fmtNum(goal)}`, bx + bw + 10, by + 14, 16, "#6b3a22", { align: "left", weight: 700 });
-    drawGem(rx + rw - 132, ry + 32, 12); text(`${gems}`, rx + rw - 116, ry + 40, 22, INK, { align: "left", weight: 800 });
-    if (done) { const b = Object.assign(makeBtn("Claim", rx + rw - 136, ry + 54, 120, 44, () => claimQuest(q), 20), { fill: "#6cc56a", fillDown: "#4fa84d" }); questBtns.push(b); drawBtn(b); }
+    const st = questOf(q), goal = q.goals[st.step], done = st.p >= goal, gems = QUEST_GEMS[st.step], [col, icon] = QUEST_LOOK[q.id];
+    const rx = x + 26, ry = y + 178 + i * rowH, rw = w - 52, rh = rowH - 14, pulse = 0.5 + 0.5 * Math.sin(questT * 4 + i);
+    const slide = Math.min(1, Math.max(0, (questT - 0.08 - i * 0.04) / 0.25)), sx = (1 - Math.pow(1 - slide, 3)) * 0 + (1 - slide) * 40;
+    ctx.save(); ctx.globalAlpha *= slide; ctx.translate(sx, 0);
+    if (done) { ctx.save(); ctx.shadowColor = hexA("#ffd84a", 0.9); ctx.shadowBlur = 18 + 10 * pulse; rrect(rx, ry, rw, rh, 18); ctx.fillStyle = "#3a2a14"; ctx.fill(); ctx.restore(); }
+    const cg = ctx.createLinearGradient(rx, ry, rx, ry + rh); cg.addColorStop(0, done ? "#4a3618" : "#3a2752"); cg.addColorStop(1, done ? "#2e200e" : "#271838");
+    rrect(rx, ry, rw, rh, 18); ctx.fillStyle = cg; ctx.fill();
+    rrect(rx, ry, rw, rh, 18); ctx.strokeStyle = done ? `rgba(255,216,74,${0.75 + 0.25 * pulse})` : hexA(col, 0.55); ctx.lineWidth = done ? 3 : 2; ctx.stroke();
+    ctx.save(); rrect(rx, ry, rw, rh, 18); ctx.clip(); const sh = ctx.createLinearGradient(0, ry, 0, ry + rh * 0.5); sh.addColorStop(0, "rgba(255,255,255,0.08)"); sh.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = sh; ctx.fillRect(rx, ry, rw, rh * 0.5); ctx.restore();
+    // Icon medallion.
+    const mx = rx + 52, my = ry + rh / 2, mr = 36;
+    const mg = ctx.createRadialGradient(mx - 10, my - 12, 4, mx, my, mr); mg.addColorStop(0, shade(col, 0.35)); mg.addColorStop(0.7, shade(col, -0.25)); mg.addColorStop(1, shade(col, -0.55));
+    circle(mx, my, mr + 5, "#1a0b12"); circle(mx, my, mr + 3, "#f2c14e"); circle(mx, my, mr, mg);
+    ring(mx, my, mr - 4, "rgba(255,255,255,0.25)", 1.5);
+    drawQuestIcon(icon, mx, my, mr * 0.68, col);
+    // Title, step pips.
+    const tx = rx + 104;
+    text(q.t(goal), tx, ry + 34, 21, "#fff4dc", { align: "left", weight: 800, outline: 4, outlineColor: "#140a20" });
+    for (let k = 0; k < q.goals.length; k++) { const px = tx + 6 + k * 20, py = ry + 52, on = k <= st.step;
+      poly([[px, py - 6], [px + 6, py], [px, py + 6], [px - 6, py]], k === st.step ? "#ffd84a" : on ? "#b07a1e" : "rgba(255,255,255,0.15)", "#140a20", 1.5); }
+    text(`STEP ${st.step + 1}/${q.goals.length}`, tx + 64, ry + 57, 13, hexA("#f3e3c3", 0.7), { align: "left", weight: 800 });
+    // Progress bar with a moving shine; the count sits inside it.
+    const bx = tx, by = ry + 66, bw = rw - 104 - 170, bh = 22, f = Math.min(1, st.p / goal);
+    rrect(bx, by, bw, bh, 11); ctx.fillStyle = "#120818"; ctx.fill(); ctx.strokeStyle = "#000000"; ctx.lineWidth = 2; ctx.stroke();
+    if (f > 0) { const fg = ctx.createLinearGradient(0, by, 0, by + bh); const fc = done ? "#ffd84a" : col; fg.addColorStop(0, shade(fc, 0.45)); fg.addColorStop(0.5, fc); fg.addColorStop(1, shade(fc, -0.35));
+      ctx.save(); rrect(bx + 2, by + 2, Math.max(bh - 4, (bw - 4) * f), bh - 4, 9); ctx.clip(); ctx.fillStyle = fg; ctx.fillRect(bx, by, bw, bh);
+      const sx2 = bx + ((questT * 140 + i * 60) % (bw + 120)) - 60; const sg = ctx.createLinearGradient(sx2 - 30, 0, sx2 + 30, 0); sg.addColorStop(0, "rgba(255,255,255,0)"); sg.addColorStop(0.5, "rgba(255,255,255,0.45)"); sg.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = sg; ctx.fillRect(sx2 - 30, by, 60, bh);
+      ctx.restore(); }
+    text(`${fmtNum(st.p)} / ${fmtNum(goal)}`, bx + bw / 2, by + bh / 2 + 1, 15, "#ffffff", { weight: 800, baseline: "middle", outline: 4, outlineColor: "#140a20" });
+    // Reward plaque / claim button.
+    const px = rx + rw - 156, py = ry + 14, pw = 140, ph = rh - 28;
+    if (done) {
+      const b = Object.assign(makeBtn("", px, py, pw, ph, () => { claimQuest(q); questFlash[q.id] = 1; for (let k = 0; k < 26; k++) { const a = Math.random() * Math.PI * 2, v = rand(120, 380); questFx.push({ x: px + pw / 2, y: py + ph / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, life: rand(0.6, 1), t: 0, s: rand(5, 9) }); } playUi("ui_sell"); }, 20), { fill: "#ffcd50", fillDown: "#e0a830" });
+      questBtns.push(b);
+      ctx.save(); ctx.shadowColor = "rgba(255,210,80,0.9)"; ctx.shadowBlur = 14 + 10 * pulse; drawBtn(b); ctx.restore();
+      drawGem(px + 34, py + ph / 2 - 1, 13); text(`${gems}`, px + 52, py + ph / 2 - 6, 22, INK, { align: "left", weight: 900, baseline: "middle" });
+      text("CLAIM", px + 52, py + ph / 2 + 15, 15, "#5a2a0a", { align: "left", weight: 900, baseline: "middle" });
+    } else {
+      rrect(px, py, pw, ph, 16); ctx.fillStyle = "rgba(10,4,18,0.55)"; ctx.fill(); ctx.strokeStyle = hexA("#f2c14e", 0.45); ctx.lineWidth = 2; ctx.stroke();
+      drawGem(px + 36, py + ph / 2 - 1, 14); text(`${gems}`, px + 58, py + ph / 2 - 6, 24, "#7fe6ff", { align: "left", weight: 900, baseline: "middle", outline: 4, outlineColor: "#140a20" });
+      text("REWARD", px + 58, py + ph / 2 + 15, 12, hexA("#f3e3c3", 0.6), { align: "left", weight: 800, baseline: "middle" });
+    }
+    if (questFlash[q.id] > 0) { questFlash[q.id] -= dt * 2; rrect(rx, ry, rw, rh, 18); ctx.fillStyle = `rgba(255,240,180,${0.5 * Math.max(0, questFlash[q.id])})`; ctx.fill(); }
+    ctx.restore();
   });
-  btn.questsClose.y = y + h - 80; drawBtn(btn.questsClose);
+  // Footer: how many are ready, and Close.
+  const fy2 = y + h - 84;
+  if (ready) text(`${ready} quest${ready > 1 ? "s" : ""} ready to claim!`, W / 2, fy2 - 6, 18, "#ffd84a", { weight: 800, outline: 4, outlineColor: "#140a20" });
+  btn.questsClose.y = fy2 + 4; btn.questsClose.h = 60; drawBtn(btn.questsClose);
+  ctx.restore();
+  // Gem burst when a quest is claimed.
+  for (const p of questFx) { p.t += dt; p.vy += 600 * dt; p.x += p.vx * dt; p.y += p.vy * dt; const a = 1 - p.t / p.life; if (a <= 0) continue; ctx.save(); ctx.globalAlpha = a; drawGem(p.x, p.y, p.s); ctx.restore(); }
+  questFx = questFx.filter(p => p.t < p.life);
 }
 
 // ------------------------------------------------------------ Damage report (this run)
@@ -11306,7 +11401,7 @@ function frame(now) {
   if (guide) drawGuide(dt);
   if (reviveOffer && state !== "title") drawReviveOffer();
   if (missionsOpen && state === "title") drawMissions(dt);
-  if (questsOpen && state !== "title") drawQuests();
+  if (questsOpen && state !== "title") drawQuests(dt);
   if (speedOffer && state !== "title") drawSpeedOffer();
   if (relicOffer && (state === "wave" || state === "break")) drawRelicOffer();
   if (testPick && state !== "title") drawTestPicker(dt);
