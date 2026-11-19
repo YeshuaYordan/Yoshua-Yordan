@@ -29,7 +29,7 @@ The game is live and in active development (the old "wait for go" rule no longer
 - Player name: first-launch panel, change once per 7 days (`openNameBox`, `NAME_COOLDOWN`).
 - Front camera: the canvas fills the screen; everything is drawn `TOP` units lower (`setSafeTop` from MainActivity's cutout inset, or `env(safe-area-inset-top)`). Canvas height is `H + TOP`; full-screen fills/clips use `(0, -TOP, W, H + TOP)`; `lobbyView` covers the strip; `toLogical` subtracts `TOP`.
 - Loading screen: `drawLoading`, warm-up pre-draws every card (`WARM`), then "TAP TO START".
-- `TESTER_RESET` is now false (release). Set it true only for a private test build.
+- `TESTER_RESET` is TRUE again (user is testing, 2026-11-19). Set it back to false before any release build.
 - Play Console in-app products (all one-time "in-app" products): consumable gem packs gems_250, gems_1500, gems_4000, gems_10000, gems_35000, gems_100000; one-time (never consumed) speed_2x, starter_deal, special_totem, special_flight, special_midas, special_mirror, special_hourglass, special_bulwark, special_seer, special_chainlink, special_chalice, special_hex.
 
 ## Testing
