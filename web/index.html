@@ -7770,7 +7770,7 @@ function update(dt) {
     for (const sp of spawners.slice()) {
       if (sp.left <= 0 && !sp.boss && !enemies.some(e => e.wave === sp.wave)) { spawners.splice(spawners.indexOf(sp), 1); waveCleared(sp.wave); }
     }
-    if (spawners.length === 0 && enemies.length === 0 && !dragon) toBreak();
+    if (spawners.length === 0 && enemies.length === 0) { if (!dragon) toBreak(); else if (!dragon.dying) { toBreak(); beginWave(true); } }
   }
   for (const c of rows.shop) if (c) { c.isFree = freeCard; c.affordable = freeCard || gold >= c.price; }
 }
