@@ -7819,8 +7819,9 @@ function update(dt) {
   const realDt = dt;
   if (state === "wave" || state === "break") updateCurseFx(realDt); else { curseFxT = 0; }
   updateSpell(dt);
-  if (spell) dt *= SPELL_SLOWMO;
-  if (gameSpeed === 2 && !spell && !reviveOffer && !speedOffer && !relicOffer && (state === "wave" || state === "break")) dt *= 2;
+  const spellSlow = spell && !(dragon && !dragon.dying);
+  if (spellSlow) dt *= SPELL_SLOWMO;
+  if (gameSpeed === 2 && !spellSlow && !reviveOffer && !speedOffer && !relicOffer && (state === "wave" || state === "break")) dt *= 2;
   const doomDt = dt;
   if (doom && !doom.hit) dt *= 0.3;
   time += dt;
