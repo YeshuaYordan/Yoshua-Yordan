@@ -8037,10 +8037,10 @@ function drawWorld() {
   }
 
   for (const z of zones) z.draw();
-  drawDragon();
   EN_DETAIL = !settings.lite && enemies.length <= [18, 10, 0][perfLevel];
   for (const e of enemies) e.draw();
   if (chamberOpen) {
+    drawDragon();
     drawParts(); for (const p of projectiles) p.draw();
     for (const f of fxs) if (f.underChamber) f.draw();
     drawChamber();
@@ -8060,6 +8060,7 @@ function drawWorld() {
     } else { drawLances(); drawBeams(); }
   }
   for (const f of fxs) if (!(chamberOpen && f.underChamber)) f.draw();
+  if (!chamberOpen) drawDragon();
   if (fusion) drawFusion();
   drawMeteors();
   if (speedT > 0) {
