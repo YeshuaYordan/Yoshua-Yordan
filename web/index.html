@@ -983,17 +983,17 @@ SAMPLE_SRC.halo_atk = "assets/audio/halo_atk.mp3";
 SAMPLE_SRC.halo_hit = "assets/audio/halo_hit.mp3";
 SAMPLE_SRC.light_atk = "assets/audio/light_atk.mp3";
 SAMPLE_SRC.light_hit = "assets/audio/light_hit.mp3";
-SAMPLE_SRC.poseidon_loop = "assets/audio/poseidon_loop.mp3";
+SAMPLE_SRC.poseidon_loop = "pack:assets/audio/loops_pack.mp3#0,28883";
 SAMPLE_SRC.shade_atk = "assets/audio/shade_atk.mp3";
 SAMPLE_SRC.shade_hit = "assets/audio/shade_hit.mp3";
 SAMPLE_SRC.sunfire_atk = "assets/audio/sunfire_atk.mp3";
 SAMPLE_SRC.sunfire_hit = "assets/audio/sunfire_hit.mp3";
-SAMPLE_SRC.zeus_loop = "assets/audio/zeus_loop.mp3";
+SAMPLE_SRC.zeus_loop = "pack:assets/audio/loops_pack.mp3#28883,25946";
 SAMPLE_SRC.hellfire_atk = "assets/audio/hellfire_atk.mp3";
 SAMPLE_SRC.hellfire_hit = "assets/audio/hellfire_hit.mp3";
 SAMPLE_SRC.prism_atk = "assets/audio/prism_atk.mp3";
 SAMPLE_SRC.prism_hit = "assets/audio/prism_hit.mp3";
-SAMPLE_SRC.spike_loop = "assets/audio/spike_loop.mp3";
+SAMPLE_SRC.spike_loop = "pack:assets/audio/loops_pack.mp3#54829,25946";
 SAMPLE_SRC.barricade = "assets/audio/barricade.mp3";
 SAMPLE_SRC.wild_drop = "assets/audio/wild_drop.mp3";
 SAMPLE_SRC.stage_clear = "assets/audio/stage_clear.mp3";
@@ -4659,7 +4659,12 @@ const KRAKEN_DEF = { frameWidth: 768, frameHeight: 350, columns: 4, animations: 
   idle: { file: "kraken_idle_death.webp", frames: 16, fps: 8, loop: true },
   spit: { file: "kraken_spit.webp", frames: 24, fps: 10, loop: false, inkFrame: 7, mouth: { x: 383, y: 329 } },
   death: { file: "kraken_idle_death.webp", oy: 1400, frames: 24, fps: 8, loop: false },
+  tentacle: { file: "tentacle.webp", frames: 1, fps: 1, loop: false, sheetOnly: true },
 } };
+const TENTACLE = { fw: 768, fh: 317, cols: 4, tipX: 680, tipY: 175, file: "tentacle.webp", wiggle: { oy: 0, frames: 12, fps: 12 }, grab: { oy: 951, frames: 8, fps: 14 }, hold: { oy: 1585, frames: 8, fps: 8 } };
+const TENT_SLIDE = 0.55, TENT_HOLD = 5, TENT_SCALE = 0.78;
+let krakenGrip = null;
+const gripBlocks = () => !!(krakenGrip && krakenGrip.held);
 const KRAKEN_DIR = "sprites/kraken/", KRAKEN_ANIM_SPEED = 1.5, KRAKEN_INK_HIT = 0.08, KRAKEN_INK_TIME = 5, KRAKEN_SPLAT = 6;
 let krakenInks = [], krakenSplats = [];
 const specialPicks = {};
@@ -4713,9 +4718,64 @@ function krakenAppear() {
   for (let i = 0; i < 50; i++) addPart({ kind: "bubble", x: W / 2 + rand(-260, 260), y: d.y + rand(h * 0.3, h), vx: rand(-20, 20), vy: -rand(40, 160), life: rand(0.8, 1.6), size: rand(3, 9), col: "rgba(150,230,255,0.8)", rot: rand(0, 6) });
 }
 function krakenAttack() {
+  if (Math.random() < 0.5 && !krakenGrip) return krakenTentacles();
   const d = dragon, a = KRAKEN_DEF.animations.spit; d.phase = "attack";
   d.extra = a.frames / a.fps * (1 - 1 / d.anim.speed);
   d.anim.play("spit", { [a.inkFrame - 1]: () => { playSfx("water", "atk"); playSfx("dark", "atk"); }, [a.inkFrame]: () => krakenSpit() }, () => dragonIdle());
+}
+function krakenTentacles() {
+  const d = dragon; d.phase = "attack"; d.extra = 0;
+  krakenGrip = { t: 0, phase: "in", held: false };
+  showInfo("Tentacles! Your attack row is grabbed and can't shoot!");
+  playSample("dragon_roar", 0.6, 0.55); playSfx("water", "atk");
+  shakeT = Math.max(shakeT, 0.4); shakeAmp = Math.max(shakeAmp, 5);
+}
+function updateKrakenGrip(dt) {
+  const g = krakenGrip; if (!g) return;
+  g.t += dt; g.ft = (g.ft || 0) + dt;
+  const grabDur = TENTACLE.grab.frames / TENTACLE.grab.fps, alive = dragon && !dragon.dying;
+  if (!alive && (g.phase === "in" || g.phase === "grab" || g.phase === "hold")) { g.phase = "release"; g.t = 0; g.held = false; }
+  if (g.phase === "in" && g.t >= TENT_SLIDE) { g.phase = "grab"; g.t = 0; }
+  else if (g.phase === "grab" && g.t >= grabDur) {
+    g.phase = "hold"; g.t = 0; g.held = true;
+    shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 11); buzz(120);
+    playSample("dragon_step", 1, 0.6); playSfx("water", "hit"); playSfx("dark", "hit");
+    for (let i = 0; i < 40; i++) addPart({ kind: "bubble", x: rand(20, W - 20), y: ACTIVE_Y + rand(-50, 50), vx: rand(-40, 40), vy: -rand(60, 180), life: rand(0.6, 1.2), size: rand(3, 8), col: "rgba(150,230,255,0.85)", rot: rand(0, 6) });
+    for (let i = 0; i < 30; i++) addPart({ kind: "drop", x: rand(20, W - 20), y: ACTIVE_Y + rand(-30, 30), vx: rand(-150, 150), vy: -rand(150, 400), g: 1100, life: rand(0.5, 0.9), size: rand(3, 6), col: "#3aa8e0" });
+  }
+  else if (g.phase === "hold" && g.t >= TENT_HOLD) { g.phase = "release"; g.t = 0; g.held = false; playSfx("water", "atk"); }
+  else if (g.phase === "release" && g.t >= grabDur) { g.phase = "out"; g.t = 0; }
+  else if (g.phase === "out" && g.t >= TENT_SLIDE) { krakenGrip = null; if (dragon && !dragon.dying && dragon.phase === "attack") dragonIdle(); }
+}
+function drawKrakenGrip() {
+  const g = krakenGrip; if (!g) return;
+  const sh = loadSheet(KRAKEN_DIR + TENTACLE.file); if (!sh.ready) return;
+  const T = TENTACLE, k = TENT_SCALE, w = T.fw * k, h = T.fh * k;
+  let an = T.wiggle, f = Math.floor(g.ft * an.fps) % an.frames, slide = 1;
+  const gd = T.grab.frames / T.grab.fps;
+  if (g.phase === "in") slide = 1 - Math.pow(1 - Math.min(1, g.t / TENT_SLIDE), 3);
+  else if (g.phase === "out") slide = 1 - Math.pow(Math.min(1, g.t / TENT_SLIDE), 2);
+  else if (g.phase === "grab") { an = T.grab; f = Math.min(an.frames - 1, Math.floor(g.t / gd * an.frames)); }
+  else if (g.phase === "release") { an = T.grab; f = Math.max(0, an.frames - 1 - Math.floor(g.t / gd * an.frames)); }
+  else if (g.phase === "hold") { an = T.hold; f = Math.floor(g.t * an.fps) % an.frames; }
+  const sx = (f % T.cols) * T.fw, sy = Math.floor(f / T.cols) * T.fh + an.oy;
+  const held = g.phase === "hold", pulse = 0.5 + 0.5 * Math.sin(time * 6);
+  if (g.held || g.phase === "grab" || g.phase === "release") {
+    const a = held ? 1 : 0.6;
+    ctx.save(); ctx.globalAlpha = 0.35 * a; ctx.fillStyle = "#020a18"; ctx.fillRect(0, ACTIVE_Y - CARD_H / 2 - 10, W, CARD_H + 20); ctx.restore();
+  }
+  for (const side of [-1, 1]) {
+    const ty = ACTIVE_Y + side * 12, off = (1 - slide) * (w + 40);
+    ctx.save();
+    if (side < 0) ctx.translate(-off, ty - T.tipY * k); else { ctx.translate(W + off, ty - T.tipY * k); ctx.scale(-1, 1); }
+    ctx.drawImage(sh.img, sx, sy, T.fw, T.fh, 0, 0, w, h);
+    if (held) { ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.12 + 0.12 * pulse; ctx.drawImage(sh.img, sx, sy, T.fw, T.fh, 0, 0, w, h); }
+    ctx.restore();
+  }
+  if (held) {
+    const left = Math.max(0, TENT_HOLD - g.t), a = Math.min(1, g.t * 4);
+    text(`CARDS GRABBED!  ${Math.ceil(left)}s`, W / 2, ACTIVE_Y - CARD_H / 2 - 22, 24, `rgba(120,220,255,${a})`, { weight: 900, outline: 6 });
+  }
 }
 function krakenSpit() {
   const d = dragon, k = W / KRAKEN_DEF.frameWidth, m = KRAKEN_DEF.animations.spit.mouth;
@@ -4865,6 +4925,7 @@ function updateDragon(dt) {
     f.dr = f.dr.filter(q => q.t < q.life);
   }
   krakenInks = krakenInks.filter(f => !f.done || f.dr.length);
+  updateKrakenGrip(dt);
   for (const sp of krakenSplats) { sp.t += dt; if (sp.mini) { sp.vy += 700 * dt; sp.x += sp.vx * dt; sp.y += sp.vy * dt; } }
   krakenSplats = krakenSplats.filter(sp => sp.t < sp.life);
   const d = dragon; if (!d) return;
@@ -5041,6 +5102,7 @@ function drawDragonFireballs() {
   ctx.restore();
 }
 function drawRoarTint() {
+  drawKrakenGrip();
   for (let i = 0; i < SLOTS; i++) { const c = rows.active[i]; if (!c || !(c.inkT > 0) || !c.inkBlobs) continue; const p = slotPos("active", i), a = Math.min(1, c.inkT / 0.6);
     ctx.save(); ctx.globalAlpha = a; rrect(p.x - CARD_W / 2, p.y - CARD_H / 2, CARD_W, CARD_H, 12); ctx.clip();
     ctx.fillStyle = "rgba(20,8,35,0.35)"; ctx.fillRect(p.x - CARD_W / 2, p.y - CARD_H / 2, CARD_W, CARD_H);
@@ -5066,7 +5128,7 @@ function drawRoarTint() {
 function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
-  dragon = null; krakenInks = []; krakenSplats = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
+  dragon = null; krakenInks = []; krakenSplats = []; krakenGrip = null; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
@@ -7987,6 +8049,7 @@ function update(dt) {
       const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult() * (hasRelic("haste") ? 1.15 : 1) * (dragonRoarT > 0 ? DRAGON_ROAR_SLOW : 1);
       if (EL[c.element].totem) { if (EL[c.element].totem === "mirror") updateMirror(c, dt * spd); continue; }
       if (c.inkT > 0) { c.inkT = Math.max(0, c.inkT - dt); continue; }
+      if (gripBlocks()) continue;
       if (EL[c.element].beam) { updateBeam(c, dt * spd); continue; }
       if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
       c.cooldown -= dt * spd;
