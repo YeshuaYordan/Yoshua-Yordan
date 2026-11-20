@@ -4495,8 +4495,8 @@ class Fx {
 }
 
 const rows = { active: Array(SLOTS).fill(null), storage: Array(STORAGE_N).fill(null), shop: Array(SHOP_N).fill(null), chamber: Array(5).fill(null) };
-const CHAMBER_CHANCE = { 3: 36, 4: 48, 5: 60 };
-const LEGEND = 5, LEGEND_PER_MYTH = 9, LEGEND_PER_EPIC = 3, LEGEND_MAX = 45;
+const CHAMBER_CHANCE = { 3: 45, 4: 60, 5: 75 };
+const LEGEND = 5, LEGEND_PER_MYTH = 12, LEGEND_PER_EPIC = 4, LEGEND_MAX = 60;
 const isLegendChamber = () => rows.chamber.some(c => c && c.rarity === MYTH);
 function chamberChance() {
   const cards = rows.chamber.filter(Boolean);
@@ -4682,7 +4682,7 @@ const isKraken = () => !!(dragon && dragon.kind === "kraken");
 const BOSS_COL = { dragon: { glow: "255,120,30", glow2: "255,60,10", ring: "#ff7a2a", tip: "#ffb050", ember: "255,90,20", spark: "255,190,80", rune: "#ffb340", runeGlow: "255,200,90", runeOut: "255,120,30", runeCore: "40,8,0", runeEdge: "255,210,120", label: "#ffd27a" },
   kraken: { glow: "40,170,255", glow2: "20,80,255", ring: "#3ad0ff", tip: "#9ff0ff", ember: "60,200,255", spark: "120,230,255", rune: "#5ee0ff", runeGlow: "90,220,255", runeOut: "30,140,255", runeCore: "0,14,40", runeEdge: "150,240,255", label: "#8fe8ff" } };
 const bossCol = () => BOSS_COL[dragon && dragon.kind === "kraken" ? "kraken" : "dragon"];
-const DRAGON_DIR = "sprites/dragon/", DRAGON_EVERY = 15, DRAGON_GEMS = 50, DRAGON_CD = 4, DRAGON_ENTER = 4.5, DRAGON_FIRE_HIT = 0.08, DRAGON_ROAR_SLOW = 0.7, DRAGON_ROAR_TIME = 15, DRAGON_RAGE_TIME = 3, DRAGON_RAGE_MULT = 2, DRAGON_BURN = 6, DRAGON_ANIM_SPEED = 2;
+const DRAGON_DIR = "sprites/dragon/", DRAGON_EVERY = 10, DRAGON_GEMS = 50, DRAGON_CD = 4, DRAGON_ENTER = 4.5, DRAGON_FIRE_HIT = 0.08, DRAGON_ROAR_SLOW = 0.7, DRAGON_ROAR_TIME = 15, DRAGON_RAGE_TIME = 3, DRAGON_RAGE_MULT = 2, DRAGON_BURN = 6, DRAGON_ANIM_SPEED = 2;
 const DRAGON_RUNES = {
   line: [[[0.5, 0], [0.5, 1]]],
   dash: [[[0, 0.5], [1, 0.5]]],
@@ -5661,7 +5661,7 @@ function drawBringPick(dt) {
   ctx.restore();
 }
 function startRun() {
-  clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
+  training = false; clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
   resetSpecialBag(); gold = START_GOLD; curses = new Set(); curseHpCut = 0; curseBurnT = CURSE_BURN_CD; spellUses = {}; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {}, ev: {}, time: 0, best0: save.best }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   relics = new Set(); relicOffer = null; secondWindUsed = false; archerT = 1; frostGateWave = -1; weakSeed = Math.floor(Math.random() * 4); wallLog = [];
@@ -5863,7 +5863,7 @@ function damageCastle(a) {
   const sh = idolRow("shield");
   const hit = a * (1 - castleArmor) * (1 - 0.03 * cu("armor")) * (hasRelic("aegis") ? 0.9 : 1) * (sh ? 1 - IDOL_VAL.shield(sh) : 1);
   if (sh) { bulwarkFlash = 1; playSpecial("sp_bulwark", 0.6, 0.5); }
-  castleHp -= hit; wallFlash = 1; buzz(25);
+  castleHp -= hit; if (training && castleHp < 1) castleHp = 1; wallFlash = 1; buzz(25);
   wallLog.push([time, hit]); if (wallLog.length > 600) wallLog.splice(0, 200);
   if (castleHp <= 0 && cu("revive") && !secondWindUsed) {
     secondWindUsed = true; castleHp = castleMax * 0.3; wallFlash = 0;
@@ -7133,7 +7133,7 @@ function fuseChamber() {
   if (fusion) return;
   const cards = rows.chamber.filter(Boolean), n = cards.length;
   if (n < 3) { showInfo("Put at least 3 cards on the altars to fuse."); return; }
-  const legend = isLegendChamber(), chance = chamberChance(), success = Math.random() * 100 < chance;
+  const legend = isLegendChamber(), chance = chamberChance(), success = training || Math.random() * 100 < chance;
   const pool = legend ? cards.filter(c => c.rarity === MYTH) : cards;
   const center = slotPos("chamber", 2);
   const parts = [];
@@ -7416,7 +7416,7 @@ function castSpell() {
   if (sp.curse && !curses.has(sp.curse)) { showInfo(`You don't have the ${CURSES[sp.curse].name} curse.`); return; }
   if (gold < cost) { showInfo(`Not enough gold: ${sp.name} costs ${cost}.`); return; }
   if (spell.match === "heal" && castleHp >= castleMax) { showInfo("The castle is already at full HP."); return; }
-  gold -= cost; spellUses[spell.match] = (spellUses[spell.match] || 0) + 1;
+  gold -= cost; spellUses[spell.match] = (spellUses[spell.match] || 0) + 1; trainFlags.spell = true;
   if (timeStopT > 0) timeStopSpells++;
   track("spell"); track("spell_" + spell.match);
   if (spell.match === "meteor") castMeteor();
@@ -7765,7 +7765,7 @@ const btn = {
   guideBack: makeBtn("Back", 0, 0, 160, 72, () => guideBack(), 26),
   guideClose: makeBtn("Close", 0, 0, 160, 72, () => { guide = null; }, 26),
   mergeGuide: makeBtn("", W - 126, 620, 112, 112, () => openGuide(false)),
-  help: makeBtn("", W - 126, 496, 112, 112, () => { save.tut = {}; writeSave(); tutStart("lobby"); }),
+  help: makeBtn("", W - 126, 496, 112, 112, () => { save.tut = {}; save.trained = false; writeSave(); tutStart("lobby"); }),
   dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 230, 84, async () => { if (await timeOk()) claimDaily(1); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   dailyAd: Object.assign(makeBtn("Watch ad", 296, 0, 374, 84, () => watchAdForDaily(), 22), { fill: "#ffcd50", fillDown: "#e0a830" }),
   dailyClose: makeBtn("Close", W / 2 - 110, 0, 220, 70, () => { dailyOpen = false; }, 26),
@@ -8065,7 +8065,7 @@ function update(dt) {
       if (!enemies.length) c.frenzyN = 0;
       if (c.cooldown <= 0 && enemies.length) { fireCard(c); const fz = EL[c.element].frenzy; if (fz) c.frenzyN = Math.min(fz, (c.frenzyN || 0) + 1); c.cooldown = 1 / (rateOf(c.element, c.rarity) * (fz ? 1 + c.frenzyN * 0.1 : 1)); }
     }
-  } else if (state === "break" && breakTimer > 0) {
+  } else if (state === "break" && breakTimer > 0 && !training) {
     breakTimer -= dt; if (breakTimer <= 0) beginWave(true);
   }
   { const L = idolRow("time"); idolTimeMult = L ? 1 - IDOL_VAL.time(L) : 1; }
@@ -8697,7 +8697,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const FH = H + TOP, s = Math.max(W / 1080, FH / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (FH - 1920 * s) / 2 - TOP }; }
-function goToLobby() { endBossRun(); paused = false; questsOpen = false; bringPick = null; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
+function goToLobby() { if (training || (tut && tut.ch === "train")) { training = false; tut = null; } endBossRun(); paused = false; questsOpen = false; bringPick = null; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -10635,7 +10635,7 @@ function drawLobbyUi() {
 
 let playMode = 0, playModeT = 0, playDrag = 0, lobbyBossK = 0, playSliderLast = 0;
 async function tapPlay() {
-  if (playMode === 0) { startRun(); fadeIn = 0.5; return; }
+  if (playMode === 0) { if (!save.trained && !(save.tut && save.tut.run1)) startTraining(); else startRun(); fadeIn = 0.5; return; }
   if (!(await timeOk())) return;
   if (bossReadyIn() > 0) { btn.play.shake = 1; shopToast = { text: `Boss Break Out is resting: ${fmtTime(bossReadyIn())}`, color: "#ff9a7a", t: 0 }; return; }
   startBossRun();
@@ -10914,9 +10914,9 @@ const TUT = {
     { t: "Summon", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe left to open Summon (the dots up here show which page you are on). One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
     { t: "Your cards", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
     { t: "Daily reward", hl: () => ({ x: btn.daily.x - 4, y: btn.daily.y - 4, w: btn.daily.w + 8, h: btn.daily.h + 26 }), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. If you like, watch an ad to double it (always optional). The calendar shows a red ! when your reward is waiting." },
-    { t: "Tutorial", hl: () => ({ x: btn.help.x - 4, y: btn.help.y - 4, w: btn.help.w + 8, h: btn.help.h + 26 }), b: "Tap the owl any time to replay this tutorial. The icon below it opens the Merge & Fusion guide." },
+    { t: "Tutorial", hl: () => ({ x: btn.help.x - 4, y: btn.help.y - 4, w: btn.help.w + 8, h: btn.help.h + 26 }), b: "Tap the owl any time to replay this tour and the playable training. The icon below it opens the Merge & Fusion guide." },
     { t: "Spellbook", hl: () => ({ x: btn.titleBook.x - 4, y: btn.titleBook.y - 4, w: btn.titleBook.w + 8, h: btn.titleBook.h + 26 }), b: "Every fusion recipe and every spell rune is written in the Spellbook. A red ! means you discovered something new. You can open it any time, even in the middle of a run." },
-    { t: "Ready?", hl: () => btnRect(btn.play), b: "Tap PLAY to start your first run. We will show you how everything works." },
+    { t: "Ready?", hl: () => btnRect(btn.play), b: "Tap PLAY! Your first game is a short playable training where you try every move yourself." },
   ],
   run1: [
     { t: "Your castle", hl: () => ({ x: 146, y: 10, w: 308, h: 54 }), b: "This bar is your castle's HP. Enemies walk down the battlefield and attack the wall when they reach it. When the castle reaches 0 HP, the run is over." },
@@ -10942,8 +10942,33 @@ const TUT = {
     { t: "Pause", hl: () => btnRect(btn.pause), b: "Pause at any time to resume, restart, open the Spellbook, turn the sound on or off, or quit to the lobby." },
   ],
   chamber: [
-    { t: "An Epic card!", hl: () => btnRect(btn.chamber), b: "Open the Chamber and place 3 to 5 Epic cards on the altars to try for a Myth card: 36%, 48% or 60% chance. If it fails, all those cards are lost!" },
-    { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 9% and each Epic adds 3%, up to 45%." },
+    { t: "An Epic card!", hl: () => btnRect(btn.chamber), b: "Open the Chamber and place 3 to 5 Epic cards on the altars to try for a Myth card: 45%, 60% or 75% chance. If it fails, all those cards are lost!" },
+    { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 12% and each Epic adds 4%, up to 60%." },
+  ],
+  train: [
+    { t: "Training", b: "Welcome to the training ground! In about 3 minutes you will try every important move yourself. Monsters here can't destroy your castle, so relax and learn." },
+    { t: "Buy a card", hl: () => rowRect("shop", SHOP_N), wait: () => boardHas(() => true),
+      b: "New cards appear in the shop down here. Your first card is FREE! Tap a Fire card (or drag it into a slot) to buy it." },
+    { t: "Merge", hl: () => rowRect("shop", SHOP_N), setup: () => { gold = Math.max(gold, priceOf("fire", 0) + 5); }, wait: () => boardHas(c => c.element === "fire" && c.rarity >= 1),
+      b: "Two of the SAME card merge into a stronger one (V1 > V2 > V3). Buy the other Fire card and drop it right ON your Fire card." },
+    { t: "Fusion", hl: () => rowRect("storage", SLOTS), setup: () => trainGive("water", 1), wait: () => boardHas(c => c.element === "steam"),
+      b: "Two DIFFERENT elements of the same level fuse into a new spirit. Drag this Water card from storage onto your Fire card: Fire + Water = Steam!" },
+    { t: "Battle row", hl: () => rowRect("active", SLOTS), b: "Only cards in this top row attack. The storage row below keeps cards safe until you merge them. Drag cards between rows any time, and drag a card onto Sell to get gold back." },
+    { t: "Start the wave", hl: () => btnRect(btn.next), wait: () => state === "wave", b: "Tap Next Wave to send the monsters. Later you can call waves early to earn gold faster." },
+    { t: "Cast a spell", hl: () => btnRect(btn.spell), setup: () => { gold += 40; spellCd = 0; }, wait: () => trainFlags.spell, short: "Tap Spell, draw a Z on the battlefield, then tap Cast",
+      b: "Spells help in a pinch. Tap Spell, draw a Z (Meteor) on the battlefield with your finger, then tap Cast. Time slows down while you draw." },
+    { t: "Win the wave", wait: () => state === "break", short: "Let your cards finish the wave", b: "Nice! Now let your cards finish the wave. Every monster you kill drops gold." },
+    { t: "Elements", b: "Water beats Fire, Fire beats Wind, Wind beats Earth and Earth beats Water. Each map shows a 'Weak to' tag on the left: those monsters take double damage from that element." },
+    { t: "Epic cards", hl: () => rowRect("storage", SLOTS), setup: () => { const pool = EPIC_ELS.slice(); for (let i = 0; i < 3; i++) trainGive(pool.splice(Math.floor(Math.random() * pool.length), 1)[0], EPIC); },
+      b: "Fusing two different V3 cards makes an Epic card. Here are 3 Epic cards, a gift to try the Fusion Chamber!" },
+    { t: "The Chamber", hl: () => btnRect(btn.chamber), wait: () => boardHas(c => c.rarity === MYTH), short: "Open Chamber, drag 3 Epics onto the altars, tap Fuse, then close it",
+      b: "Tap Chamber, drag the 3 Epic cards onto the altars and tap Fuse. 3, 4 or 5 Epics give a 45%, 60% or 75% chance at a Myth card (in training it always works). Then close the Chamber." },
+    { t: "Legend cards", b: "Put Myth cards on the altars to try for a Legend card instead: each Myth adds 12% and each Epic 4%, up to 60%. Myths and Legends gain stars when you merge copies of them." },
+    { t: "Special boss!", setup: () => trainStartBoss(), wait: () => !dragon, short: "Tap Spell and draw the glowing rune on the boss",
+      b: "On every 10th wave a special boss appears. Your cards can't hurt it! Tap Spell and draw the glowing rune shown on its body. Break every rune to win." },
+    { t: "Bosses and curses", b: "Every 10th wave also brings a stage boss. Beating it clears the stage and gives gems, but its dying curse weakens you until you cure it with a spell rune. Tap Runes any time to see every rune." },
+    { t: "Specials and more", b: "Special cards from Summon or the Shop are strong totems: place them next to your best cards. Quests (under 2X) give gems during a run, and Pause opens the Spellbook with every recipe." },
+    { t: "Training complete!", b: "You are ready! You earned 100 gems. Tap Got it! to return to the lobby, then tap PLAY for your first real run." },
   ],
   boss: [
     { t: "Boss wave!", b: "Every 10th wave a boss appears. Beat it to clear the stage: you earn 20 gems for Summon, and the map changes to a new land with new enemies." },
@@ -10951,14 +10976,43 @@ const TUT = {
   ],
 };
 let tut = null;
+let training = false, trainFlags = {}, trainBoss = "dragon";
+const boardHas = f => [...rows.active, ...rows.storage].some(c => c && f(c));
+function trainShop(els) {
+  els.forEach((el, i) => { const c = new Card(el, 0); c.inShop = true; c.price = priceOf(el, 0); const q = slotPos("shop", i); c.setHome(q.x, q.y, true); c.y += 200; rows.shop[i] = c; });
+}
+function trainGive(el, r) {
+  const i = rows.storage.findIndex((c, k) => !c && k < STORAGE_PAGE); if (i < 0) return;
+  const c = new Card(el, r), q = slotPos("storage", i); c.setHome(q.x, q.y, true); c.scale = 1.4; rows.storage[i] = c;
+  fxs.push(new Fx("burst", { x: q.x, y: q.y, color: RARITY_COLORS[r] || GOLD, radius: 90, duration: 0.4 })); playUi("ui_place");
+}
+function startTraining() {
+  startRun(); training = true; trainFlags = {}; bringPick = null; storagePage = 0; storageX = 0;
+  trainShop(["fire", "fire", "fire"]);
+  trainBoss = Math.random() < 0.5 ? "dragon" : "kraken";
+  new SpriteAnim(trainBoss === "kraken" ? KRAKEN_DEF : DRAGON_DEF, trainBoss === "kraken" ? KRAKEN_DIR : DRAGON_DIR).ready();
+  showBanner("TRAINING", GOLD); showInfo("");
+  tutStart("train");
+}
+function trainStartBoss() {
+  if (trainBoss === "kraken") startKraken(); else startDragon();
+  dragon.total = dragon.left = 3; spellCd = 0;
+}
+function endTraining(done) {
+  if (done && !save.trainReward) { save.trainReward = true; save.gems += 100; }
+  save.trained = true; for (const k of ["run1", "merge", "spells", "chamber"]) save.tut[k] = true; writeSave();
+  training = false; tut = null; goToLobby();
+  if (done) showBanner("Training complete!", GOLD);
+}
 const tutStep = () => tut && TUT[tut.ch][tut.i];
 const tutBlocking = () => !!tut && !tutStep().wait;
 function tutNext() {
   tut.i++; tut.t = 0; playUi("ui_pick");
-  if (tut.i >= TUT[tut.ch].length) { save.tut[tut.ch] = true; writeSave(); tut = null; }
+  if (tut.i >= TUT[tut.ch].length) { const ch = tut.ch; save.tut[ch] = true; writeSave(); tut = null; if (ch === "train") endTraining(true); return; }
+  const st = TUT[tut.ch][tut.i]; if (st.setup) st.setup();
 }
-function tutSkipAll() { for (const k of Object.keys(TUT)) save.tut[k] = true; writeSave(); tut = null; }
-function tutStart(ch) { tut = { ch, i: 0, t: 0 }; cancelDrag(); }
+function tutSkipAll() { const tr = tut && tut.ch === "train"; for (const k of Object.keys(TUT)) save.tut[k] = true; writeSave(); tut = null; if (tr) endTraining(false); }
+function tutStart(ch) { tut = { ch, i: 0, t: 0 }; cancelDrag(); const st = TUT[ch][0]; if (st.setup) st.setup(); }
 function tutCheck() {
   if (guide || bringPick) return;
   if (!save.guide && !tut && state === "break" && wavesCleared >= 1 && !paused && !bookOpen && !chamberOpen && !spell && !drag && !fusion && !doom) { openGuide(true); return; }
@@ -10981,6 +11035,13 @@ function tutCheck() {
 }
 function drawTut(dt) {
   const st = tutStep(); tut.t += dt;
+  if (st.wait && st.short && (chamberOpen || spell || fusion || (dragon && tut.t > 4))) {
+    const y = dragon && !chamberOpen ? Math.min(H - 300, dragon.y + dragonSize().h + 44) : HUD_H + 8, pulse = 0.5 + 0.5 * Math.sin(tut.t * 4);
+    ctx.font = `800 20px ${FONT}`; const w = Math.min(W - 24, ctx.measureText(st.short).width + 48);
+    rrect(W / 2 - w / 2, y, w, 44, 22); ctx.fillStyle = "rgba(20,10,30,0.85)"; ctx.fill(); ctx.strokeStyle = `rgba(242,193,78,${0.6 + 0.4 * pulse})`; ctx.lineWidth = 3; ctx.stroke();
+    text(st.short, W / 2, y + 23, 20, "#ffe9a8", { weight: 800, baseline: "middle" });
+    return;
+  }
   const hl = st.hl ? st.hl() : null, pulse = 0.5 + 0.5 * Math.sin(tut.t * 5);
   ctx.save(); ctx.beginPath(); ctx.rect(0, -TOP, W, H + TOP);
   if (hl) { ctx.moveTo(hl.x, hl.y); ctx.lineTo(hl.x, hl.y + hl.h); ctx.lineTo(hl.x + hl.w, hl.y + hl.h); ctx.lineTo(hl.x + hl.w, hl.y); ctx.closePath(); }
@@ -11010,7 +11071,7 @@ function drawTut(dt) {
     poly([[ax - 16, ay], [ax + 16, ay], [ax, ay + dir * 24]], GOLD, INK, 3);
   }
   const by = py + ph - 82;
-  btn.tutSkip.x = px + 20; btn.tutSkip.y = by; drawBtn(btn.tutSkip);
+  btn.tutSkip.label = tut.ch === "train" ? "Skip training" : "Skip tutorial"; btn.tutSkip.x = px + 20; btn.tutSkip.y = by; drawBtn(btn.tutSkip);
   if (st.wait) text("Your turn!", px + pw - 120, by + 44, 28, "#2f8f3f", { weight: 800, baseline: "middle" });
   else { btn.tutNext.label = tut.i === list.length - 1 ? "Got it!" : "Next"; btn.tutNext.x = px + pw - 20 - btn.tutNext.w; btn.tutNext.y = by; drawBtn(btn.tutNext); }
 }
