@@ -4874,6 +4874,12 @@ function addCurse() {
   const k = pickOne(free); curses.add(k);
   if (k === "hp") { curseHpCut = Math.floor(castleMax / 2); castleMax -= curseHpCut; castleHp = Math.min(castleHp, castleMax); }
   if (k === "burn") curseBurnT = CURSE_BURN_CD;
+  if (curseHidden()) { curseReplay = k; curseReplayT = 0.9; return; }
+  playCurseFx(k);
+}
+const curseHidden = () => !!(relicOffer || paused || speedOffer || questsOpen || settingsOpen || bookOpen || chamberOpen || spell || reviveOffer);
+let curseReplay = null, curseReplayT = 0;
+function playCurseFx(k) {
   curseFlash = 1; curseFxT = 3.2; curseLaughT = 20; evilLaugh(1);
   showBanner(`CURSED: ${CURSES[k].name}!`, "#b36bff");
   showInfo(`${CURSES[k].desc} Draw the ${SPELLS[CURSES[k].cure].name} rune to cure it (see the badge or the Runes book).`);
@@ -4964,6 +4970,8 @@ function drawCurseFx() {
   ctx.restore();
 }
 function updateCurseFx(realDt) {
+  if (curseFxT > 0 && curseHidden() && !curseReplay) { curseReplay = [...curses].pop(); curseReplayT = 0.9; curseFxT = 0; }
+  if (curseReplay && !curseHidden()) { curseReplayT -= realDt; if (curseReplayT <= 0 && curses.has(curseReplay)) { const k = curseReplay; curseReplay = null; playCurseFx(k); } else if (!curses.has(curseReplay)) curseReplay = null; }
   curseFxT = Math.max(0, curseFxT - realDt);
   if (!curses.size) { curseLaughT = 0; return; }
   curseLaughT -= realDt;
