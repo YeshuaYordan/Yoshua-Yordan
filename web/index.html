@@ -999,6 +999,7 @@ SAMPLE_SRC.wild_drop = "assets/audio/wild_drop.mp3";
 SAMPLE_SRC.stage_clear = "assets/audio/stage_clear.mp3";
 SAMPLE_SRC.battle_loop = "assets/audio/battle_loop.mp3";
 SAMPLE_SRC.dragon_loop = "assets/audio/dragon_loop.mp3";
+for (const [k, [o, n]] of Object.entries({"kraken_rise":[0,54902],"kraken_spit":[54902,18853],"kraken_splat":[73755,6627],"kraken_slither":[80382,20107],"kraken_grab":[100489,20107],"kraken_release":[120596,21360],"kraken_die":[141956,60858],"kraken_idle":[202814,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/kraken_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"dragon_roar":[0,42676],"dragon_shot":[42676,27316],"dragon_step":[69992,12897],"dragon_die":[82889,60858],"dragon_breath":[143747,66814]})) SAMPLE_SRC[k] = `pack:assets/audio/dragon_sounds.mp3#${o},${n}`;
 const SAMPLES = {};
 const AUDIO_PACKS = {};
@@ -4712,7 +4713,7 @@ function startKraken() {
 function krakenAppear() {
   const d = dragon; d.started = true; d.anim.speed = 1;
   d.anim.play("appear", {}, () => { d.anim.speed = KRAKEN_ANIM_SPEED; dragonIdle(); showInfo("Tap Spell and draw the glowing rune on the Kraken! Your cards can't hurt it."); });
-  playSample("dragon_roar", 0.75, 0.6); playSfx("water", "hit"); shakeT = Math.max(shakeT, 1.2); shakeAmp = Math.max(shakeAmp, 7);
+  playSample("kraken_rise", 1, 1); shakeT = Math.max(shakeT, 1.2); shakeAmp = Math.max(shakeAmp, 7);
   const { h } = dragonSize();
   for (let i = 0; i < 3; i++) dragonWaves.push({ x: W / 2, y: d.y + h * 0.5, t: -i * 0.3, kind: "kraken" });
   for (let i = 0; i < 50; i++) addPart({ kind: "bubble", x: W / 2 + rand(-260, 260), y: d.y + rand(h * 0.3, h), vx: rand(-20, 20), vy: -rand(40, 160), life: rand(0.8, 1.6), size: rand(3, 9), col: "rgba(150,230,255,0.8)", rot: rand(0, 6) });
@@ -4721,13 +4722,13 @@ function krakenAttack() {
   if (Math.random() < 0.5 && !krakenGrip) return krakenTentacles();
   const d = dragon, a = KRAKEN_DEF.animations.spit; d.phase = "attack";
   d.extra = a.frames / a.fps * (1 - 1 / d.anim.speed);
-  d.anim.play("spit", { [a.inkFrame - 1]: () => { playSfx("water", "atk"); playSfx("dark", "atk"); }, [a.inkFrame]: () => krakenSpit() }, () => dragonIdle());
+  d.anim.play("spit", { [a.inkFrame - 1]: () => playSample("kraken_spit", 1, 1), [a.inkFrame]: () => krakenSpit() }, () => dragonIdle());
 }
 function krakenTentacles() {
   const d = dragon; d.phase = "attack"; d.extra = 0;
   krakenGrip = { t: 0, phase: "in", held: false };
   showInfo("Tentacles! Your attack row is grabbed and can't shoot!");
-  playSample("dragon_roar", 0.6, 0.55); playSfx("water", "atk");
+  playSample("kraken_slither", 1, 1);
   shakeT = Math.max(shakeT, 0.4); shakeAmp = Math.max(shakeAmp, 5);
 }
 function updateKrakenGrip(dt) {
@@ -4739,12 +4740,12 @@ function updateKrakenGrip(dt) {
   else if (g.phase === "grab" && g.t >= grabDur) {
     g.phase = "hold"; g.t = 0; g.held = true;
     shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 11); buzz(120);
-    playSample("dragon_step", 1, 0.6); playSfx("water", "hit"); playSfx("dark", "hit");
+    playSample("kraken_grab", 1, 1);
     for (let i = 0; i < 40; i++) addPart({ kind: "bubble", x: rand(20, W - 20), y: ACTIVE_Y + rand(-50, 50), vx: rand(-40, 40), vy: -rand(60, 180), life: rand(0.6, 1.2), size: rand(3, 8), col: "rgba(150,230,255,0.85)", rot: rand(0, 6) });
     for (let i = 0; i < 30; i++) addPart({ kind: "drop", x: rand(20, W - 20), y: ACTIVE_Y + rand(-30, 30), vx: rand(-150, 150), vy: -rand(150, 400), g: 1100, life: rand(0.5, 0.9), size: rand(3, 6), col: "#3aa8e0" });
   }
-  else if (g.phase === "hold" && g.t >= TENT_HOLD) { g.phase = "release"; g.t = 0; g.held = false; playSfx("water", "atk"); }
-  else if (g.phase === "release" && g.t >= grabDur) { g.phase = "out"; g.t = 0; }
+  else if (g.phase === "hold" && g.t >= TENT_HOLD) { g.phase = "release"; g.t = 0; g.held = false; playSample("kraken_release", 1, 1); }
+  else if (g.phase === "release" && g.t >= grabDur) { g.phase = "out"; g.t = 0; playSample("kraken_slither", 0.6, 1.1); }
   else if (g.phase === "out" && g.t >= TENT_SLIDE) { krakenGrip = null; if (dragon && !dragon.dying && dragon.phase === "attack") dragonIdle(); }
 }
 function drawKrakenGrip() {
@@ -4790,7 +4791,7 @@ function krakenInkHit(f) {
   for (let i = 0; i < 30; i++) { const a = rand(Math.PI * 1.05, Math.PI * 1.95), v = rand(200, 600); f.dr.push({ x: f.tx, y: f.ty, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: rand(0.5, 1), r: rand(3, 8) }); }
   for (let i = 0; i < 3; i++) dragonWaves.push({ x: f.tx, y: f.ty, t: -i * 0.1, kind: "ink" });
   shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 12); buzz(100);
-  playSfx("water", "hit"); playSfx("dark", "hit");
+  playSample("kraken_splat", 1, 1);
   const pool = []; for (let i = 0; i < SLOTS; i++) { const c = rows.active[i]; if (c && !EL[c.element].totem) pool.push(i); }
   for (let n = Math.min(pool.length, 1 + (Math.random() < 0.5 ? 1 : 0)); n > 0; n--) {
     const i = pool.splice(Math.floor(Math.random() * pool.length), 1)[0], q = slotPos("active", i);
@@ -4801,7 +4802,7 @@ function krakenGlobHit(f) {
   const c = rows.active[f.slot]; if (!c || EL[c.element].totem) return;
   c.inkT = KRAKEN_INK_TIME; c.inkBlobs = []; for (let i = 0; i < 7; i++) c.inkBlobs.push([rand(-0.4, 0.4), rand(-0.35, 0.35), rand(0.14, 0.3)]);
   for (let i = 0; i < 14; i++) { const a = rand(0, Math.PI * 2), v = rand(80, 240); f.dr.push({ x: f.tx, y: f.ty, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, t: 0, life: rand(0.4, 0.7), r: rand(3, 6) }); }
-  playSfx("water", "hit"); showInfo("Ink! The inked cards can't attack for a few seconds.");
+  playSample("kraken_splat", 0.7, 1.25); showInfo("Ink! The inked cards can't attack for a few seconds.");
 }
 function dragonRuneFor() {
   const keys = Object.keys(DRAGON_RUNES).filter(k => !dragon || k !== dragon.rune);
@@ -4829,8 +4830,8 @@ function dragonAttack() {
     d.anim.play("roar", { [Math.max(1, s0 - 3)]: () => playSample("dragon_roar", 1, 1), [s0]: () => dragonRoar(s1 - s0, a.fps) }, () => dragonIdle());
   }
 }
-function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD + (dragon.extra || 0); dragon.extra = 0; dragon.anim.play("idle", dragon.kind === "kraken" ? {} : { 1: dragonBreath }); }
-function dragonBreath() { const d = dragon; if (!d || d.phase !== "idle" || time - (d.breathAt || -9) < 4.5) return; d.breathAt = time; playSample("dragon_breath", 0.55, rand(0.95, 1.05)); }
+function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD + (dragon.extra || 0); dragon.extra = 0; dragon.anim.play("idle", { 1: dragonBreath }); }
+function dragonBreath() { const d = dragon; if (!d || d.phase !== "idle" || time - (d.breathAt || -9) < (d.kind === "kraken" ? 5.5 : 4.5)) return; d.breathAt = time; playSample(d.kind === "kraken" ? "kraken_idle" : "dragon_breath", 0.55, rand(0.95, 1.05)); }
 function dragonShoot() {
   const d = dragon, { w } = dragonSize(), k = w / DRAGON_DEF.frameWidth, m = DRAGON_DEF.animations.shoot.mouth;
   const x = m.x * k, y = d.y + m.y * k, tx = clamp(x + rand(-220, 220), 60, W - 60), ty = FRONT_Y - 6;
@@ -4865,7 +4866,7 @@ function dragonDie() {
   showBanner(`${d.kind === "kraken" ? "KRAKEN" : "DRAGON"} SLAIN!  +${DRAGON_GEMS} gems`, "#ffd84a");
   shakeT = Math.max(shakeT, 1.4); shakeAmp = Math.max(shakeAmp, 18);
   if (d.kind === "kraken") {
-    d.anim.speed = KRAKEN_ANIM_SPEED; d.anim.play("death"); playSample("dragon_die", 0.9, 0.7); playSfx("water", "hit"); playSfx("dark", "hit");
+    d.anim.speed = KRAKEN_ANIM_SPEED; d.anim.play("death"); playSample("kraken_die", 1, 1);
     const cy = d.y + dragonSize().h * 0.45; for (let i = 0; i < 3; i++) dragonWaves.push({ x: W / 2, y: cy, t: -i * 0.25, kind: "kdie" });
     for (let i = 0; i < 60; i++) addPart({ kind: "bubble", x: W / 2 + rand(-280, 280), y: cy + rand(-80, 120), vx: rand(-30, 30), vy: -rand(60, 200), life: rand(1, 2), size: rand(3, 10), col: "rgba(150,230,255,0.8)", rot: rand(0, 6) });
     if (spell && spell.dragonOnly) spell = null;
