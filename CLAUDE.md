@@ -15,6 +15,7 @@ The game is live and in active development (the old "wait for go" rule no longer
 - Don't make the public itch build unless asked; give the tester zip only when asked.
 - Don't weaken enemies. Ads always optional. Keep graphics unchanged when optimizing.
 - After every game change, republish the web preview artifact and send the user the link.
+- ElevenLabs: generate only 2 takes per sound/music (save credits).
 - Ask before unexpected changes. Keep replies short; skip browser tests and screenshots for simple changes (save the user's credits).
 - All Legend cards use the gold frame; Myth cards use the Phoenix Myth frame.
 - Kitsune and Fenrir keep their original shots (`foxfire`, `fenrir`): don't redesign them. The other 7 Myths use `MYTHFX` (`mx_<card>`) shots; Myth medals are `assets/img/<card>_medal.webp`.
