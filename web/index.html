@@ -4617,14 +4617,14 @@ function loadSheet(url) {
 function freeSheet(url) { const s = SHEETS[url]; if (s) { s.img.src = ""; delete SHEETS[url]; } }
 
 class SpriteAnim {
-  constructor(def, dir) { this.def = def; this.dir = dir; this.name = null; this.t = 0; this.frame = 0; this.events = {}; this.onEnd = null; this.done = false; }
+  constructor(def, dir) { this.def = def; this.dir = dir; this.name = null; this.t = 0; this.frame = 0; this.events = {}; this.onEnd = null; this.done = false; this.speed = 1; }
   sheet(name) { return loadSheet(this.dir + this.def.animations[name].file); }
   ready() { return Object.keys(this.def.animations).every(n => this.sheet(n).ready); }
   play(name, events = {}, onEnd = null) { this.name = name; this.t = 0; this.frame = 0; this.events = events; this.onEnd = onEnd; this.done = false; this.fired = new Set(); if (events[0]) { this.fired.add(0); events[0](); } }
   update(dt) {
     if (!this.name || this.done) return;
     const a = this.def.animations[this.name];
-    this.t += dt;
+    this.t += dt * this.speed;
     let f = Math.floor(this.t * a.fps);
     if (a.loop) f %= a.frames;
     else if (f >= a.frames) { f = a.frames - 1; this.done = true; }
@@ -4654,7 +4654,7 @@ const DRAGON_DEF = { frameWidth: 768, frameHeight: 393, columns: 4, animations: 
   shoot: { file: "dragon_shoot.webp", frames: 24, fps: 10, loop: false, fireFrame: 12, mouth: { x: 385, y: 361 } },
   roar: { file: "dragon_roar.webp", frames: 24, fps: 10, loop: false, shakeFrames: [9, 18] },
 } };
-const DRAGON_DIR = "sprites/dragon/", DRAGON_EVERY = 15, DRAGON_GEMS = 50, DRAGON_CD = 4, DRAGON_ENTER = 4.5, DRAGON_FIRE_HIT = 0.08, DRAGON_ROAR_SLOW = 0.7, DRAGON_ROAR_TIME = 4;
+const DRAGON_DIR = "sprites/dragon/", DRAGON_EVERY = 15, DRAGON_GEMS = 50, DRAGON_CD = 4, DRAGON_ENTER = 4.5, DRAGON_FIRE_HIT = 0.08, DRAGON_ROAR_SLOW = 0.7, DRAGON_ROAR_TIME = 4, DRAGON_ANIM_SPEED = 2;
 const DRAGON_RUNES = {
   line: [[[0.5, 0], [0.5, 1]]],
   dash: [[[0, 0.5], [1, 0.5]]],
@@ -4690,7 +4690,7 @@ function dragonRuneFor() {
 function startDragon() {
   const { h } = dragonSize(), n = 5 + Math.floor(Math.random() * 11);
   dragon = { anim: new SpriteAnim(DRAGON_DEF, DRAGON_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
-  dragon.rune = dragonRuneFor();
+  dragon.rune = dragonRuneFor(); dragon.anim.speed = DRAGON_ANIM_SPEED;
   dragon.anim.play("walk", { 5: dragonStep, 15: dragonStep });
   showBanner("A FIRE DRAGON DESCENDS!", "#ff7a2a");
   playSample("dragon_roar", 0.8, 1); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
@@ -4698,7 +4698,9 @@ function startDragon() {
 function dragonStep() { if (!dragon || dragon.phase !== "enter") return; playSample("dragon_step", 0.9, rand(0.92, 1.05)); shakeT = Math.max(shakeT, 0.15); shakeAmp = Math.max(shakeAmp, 3); }
 function dragonAttack() {
   const d = dragon; d.phase = "attack";
-  if (Math.random() < 0.6) {
+  const pick = Math.random() < 0.6 ? "shoot" : "roar", pa = DRAGON_DEF.animations[pick];
+  d.extra = pa.frames / pa.fps * (1 - 1 / d.anim.speed);
+  if (pick === "shoot") {
     const a = DRAGON_DEF.animations.shoot;
     d.anim.play("shoot", { [a.fireFrame - 1]: () => playSample("dragon_shot", 1, 1), [a.fireFrame]: () => dragonShoot() }, () => dragonIdle());
   } else {
@@ -4706,7 +4708,8 @@ function dragonAttack() {
     d.anim.play("roar", { [Math.max(1, s0 - 3)]: () => playSample("dragon_roar", 1, 1), [s0]: () => dragonRoar(s1 - s0, a.fps) }, () => dragonIdle());
   }
 }
-function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD; dragon.anim.play("idle", { 1: () => playSample("dragon_breath", 0.55, rand(0.95, 1.05)) }); }
+function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD + (dragon.extra || 0); dragon.extra = 0; dragon.anim.play("idle", { 1: dragonBreath }); }
+function dragonBreath() { const d = dragon; if (!d || d.phase !== "idle" || time - (d.breathAt || -9) < 4.5) return; d.breathAt = time; playSample("dragon_breath", 0.55, rand(0.95, 1.05)); }
 function dragonShoot() {
   const d = dragon, { w } = dragonSize(), k = w / DRAGON_DEF.frameWidth, m = DRAGON_DEF.animations.shoot.mouth;
   const x = m.x * k, y = d.y + m.y * k, tx = clamp(x + rand(-220, 220), 60, W - 60), ty = FRONT_Y - 6;
@@ -4793,6 +4796,9 @@ function drawDragon() {
   if (d.dying) { ctx.translate(rand(-4, 4), rand(-4, 4)); }
   const breathe = d.phase === "idle" ? Math.sin(time * 1.3) : 0, sway = d.phase === "enter" ? Math.sin(d.t * 5) : 0;
   const bw = w * (1 + 0.006 * breathe), bh = h * (1 + 0.012 * breathe), bx = (w - bw) / 2, by = d.y + sway * 3 - (bh - h) * 0.3;
+  const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, 1), sy = by + bh * 0.84, sk = 1 - 0.04 * breathe;
+  sh.addColorStop(0, "rgba(0,0,0,0.5)"); sh.addColorStop(0.6, "rgba(0,0,0,0.22)"); sh.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.save(); ctx.translate(W / 2, sy); ctx.scale(w * 0.4 * sk, bh * 0.09 * sk); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   const drawn = d.anim.draw(bx, by, bw, bh);
   if (drawn && (d.hitT > 0 || d.dying)) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= d.dying ? 0.5 + 0.4 * Math.sin(d.dieT * 30) : d.hitT * 0.6; d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
   ctx.restore();
