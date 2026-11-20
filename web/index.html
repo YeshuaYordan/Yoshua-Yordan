@@ -4877,7 +4877,7 @@ function addCurse() {
   if (curseHidden()) { curseReplay = k; curseReplayT = 0.9; return; }
   playCurseFx(k);
 }
-const curseHidden = () => !!(relicOffer || paused || speedOffer || questsOpen || settingsOpen || bookOpen || chamberOpen || spell || reviveOffer);
+const curseHidden = () => !!(bringPick || relicOffer || paused || speedOffer || questsOpen || settingsOpen || bookOpen || chamberOpen || spell || reviveOffer);
 let curseReplay = null, curseReplayT = 0;
 function playCurseFx(k) {
   curseFlash = 1; curseFxT = 3.2; curseLaughT = 20; evilLaugh(1);
@@ -5071,6 +5071,65 @@ function spawnRushBoss(w) {
   e.hp = e.maxHp = e.hp * BOSS_HP_MULT * hpScaleBoss(e.waveN) / hpScale(e.waveN); e.gold = 0; e.rush = true; e.wave = w; enemies.push(e);
 }
 const curStage = w => bossMode ? STAGES[Math.max(0, w - 1) % STAGES.length] : stageOf(w);
+let bringPick = null, bringBtns = [];
+const ownedSpecials = () => SPECIALS.filter(e => save.specials[e]);
+function bringStart(el) {
+  const slot = firstFree(); bringPick = null;
+  if (!el || !slot) return;
+  const c = new Card(el, SPECIAL); rows[slot[0]][slot[1]] = c;
+  const q = slotPos(slot[0], slot[1]); c.setHome(q.x, q.y, true); c.scale = 1.4;
+  fxs.push(new Fx("burst", { x: q.x, y: q.y, color: "#ffd84a", radius: 110, duration: 0.45 }));
+  playSpecial(`sp_${el}_up`, 0.9, 0.1) || playUi("ui_place");
+  showBanner(`${EL[el].name} joins the battle!`, "#ff8af0");
+  showInfo("Your first card is FREE! Buy a card, then tap Next Wave (top left).");
+}
+function drawBringPick(dt) {
+  const bp = bringPick; bp.t += dt;
+  const own = ownedSpecials(), open = Math.min(1, bp.t / 0.25), ease = 1 - Math.pow(1 - open, 3);
+  dim(0.8 * ease);
+  const cols = 5, sw = 116, sh = 150, gap = 10, rowsN = Math.ceil(own.length / cols);
+  const x = 22, w = W - 44, h = 196 + rowsN * (sh + gap) + 150 + 120, y = Math.max(50, (H - h) / 2);
+  ctx.save(); ctx.globalAlpha = ease; ctx.translate(W / 2, y + h / 2); ctx.scale(0.94 + 0.06 * ease, 0.94 + 0.06 * ease); ctx.translate(-W / 2, -(y + h / 2));
+  PANEL_DARK++;
+  try {
+    questFrame(x, y, w, h, 28);
+    const ty = y + 18, rb = ctx.createLinearGradient(0, ty + 14, 0, ty + 78); rb.addColorStop(0, "#f6c8ff"); rb.addColorStop(0.5, "#b36bff"); rb.addColorStop(1, "#5a2a9a");
+    for (const sd of [-1, 1]) poly([[W / 2 + sd * 214, ty + 30], [W / 2 + sd * 276, ty + 30], [W / 2 + sd * 252, ty + 52], [W / 2 + sd * 276, ty + 76], [W / 2 + sd * 214, ty + 76]], "#4a1e7a", INK, 3);
+    poly([[W / 2 - 230, ty + 16], [W / 2 + 230, ty + 16], [W / 2 + 243, ty + 46], [W / 2 + 230, ty + 78], [W / 2 - 230, ty + 78], [W / 2 - 243, ty + 46]], rb, INK, 3.5);
+    lightTheme(() => text("CHOOSE A COMPANION", W / 2, ty + 58, 27, "#fff4ff", { font: DISPLAY, weight: 900, outline: 6, outlineColor: "#2a0a4a" }));
+    text("Bring 1 of your Special cards into this battle", W / 2, ty + 110, 19, "#f3e3c3", { weight: 700 });
+    text("It starts on your board, ready to use", W / 2, ty + 134, 15, hexA("#f3e3c3", 0.6), { weight: 600 });
+    bringBtns = [];
+    const gx0 = W / 2 - (Math.min(cols, own.length) * sw + (Math.min(cols, own.length) - 1) * gap) / 2, gy0 = y + 176;
+    own.forEach((el, i) => {
+      const r = Math.floor(i / cols), inRow = Math.min(cols, own.length - r * cols), rx0 = W / 2 - (inRow * sw + (inRow - 1) * gap) / 2;
+      const bx = rx0 + (i % cols) * (sw + gap), by = gy0 + r * (sh + gap), sel = bp.sel === el, pulse = 0.5 + 0.5 * Math.sin(bp.t * 5);
+      const b = makeBtn("", bx, by, sw, sh, () => { bringPick.sel = el; playUi("ui_pick"); }); bringBtns.push(b);
+      if (sel) { ctx.save(); ctx.shadowColor = "rgba(255,216,74,0.95)"; ctx.shadowBlur = 16 + 10 * pulse; rrect(bx, by, sw, sh, 14); ctx.fillStyle = "#4a3518"; ctx.fill(); ctx.restore(); }
+      const cg = ctx.createLinearGradient(0, by, 0, by + sh); cg.addColorStop(0, sel ? "#5a4220" : "#3a2752"); cg.addColorStop(1, sel ? "#2e200e" : "#24163a");
+      rrect(bx, by, sw, sh, 14); ctx.fillStyle = cg; ctx.fill();
+      rrect(bx, by, sw, sh, 14); ctx.strokeStyle = sel ? `rgba(255,216,74,${0.8 + 0.2 * pulse})` : "rgba(201,166,255,0.45)"; ctx.lineWidth = sel ? 3 : 2; ctx.stroke();
+      const c = bp.cards[el] || (bp.cards[el] = Object.assign(new Card(el, SPECIAL), { noLabel: true }));
+      c.t += dt; c.x = c.hx = bx + sw / 2; c.y = c.hy = by + 66 + (sel ? -4 : 0); c.scale = sel ? 0.66 : 0.6; c.draw();
+      text(EL[el].name, bx + sw / 2, by + sh - 12, 15, sel ? "#ffd84a" : "#f3e3c3", { weight: 800 });
+      if (sel) { circle(bx + sw - 14, by + 14, 12, "#6cc56a"); ring(bx + sw - 14, by + 14, 12, INK, 2); lightTheme(() => text("✓", bx + sw - 14, by + 15, 15, "#fff", { weight: 900, baseline: "middle" })); }
+    });
+    const dy = gy0 + rowsN * (sh + gap) + 14;
+    rrect(x + 40, dy, w - 80, 120, 16); ctx.fillStyle = "rgba(10,4,18,0.55)"; ctx.fill(); ctx.strokeStyle = hexA("#f2c14e", 0.4); ctx.lineWidth = 2; ctx.stroke();
+    if (bp.sel) {
+      lightTheme(() => text(EL[bp.sel].name, x + 60, dy + 32, 22, "#ffd84a", { align: "left", font: DISPLAY, weight: 900 }));
+      ctx.font = `600 17px ${FONT}`; const words = describe(bp.sel, SPECIAL, 0, 1).split(" "), lines = []; let ln = "";
+      for (const wd of words) { const tt = ln ? ln + " " + wd : wd; if (ctx.measureText(tt).width > w - 120 && ln) { lines.push(ln); ln = wd; } else ln = tt; } if (ln) lines.push(ln);
+      lines.slice(0, 3).forEach((l, i) => text(l, x + 60, dy + 60 + i * 22, 17, "#f3e3c3", { align: "left", weight: 600 }));
+    } else text("Tap a card to see what it does", W / 2, dy + 66, 18, hexA("#f3e3c3", 0.6), { weight: 700 });
+  } finally { PANEL_DARK--; }
+  const by2 = y + h - 100;
+  btn.bringGo.x = x + w - 40 - btn.bringGo.w; btn.bringGo.y = by2; btn.bringSkip.x = x + 40; btn.bringSkip.y = by2 + 4;
+  btn.bringGo.label = bp.sel ? `Bring ${EL[bp.sel].name}` : "Bring it";
+  if (bp.sel) { ctx.save(); ctx.shadowColor = "rgba(108,197,106,0.9)"; ctx.shadowBlur = 14; drawBtn(btn.bringGo); ctx.restore(); } else drawBtn(btn.bringGo, true);
+  drawBtn(btn.bringSkip);
+  ctx.restore();
+}
 function startRun() {
   clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
   gold = START_GOLD; curses = new Set(); curseHpCut = 0; curseBurnT = CURSE_BURN_CD; spellUses = {}; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {}, ev: {}, time: 0, best0: save.best }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
@@ -5080,6 +5139,7 @@ function startRun() {
   refreshShop();
   showBanner("Your first card is FREE!", GOLD);
   showInfo("Buy a card, then tap Next Wave (top left). You can call new waves before the last one ends.");
+  bringPick = ownedSpecials().length ? { sel: null, t: 0, cards: {} } : null;
 }
 function beginWave(fromTimer = false) {
   if (state !== "break" && state !== "wave") return;
@@ -7188,6 +7248,8 @@ const btn = {
   tabDaily: makeBtn("Daily Missions", 0, 0, 300, 60, () => { missionsTab = 0; }, 22),
   tabAch: makeBtn("Achievements", 0, 0, 300, 60, () => { missionsTab = 1; achScroll = 0; }, 22),
   speed: makeBtn("1x", W - 124, HUD_H + 14, 110, 60, () => tapSpeed(), 26),
+  bringGo: Object.assign(makeBtn("Bring it", 0, 0, 320, 80, () => { if (bringPick && bringPick.sel) bringStart(bringPick.sel); }, 22), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  bringSkip: makeBtn("Skip", 0, 0, 200, 72, () => { bringStart(null); playUi("ui_pick"); }, 24),
   quests: makeBtn("Quests", W - 124, HUD_H + 84, 110, 50, () => { questsOpen = true; questT = 0; cancelDrag(); playUi("ui_pick"); }, 22),
   questsClose: makeBtn("Close", W / 2 - 110, 0, 220, 64, () => { questsOpen = false; }, 24),
   testCards: Object.assign(makeBtn("TEST", W - 124, HUD_H + 144, 110, 50, () => { testPick = { lvl: testPick ? testPick.lvl : 0 }; cancelDrag(); playUi("ui_pick"); }, 22), { fill: "#e0533f", fillDown: "#b8402f" }),
@@ -7259,6 +7321,7 @@ function visibleButtons() {
   if (relicOffer && state !== "title") return relicBtns;
   if (missionsOpen) return [btn.missionsClose, btn.tabDaily, btn.tabAch, ...missionBtns];
   if (questsOpen && state !== "title") return [btn.questsClose, ...questBtns];
+  if (bringPick && state !== "title") return [...(bringPick.sel ? [btn.bringGo] : []), btn.bringSkip, ...bringBtns];
   if (guide) return guideButtons();
   if (tut) return tutBlocking() ? [btn.tutNext, btn.tutSkip] : [btn.tutSkip, ...baseButtons()];
   return baseButtons();
@@ -7424,7 +7487,7 @@ function update(dt) {
   for (const r in rows) for (const c of rows[r]) if (c) { if (r === "storage" && !c.dragging && (c.hx < -CARD_W || c.hx > W + CARD_W)) { c.x = c.hx; c.y = c.hy; continue; } c.update(dt); }
   if (chamberOpen) { updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
   if (paused || bookOpen || chamberOpen || settingsOpen || spell || guide || reviveOffer || speedOffer || relicOffer || testPick || timeStopT > 0 || state === "title" || state === "gameover") shakeT = 0;
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || relicOffer || settingsOpen || testPick || questsOpen) return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || relicOffer || settingsOpen || testPick || questsOpen || bringPick) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   callCd = Math.max(0, callCd - dt); spellCd = Math.max(0, spellCd - dt); specialShopCd = Math.max(0, specialShopCd - dt);
   if ((state === "wave" || state === "break") && updateTimeStop(realDt)) {
@@ -8089,7 +8152,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const FH = H + TOP, s = Math.max(W / 1080, FH / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (FH - 1920 * s) / 2 - TOP }; }
-function goToLobby() { endBossRun(); paused = false; questsOpen = false; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
+function goToLobby() { endBossRun(); paused = false; questsOpen = false; bringPick = null; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -10352,7 +10415,7 @@ function tutNext() {
 function tutSkipAll() { for (const k of Object.keys(TUT)) save.tut[k] = true; writeSave(); tut = null; }
 function tutStart(ch) { tut = { ch, i: 0, t: 0 }; cancelDrag(); }
 function tutCheck() {
-  if (guide) return;
+  if (guide || bringPick) return;
   if (!save.guide && !tut && state === "break" && wavesCleared >= 1 && !paused && !bookOpen && !chamberOpen && !spell && !drag && !fusion && !doom) { openGuide(true); return; }
   if (tut) { const st = tutStep(); if (st.wait && st.wait()) tutNext(); return; }
   const seen = k => save.tut[k];
@@ -10648,6 +10711,7 @@ function frame(now) {
   if (reviveOffer && state !== "title") drawReviveOffer();
   if (missionsOpen && state === "title") drawMissions(dt);
   if (questsOpen && state !== "title") drawQuests(dt);
+  if (bringPick && state !== "title") drawBringPick(dt);
   if (speedOffer && state !== "title") drawSpeedOffer();
   if (relicOffer && (state === "wave" || state === "break")) drawRelicOffer();
   if (testPick && state !== "title") drawTestPicker(dt);
