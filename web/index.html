@@ -1000,7 +1000,7 @@ SAMPLE_SRC.stage_clear = "assets/audio/stage_clear.mp3";
 SAMPLE_SRC.battle_loop = "assets/audio/battle_loop.mp3";
 SAMPLE_SRC.dragon_loop = "assets/audio/dragon_loop.mp3";
 for (const [k, [o, n]] of Object.entries({"kraken_rise":[0,54902],"kraken_spit":[54902,18853],"kraken_splat":[73755,6627],"kraken_slither":[80382,20107],"kraken_grab":[100489,20107],"kraken_release":[120596,21360],"kraken_die":[141956,60858],"kraken_idle":[202814,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/kraken_sounds.mp3#${o},${n}`;
-for (const [k, [o, n]] of Object.entries({"dragon_roar":[0,42676],"dragon_shot":[42676,27316],"dragon_step":[69992,12897],"dragon_die":[82889,60858],"dragon_breath":[143747,66814]})) SAMPLE_SRC[k] = `pack:assets/audio/dragon_sounds.mp3#${o},${n}`;
+for (const [k, [o, n]] of Object.entries({"dragon_roar":[0,42676],"dragon_shot":[42676,27316],"dragon_step":[69992,12897],"dragon_die":[82889,60858],"dragon_breath":[143747,66814],"danger_alarm":[210561,24809]})) SAMPLE_SRC[k] = `pack:assets/audio/dragon_sounds.mp3#${o},${n}`;
 const SAMPLES = {};
 const AUDIO_PACKS = {};
 function loadAudioBytes(uri) {
@@ -5112,7 +5112,7 @@ function drawDragonFireballs() {
   }
   ctx.restore();
 }
-let dangerK = 0, dangerHitT = 0;
+let dangerK = 0, dangerHitT = 0, dangerSfxAt = -99;
 function drawDanger(dt) {
   dangerHitT = Math.max(0, dangerHitT - dt);
   let near = 0;
@@ -5898,7 +5898,7 @@ function damageCastle(a) {
   const sh = idolRow("shield");
   const hit = a * (1 - castleArmor) * (1 - 0.03 * cu("armor")) * (hasRelic("aegis") ? 0.9 : 1) * (sh ? 1 - IDOL_VAL.shield(sh) : 1);
   if (sh) { bulwarkFlash = 1; playSpecial("sp_bulwark", 0.6, 0.5); }
-  castleHp -= hit; dangerHitT = 1.4; if (training && castleHp < 1) castleHp = 1; wallFlash = 1; buzz(25);
+  castleHp -= hit; if (dangerHitT <= 0 && time - dangerSfxAt > 4) { dangerSfxAt = time; playSample("danger_alarm", 0.8, 1); } dangerHitT = 1.4; if (training && castleHp < 1) castleHp = 1; wallFlash = 1; buzz(25);
   wallLog.push([time, hit]); if (wallLog.length > 600) wallLog.splice(0, 200);
   if (castleHp <= 0 && cu("revive") && !secondWindUsed) {
     secondWindUsed = true; castleHp = castleMax * 0.3; wallFlash = 0;
