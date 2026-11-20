@@ -4678,7 +4678,7 @@ const DRAGON_RUNES = {
   hook: [[[1, 0], [0.2, 0], [0.2, 1], [0.8, 1], [0.8, 0.55], [0.45, 0.55]]],
 };
 const DRAGON_RUNE_COLOR = "#ffb340";
-let dragon = null, dragonRoarT = 0, dragonFireballs = [], dragonSlainT = 0;
+let dragon = null, dragonRoarT = 0, dragonFireballs = [], dragonBlasts = [], dragonSlainT = 0;
 const dragonWave = w => !bossMode && w > 0 && w % DRAGON_EVERY === 0;
 const dragonActive = () => !!(dragon && !dragon.dying && dragon.phase !== "enter");
 const dragonSize = () => { const w = W, h = DRAGON_DEF.frameHeight * W / DRAGON_DEF.frameWidth; return { w, h }; };
@@ -4713,7 +4713,8 @@ function dragonBreath() { const d = dragon; if (!d || d.phase !== "idle" || time
 function dragonShoot() {
   const d = dragon, { w } = dragonSize(), k = w / DRAGON_DEF.frameWidth, m = DRAGON_DEF.animations.shoot.mouth;
   const x = m.x * k, y = d.y + m.y * k, tx = clamp(x + rand(-220, 220), 60, W - 60), ty = FRONT_Y - 6;
-  dragonFireballs.push({ x, y, x0: x, y0: y, tx, ty, t: 0, dur: 1.1, trail: [] });
+  dragonFireballs.push({ x, y, x0: x, y0: y, tx, ty, t: 0, dur: 1.1, trail: [], fl: [], sm: [], em: [], vx: 0, vy: 0, spin: rand(0, 6) });
+  dragonBlasts.push({ x, y, t: 0, muzzle: true, em: [], fl: [] });
 }
 function dragonRoar(frames, fps) {
   shakeT = Math.max(shakeT, frames / fps); shakeAmp = Math.max(shakeAmp, 7);
@@ -4743,20 +4744,30 @@ function dragonDie() {
 function updateDragon(dt) {
   dragonRoarT = Math.max(0, dragonRoarT - dt);
   for (const f of dragonFireballs) {
-    f.t += dt; const k = Math.min(1, f.t / f.dur), e = k * k;
-    f.x = lerp(f.x0, f.tx, k); f.y = lerp(f.y0, f.ty, e);
-    f.trail.unshift([f.x, f.y]); if (f.trail.length > 14) f.trail.length = 14;
-    if (Math.random() < 0.7) addPart({ add: true, kind: "glow", x: f.x + rand(-8, 8), y: f.y - 10, vy: -60, life: 0.4, size: 18, grow: -0.5, rgb: "255,140,40", a: 0.7 });
+    f.t += dt; const k = Math.min(1, f.t / f.dur), e = k * k, px = f.x, py = f.y;
+    f.x = lerp(f.x0, f.tx, k); f.y = lerp(f.y0, f.ty, e); f.vx = (f.x - px) / Math.max(dt, 1e-3); f.vy = (f.y - py) / Math.max(dt, 1e-3);
+    f.trail.unshift([f.x, f.y]); if (f.trail.length > 18) f.trail.length = 18;
+    const sc = 0.7 + 0.7 * k;
+    for (let i = 0; i < 4; i++) f.fl.push({ x: f.x + rand(-14, 14) * sc, y: f.y + rand(-14, 14) * sc, vx: rand(-60, 60) - f.vx * 0.08, vy: rand(-90, -20) - f.vy * 0.08, t: 0, life: rand(0.3, 0.55), r: rand(16, 30) * sc });
+    if (Math.random() < 0.6) f.sm.push({ x: f.x + rand(-10, 10), y: f.y + rand(-10, 10), vx: rand(-30, 30), vy: rand(-70, -30), t: 0, life: rand(0.7, 1.1), r: rand(14, 24) * sc });
+    if (Math.random() < 0.8) f.em.push({ x: f.x, y: f.y, vx: rand(-160, 160), vy: rand(-200, 40), t: 0, life: rand(0.4, 0.8) });
     if (k >= 1 && !f.done) {
       f.done = true; damageCastle(castleMax * DRAGON_FIRE_HIT); wallFlash = 1;
-      fxs.push(new Fx("burst", { x: f.tx, y: f.ty, color: "#ff6a2a", radius: 140, duration: 0.5 }));
-      fxs.push(new Fx("burst", { x: f.tx, y: f.ty, color: "#ffe27a", radius: 80, duration: 0.4 }));
-      for (let i = 0; i < 24; i++) addPart({ kind: "chunk", x: f.tx, y: f.ty, vx: rand(-260, 260), vy: -rand(150, 420), g: 1000, life: rand(0.5, 0.9), size: rand(3, 6), col: Math.random() < 0.5 ? "#ff8a3a" : "#5a2a14", rot: rand(0, 6) });
-      shakeT = Math.max(shakeT, 0.4); shakeAmp = Math.max(shakeAmp, 10);
-      playSfx("lava", "hit");
+      dragonBlast(f.tx, f.ty);
     }
   }
-  dragonFireballs = dragonFireballs.filter(f => !f.done);
+  for (const f of dragonFireballs) for (const key of ["fl", "sm", "em"]) {
+    const L = f[key]; for (const q of L) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (key === "em") q.vy += 500 * dt; }
+    f[key] = L.filter(q => q.t < q.life);
+  }
+  for (const b of dragonBlasts) {
+    b.t += dt;
+    for (const q of b.em) { q.t += dt; q.vy += 900 * dt; q.vx *= 1 - 1.2 * dt; q.x += q.vx * dt; q.y += q.vy * dt; }
+    for (const q of b.fl) { q.t += dt; q.vx *= 1 - 3 * dt; q.vy *= 1 - 3 * dt; q.vy -= 120 * dt; q.x += q.vx * dt; q.y += q.vy * dt; }
+    b.em = b.em.filter(q => q.t < q.life); b.fl = b.fl.filter(q => q.t < q.life);
+  }
+  dragonBlasts = dragonBlasts.filter(b => b.t < 3);
+  dragonFireballs = dragonFireballs.filter(f => !f.done || f.fl.length || f.sm.length);
   const d = dragon; if (!d) return;
   d.anim.update(dt); d.hitT = Math.max(0, d.hitT - dt * 3); d.runePop = Math.max(0, d.runePop - dt * 2);
   if (d.dying) {
@@ -4813,11 +4824,71 @@ function drawDragon() {
     for (let i = 0; i < n; i++) { const on = i < d.left, px = x0 + i * pw + pw / 2; poly([[px, y + 1], [px + 6, y + 8], [px, y + 15], [px - 6, y + 8]], on ? "#ff9a3a" : "rgba(255,255,255,0.15)", on ? "#3a1004" : null, 1.5); }
   }
 }
+function dragonBlast(x, y) {
+  const b = { x, y, t: 0, em: [], fl: [] };
+  for (let i = 0; i < 46; i++) { const a = rand(Math.PI * 1.05, Math.PI * 1.95), v = rand(250, 720); b.em.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: rand(0.6, 1.3), w: rand(2, 4.5) }); }
+  for (let i = 0; i < 26; i++) { const a = rand(0, Math.PI * 2), v = rand(260, 560); b.fl.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.55 - 80, t: 0, life: rand(0.5, 0.9), r: rand(30, 60) }); }
+  dragonBlasts.push(b);
+  for (let i = 0; i < 30; i++) addPart({ kind: "chunk", x, y, vx: rand(-340, 340), vy: -rand(200, 560), g: 1100, life: rand(0.6, 1.1), size: rand(3, 8), col: Math.random() < 0.5 ? "#ff8a3a" : "#3a1a0c", rot: rand(0, 6), hot: Math.random() < 0.5 });
+  for (let i = 0; i < 12; i++) addPart({ kind: "smoke", x: x + rand(-80, 80), y: y + rand(-30, 10), vx: rand(-40, 40), vy: -rand(40, 110), life: rand(1, 1.7), size: rand(18, 34), grow: 1.4, col: "#2a1a14", a: 0.45 });
+  shakeT = Math.max(shakeT, 0.6); shakeAmp = Math.max(shakeAmp, 16); buzz(120);
+  playSfx("lava", "hit"); playSfx("earth", "hit");
+}
+function dRadial(x, y, r, stops) { const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(1, r)); for (const [o, c] of stops) g.addColorStop(o, c); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, Math.PI * 2); ctx.fill(); }
+const DFIRE = [[255, 255, 230], [255, 220, 90], [255, 130, 30], [200, 40, 10], [60, 15, 5]];
 function drawDragonFireballs() {
-  for (const f of dragonFireballs) {
-    f.trail.forEach(([x, y], i) => circle(x, y, 22 - i * 1.3, `rgba(255,${130 + i * 6},40,${0.35 - i * 0.022})`));
-    circle(f.x, f.y, 30, "rgba(255,120,30,0.35)"); circle(f.x, f.y, 19, "#ff7a1a"); circle(f.x, f.y, 12, "#ffd04a"); circle(f.x - 4, f.y - 4, 5, "#fffbe0");
+  ctx.save();
+  for (const b of dragonBlasts) if (!b.muzzle) {
+    const sk = Math.min(1, b.t / 0.25), fade = Math.max(0, 1 - b.t / 3);
+    ctx.globalAlpha = 0.55 * fade; ctx.fillStyle = "#1a0a04"; ctx.beginPath(); ctx.ellipse(b.x, b.y + 6, 130 * sk, 34 * sk, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.6 * fade * (0.6 + 0.4 * Math.sin(time * 9 + b.x)); dRadial(b.x, b.y + 4, 90 * sk, [[0, "rgba(255,120,30,0.8)"], [1, "rgba(255,60,10,0)"]]);
   }
+  ctx.globalAlpha = 1;
+  for (const f of dragonFireballs) if (!f.done) {
+    const k = Math.min(1, f.t / f.dur), pulse = 0.5 + 0.5 * Math.sin(time * 14);
+    ctx.save(); ctx.translate(f.tx, f.ty); ctx.scale(1, 0.32);
+    ctx.globalAlpha = 0.25 + 0.55 * k; dRadial(0, 0, 120 * (0.5 + 0.5 * k), [[0, "rgba(255,60,20,0.55)"], [0.7, "rgba(255,40,10,0.18)"], [1, "rgba(255,40,10,0)"]]);
+    ctx.lineWidth = 6; ctx.strokeStyle = `rgba(255,${90 + 80 * pulse},40,${0.5 + 0.5 * k})`; ctx.beginPath(); ctx.arc(0, 0, 130 - 60 * k, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineWidth = 3; ctx.setLineDash([18, 12]); ctx.lineDashOffset = -time * 80; ctx.beginPath(); ctx.arc(0, 0, 160 - 60 * k, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.restore();
+  }
+  for (const f of dragonFireballs) for (const q of f.sm) { const k = q.t / q.life; ctx.globalAlpha = 0.4 * (1 - k); dRadial(q.x, q.y, q.r * (1.2 + 1.4 * k), [[0, "rgba(50,28,18,0.8)"], [1, "rgba(50,28,18,0)"]]); }
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = "lighter";
+  for (const b of dragonBlasts) if (b.muzzle && b.t < 0.4) { const k = b.t / 0.4; ctx.globalAlpha = 1 - k; dRadial(b.x, b.y, 60 + 120 * k, [[0, "rgba(255,240,180,0.9)"], [0.4, "rgba(255,140,40,0.6)"], [1, "rgba(255,60,10,0)"]]); }
+  for (const f of dragonFireballs) {
+    if (!f.done) for (let i = f.trail.length - 1; i >= 0; i--) { const [x, y] = f.trail[i], u = i / f.trail.length, sc = 0.8 + 0.8 * Math.min(1, f.t / f.dur); ctx.globalAlpha = (f.done ? 0.4 : 0.55) * (1 - u); circle(x, y, (34 - 26 * u) * sc, `rgb(${colAt(DFIRE, 0.35 + u * 0.6)})`); }
+    for (const q of f.fl) { const k = q.t / q.life; ctx.globalAlpha = 0.8 * (1 - k); dRadial(q.x, q.y, q.r * (1 - 0.4 * k), [[0, `rgba(${colAt(DFIRE, 0.15 + k * 0.7)},0.9)`], [1, `rgba(${colAt(DFIRE, 0.5 + k * 0.5)},0)`]]); }
+    for (const q of f.em) { const k = q.t / q.life; ctx.globalAlpha = 1 - k; ctx.strokeStyle = `rgb(${colAt(DFIRE, 0.1 + k * 0.6)})`; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * 0.03, q.y - q.vy * 0.03); ctx.stroke(); }
+    if (f.done) continue;
+    const k = Math.min(1, f.t / f.dur), sc = 0.8 + 0.8 * k, fl = 0.9 + 0.1 * Math.sin(time * 40 + f.spin), ang = Math.atan2(f.vy || 1, f.vx || 0);
+    ctx.globalAlpha = 1;
+    dRadial(f.x, f.y, 110 * sc * fl, [[0, "rgba(255,170,60,0.55)"], [0.5, "rgba(255,80,20,0.25)"], [1, "rgba(255,40,10,0)"]]);
+    ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(ang);
+    for (let i = 0; i < 7; i++) {
+      const w = (i - 3) / 3, len = (70 + 30 * Math.sin(time * 18 + i * 1.7 + f.spin)) * sc, wid = (26 - Math.abs(w) * 10) * sc;
+      ctx.save(); ctx.rotate(Math.PI + w * 0.55);
+      const g = ctx.createLinearGradient(0, 0, len, 0); g.addColorStop(0, "rgba(255,230,120,0.9)"); g.addColorStop(0.4, "rgba(255,120,30,0.7)"); g.addColorStop(1, "rgba(200,30,10,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, -wid); ctx.quadraticCurveTo(len * 0.5, -wid * 0.9 + Math.sin(time * 22 + i) * 6, len, 0); ctx.quadraticCurveTo(len * 0.5, wid * 0.9 + Math.cos(time * 20 + i) * 6, 0, wid); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.rotate(time * 6 + f.spin);
+    for (let i = 0; i < 3; i++) { ctx.strokeStyle = `rgba(255,${200 - i * 40},${80 - i * 20},0.8)`; ctx.lineWidth = (5 - i) * sc; ctx.beginPath(); ctx.arc(0, 0, (34 + i * 7) * sc, i * 2.1, i * 2.1 + 1.6); ctx.stroke(); }
+    ctx.restore();
+    dRadial(f.x, f.y, 44 * sc * fl, [[0, "rgba(255,255,240,1)"], [0.35, "rgba(255,230,120,0.95)"], [0.7, "rgba(255,130,30,0.8)"], [1, "rgba(220,50,10,0)"]]);
+    ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
+    circle(f.x, f.y, 15 * sc * fl, "#fffef0");
+    ctx.globalCompositeOperation = "lighter";
+  }
+  for (const b of dragonBlasts) if (!b.muzzle) {
+    const t = b.t;
+    if (t < 0.18) { ctx.globalAlpha = 0.45 * (1 - t / 0.18); ctx.fillStyle = "#ffd9a0"; ctx.fillRect(0, -TOP, W, H + TOP); }
+    if (t < 0.6) { const k = t / 0.6, e = 1 - Math.pow(1 - k, 3); ctx.globalAlpha = 1 - k; dRadial(b.x, b.y - 30 * e, 40 + 190 * e, [[0, "rgba(255,255,220,1)"], [0.3, "rgba(255,200,80,0.9)"], [0.65, "rgba(255,90,20,0.6)"], [1, "rgba(180,30,10,0)"]]); }
+    if (t < 1) { const k = t / 1; ctx.globalAlpha = (1 - k) * 0.9; const hgt = 260 * Math.min(1, t / 0.2), wd = 70 * (1 - k * 0.6); const g = ctx.createLinearGradient(0, b.y, 0, b.y - hgt); g.addColorStop(0, "rgba(255,240,180,0.9)"); g.addColorStop(0.4, "rgba(255,130,30,0.6)"); g.addColorStop(1, "rgba(255,60,10,0)"); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(b.x - wd, b.y); ctx.quadraticCurveTo(b.x - wd * 0.3, b.y - hgt * 0.6, b.x, b.y - hgt); ctx.quadraticCurveTo(b.x + wd * 0.3, b.y - hgt * 0.6, b.x + wd, b.y); ctx.closePath(); ctx.fill(); }
+    for (let r = 0; r < 2; r++) { const k = (t - r * 0.08) / 0.6; if (k <= 0 || k >= 1) continue; const e = 1 - Math.pow(1 - k, 2); ctx.globalAlpha = 1 - k; ctx.strokeStyle = r ? "rgba(255,220,150,1)" : "rgba(255,120,40,1)"; ctx.lineWidth = 14 * (1 - k) + 2; ctx.beginPath(); ctx.ellipse(b.x, b.y, 40 + 300 * e, (40 + 300 * e) * 0.3, 0, 0, Math.PI * 2); ctx.stroke(); }
+    for (const q of b.fl) { const k = q.t / q.life; ctx.globalAlpha = 0.5 * (1 - k) * (1 - k); dRadial(q.x, q.y, q.r * (0.6 + 0.6 * k), [[0, `rgba(${colAt(DFIRE, 0.3 + k * 0.7)},0.8)`], [1, `rgba(${colAt(DFIRE, 0.5 + k * 0.5)},0)`]]); }
+    for (const q of b.em) { const k = q.t / q.life; ctx.globalAlpha = 1 - k; ctx.strokeStyle = `rgb(${colAt(DFIRE, 0.05 + k * 0.6)})`; ctx.lineWidth = q.w; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * 0.035, q.y - q.vy * 0.035); ctx.stroke(); }
+  }
+  ctx.restore();
 }
 function drawRoarTint() {
   if (dragonRoarT <= 0) return;
@@ -4829,7 +4900,7 @@ function drawRoarTint() {
 function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
-  dragon = null; dragonFireballs = []; dragonRoarT = 0;
+  dragon = null; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0;
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
