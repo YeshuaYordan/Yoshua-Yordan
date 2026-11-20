@@ -4605,9 +4605,216 @@ function slotAt(p) {
 function showBanner(t, c) { banner = { text: t, color: c, t: 0 }; }
 function showInfo(t) { info = { text: t, t: 0 }; }
 
+const SHEETS = {};
+function loadSheet(url) {
+  if (SHEETS[url]) return SHEETS[url];
+  const img = new Image(), s = { img, ready: false };
+  img.onload = () => { s.ready = true; }; img.src = url;
+  return SHEETS[url] = s;
+}
+function freeSheet(url) { const s = SHEETS[url]; if (s) { s.img.src = ""; delete SHEETS[url]; } }
+
+class SpriteAnim {
+  constructor(def, dir) { this.def = def; this.dir = dir; this.name = null; this.t = 0; this.frame = 0; this.events = {}; this.onEnd = null; this.done = false; }
+  sheet(name) { return loadSheet(this.dir + this.def.animations[name].file); }
+  ready() { return Object.keys(this.def.animations).every(n => this.sheet(n).ready); }
+  play(name, events = {}, onEnd = null) { this.name = name; this.t = 0; this.frame = 0; this.events = events; this.onEnd = onEnd; this.done = false; this.fired = new Set(); if (events[0]) { this.fired.add(0); events[0](); } }
+  update(dt) {
+    if (!this.name || this.done) return;
+    const a = this.def.animations[this.name];
+    this.t += dt;
+    let f = Math.floor(this.t * a.fps);
+    if (a.loop) f %= a.frames;
+    else if (f >= a.frames) { f = a.frames - 1; this.done = true; }
+    for (let k = this.frame + 1; k <= f; k++) if (this.events[k] && !this.fired.has(k)) { this.fired.add(k); this.events[k](); }
+    if (a.loop && f < this.frame) this.fired = new Set();
+    this.frame = f;
+    if (this.done && this.onEnd) { const cb = this.onEnd; this.onEnd = null; cb(); }
+  }
+  draw(x, y, w, h) {
+    if (!this.name) return false;
+    const s = this.sheet(this.name); if (!s.ready) return false;
+    const { frameWidth: fw, frameHeight: fh, columns: c } = this.def;
+    ctx.drawImage(s.img, (this.frame % c) * fw, Math.floor(this.frame / c) * fh, fw, fh, x, y, w, h);
+    return true;
+  }
+}
+
+const DRAGON_DEF = { frameWidth: 768, frameHeight: 393, columns: 4, animations: {
+  walk: { file: "dragon_walk.webp", frames: 20, fps: 8, loop: true },
+  idle: { file: "dragon_idle.webp", frames: 20, fps: 4, loop: true },
+  shoot: { file: "dragon_shoot.webp", frames: 24, fps: 10, loop: false, fireFrame: 12, mouth: { x: 385, y: 361 } },
+  roar: { file: "dragon_roar.webp", frames: 24, fps: 10, loop: false, shakeFrames: [9, 18] },
+} };
+const DRAGON_DIR = "sprites/dragon/", DRAGON_EVERY = 15, DRAGON_GEMS = 50, DRAGON_CD = 4, DRAGON_ENTER = 4.5, DRAGON_FIRE_HIT = 0.08, DRAGON_ROAR_SLOW = 0.7, DRAGON_ROAR_TIME = 4;
+const DRAGON_RUNES = {
+  line: [[[0.5, 0], [0.5, 1]]],
+  dash: [[[0, 0.5], [1, 0.5]]],
+  vee: [[[0, 0], [0.5, 1], [1, 0]]],
+  peak: [[[0, 1], [0.5, 0], [1, 1]]],
+  ell: [[[0, 0], [0, 1], [1, 1]]],
+  seven: [[[0, 0], [1, 0], [0.4, 1]]],
+  cup: [[[0, 0], [0, 0.65], [0.15, 0.9], [0.5, 1], [0.85, 0.9], [1, 0.65], [1, 0]]],
+  arch: [[[0, 1], [0, 0.35], [0.15, 0.1], [0.5, 0], [0.85, 0.1], [1, 0.35], [1, 1]]],
+  tri: [[[0.5, 0], [1, 1], [0, 1], [0.5, 0]]],
+  box: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+  wave: [[[0, 0], [0.25, 1], [0.5, 0.3], [0.75, 1], [1, 0]]],
+  crown: [[[0, 1], [0.25, 0], [0.5, 0.7], [0.75, 0], [1, 1]]],
+  right: [[[0, 0], [1, 0.5], [0, 1]]],
+  left: [[[1, 0], [0, 0.5], [1, 1]]],
+  check: [[[0, 0.55], [0.35, 1], [1, 0]]],
+  bolt: [[[0.6, 0], [0.2, 0.55], [0.75, 0.45], [0.35, 1]]],
+  gem: [[[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5], [0.5, 0]]],
+  tee: [[[0, 0], [1, 0]], [[0.5, 0], [0.5, 1]]],
+  arrow: [[[0.5, 1], [0.5, 0]], [[0.15, 0.35], [0.5, 0], [0.85, 0.35]]],
+  hook: [[[1, 0], [0.2, 0], [0.2, 1], [0.8, 1], [0.8, 0.55], [0.45, 0.55]]],
+};
+const DRAGON_RUNE_COLOR = "#ffb340";
+let dragon = null, dragonRoarT = 0, dragonFireballs = [], dragonSlainT = 0;
+const dragonWave = w => !bossMode && w > 0 && w % DRAGON_EVERY === 0;
+const dragonActive = () => !!(dragon && !dragon.dying && dragon.phase !== "enter");
+const dragonSize = () => { const w = W, h = DRAGON_DEF.frameHeight * W / DRAGON_DEF.frameWidth; return { w, h }; };
+function dragonPreload() { if (!bossMode && (wave + 3) % DRAGON_EVERY < 3) new SpriteAnim(DRAGON_DEF, DRAGON_DIR).ready(); }
+function dragonRuneFor() {
+  const keys = Object.keys(DRAGON_RUNES).filter(k => !dragon || k !== dragon.rune);
+  return pickOne(keys);
+}
+function startDragon() {
+  const { h } = dragonSize(), n = 5 + Math.floor(Math.random() * 11);
+  dragon = { anim: new SpriteAnim(DRAGON_DEF, DRAGON_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
+  dragon.rune = dragonRuneFor();
+  dragon.anim.play("walk");
+  showBanner("A FIRE DRAGON DESCENDS!", "#ff7a2a");
+  playSample("dead_orc", 1, 0.5); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
+}
+function dragonAttack() {
+  const d = dragon; d.phase = "attack";
+  if (Math.random() < 0.6) {
+    const a = DRAGON_DEF.animations.shoot;
+    d.anim.play("shoot", { [a.fireFrame]: () => dragonShoot() }, () => dragonIdle());
+  } else {
+    const a = DRAGON_DEF.animations.roar, [s0, s1] = a.shakeFrames;
+    d.anim.play("roar", { [s0]: () => dragonRoar(s1 - s0, a.fps) }, () => dragonIdle());
+  }
+}
+function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD; dragon.anim.play("idle"); }
+function dragonShoot() {
+  const d = dragon, { w } = dragonSize(), k = w / DRAGON_DEF.frameWidth, m = DRAGON_DEF.animations.shoot.mouth;
+  const x = m.x * k, y = d.y + m.y * k, tx = clamp(x + rand(-220, 220), 60, W - 60), ty = FRONT_Y - 6;
+  dragonFireballs.push({ x, y, x0: x, y0: y, tx, ty, t: 0, dur: 1.1, trail: [] });
+  playSfx("lava", "atk"); playSfx("phoenix", "atk");
+}
+function dragonRoar(frames, fps) {
+  shakeT = Math.max(shakeT, frames / fps); shakeAmp = Math.max(shakeAmp, 7);
+  dragonRoarT = DRAGON_ROAR_TIME;
+  showInfo("The dragon's roar slows your cards!");
+  playSample("dead_orc", 1, 0.55); playSample("dead_boar", 0.6, 0.45);
+}
+function dragonRuneHit() {
+  const d = dragon; if (!d) return;
+  d.left--; d.hitT = 1; d.runePop = 1;
+  const cx = W / 2, cy = d.y + dragonSize().h * 0.5;
+  for (let i = 0; i < 40; i++) { const a = rand(0, Math.PI * 2), v = rand(160, 520); addPart({ add: true, kind: "spark", x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, drag: 3, life: rand(0.4, 0.8), size: 3, rgb: "255,190,80", len: 0.05 }); }
+  addPart({ add: true, kind: "ring", x: cx, y: cy, rgb: "255,200,90", size: 30, grow: 320, w: 9, sq: 0.7, life: 0.5 });
+  shakeT = Math.max(shakeT, 0.35); shakeAmp = Math.max(shakeAmp, 9);
+  playSfx("light", "hit"); playSfx("lava", "hit");
+  if (d.left <= 0) { dragonDie(); return; }
+  d.rune = dragonRuneFor();
+  fxs.push(new Fx("text", { x: cx, y: cy - 40, text: `Rune broken!  ${d.left} left`, color: "#ffd27a", size: 30, duration: 1.1 }));
+}
+function dragonDie() {
+  const d = dragon; d.dying = true; d.dieT = 0; d.rune = null;
+  save.gems += DRAGON_GEMS; runGems += DRAGON_GEMS; writeSave(); track("boss"); track("dragon");
+  showBanner(`DRAGON SLAIN!  +${DRAGON_GEMS} gems`, "#ffd84a");
+  shakeT = Math.max(shakeT, 1.4); shakeAmp = Math.max(shakeAmp, 18);
+  playSfx("lava", "hit"); playSfx("earth", "hit"); playSample("dead_orc", 1.1, 0.4);
+  if (spell && spell.dragonOnly) spell = null;
+}
+function updateDragon(dt) {
+  dragonRoarT = Math.max(0, dragonRoarT - dt);
+  for (const f of dragonFireballs) {
+    f.t += dt; const k = Math.min(1, f.t / f.dur), e = k * k;
+    f.x = lerp(f.x0, f.tx, k); f.y = lerp(f.y0, f.ty, e);
+    f.trail.unshift([f.x, f.y]); if (f.trail.length > 14) f.trail.length = 14;
+    if (Math.random() < 0.7) addPart({ add: true, kind: "glow", x: f.x + rand(-8, 8), y: f.y - 10, vy: -60, life: 0.4, size: 18, grow: -0.5, rgb: "255,140,40", a: 0.7 });
+    if (k >= 1 && !f.done) {
+      f.done = true; damageCastle(castleMax * DRAGON_FIRE_HIT); wallFlash = 1;
+      fxs.push(new Fx("burst", { x: f.tx, y: f.ty, color: "#ff6a2a", radius: 140, duration: 0.5 }));
+      fxs.push(new Fx("burst", { x: f.tx, y: f.ty, color: "#ffe27a", radius: 80, duration: 0.4 }));
+      for (let i = 0; i < 24; i++) addPart({ kind: "chunk", x: f.tx, y: f.ty, vx: rand(-260, 260), vy: -rand(150, 420), g: 1000, life: rand(0.5, 0.9), size: rand(3, 6), col: Math.random() < 0.5 ? "#ff8a3a" : "#5a2a14", rot: rand(0, 6) });
+      shakeT = Math.max(shakeT, 0.4); shakeAmp = Math.max(shakeAmp, 10);
+      playSfx("lava", "hit");
+    }
+  }
+  dragonFireballs = dragonFireballs.filter(f => !f.done);
+  const d = dragon; if (!d) return;
+  d.anim.update(dt); d.hitT = Math.max(0, d.hitT - dt * 3); d.runePop = Math.max(0, d.runePop - dt * 2);
+  if (d.dying) {
+    d.dieT += dt;
+    if (Math.random() < 0.8) { const { h } = dragonSize(); addPart({ add: true, kind: "glow", x: rand(60, W - 60), y: d.y + rand(h * 0.2, h * 0.9), vy: -rand(40, 120), life: 0.8, size: rand(20, 40), grow: 0.5, rgb: "255,150,60", a: 0.7 }); }
+    if (d.dieT > 2.2) { dragon = null; dragonSlainT = 0; for (const n of Object.keys(DRAGON_DEF.animations)) freeSheet(DRAGON_DIR + DRAGON_DEF.animations[n].file); }
+    return;
+  }
+  if (d.phase === "enter") {
+    if (!d.anim.ready()) return;
+    d.t += dt; const k = Math.min(1, d.t / DRAGON_ENTER);
+    d.y = lerp(HUD_H - dragonSize().h, d.y1, 1 - Math.pow(1 - k, 2));
+    if (k >= 1) { dragonIdle(); showInfo("Tap Spell and draw the glowing rune on the dragon's chest! Your cards can't hurt it."); }
+    return;
+  }
+  if (d.phase === "idle") { d.cd -= dt; if (d.cd <= 0) dragonAttack(); }
+}
+function drawDragonRune(key, cx, cy, size, alpha, pulse) {
+  const rune = DRAGON_RUNES[key]; if (!rune) return;
+  ctx.save(); ctx.globalAlpha *= alpha; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, size * 0.95); g.addColorStop(0, `rgba(255,200,90,${0.35 + 0.2 * pulse})`); g.addColorStop(1, "rgba(255,120,40,0)");
+  ctx.fillStyle = g; ctx.fillRect(cx - size, cy - size, size * 2, size * 2);
+  circle(cx, cy, size * 0.62, `rgba(40,8,0,${0.45})`); ring(cx, cy, size * 0.62, `rgba(255,210,120,${0.6 + 0.3 * pulse})`, 4);
+  const s = size * 0.8, ox = cx - s / 2, oy = cy - s / 2;
+  for (const [lw, c] of [[22, "rgba(255,120,30,0.45)"], [11, DRAGON_RUNE_COLOR], [4.5, "#fff6d8"]]) {
+    ctx.beginPath(); for (const st of rune) st.forEach(([u, v], i) => (i ? ctx.lineTo(ox + u * s, oy + v * s) : ctx.moveTo(ox + u * s, oy + v * s)));
+    ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.stroke();
+  }
+  if (rune.length === 1) circle(ox + rune[0][0][0] * s, oy + rune[0][0][1] * s, 6, "#fff6d8");
+  ctx.restore();
+}
+function drawDragon() {
+  const d = dragon; if (!d) return;
+  const { w, h } = dragonSize(), fade = d.dying ? Math.max(0, 1 - d.dieT / 2.2) : 1;
+  ctx.save();
+  ctx.globalAlpha *= fade;
+  if (d.dying) { ctx.translate(rand(-4, 4), rand(-4, 4)); }
+  const drawn = d.anim.draw(0, d.y, w, h);
+  if (drawn && (d.hitT > 0 || d.dying)) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= d.dying ? 0.5 + 0.4 * Math.sin(d.dieT * 30) : d.hitT * 0.6; d.anim.draw(0, d.y, w, h); ctx.restore(); }
+  ctx.restore();
+  if (!drawn) return;
+  if (d.rune && d.phase !== "enter") {
+    const pulse = 0.5 + 0.5 * Math.sin(time * 4), pop = 1 + d.runePop * 0.4;
+    drawDragonRune(d.rune, W / 2, d.y + h * 0.42, 120 * pop, 1, pulse);
+  }
+  if (d.phase !== "enter" && !d.dying) {
+    const n = d.total, pw = Math.min(26, 460 / n), y = d.y + h + 6, x0 = W / 2 - (n * pw) / 2;
+    rrect(x0 - 14, y - 6, n * pw + 28, 28, 14); ctx.fillStyle = "rgba(20,8,8,0.65)"; ctx.fill(); ctx.strokeStyle = "rgba(255,180,80,0.7)"; ctx.lineWidth = 2; ctx.stroke();
+    for (let i = 0; i < n; i++) { const on = i < d.left, px = x0 + i * pw + pw / 2; poly([[px, y + 1], [px + 6, y + 8], [px, y + 15], [px - 6, y + 8]], on ? "#ff9a3a" : "rgba(255,255,255,0.15)", on ? "#3a1004" : null, 1.5); }
+  }
+}
+function drawDragonFireballs() {
+  for (const f of dragonFireballs) {
+    f.trail.forEach(([x, y], i) => circle(x, y, 22 - i * 1.3, `rgba(255,${130 + i * 6},40,${0.35 - i * 0.022})`));
+    circle(f.x, f.y, 30, "rgba(255,120,30,0.35)"); circle(f.x, f.y, 19, "#ff7a1a"); circle(f.x, f.y, 12, "#ffd04a"); circle(f.x - 4, f.y - 4, 5, "#fffbe0");
+  }
+}
+function drawRoarTint() {
+  if (dragonRoarT <= 0) return;
+  const a = Math.min(1, dragonRoarT) * (0.5 + 0.2 * Math.sin(time * 8));
+  for (let i = 0; i < SLOTS; i++) { const c = rows.active[i]; if (!c || EL[c.element].totem) continue; const p = slotPos("active", i);
+    rrect(p.x - CARD_W / 2 - 4, p.y - CARD_H / 2 - 4, CARD_W + 8, CARD_H + 8, 14); ctx.fillStyle = `rgba(220,40,30,${0.28 * a})`; ctx.fill(); ctx.strokeStyle = `rgba(255,80,60,${0.8 * a})`; ctx.lineWidth = 3; ctx.stroke(); }
+  text("SLOWED", W / 2, ACTIVE_Y - CARD_H / 2 - 16, 22, `rgba(255,120,100,${a})`, { weight: 900, outline: 5 });
+}
 function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
+  dragon = null; dragonFireballs = []; dragonRoarT = 0;
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
@@ -5155,6 +5362,7 @@ function beginWave(fromTimer = false) {
   const total = Math.min(6 + wave * 2, 70) + clamp(wave - 80, 0, 50);
   if (wave % STAGE_LEN === 1 && stageWeak(wave)) { const wk = stageWeak(wave); setTimeout(() => { if (state === "wave" || state === "break") showBanner(`Stage ${stageNum(wave)}: enemies are weak to ${EL[wk].name}! (x${hasRelic("sage") ? 3 : 2})`, EL[wk].color); }, 1600); }
   spawners.push({ wave, left: total, total, timer: 0.6, boss: wave % STAGE_LEN === 0 });
+  if (dragonWave(wave) && !dragon) startDragon(); else dragonPreload();
   const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
   const st = stageOf(wave);
   if (wave % STAGE_LEN === 0) showBanner(`Wave ${waveLabel(wave)}: ${bossCount(wave) > 1 ? bossCount(wave) + " " : ""}${KINDS[st.boss].name.toUpperCase()}${bossCount(wave) > 1 ? "S" : ""}!${stacked}`, "#e0533f");
@@ -6815,13 +7023,13 @@ function cloudMatch(a, b) {
 }
 const CLOUD_FAIL = 6.5;
 const runeStrokes = sp => sp.rune.map(st => st.map(([x, y]) => [x * sp.aspect, y]));
-function recognizeRune(strokes) {
+function recognizeRune(strokes, extra = [], noSpells = false) {
   const lines = strokes.filter(st => st.length > 1);
   if (!lines.length || lines.reduce((a, st) => a + st.length, 0) < 6) return null;
   const cloud = toCloud(lines); if (!cloud) return null;
   const all = [];
-  for (const [id, sp0] of Object.entries(SPELLS)) {
-   if (spellLocked(id)) continue;
+  const cands = (noSpells ? [] : Object.entries(SPELLS).filter(([id]) => !spellLocked(id))).concat(extra);
+  for (const [id, sp0] of cands) {
    for (const rune of [sp0.rune, ...(sp0.alts || [])]) {
     const sp = { ...sp0, rune };
     let score;
@@ -6854,23 +7062,28 @@ let spellCd = 0;
 function endSpell() { if (spell && spell.match) spellCd = SPELL_COOLDOWN; spell = null; }
 function openSpell() {
   if ((state !== "wave" && state !== "break") || spell) return;
-  if (timeStopT > 0 && timeStopSpells >= 1) { showInfo("Only 1 spell while time is stopped."); return; }
-  if (spellCd > 0) { showInfo(`Spell ready in ${Math.ceil(spellCd)}s.`); return; }
+  const blocked = (timeStopT > 0 && timeStopSpells >= 1) || spellCd > 0;
+  if (blocked && !dragonActive()) {
+    if (timeStopT > 0 && timeStopSpells >= 1) showInfo("Only 1 spell while time is stopped."); else showInfo(`Spell ready in ${Math.ceil(spellCd)}s.`);
+    return;
+  }
   cancelDrag();
-  spell = { phase: "draw", t: RUNE_TIME, strokes: [], drawing: false, settle: 0, match: null, score: 0 };
+  spell = { phase: "draw", t: RUNE_TIME, strokes: [], drawing: false, settle: 0, match: null, score: 0, dragonOnly: blocked };
   showInfo("");
 }
 function finishRune(timedOut) {
   if (!spell || spell.phase !== "draw") return;
-  const r = timedOut ? null : recognizeRune(spell.strokes);
+  const extra = dragonActive() && dragon.rune ? [["__dragon", { rune: DRAGON_RUNES[dragon.rune], aspect: 1 }]] : [];
+  const r = timedOut ? null : recognizeRune(spell.strokes, extra, spell.dragonOnly);
   spell.phase = "result"; spell.drawing = false;
   spell.score = r ? r.score : 0;
+  if (r && r.id === "__dragon" && r.score >= RUNE_MATCH) { spell.dragonHit = true; spell.failT = 0.7; playSpellSound("spell_work"); dragonRuneHit(); return; }
   if (r && r.score >= runeNeeded(r.id)) {
     spell.match = r.id;
     playSpellSound("spell_work");
   } else {
     spell.match = null; spell.failT = 1.6;
-    spell.reason = timedOut ? "Out of time" : "";
+    spell.reason = timedOut ? "Out of time" : spell.dragonOnly ? "Draw the rune on the dragon (spells are on cooldown)" : "";
     playSpellSound("spell_fail");
   }
 }
@@ -7175,6 +7388,7 @@ function drawSpell() {
     rrect(160, 176, 400, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
     rrect(160, 176, 400 * k, 16, 8); ctx.fillStyle = k > 0.3 ? "#b36bff" : "#e0533f"; ctx.fill();
     text(`${spell.t.toFixed(1)}s`, W / 2, 222, 22, PARCH, { outline: 5 });
+    if (dragonActive() && dragon.rune) { drawDragonRune(dragon.rune, W - 86, 290, 64, 0.95, 0.5 + 0.5 * Math.sin(time * 4)); text("Dragon rune", W - 86, 350, 15, "#ffd27a", { weight: 800, outline: 4 }); }
   } else if (spell.match) {
     const sp = SPELLS[spell.match];
     text(sp.name, W / 2, 170, 56, sp.color, { font: DISPLAY, weight: 900, outline: 10 });
@@ -7185,6 +7399,8 @@ function drawSpell() {
     if (spell.match === "heal" && castleHp >= castleMax) btn.castSpell.label = "Castle HP is full";
     if (sp.curse && !curses.has(sp.curse)) btn.castSpell.label = "Not cursed";
     drawBtn(btn.castSpell, gold < spellCost(spell.match) || full); drawBtn(btn.cancelSpell);
+  } else if (spell.dragonHit) {
+    text("RUNE BROKEN!", W / 2, 360, 54, "#ffb340", { font: DISPLAY, weight: 900, outline: 10 });
   } else {
     text("Spell failed", W / 2, 360, 56, "#e0533f", { font: DISPLAY, weight: 900, outline: 10 });
     if (spell.reason) text(spell.reason, W / 2, 404, 24, PARCH, { outline: 6 });
@@ -7515,7 +7731,7 @@ function update(dt) {
     }
     for (const c of rows.active) {
       if (!c || (drag && drag.card === c)) continue;
-      const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult() * (hasRelic("haste") ? 1.15 : 1);
+      const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult() * (hasRelic("haste") ? 1.15 : 1) * (dragonRoarT > 0 ? DRAGON_ROAR_SLOW : 1);
       if (EL[c.element].totem) { if (EL[c.element].totem === "mirror") updateMirror(c, dt * spd); continue; }
       if (EL[c.element].beam) { updateBeam(c, dt * spd); continue; }
       if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
@@ -7528,6 +7744,7 @@ function update(dt) {
   }
   { const L = idolRow("time"); idolTimeMult = L ? 1 - IDOL_VAL.time(L) : 1; }
   for (const e of enemies.slice()) e.update(dt);
+  updateDragon(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
   updateParts(dt);
@@ -7538,7 +7755,7 @@ function update(dt) {
     for (const sp of spawners.slice()) {
       if (sp.left <= 0 && !sp.boss && !enemies.some(e => e.wave === sp.wave)) { spawners.splice(spawners.indexOf(sp), 1); waveCleared(sp.wave); }
     }
-    if (spawners.length === 0 && enemies.length === 0) toBreak();
+    if (spawners.length === 0 && enemies.length === 0 && !dragon) toBreak();
   }
   for (const c of rows.shop) if (c) { c.isFree = freeCard; c.affordable = freeCard || gold >= c.price; }
 }
@@ -7805,6 +8022,7 @@ function drawWorld() {
   }
 
   for (const z of zones) z.draw();
+  drawDragon();
   EN_DETAIL = !settings.lite && enemies.length <= [18, 10, 0][perfLevel];
   for (const e of enemies) e.draw();
   if (chamberOpen) {
@@ -10698,7 +10916,7 @@ function frame(now) {
       ctx.translate(rand(-1, 1) * s, rand(-1, 1) * s);
       if (doom && doom.hit) { const z = 1 + 0.06 * Math.max(0, 1 - (doom.t - DOOM_HIT) / 0.5); ctx.translate(W / 2, (HUD_H + FRONT_Y) / 2); ctx.scale(z, z); ctx.translate(-W / 2, -(HUD_H + FRONT_Y) / 2); }
     }
-    drawWorld(); drawDoom(); drawHud(); drawSpell(); ctx.restore();
+    drawWorld(); drawDragonFireballs(); drawRoarTint(); drawDoom(); drawHud(); drawSpell(); ctx.restore();
   }
   if (drag) {
     drag.card.drawBattle();
