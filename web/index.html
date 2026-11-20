@@ -5112,6 +5112,31 @@ function drawDragonFireballs() {
   }
   ctx.restore();
 }
+let dangerK = 0, dangerHitT = 0;
+function drawDanger(dt) {
+  dangerHitT = Math.max(0, dangerHitT - dt);
+  let near = 0;
+  if (state === "wave") for (const e of enemies) if (!e.dead) near = Math.max(near, clamp((e.y - (FRONT_Y - 330)) / 300, 0, 1));
+  dangerK += (near - dangerK) * Math.min(1, dt * 4);
+  if (dangerK > 0.02) {
+    const p = 0.75 + 0.25 * Math.sin(time * (4 + 6 * dangerK)), a = dangerK * 0.55 * p;
+    const edge = (x0, y0, x1, y1, rx, ry, rw, rh) => { const g = ctx.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, `rgba(220,20,10,${a})`); g.addColorStop(1, "rgba(220,20,10,0)"); ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh); };
+    edge(0, 0, 150, 0, 0, -TOP, 150, H + TOP); edge(W, 0, W - 150, 0, W - 150, -TOP, 150, H + TOP); edge(0, -TOP, 0, 160, 0, -TOP, W, 160 + TOP);
+    ctx.fillStyle = `rgba(200,10,0,${a * 0.18})`; ctx.fillRect(0, -TOP, W, H + TOP);
+    const gb = ctx.createLinearGradient(0, FRONT_Y - 260, 0, FRONT_Y); gb.addColorStop(0, "rgba(220,20,10,0)"); gb.addColorStop(1, `rgba(220,20,10,${a * 0.6})`);
+    ctx.fillStyle = gb; ctx.fillRect(0, FRONT_Y - 260, W, 260);
+  }
+  if (dangerHitT > 0) {
+    const a = Math.min(1, dangerHitT / 0.4), s = 1 + 0.12 * Math.sin(time * 18), cx = W / 2, cy = FRONT_Y - 92;
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(cx, cy); ctx.scale(s, s);
+    ctx.shadowColor = "rgba(255,40,20,0.9)"; ctx.shadowBlur = 18;
+    poly([[0, -44], [48, 38], [-48, 38]], "#e8281e", "#2a0606", 5); ctx.shadowBlur = 0;
+    poly([[0, -30], [36, 30], [-36, 30]], "#ffcf3a", null);
+    text("!", 0, 14, 46, "#2a0606", { weight: 900, baseline: "middle" });
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = a; text("DANGER!", cx, cy + 66, 26, "#ff4a3a", { weight: 900, outline: 6 }); ctx.restore();
+  }
+}
 function drawRoarTint() {
   drawKrakenGrip();
   for (let i = 0; i < SLOTS; i++) { const c = rows.active[i]; if (!c || !(c.inkT > 0) || !c.inkBlobs) continue; const p = slotPos("active", i), a = Math.min(1, c.inkT / 0.6);
@@ -5873,7 +5898,7 @@ function damageCastle(a) {
   const sh = idolRow("shield");
   const hit = a * (1 - castleArmor) * (1 - 0.03 * cu("armor")) * (hasRelic("aegis") ? 0.9 : 1) * (sh ? 1 - IDOL_VAL.shield(sh) : 1);
   if (sh) { bulwarkFlash = 1; playSpecial("sp_bulwark", 0.6, 0.5); }
-  castleHp -= hit; if (training && castleHp < 1) castleHp = 1; wallFlash = 1; buzz(25);
+  castleHp -= hit; dangerHitT = 1.4; if (training && castleHp < 1) castleHp = 1; wallFlash = 1; buzz(25);
   wallLog.push([time, hit]); if (wallLog.length > 600) wallLog.splice(0, 200);
   if (castleHp <= 0 && cu("revive") && !secondWindUsed) {
     secondWindUsed = true; castleHp = castleMax * 0.3; wallFlash = 0;
@@ -11353,7 +11378,7 @@ function frame(now) {
       ctx.translate(rand(-1, 1) * s, rand(-1, 1) * s);
       if (doom && doom.hit) { const z = 1 + 0.06 * Math.max(0, 1 - (doom.t - DOOM_HIT) / 0.5); ctx.translate(W / 2, (HUD_H + FRONT_Y) / 2); ctx.scale(z, z); ctx.translate(-W / 2, -(HUD_H + FRONT_Y) / 2); }
     }
-    drawWorld(); drawDragonFireballs(); drawRoarTint(); drawDoom(); drawHud(); drawSpell(); ctx.restore();
+    drawWorld(); drawDragonFireballs(); drawDanger(paused ? 0 : dt); drawRoarTint(); drawDoom(); drawHud(); drawSpell(); ctx.restore();
   }
   if (drag) {
     drag.card.drawBattle();
