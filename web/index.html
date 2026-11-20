@@ -7862,7 +7862,7 @@ function visibleButtons() {
   if (questsOpen && state !== "title") return [btn.questsClose, ...questBtns];
   if (bringPick && state !== "title") return [...(bringPick.sel ? [btn.bringGo] : []), btn.bringSkip, ...bringBtns];
   if (guide) return guideButtons();
-  if (tut) return tutBlocking() ? [btn.tutNext, btn.tutSkip] : [btn.tutSkip, ...baseButtons()];
+  if (tut) { const sk = tut.ch === "train" ? [] : [btn.tutSkip]; return tutBlocking() ? [btn.tutNext, ...sk] : [...sk, ...baseButtons()]; }
   return baseButtons();
 }
 function baseButtons() {
@@ -11071,7 +11071,7 @@ function drawTut(dt) {
     poly([[ax - 16, ay], [ax + 16, ay], [ax, ay + dir * 24]], GOLD, INK, 3);
   }
   const by = py + ph - 82;
-  btn.tutSkip.label = tut.ch === "train" ? "Skip training" : "Skip tutorial"; btn.tutSkip.x = px + 20; btn.tutSkip.y = by; drawBtn(btn.tutSkip);
+  if (tut.ch !== "train") { btn.tutSkip.x = px + 20; btn.tutSkip.y = by; drawBtn(btn.tutSkip); }
   if (st.wait) text("Your turn!", px + pw - 120, by + 44, 28, "#2f8f3f", { weight: 800, baseline: "middle" });
   else { btn.tutNext.label = tut.i === list.length - 1 ? "Got it!" : "Next"; btn.tutNext.x = px + pw - 20 - btn.tutNext.w; btn.tutNext.y = by; drawBtn(btn.tutNext); }
 }
