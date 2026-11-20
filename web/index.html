@@ -10949,8 +10949,8 @@ const TUT = {
     { t: "Training", b: "Welcome to the training ground! In about 3 minutes you will try every important move yourself. Monsters here can't destroy your castle, so relax and learn." },
     { t: "Buy a card", hl: () => rowRect("shop", SHOP_N), wait: () => boardHas(() => true),
       b: "New cards appear in the shop down here. Your first card is FREE! Tap a Fire card (or drag it into a slot) to buy it." },
-    { t: "Merge", hl: () => rowRect("shop", SHOP_N), setup: () => { gold = Math.max(gold, priceOf("fire", 0) + 5); }, wait: () => boardHas(c => c.element === "fire" && c.rarity >= 1),
-      b: "Two of the SAME card merge into a stronger one (V1 > V2 > V3). Buy the other Fire card and drop it right ON your Fire card." },
+    { t: "Merge", hl: () => trainFires() < 2 ? rowRect("shop", SHOP_N) : trainFireRect(), setup: () => { gold = Math.max(gold, priceOf("fire", 0) + 5); }, wait: () => boardHas(c => c.element === "fire" && c.rarity >= 1),
+      b: () => trainFires() < 2 ? "Two of the SAME card merge into a stronger one (V1 > V2 > V3). First, buy one more Fire card from the shop." : "Now drag one Fire card and drop it right ON the other Fire card to merge them!" },
     { t: "Fusion", hl: () => rowRect("storage", SLOTS), setup: () => trainGive("water", 1), wait: () => boardHas(c => c.element === "steam"),
       b: "Two DIFFERENT elements of the same level fuse into a new spirit. Drag this Water card from storage onto your Fire card: Fire + Water = Steam!" },
     { t: "Battle row", hl: () => rowRect("active", SLOTS), b: "Only cards in this top row attack. The storage row below keeps cards safe until you merge them. Drag cards between rows any time, and drag a card onto Sell to get gold back." },
@@ -10977,6 +10977,13 @@ const TUT = {
 };
 let tut = null;
 let training = false, trainFlags = {}, trainBoss = "dragon";
+const trainFires = () => [...rows.active, ...rows.storage].filter(c => c && c.element === "fire" && c.rarity === 0).length;
+function trainFireRect() {
+  const pts = [];
+  for (const r of ["active", "storage"]) rows[r].forEach((c, i) => { if (c && c.element === "fire" && c.rarity === 0) pts.push(slotPos(r, i)); });
+  const xs = pts.map(q => q.x), ys = pts.map(q => q.y), x0 = Math.min(...xs) - CARD_W / 2 - 10, y0 = Math.min(...ys) - CARD_H / 2 - 12;
+  return { x: x0, y: y0, w: Math.max(...xs) + CARD_W / 2 + 10 - x0, h: Math.max(...ys) + CARD_H / 2 + 12 - y0 };
+}
 const boardHas = f => [...rows.active, ...rows.storage].some(c => c && f(c));
 function trainShop(els) {
   els.forEach((el, i) => { const c = new Card(el, 0); c.inShop = true; c.price = priceOf(el, 0); const q = slotPos("shop", i); c.setHome(q.x, q.y, true); c.y += 200; rows.shop[i] = c; });
@@ -11050,7 +11057,7 @@ function drawTut(dt) {
   const pw = W - 60, px = 30, size = 22, lh = 30;
   ctx.font = `600 ${size}px ${FONT}`;
   const lines = [];
-  for (const para of st.b.split("\n")) {
+  for (const para of (typeof st.b === "function" ? st.b() : st.b).split("\n")) {
     let ln = "";
     for (const wd of para.split(" ")) { const tt = ln ? ln + " " + wd : wd; if (ctx.measureText(tt).width > pw - 48 && ln) { lines.push(ln); ln = wd; } else ln = tt; }
     if (ln) lines.push(ln);
