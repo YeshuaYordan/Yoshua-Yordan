@@ -10137,7 +10137,7 @@ function drawPlaySlider() {
     if (wait && bossAdAvailable()) { const a = btn.bossAd; a.w = 240; a.h = 56; a.x = W / 2 - 120; a.y = dy - 82; a.label = save.noAds ? "Play now (No Ads)" : "▶ Watch ad: play now"; a.size = 20; drawBtn(a); }
   }
 }
-const LOBBY_BOSSES = [["kingOrc", 300, 1090, 2.4, 0, [[-0.163, -0.381], [0.163, -0.381]], 0.13], ["kingSlime", 560, 1100, 2.7, 1.7, [[-0.274, -0.194], [0.274, -0.194]], 0.2], ["kingGoblin", 812, 1085, 2.3, 3.1, [[-0.188, -0.481], [0.188, -0.481]], 0.15]];
+const LOBBY_BOSSES = [["frostGiant", 395, 900, 1.6, 2.3, [[-0.168, -0.36], [0.168, -0.36]], 0.12], ["lichKing", 560, 860, 1.55, 4.2, [[-0.2, -0.6], [0.2, -0.6]], 0.14], ["lavaDragon", 725, 905, 1.6, 5.4, [[-0.176, -0.62], [0.176, -0.62]], 0.11], ["kingOrc", 300, 1090, 2.4, 0, [[-0.163, -0.381], [0.163, -0.381]], 0.13], ["kingSlime", 560, 1100, 2.7, 1.7, [[-0.274, -0.194], [0.274, -0.194]], 0.2], ["kingGoblin", 812, 1085, 2.3, 3.1, [[-0.188, -0.481], [0.188, -0.481]], 0.15]];
 function drawLobbyBosses(k) {
   for (const [kind, x, y, sc, ph, eyes, er] of LOBBY_BOSSES) {
     const sz = KINDS[kind].size, bob = Math.sin(lobbyT * 0.9 + ph) * 14 + (1 - k) * 220;
