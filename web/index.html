@@ -4669,7 +4669,15 @@ const gripBlocks = () => !!(krakenGrip && krakenGrip.held);
 const KRAKEN_DIR = "sprites/kraken/", KRAKEN_ANIM_SPEED = 1.5, KRAKEN_INK_HIT = 0.08, KRAKEN_INK_TIME = 5, KRAKEN_SPLAT = 6;
 let krakenInks = [], krakenSplats = [];
 const specialPicks = {};
-const specialKind = w => specialPicks[w] || (specialPicks[w] = Math.random() < 0.5 ? "dragon" : "kraken");
+const SPECIAL_BOSSES = ["dragon", "kraken"];
+let specialBag = [];
+function specialKind(w) {
+  if (specialPicks[w]) return specialPicks[w];
+  if (!specialBag.length) specialBag = SPECIAL_BOSSES.slice();
+  const k = specialBag.splice(Math.floor(Math.random() * specialBag.length), 1)[0];
+  return specialPicks[w] = k;
+}
+function resetSpecialBag() { specialBag = []; for (const k in specialPicks) delete specialPicks[k]; }
 const isKraken = () => !!(dragon && dragon.kind === "kraken");
 const BOSS_COL = { dragon: { glow: "255,120,30", glow2: "255,60,10", ring: "#ff7a2a", tip: "#ffb050", ember: "255,90,20", spark: "255,190,80", rune: "#ffb340", runeGlow: "255,200,90", runeOut: "255,120,30", runeCore: "40,8,0", runeEdge: "255,210,120", label: "#ffd27a" },
   kraken: { glow: "40,170,255", glow2: "20,80,255", ring: "#3ad0ff", tip: "#9ff0ff", ember: "60,200,255", spark: "120,230,255", rune: "#5ee0ff", runeGlow: "90,220,255", runeOut: "30,140,255", runeCore: "0,14,40", runeEdge: "150,240,255", label: "#8fe8ff" } };
@@ -5654,7 +5662,7 @@ function drawBringPick(dt) {
 }
 function startRun() {
   clearBoard(); totemBuys = {}; bossMode = false; bossModeOver = false;
-  gold = START_GOLD; curses = new Set(); curseHpCut = 0; curseBurnT = CURSE_BURN_CD; spellUses = {}; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {}, ev: {}, time: 0, best0: save.best }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
+  resetSpecialBag(); gold = START_GOLD; curses = new Set(); curseHpCut = 0; curseBurnT = CURSE_BURN_CD; spellUses = {}; wildDropCd = 0; timeStopT = 0; timeStopSpells = 0; castleMax = CASTLE_MAX; castleArmor = 0; wilds = []; wildFly = []; wildScroll = 0; wildDrag = null; wildFan = null; wallGlow = 0; castleHp = CASTLE_MAX; wave = 0; wavesCleared = 0; runGems = 0; reviveOffer = null; reviveUsed = false; testPick = null; runStats = { dmg: {}, kills: {}, ev: {}, time: 0, best0: save.best }; gameSpeed = save.speed2x && save.speedOn ? 2 : 1; speedOffer = false; freeCard = true; rerollCost = REROLL_BASE;
   state = "break"; breakTimer = -1; paused = false; bookOpen = false;
   relics = new Set(); relicOffer = null; secondWindUsed = false; archerT = 1; frostGateWave = -1; weakSeed = Math.floor(Math.random() * 4); wallLog = [];
   gold += 10 * cu("gold"); castleMax += 20 * cu("hp"); castleHp = castleMax;
