@@ -4622,7 +4622,7 @@ function freeSheet(url) { const s = SHEETS[url]; if (s) { s.img.src = ""; delete
 class SpriteAnim {
   constructor(def, dir) { this.def = def; this.dir = dir; this.name = null; this.t = 0; this.frame = 0; this.events = {}; this.onEnd = null; this.done = false; this.speed = 1; }
   sheet(name) { return loadSheet(this.dir + this.def.animations[name].file); }
-  ready() { return Object.keys(this.def.animations).every(n => this.sheet(n).ready); }
+  ready() { return (this.base || this.def.base || Object.keys(this.def.animations)).every(n => this.sheet(n).ready); }
   play(name, events = {}, onEnd = null) { this.name = name; this.t = 0; this.frame = 0; this.events = events; this.onEnd = onEnd; this.done = false; this.fired = new Set(); if (events[0]) { this.fired.add(0); events[0](); } }
   update(dt) {
     if (!this.name || this.done) return;
@@ -4651,13 +4651,13 @@ class SpriteAnim {
   }
 }
 
-const DRAGON_DEF = { frameWidth: 768, frameHeight: 393, columns: 4, animations: {
+const DRAGON_DEF = { frameWidth: 768, frameHeight: 393, columns: 4, base: ["walk", "idle"], animations: {
   walk: { file: "dragon_walk_idle.webp", frames: 20, fps: 8, loop: true },
   idle: { file: "dragon_walk_idle.webp", oy: 1965, frames: 20, fps: 4, loop: true },
   shoot: { file: "dragon_shoot.webp", frames: 24, fps: 10, loop: false, fireFrame: 12, mouth: { x: 385, y: 361 } },
   roar: { file: "dragon_roar.webp", frames: 24, fps: 10, loop: false, shakeFrames: [9, 18] },
 } };
-const KRAKEN_DEF = { frameWidth: 768, frameHeight: 350, columns: 4, animations: {
+const KRAKEN_DEF = { frameWidth: 768, frameHeight: 350, columns: 4, base: ["appear", "idle"], animations: {
   appear: { file: "kraken_appear.webp", frames: 24, fps: 12, loop: false },
   idle: { file: "kraken_idle_death.webp", frames: 16, fps: 8, loop: true },
   spit: { file: "kraken_spit.webp", frames: 24, fps: 10, loop: false, inkFrame: 7, mouth: { x: 383, y: 329 } },
@@ -4722,14 +4722,15 @@ function startKraken() {
 }
 function krakenAppear() {
   const d = dragon; d.started = true; d.anim.speed = 1;
-  d.anim.play("appear", {}, () => { d.anim.speed = KRAKEN_ANIM_SPEED; dragonIdle(); showInfo("Tap Spell and draw the glowing rune on the Kraken! Your cards can't hurt it."); });
+  d.anim.play("appear", {}, () => { d.anim.speed = KRAKEN_ANIM_SPEED; d.anim.base = ["idle"]; dragonIdle(); showInfo("Tap Spell and draw the glowing rune on the Kraken! Your cards can't hurt it."); });
   playSample("kraken_rise", 1, 1); shakeT = Math.max(shakeT, 1.2); shakeAmp = Math.max(shakeAmp, 7);
   const { h } = dragonSize();
   for (let i = 0; i < 3; i++) dragonWaves.push({ x: W / 2, y: d.y + h * 0.5, t: -i * 0.3, kind: "kraken" });
   for (let i = 0; i < 50; i++) addPart({ kind: "bubble", x: W / 2 + rand(-260, 260), y: d.y + rand(h * 0.3, h), vx: rand(-20, 20), vy: -rand(40, 160), life: rand(0.8, 1.6), size: rand(3, 9), col: "rgba(150,230,255,0.8)", rot: rand(0, 6) });
 }
 function krakenAttack() {
-  if (Math.random() < 0.5 && !krakenGrip) return krakenTentacles();
+  const nx = dragon.next || (Math.random() < 0.5 ? "tentacle" : "spit");
+  if (nx === "tentacle" && !krakenGrip) return krakenTentacles();
   const d = dragon, a = KRAKEN_DEF.animations.spit; d.phase = "attack";
   d.extra = a.frames / a.fps * (1 - 1 / d.anim.speed);
   d.anim.play("spit", { [a.inkFrame - 1]: () => playSample("kraken_spit", 1, 1), [a.inkFrame]: () => krakenSpit() }, () => dragonIdle());
@@ -4830,7 +4831,7 @@ function dragonStep() { if (!dragon || dragon.phase !== "enter") return; playSam
 function dragonAttack() {
   if (isKraken()) return krakenAttack();
   const d = dragon; d.phase = "attack";
-  const pick = Math.random() < 0.6 ? "shoot" : "roar", pa = DRAGON_DEF.animations[pick];
+  const pick = d.next || (Math.random() < 0.6 ? "shoot" : "roar"), pa = DRAGON_DEF.animations[pick];
   d.extra = pa.frames / pa.fps * (1 - 1 / d.anim.speed);
   if (pick === "shoot") {
     const a = DRAGON_DEF.animations.shoot;
@@ -4840,7 +4841,13 @@ function dragonAttack() {
     d.anim.play("roar", { [Math.max(1, s0 - 3)]: () => playSample("dragon_roar", 1, 1), [s0]: () => dragonRoar(s1 - s0, a.fps) }, () => dragonIdle());
   }
 }
-function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD + (dragon.extra || 0); dragon.extra = 0; dragon.anim.play("idle", { 1: dragonBreath }); }
+function bossPrep(d) {
+  const kr = d.kind === "kraken", next = kr ? (Math.random() < 0.5 && !krakenGrip ? "tentacle" : "spit") : (Math.random() < 0.6 ? "shoot" : "roar");
+  d.next = next; d.anim.sheet(next);
+  const keep = new Set([(d.anim.base || d.def.base).map(n => d.def.animations[n].file), d.def.animations[next].file, d.anim.name ? d.def.animations[d.anim.name].file : ""].flat());
+  for (const n of Object.keys(d.def.animations)) { const f = d.def.animations[n].file; if (!keep.has(f)) freeSheet(d.dir + f); }
+}
+function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD + (dragon.extra || 0); dragon.extra = 0; dragon.anim.play("idle", { 1: dragonBreath }); bossPrep(dragon); }
 function dragonBreath() { const d = dragon; if (!d || d.phase !== "idle" || time - (d.breathAt || -9) < (d.kind === "kraken" ? 5.5 : 4.5)) return; d.breathAt = time; playSample(d.kind === "kraken" ? "kraken_idle" : "dragon_breath", 0.55, rand(0.95, 1.05)); }
 function dragonShoot() {
   const d = dragon, { w } = dragonSize(), k = w / DRAGON_DEF.frameWidth, m = DRAGON_DEF.animations.shoot.mouth;
@@ -4955,7 +4962,7 @@ function updateDragon(dt) {
     if (k >= 1) { dragonIdle(); showInfo("Tap Spell and draw the glowing rune on the dragon's chest! Your cards can't hurt it."); }
     return;
   }
-  if (d.phase === "idle") { d.cd -= dt; if (d.cd <= 0) dragonAttack(); }
+  if (d.phase === "idle") { d.cd -= dt; if (d.cd <= 0 && (!d.next || d.anim.sheet(d.next).ready)) dragonAttack(); }
 }
 function drawDragonRune(key, cx, cy, size, alpha, pulse) {
   const rune = DRAGON_RUNES[key]; if (!rune) return;
@@ -4984,7 +4991,7 @@ function drawDragon() {
   const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, 1), sy = by + bh * 0.84, sk = 1 - 0.04 * breathe;
   sh.addColorStop(0, "rgba(0,0,0,0.5)"); sh.addColorStop(0.6, "rgba(0,0,0,0.22)"); sh.addColorStop(1, "rgba(0,0,0,0)");
   ctx.save(); ctx.globalAlpha *= aK; ctx.translate(W / 2, sy); ctx.scale(w * 0.4 * sk, bh * 0.09 * sk); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  if (d.anim.ready()) {
+  if (d.anim.ready() && !settings.lite) {
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.4), roarK = Math.min(1, Math.max(0, dragonRoarT - (DRAGON_ROAR_TIME - 2)) / 2);
     ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= aK;
     ctx.save(); ctx.translate(W / 2, by + bh * 0.45); ctx.scale(1, 0.55); dRadial(0, 0, w * (0.48 + 0.05 * pulse + 0.1 * roarK), [[0, `rgba(${bc.glow},${0.32 + 0.12 * pulse + 0.25 * roarK})`], [0.55, `rgba(${bc.glow2},${0.14 + 0.06 * pulse})`], [1, `rgba(${bc.glow2},0)`]]); ctx.restore();
@@ -4993,11 +5000,11 @@ function drawDragon() {
     for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(R * 0.9, -9); ctx.lineTo(R * 1.04, 0); ctx.lineTo(R * 0.9, 9); ctx.closePath(); ctx.fillStyle = bc.tip; ctx.fill(); ctx.restore(); }
     ctx.restore();
   }
-  const drawn = d.anim.draw(bx, by, bw, bh);
-  if (drawn && !d.dying && d.phase !== "enter") { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= 0.1 + 0.12 * (0.5 + 0.5 * Math.sin(time * 3)) + 0.2 * Math.min(1, Math.max(0, dragonRoarT - (DRAGON_ROAR_TIME - 2)) / 2); d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
+  const drawn = d.anim.draw(bx, by, bw, bh, !settings.lite);
+  if (drawn && !d.dying && d.phase !== "enter" && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= 0.1 + 0.12 * (0.5 + 0.5 * Math.sin(time * 3)) + 0.2 * Math.min(1, Math.max(0, dragonRoarT - (DRAGON_ROAR_TIME - 2)) / 2); d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
   if (drawn && (d.hitT > 0 || d.dying)) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= d.dying ? (kr ? aK * 0.4 : 1) * (0.5 + 0.4 * Math.sin(d.dieT * 30)) : d.hitT * 0.6; d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
   ctx.save(); ctx.globalCompositeOperation = "lighter";
-  for (const q of dragonAura) { const k = q.t / q.life; ctx.globalAlpha = (k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8) * fade;
+  if (!settings.lite) for (const q of dragonAura) { const k = q.t / q.life; ctx.globalAlpha = (k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8) * fade;
     if (kr) { circle(q.x, q.y, q.r * 3, "rgba(40,160,255,0.25)"); ring(q.x + Math.sin(q.t * 5 + q.ph) * 3, q.y, q.r * 1.8, "rgba(170,240,255,0.9)", 1.5); circle(q.x - q.r * 0.6, q.y - q.r * 0.6, q.r * 0.45, "rgba(255,255,255,0.9)"); }
     else { circle(q.x, q.y, q.r * 3, `rgba(${bc.ember},0.35)`); circle(q.x, q.y, q.r, `rgb(255,${180 + 60 * (1 - k)},90)`); } }
   for (const wv of dragonWaves) { if (wv.t <= 0) continue; const k = wv.t / 1.2, e = 1 - Math.pow(1 - k, 2), r = (wv.kind === "ink" ? 20 : 40) + ({ die: 700, kdie: 700, ink: 220 }[wv.kind] || 520) * e;
@@ -9556,7 +9563,7 @@ function drawBio() {
   }
 }
 
-const settings = { vol: 1, sfx: 0.5, vibrate: true, dmgNums: true, lite: false };
+const settings = { vol: 1, sfx: 0.5, vibrate: true, dmgNums: true, lite: false, fps: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem("arcane-fusion-settings") || "{}")); } catch (e) {}
 delete settings.recAudio;
 if (Sfx.muted && settings.vol > 0 && localStorage.getItem("arcane-fusion-settings") === null) settings.vol = 0;
@@ -9578,11 +9585,12 @@ const settingRows = [
   { key: "sfx", label: "Attack sounds", kind: "vol" },
   { key: "vibrate", label: "Vibration", kind: "bool", note: "Buzz when the castle is hit and when bosses fall" },
   { key: "dmgNums", label: "Damage numbers", kind: "bool", note: "Numbers above enemies when they are hit" },
-  { key: "lite", label: "Battery saver", kind: "bool", note: "Smoother: still card effects, simpler enemies" },
+  { key: "lite", label: "Low settings", kind: "bool", note: "For slow phones: simpler effects, smoother play" },
+  { key: "fps", label: "FPS counter", kind: "bool", note: "Show frames per second in the corner" },
 ];
 function drawSettings() {
   dim(0.75);
-  const x = 40, w = W - 80, h = 890, y = Math.max(60, H / 2 - h / 2);
+  const x = 40, w = W - 80, h = 1010, y = Math.max(30, H / 2 - h / 2);
   questFrame(x, y, w, h, 24);
   text("Settings", W / 2, y + 64, 44, INK, { font: DISPLAY, weight: 900 });
   settingRows.forEach((r, i) => {
@@ -11356,6 +11364,7 @@ function drawLoading(now) {
     ctx.fillStyle = `rgba(10,5,15,${f})`; ctx.fillRect(0, -TOP, W, H + TOP);
   }
 }
+let fpsAvg = 60, fpsLast = 0;
 function frame(now) {
   if (!LOAD.finished) {
     const filesIn = LOAD.total > 0 && LOAD.done >= LOAD.total;
@@ -11403,6 +11412,13 @@ function frame(now) {
   try { syncSpikeLoops(); } catch (e) {}
   try { syncBeamLoops(); } catch (e) {}
   try { syncMusic(); } catch (e) {}
+  if (settings.fps) {
+    const ms = Math.max(1, now - (fpsLast || now)); fpsLast = now; fpsAvg += (1000 / ms - fpsAvg) * 0.08;
+    const f = Math.round(fpsAvg), col = f >= 50 ? "#7cff8a" : f >= 30 ? "#ffd84a" : "#ff6a5a";
+    const fx = W - 118, fy = FRONT_Y - 50;
+    rrect(fx, fy, 108, 36, 10); ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fill();
+    text(`${f} FPS`, fx + 54, fy + 19, 20, col, { weight: 900, baseline: "middle" });
+  } else fpsLast = 0;
   requestAnimationFrame(frame);
 }
 { const dark = f => function (...a) { PANEL_DARK++; try { return f.apply(this, a); } finally { PANEL_DARK--; } };
