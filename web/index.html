@@ -10916,7 +10916,7 @@ const TUT = {
     { t: "Daily reward", hl: () => ({ x: btn.daily.x - 4, y: btn.daily.y - 4, w: btn.daily.w + 8, h: btn.daily.h + 26 }), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. If you like, watch an ad to double it (always optional). The calendar shows a red ! when your reward is waiting." },
     { t: "Tutorial", hl: () => ({ x: btn.help.x - 4, y: btn.help.y - 4, w: btn.help.w + 8, h: btn.help.h + 26 }), b: "Tap the owl any time to replay this tour and the playable training. The icon below it opens the Merge & Fusion guide." },
     { t: "Spellbook", hl: () => ({ x: btn.titleBook.x - 4, y: btn.titleBook.y - 4, w: btn.titleBook.w + 8, h: btn.titleBook.h + 26 }), b: "Every fusion recipe and every spell rune is written in the Spellbook. A red ! means you discovered something new. You can open it any time, even in the middle of a run." },
-    { t: "Ready?", hl: () => btnRect(btn.play), b: "Tap PLAY! Your first game is a short playable training where you try every move yourself." },
+    { t: "Ready?", hl: () => btnRect(btn.play), b: () => save.trained ? "Tap PLAY to start your first real run. Good luck, defender!" : "Tap PLAY! You will start with a short playable training where you try every move yourself." },
   ],
   run1: [
     { t: "Your castle", hl: () => ({ x: 146, y: 10, w: 308, h: 54 }), b: "This bar is your castle's HP. Enemies walk down the battlefield and attack the wall when they reach it. When the castle reaches 0 HP, the run is over." },
@@ -10946,17 +10946,19 @@ const TUT = {
     { t: "Legend", b: "Put a Myth card on an altar to try for a Legend card instead. Each Myth adds 12% and each Epic adds 4%, up to 60%." },
   ],
   train: [
-    { t: "Training", b: "Welcome to the training ground! In about 3 minutes you will try every important move yourself. Monsters here can't destroy your castle, so relax and learn." },
-    { t: "Buy a card", hl: () => rowRect("shop", SHOP_N), wait: () => boardHas(() => true),
-      b: "New cards appear in the shop down here. Your first card is FREE! Tap a Fire card (or drag it into a slot) to buy it." },
-    { t: "Merge", hl: () => trainFires() < 2 ? rowRect("shop", SHOP_N) : trainFireRect(), setup: () => { gold = Math.max(gold, priceOf("fire", 0) + 5); }, wait: () => boardHas(c => c.element === "fire" && c.rarity >= 1),
-      b: () => trainFires() < 2 ? "Two of the SAME card merge into a stronger one (V1 > V2 > V3). First, buy one more Fire card from the shop." : "Now drag one Fire card and drop it right ON the other Fire card to merge them!" },
-    { t: "Fusion", hl: () => rowRect("storage", SLOTS), setup: () => trainGive("water", 1), wait: () => boardHas(c => c.element === "steam"),
-      b: "Two DIFFERENT elements of the same level fuse into a new spirit. Drag this Water card from storage onto your Fire card: Fire + Water = Steam!" },
-    { t: "Battle row", hl: () => rowRect("active", SLOTS), b: "Only cards in this top row attack. The storage row below keeps cards safe until you merge them. Drag cards between rows any time, and drag a card onto Sell to get gold back." },
+    { t: "Welcome to Arcane Fusion!", b: "Monsters march toward your castle in endless waves. Collect elemental cards, merge them into stronger spirits and defend as long as you can!\nThis short training shows you every move. Monsters here can't destroy your castle, so relax and learn." },
+    { t: "Buy a card", hl: () => uniRect(rowRect("shop", SHOP_N), rowRect("storage", SLOTS)), wait: () => boardHas(c => c.element === "fire"),
+      b: "New cards appear in the shop at the bottom. Your first card is FREE! Drag a Fire card from the shop UP into your storage row (the empty row above the shop)." },
+    { t: "Merge", hl: () => trainFires() < 2 ? uniRect(rowRect("shop", SHOP_N), rowRect("storage", SLOTS)) : trainFireRect(), setup: () => { gold = Math.max(gold, priceOf("fire", 0) + 5); }, wait: () => boardHas(c => c.element === "fire" && c.rarity >= 1),
+      b: () => trainFires() < 2 ? "Two of the SAME card merge into a stronger one (V1 > V2 > V3). Drag one more Fire card from the shop into your storage row." : "Now drag one Fire card and drop it right ON the other Fire card to merge them!" },
+    { t: "Attack row", hl: () => uniRect(rowRect("active", SLOTS), rowRect("storage", SLOTS)), wait: () => rows.active.some(Boolean),
+      b: "Cards in storage don't fight. Only the top row attacks! Drag your strong Fire card UP into the attack row." },
+    { t: "Fusion", hl: () => uniRect(rowRect("active", SLOTS), rowRect("storage", SLOTS)), setup: () => trainGive("water", 1), wait: () => boardHas(c => c.element === "steam"),
+      b: "Two DIFFERENT elements of the same level fuse into a new spirit. Drag this Water card from storage onto your Fire card in the attack row: Fire + Water = Steam!" },
+    { t: "Your rows", hl: () => uniRect(rowRect("active", SLOTS), rowRect("storage", SLOTS)), b: "Top row = attack, storage row = safe keeping for merging later. You can drag cards between rows any time, and drop a card onto Sell to get gold back." },
     { t: "Start the wave", hl: () => btnRect(btn.next), wait: () => state === "wave", b: "Tap Next Wave to send the monsters. Later you can call waves early to earn gold faster." },
-    { t: "Cast a spell", hl: () => btnRect(btn.spell), setup: () => { gold += 40; spellCd = 0; }, wait: () => trainFlags.spell, short: "Tap Spell, draw a Z on the battlefield, then tap Cast",
-      b: "Spells help in a pinch. Tap Spell, draw a Z (Meteor) on the battlefield with your finger, then tap Cast. Time slows down while you draw." },
+    { t: "Cast a spell", hl: () => btnRect(btn.spell), setup: () => { gold += 40; spellCd = 0; }, wait: () => trainFlags.spell, rune: "meteor", short: "Tap Spell, draw the Z on the battlefield, then tap Cast",
+      b: "Spells help in a pinch. Tap Spell, then draw the Meteor rune (a Z, shown on the right) on the battlefield in one finger stroke, and tap Cast. Time slows down while you draw." },
     { t: "Win the wave", wait: () => state === "break", short: "Let your cards finish the wave", b: "Nice! Now let your cards finish the wave. Every monster you kill drops gold." },
     { t: "Elements", b: "Water beats Fire, Fire beats Wind, Wind beats Earth and Earth beats Water. Each map shows a 'Weak to' tag on the left: those monsters take double damage from that element." },
     { t: "Epic cards", hl: () => rowRect("storage", SLOTS), setup: () => { const pool = EPIC_ELS.slice(); for (let i = 0; i < 3; i++) trainGive(pool.splice(Math.floor(Math.random() * pool.length), 1)[0], EPIC); },
@@ -10983,6 +10985,27 @@ function trainFireRect() {
   for (const r of ["active", "storage"]) rows[r].forEach((c, i) => { if (c && c.element === "fire" && c.rarity === 0) pts.push(slotPos(r, i)); });
   const xs = pts.map(q => q.x), ys = pts.map(q => q.y), x0 = Math.min(...xs) - CARD_W / 2 - 10, y0 = Math.min(...ys) - CARD_H / 2 - 12;
   return { x: x0, y: y0, w: Math.max(...xs) + CARD_W / 2 + 10 - x0, h: Math.max(...ys) + CARD_H / 2 + 12 - y0 };
+}
+const uniRect = (a, b) => { const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y); return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y }; };
+function drawRuneHint(key) {
+  const sp = SPELLS[key]; if (!sp || !tut) return;
+  const w = 170, h = 210, x = W - w - 14, y = 500, t = tut.t, pulse = 0.5 + 0.5 * Math.sin(t * 4);
+  ctx.save(); ctx.shadowColor = hexA(sp.color, 0.8); ctx.shadowBlur = 14 + 8 * pulse;
+  rrect(x, y, w, h, 18); ctx.fillStyle = "rgba(20,10,30,0.88)"; ctx.fill(); ctx.restore();
+  rrect(x, y, w, h, 18); ctx.strokeStyle = hexA(sp.color, 0.6 + 0.4 * pulse); ctx.lineWidth = 3; ctx.stroke();
+  text(sp.name.toUpperCase(), x + w / 2, y + 26, 20, sp.color, { weight: 900, outline: 4 });
+  const bx = x + 30, by = y + 46, bs = 110;
+  ctx.save(); ctx.globalAlpha = 0.35; drawRuneIcon(sp, bx, by, bs, bs); ctx.restore();
+  const pts = sp.rune[0].map(([u, v]) => [bx + u * bs, by + v * bs]), segs = [];
+  let L = 0; for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(d); L += d; }
+  const k = Math.min(1, (t % 2.2) / 1.6) * L;
+  ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  let acc = 0, hx = pts[0][0], hy = pts[0][1];
+  for (let i = 1; i < pts.length; i++) { const d = segs[i - 1]; if (acc + d <= k) { ctx.lineTo(pts[i][0], pts[i][1]); hx = pts[i][0]; hy = pts[i][1]; acc += d; } else { const u = (k - acc) / d; hx = pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * u; hy = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * u; ctx.lineTo(hx, hy); break; } }
+  ctx.strokeStyle = sp.color; ctx.lineWidth = 8; ctx.stroke(); ctx.restore();
+  circle(hx, hy, 9, "#fff"); ring(hx, hy, 9, sp.color, 3);
+  circle(pts[0][0], pts[0][1], 6, "#7cff8a");
+  text("Start at the green dot", x + w / 2, y + h - 18, 15, "#e9d9ff", { weight: 700 });
 }
 const boardHas = f => [...rows.active, ...rows.storage].some(c => c && f(c));
 function trainShop(els) {
@@ -11027,6 +11050,7 @@ function tutCheck() {
   const seen = k => save.tut[k];
   if (state === "title") {
     const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen && !bioOpen && !missionsOpen && !settingsOpen && !starterOpen;
+    if (calm && !nameOpen && !save.trained && !seen("lobby") && !seen("run1")) { startTraining(); fadeIn = 0.5; return; }
     if (calm && !nameOpen && !profile().named) { openNameBox(true); return; }
     if (!save.starterAt && profile().named) { save.starterAt = Date.now(); writeSave(); }
     if (!seen("lobby") && calm && !nameOpen) tutStart("lobby");
@@ -11043,6 +11067,7 @@ function tutCheck() {
 function drawTut(dt) {
   const st = tutStep(); tut.t += dt;
   if (st.wait && st.short && (chamberOpen || spell || fusion || (dragon && tut.t > 4))) {
+    if (st.rune) drawRuneHint(st.rune);
     const y = dragon && !chamberOpen ? Math.min(H - 300, dragon.y + dragonSize().h + 44) : HUD_H + 8, pulse = 0.5 + 0.5 * Math.sin(tut.t * 4);
     ctx.font = `800 20px ${FONT}`; const w = Math.min(W - 24, ctx.measureText(st.short).width + 48);
     rrect(W / 2 - w / 2, y, w, 44, 22); ctx.fillStyle = "rgba(20,10,30,0.85)"; ctx.fill(); ctx.strokeStyle = `rgba(242,193,78,${0.6 + 0.4 * pulse})`; ctx.lineWidth = 3; ctx.stroke();
@@ -11081,6 +11106,7 @@ function drawTut(dt) {
   if (tut.ch !== "train") { btn.tutSkip.x = px + 20; btn.tutSkip.y = by; drawBtn(btn.tutSkip); }
   if (st.wait) text("Your turn!", px + pw - 120, by + 44, 28, "#2f8f3f", { weight: 800, baseline: "middle" });
   else { btn.tutNext.label = tut.i === list.length - 1 ? "Got it!" : "Next"; btn.tutNext.x = px + pw - 20 - btn.tutNext.w; btn.tutNext.y = by; drawBtn(btn.tutNext); }
+  if (st.rune) drawRuneHint(st.rune);
 }
 
 function drawWeakTag() {
