@@ -998,6 +998,8 @@ SAMPLE_SRC.barricade = "assets/audio/barricade.mp3";
 SAMPLE_SRC.wild_drop = "assets/audio/wild_drop.mp3";
 SAMPLE_SRC.stage_clear = "assets/audio/stage_clear.mp3";
 SAMPLE_SRC.battle_loop = "assets/audio/battle_loop.mp3";
+SAMPLE_SRC.dragon_loop = "assets/audio/dragon_loop.mp3";
+for (const [k, [o, n]] of Object.entries({"dragon_roar":[0,42676],"dragon_shot":[42676,27316],"dragon_step":[69992,12897],"dragon_die":[82889,60858],"dragon_breath":[143747,66814]})) SAMPLE_SRC[k] = `pack:assets/audio/dragon_sounds.mp3#${o},${n}`;
 const SAMPLES = {};
 const AUDIO_PACKS = {};
 function loadAudioBytes(uri) {
@@ -4631,11 +4633,17 @@ class SpriteAnim {
     this.frame = f;
     if (this.done && this.onEnd) { const cb = this.onEnd; this.onEnd = null; cb(); }
   }
-  draw(x, y, w, h) {
+  draw(x, y, w, h, blend = true) {
     if (!this.name) return false;
     const s = this.sheet(this.name); if (!s.ready) return false;
-    const { frameWidth: fw, frameHeight: fh, columns: c } = this.def;
-    ctx.drawImage(s.img, (this.frame % c) * fw, Math.floor(this.frame / c) * fh, fw, fh, x, y, w, h);
+    const a = this.def.animations[this.name], { frameWidth: fw, frameHeight: fh, columns: c } = this.def;
+    const cell = f => [(f % c) * fw, Math.floor(f / c) * fh];
+    const [sx, sy] = cell(this.frame);
+    ctx.drawImage(s.img, sx, sy, fw, fh, x, y, w, h);
+    const next = a.loop ? (this.frame + 1) % a.frames : this.frame + 1, k = this.t * a.fps - Math.floor(this.t * a.fps);
+    if (blend && !this.done && next < a.frames && k > 0.02) {
+      const [nx, ny] = cell(next); ctx.save(); ctx.globalAlpha *= k; ctx.drawImage(s.img, nx, ny, fw, fh, x, y, w, h); ctx.restore();
+    }
     return true;
   }
 }
@@ -4683,32 +4691,31 @@ function startDragon() {
   const { h } = dragonSize(), n = 5 + Math.floor(Math.random() * 11);
   dragon = { anim: new SpriteAnim(DRAGON_DEF, DRAGON_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
   dragon.rune = dragonRuneFor();
-  dragon.anim.play("walk");
+  dragon.anim.play("walk", { 5: dragonStep, 15: dragonStep });
   showBanner("A FIRE DRAGON DESCENDS!", "#ff7a2a");
-  playSample("dead_orc", 1, 0.5); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
+  playSample("dragon_roar", 0.8, 1); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
 }
+function dragonStep() { if (!dragon || dragon.phase !== "enter") return; playSample("dragon_step", 0.9, rand(0.92, 1.05)); shakeT = Math.max(shakeT, 0.15); shakeAmp = Math.max(shakeAmp, 3); }
 function dragonAttack() {
   const d = dragon; d.phase = "attack";
   if (Math.random() < 0.6) {
     const a = DRAGON_DEF.animations.shoot;
-    d.anim.play("shoot", { [a.fireFrame]: () => dragonShoot() }, () => dragonIdle());
+    d.anim.play("shoot", { [a.fireFrame - 1]: () => playSample("dragon_shot", 1, 1), [a.fireFrame]: () => dragonShoot() }, () => dragonIdle());
   } else {
     const a = DRAGON_DEF.animations.roar, [s0, s1] = a.shakeFrames;
-    d.anim.play("roar", { [s0]: () => dragonRoar(s1 - s0, a.fps) }, () => dragonIdle());
+    d.anim.play("roar", { [Math.max(1, s0 - 3)]: () => playSample("dragon_roar", 1, 1), [s0]: () => dragonRoar(s1 - s0, a.fps) }, () => dragonIdle());
   }
 }
-function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD; dragon.anim.play("idle"); }
+function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD; dragon.anim.play("idle", { 1: () => playSample("dragon_breath", 0.55, rand(0.95, 1.05)) }); }
 function dragonShoot() {
   const d = dragon, { w } = dragonSize(), k = w / DRAGON_DEF.frameWidth, m = DRAGON_DEF.animations.shoot.mouth;
   const x = m.x * k, y = d.y + m.y * k, tx = clamp(x + rand(-220, 220), 60, W - 60), ty = FRONT_Y - 6;
   dragonFireballs.push({ x, y, x0: x, y0: y, tx, ty, t: 0, dur: 1.1, trail: [] });
-  playSfx("lava", "atk"); playSfx("phoenix", "atk");
 }
 function dragonRoar(frames, fps) {
   shakeT = Math.max(shakeT, frames / fps); shakeAmp = Math.max(shakeAmp, 7);
   dragonRoarT = DRAGON_ROAR_TIME;
   showInfo("The dragon's roar slows your cards!");
-  playSample("dead_orc", 1, 0.55); playSample("dead_boar", 0.6, 0.45);
 }
 function dragonRuneHit() {
   const d = dragon; if (!d) return;
@@ -4727,7 +4734,7 @@ function dragonDie() {
   save.gems += DRAGON_GEMS; runGems += DRAGON_GEMS; writeSave(); track("boss"); track("dragon");
   showBanner(`DRAGON SLAIN!  +${DRAGON_GEMS} gems`, "#ffd84a");
   shakeT = Math.max(shakeT, 1.4); shakeAmp = Math.max(shakeAmp, 18);
-  playSfx("lava", "hit"); playSfx("earth", "hit"); playSample("dead_orc", 1.1, 0.4);
+  playSfx("lava", "hit"); playSfx("earth", "hit"); playSample("dragon_die", 1, 1);
   if (spell && spell.dragonOnly) spell = null;
 }
 function updateDragon(dt) {
@@ -4784,8 +4791,10 @@ function drawDragon() {
   ctx.save();
   ctx.globalAlpha *= fade;
   if (d.dying) { ctx.translate(rand(-4, 4), rand(-4, 4)); }
-  const drawn = d.anim.draw(0, d.y, w, h);
-  if (drawn && (d.hitT > 0 || d.dying)) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= d.dying ? 0.5 + 0.4 * Math.sin(d.dieT * 30) : d.hitT * 0.6; d.anim.draw(0, d.y, w, h); ctx.restore(); }
+  const breathe = d.phase === "idle" ? Math.sin(time * 1.3) : 0, sway = d.phase === "enter" ? Math.sin(d.t * 5) : 0;
+  const bw = w * (1 + 0.006 * breathe), bh = h * (1 + 0.012 * breathe), bx = (w - bw) / 2, by = d.y + sway * 3 - (bh - h) * 0.3;
+  const drawn = d.anim.draw(bx, by, bw, bh);
+  if (drawn && (d.hitT > 0 || d.dying)) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= d.dying ? 0.5 + 0.4 * Math.sin(d.dieT * 30) : d.hitT * 0.6; d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
   ctx.restore();
   if (!drawn) return;
   if (d.rune && d.phase !== "enter") {
@@ -6303,10 +6312,10 @@ function totemArc(x0, y0, x1, y1, t, kind = "dmg") {
   ctx.restore();
 }
 const Music = { src: null, gain: null, name: null };
-const MUSIC_VOL = { lobby_loop: 0.55, battle_loop: 0.4 };
+const MUSIC_VOL = { lobby_loop: 0.55, battle_loop: 0.4, dragon_loop: 0.45 };
 function syncMusic() {
   const ac = Sfx.ctx;
-  const name = state === "title" ? "lobby_loop" : (state === "wave" || state === "break") ? "battle_loop" : null;
+  const name = state === "title" ? "lobby_loop" : (state === "wave" || state === "break") ? (dragon && !dragon.dying ? "dragon_loop" : "battle_loop") : null;
   const want = ac && ac.state === "running" && !Sfx.muted && name && SAMPLES[name] ? name : null;
   if (Music.src && Music.name !== want) {
     try { Music.gain.gain.cancelScheduledValues(ac.currentTime); Music.gain.gain.setTargetAtTime(0, ac.currentTime, 0.15); Music.src.stop(ac.currentTime + 1); } catch (e) {}
