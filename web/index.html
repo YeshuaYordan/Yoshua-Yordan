@@ -1241,7 +1241,7 @@ class Card {
     ctx.restore();
   }
   drawBattle() {
-    if (!liteBattle() || this.evolveAt >= 0 || this.burnAway !== undefined || (this.ssjFlare || 0) > 0.01) return this.draw();
+    if (!settings.lite || this.evolveAt >= 0 || this.burnAway !== undefined || (this.ssjFlare || 0) > 0.01) return this.draw();
     const d = EL[this.element];
     if (d.art && !(CARD_ILLUS[d.art] && CARD_ILLUS[d.art].ready)) return this.draw();
     const maxed = (this.stars || 0) >= MAX_STARS, big = maxed || this.rarity >= MYTH || d.art || d.special;
@@ -11550,7 +11550,7 @@ function frame(now) {
   }
   if (state === "wave" || state === "break") perfWatch(now - last);
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
-  if (liteBattle() && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }
+  if (settings.lite && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }
   update(dt);
   ctx.setTransform(1, 0, 0, 1, 0, TOP); ctx.clearRect(0, -TOP, W, H + TOP);
   if (state === "title") drawLobby(dt);
