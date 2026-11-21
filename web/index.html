@@ -4731,13 +4731,14 @@ function startSoul() {
   const def = SOUL_DEF, h = def.frameHeight * W / def.frameWidth, n = 5 + Math.floor(Math.random() * 11);
   dragon = { kind: "soul", def, dir: SOUL_DIR, anim: new SpriteAnim(def, SOUL_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
   dragon.rune = dragonRuneFor(); dragon.anim.speed = SOUL_ANIM_SPEED; dragon.anim.play("walk");
-  showBanner("THE SOUL EATER AWAKENS!", "#7ab8ff");
+  bossIntro = { t: 0, kind: "soul" };
   playSample("soul_appear", 1, 1); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
 }
 function soulAttack() {
   const d = dragon, a = SOUL_DEF.animations.shot, what = d.next || "shot"; d.phase = "attack";
   d.extra = a.frames / a.fps * (1 - 1 / d.anim.speed);
   const act = what === "shield" ? soulShield : what === "summon" ? soulSummon : soulShoot;
+  { const m = bossMouthOf(d, "shot"); bossCharge(m.x, m.y, a.fireFrame / a.fps / d.anim.speed); }
   d.anim.play("shot", { [a.fireFrame - 2]: () => playSample(what === "shield" ? "soul_shield" : what === "summon" ? "soul_summon" : "soul_shot", 1, 1), [a.fireFrame]: act }, () => dragonIdle());
 }
 function soulMouth() { const d = dragon, k = W / SOUL_DEF.frameWidth, m = SOUL_DEF.animations.shot.mouth; return { x: m.x * k, y: d.y + m.y * k }; }
@@ -4776,7 +4777,7 @@ function startKraken() {
   const n = 5 + Math.floor(Math.random() * 11);
   dragon = { kind: "kraken", def: KRAKEN_DEF, dir: KRAKEN_DIR, anim: new SpriteAnim(KRAKEN_DEF, KRAKEN_DIR), phase: "enter", t: 0, y: HUD_H + 6, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
   dragon.rune = dragonRuneFor();
-  showBanner("THE KRAKEN RISES FROM THE DEEP!", "#3ad0ff");
+  bossIntro = { t: 0, kind: "kraken" };
 }
 function krakenAppear() {
   const d = dragon; d.started = true; d.anim.speed = 1;
@@ -4791,11 +4792,13 @@ function krakenAttack() {
   if (nx === "tentacle" && !krakenGrip) return krakenTentacles();
   const d = dragon, a = KRAKEN_DEF.animations.spit; d.phase = "attack";
   d.extra = a.frames / a.fps * (1 - 1 / d.anim.speed);
+  { const m = bossMouthOf(d, "spit"); bossCharge(m.x, m.y, a.inkFrame / a.fps / d.anim.speed); }
   d.anim.play("spit", { [a.inkFrame - 1]: () => playSample("kraken_spit", 1, 1), [a.inkFrame]: () => krakenSpit() }, () => dragonIdle());
 }
 function krakenTentacles() {
   const d = dragon; d.phase = "attack"; d.extra = 0;
   krakenGrip = { t: 0, phase: "in", held: false };
+  { const m = bossMouthOf(d, "idle"); bossCharge(m.x, m.y + 40, 0.5); }
   showInfo("Tentacles! Your attack row is grabbed and can't shoot!");
   playSample("kraken_slither", 1, 1);
   shakeT = Math.max(shakeT, 0.4); shakeAmp = Math.max(shakeAmp, 5);
@@ -4882,7 +4885,7 @@ function startDragon() {
   dragon = { kind: "dragon", def: DRAGON_DEF, dir: DRAGON_DIR, anim: new SpriteAnim(DRAGON_DEF, DRAGON_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
   dragon.rune = dragonRuneFor(); dragon.anim.speed = DRAGON_ANIM_SPEED;
   dragon.anim.play("walk", { 5: dragonStep, 15: dragonStep });
-  showBanner("A FIRE DRAGON DESCENDS!", "#ff7a2a");
+  bossIntro = { t: 0, kind: "dragon" };
   playSample("dragon_roar", 0.8, 1); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
 }
 function dragonStep() { if (!dragon || dragon.phase !== "enter") return; playSample("dragon_step", 0.9, rand(0.92, 1.05)); shakeT = Math.max(shakeT, 0.15); shakeAmp = Math.max(shakeAmp, 3); }
@@ -4894,11 +4897,23 @@ function dragonAttack() {
   d.extra = pa.frames / pa.fps * (1 - 1 / d.anim.speed);
   if (pick === "shoot") {
     const a = DRAGON_DEF.animations.shoot;
+    { const m = bossMouthOf(d, "shoot"); bossCharge(m.x, m.y, a.fireFrame / a.fps / d.anim.speed); }
     d.anim.play("shoot", { [a.fireFrame - 1]: () => playSample("dragon_shot", 1, 1), [a.fireFrame]: () => dragonShoot() }, () => dragonIdle());
   } else {
     const a = DRAGON_DEF.animations.roar, [s0, s1] = a.shakeFrames;
+    { const m = bossMouthOf(d, "roar"); bossCharge(m.x, m.y, s0 / a.fps / d.anim.speed); }
     d.anim.play("roar", { [Math.max(1, s0 - 3)]: () => playSample("dragon_roar", 1, 1), [s0]: () => dragonRoar(s1 - s0, a.fps) }, () => dragonIdle());
   }
+}
+let bossIntro = null, bossFlash = 0, bossSlowT = 0, bossCharges = [];
+const BOSS_TITLE = { dragon: ["THE FIRE DRAGON", "Lord of the burning sky"], kraken: ["THE KRAKEN", "Terror of the deep"], soul: ["THE SOUL EATER", "Devourer of spirits"] };
+function bossCharge(x, y, dur) {
+  if (!dragon) return;
+  bossCharges.push({ x, y, t: 0, dur: Math.max(0.25, dur), parts: [] });
+}
+function bossMouthOf(d, anim) {
+  const k = W / d.def.frameWidth, a = d.def.animations[anim] || {}, m = a.mouth;
+  return m ? { x: m.x * k, y: d.y + m.y * k } : { x: W / 2, y: d.y + d.def.frameHeight * k * 0.32 };
 }
 const bossAnim = (d, n) => d.def.animations[n] ? n : "shot";
 function bossPrep(d) {
@@ -4928,7 +4943,7 @@ function dragonRoar(frames, fps) {
 }
 function dragonRuneHit() {
   const d = dragon; if (!d) return;
-  d.left--; d.hitT = 1; d.runePop = 1;
+  d.left--; d.hitT = 1; d.runePop = 1; d.recoil = 1; bossFlash = Math.max(bossFlash, 0.35);
   const cx = W / 2, cy = d.y + dragonSize().h * 0.5;
   const bc = bossCol();
   for (let i = 0; i < 40; i++) { const a = rand(0, Math.PI * 2), v = rand(160, 520); addPart({ add: true, kind: "spark", x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, drag: 3, life: rand(0.4, 0.8), size: 3, rgb: bc.spark, len: 0.05 }); }
@@ -4940,7 +4955,7 @@ function dragonRuneHit() {
   fxs.push(new Fx("text", { x: cx, y: cy - 40, text: `Rune broken!  ${d.left} left`, color: bc.label, size: 30, duration: 1.1 }));
 }
 function dragonDie() {
-  const d = dragon; d.dying = true; d.dieT = 0; d.rune = null;
+  const d = dragon; d.dying = true; d.dieT = 0; d.rune = null; bossSlowT = 1.4; bossFlash = 1; bossCharges = [];
   save.gems += DRAGON_GEMS; runGems += DRAGON_GEMS; writeSave(); track("boss"); track("dragon");
   showBanner(`${bossName().toUpperCase()} SLAIN!  +${DRAGON_GEMS} gems`, "#ffd84a");
   if (d.kind === "soul") {
@@ -5013,6 +5028,15 @@ function updateDragon(dt) {
   }
   krakenInks = krakenInks.filter(f => !f.done || f.dr.length);
   updateKrakenGrip(dt); updateSoul(dt);
+  bossFlash = Math.max(0, bossFlash - dt * 2.5); if (bossIntro) { bossIntro.t += dt; if (bossIntro.t > 3.2) bossIntro = null; }
+  if (dragon) dragon.recoil = Math.max(0, (dragon.recoil || 0) - dt * 4);
+  for (const c of bossCharges) {
+    c.t += dt;
+    if (c.t < c.dur && !settings.lite) for (let i = 0; i < 3; i++) { const a = rand(0, Math.PI * 2), r = rand(90, 170); c.parts.push({ x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r, t: 0, life: rand(0.25, 0.45) }); }
+    for (const q of c.parts) { q.t += dt; const k = Math.min(1, dt / Math.max(0.05, q.life - q.t + dt)); q.x += (c.x - q.x) * k; q.y += (c.y - q.y) * k; }
+    c.parts = c.parts.filter(q => q.t < q.life);
+  }
+  bossCharges = bossCharges.filter(c => c.t < c.dur + 0.3);
   for (const sp of krakenSplats) { sp.t += dt; if (sp.mini) { sp.vy += 700 * dt; sp.x += sp.vx * dt; sp.y += sp.vy * dt; } }
   krakenSplats = krakenSplats.filter(sp => sp.t < sp.life);
   const d = dragon; if (!d) return;
@@ -5057,10 +5081,26 @@ function drawDragon() {
   ctx.globalAlpha *= fade;
   if (d.dying) { ctx.translate(rand(-4, 4), rand(-4, 4)); }
   const breathe = d.phase === "idle" ? Math.sin(time * 1.3) : 0, sway = d.phase === "enter" ? Math.sin(d.t * 5) : 0;
-  const bw = w * (1 + 0.006 * breathe), bh = h * (1 + 0.012 * breathe), bx = (w - bw) / 2, by = d.y + sway * 3 - (bh - h) * 0.3;
+  const bw = w * (1 + 0.006 * breathe), bh = h * (1 + 0.012 * breathe), bx = (w - bw) / 2, by = d.y + sway * 3 - (bh - h) * 0.3 - 16 * Math.sin(Math.min(1, d.recoil || 0) * Math.PI);
   const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, 1), sy = by + bh * 0.84, sk = 1 - 0.04 * breathe;
   sh.addColorStop(0, "rgba(0,0,0,0.5)"); sh.addColorStop(0.6, "rgba(0,0,0,0.22)"); sh.addColorStop(1, "rgba(0,0,0,0)");
   ctx.save(); ctx.globalAlpha *= aK; ctx.translate(W / 2, sy); ctx.scale(w * 0.4 * sk, bh * 0.09 * sk); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  if (d.anim.ready() && !settings.lite) {
+    const pr = 0.5 + 0.5 * Math.sin(time * 1.7), cx = W / 2, cy = by + bh * 0.42;
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= aK * (d.dying ? 0.5 : 1);
+    ctx.translate(cx, cy); ctx.rotate(time * 0.12);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, wv = 0.09 + 0.05 * Math.sin(time * 1.3 + i * 1.7), L = w * (0.62 + 0.12 * Math.sin(time * 0.9 + i));
+      const g = ctx.createLinearGradient(0, 0, Math.cos(a) * L, Math.sin(a) * L); g.addColorStop(0, `rgba(${bc.glow},${0.16 + 0.08 * pr})`); g.addColorStop(1, `rgba(${bc.glow},0)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, L, a - wv, a + wv); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+    ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= aK * (0.55 + 0.25 * pr); ctx.translate(cx, by + bh * 0.86); ctx.scale(1, 0.26);
+    const R1 = w * 0.42; ctx.strokeStyle = bc.ring; ctx.lineWidth = 5;
+    ctx.save(); ctx.rotate(time * 0.5); ctx.beginPath(); ctx.arc(0, 0, R1, 0, Math.PI * 2); ctx.stroke(); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, R1 * 0.82, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 16; i++) { ctx.rotate(Math.PI / 8); ctx.fillStyle = bc.tip; ctx.fillRect(R1 * 0.84, -5, R1 * 0.14, 10); } ctx.restore();
+    ctx.save(); ctx.rotate(-time * 0.8); ctx.lineWidth = 3; ctx.beginPath(); for (let i = 0; i <= 6; i++) { const a = i / 6 * Math.PI * 2 * 2; const px = Math.cos(a) * R1 * 0.7, py = Math.sin(a) * R1 * 0.7; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); ctx.stroke(); ctx.restore();
+    dRadial(0, 0, R1 * 1.1, [[0, `rgba(${bc.glow},0.28)`], [1, `rgba(${bc.glow},0)`]]);
+    ctx.restore();
+  }
   if (d.anim.ready() && !settings.lite) {
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.4), roarK = Math.min(1, Math.max(0, dragonRoarT - (DRAGON_ROAR_TIME - 2)) / 2);
     ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= aK;
@@ -5234,6 +5274,35 @@ function drawDanger(dt) {
     ctx.save(); ctx.globalAlpha = a; text("DANGER!", cx, cy + 66, 26, "#ff4a3a", { weight: 900, outline: 6 }); ctx.restore();
   }
 }
+function drawBossFx() {
+  const bc = dragon ? bossCol() : BOSS_COL.dragon;
+  if (bossCharges.length && !settings.lite) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (const c of bossCharges) {
+      const k = Math.min(1, c.t / c.dur), fade = c.t > c.dur ? Math.max(0, 1 - (c.t - c.dur) / 0.3) : 1, r = 18 + 46 * k;
+      ctx.globalAlpha = fade; dRadial(c.x, c.y, r * 2.2, [[0, "rgba(255,255,255,0.9)"], [0.25, `rgba(${bc.spark},0.75)`], [1, `rgba(${bc.glow},0)`]]);
+      ctx.strokeStyle = `rgba(${bc.spark},${0.8 * fade})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(c.x, c.y, (1 - k) * 120 + r * 0.6, 0, Math.PI * 2); ctx.stroke();
+      for (const q of c.parts) { ctx.globalAlpha = fade * (1 - q.t / q.life); ctx.strokeStyle = `rgb(${bc.spark})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x + (q.x - c.x) * 0.12, q.y + (q.y - c.y) * 0.12); ctx.stroke(); }
+    }
+    ctx.restore();
+  }
+  if (bossFlash > 0) { ctx.save(); ctx.globalAlpha = Math.min(0.7, bossFlash * 0.7); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, -TOP, W, H + TOP); ctx.restore(); }
+  if (bossIntro) {
+    const t = bossIntro.t, [title, sub] = BOSS_TITLE[bossIntro.kind] || ["", ""], col = BOSS_COL[bossIntro.kind] || BOSS_COL.dragon;
+    const a = Math.min(1, t / 0.3) * Math.min(1, (3.2 - t) / 0.5), cy = HUD_H + 430;
+    ctx.save(); ctx.globalAlpha = a * 0.55; ctx.fillStyle = "#000"; ctx.fillRect(0, -TOP, W, H + TOP); ctx.restore();
+    ctx.save(); ctx.globalAlpha = a;
+    const bw = W * Math.min(1, t / 0.45); const g = ctx.createLinearGradient(W / 2 - bw / 2, 0, W / 2 + bw / 2, 0); g.addColorStop(0, `rgba(${col.glow},0)`); g.addColorStop(0.5, `rgba(${col.glow},0.55)`); g.addColorStop(1, `rgba(${col.glow},0)`);
+    ctx.fillStyle = g; ctx.fillRect(W / 2 - bw / 2, cy - 70, bw, 130);
+    ctx.fillStyle = col.tip; ctx.fillRect(W / 2 - bw / 2, cy - 72, bw, 3); ctx.fillRect(W / 2 - bw / 2, cy + 58, bw, 3);
+    const sc = 1 + 0.35 * Math.max(0, 1 - t / 0.35);
+    ctx.translate(W / 2, cy); ctx.scale(sc, sc);
+    text("SPECIAL BOSS", 0, -40, 20, col.label, { weight: 900, outline: 5 });
+    text(title, 0, 10, 46, "#ffffff", { font: DISPLAY, weight: 900, outline: 9, outlineColor: "#100818" });
+    text(sub, 0, 46, 20, col.label, { weight: 800, outline: 5 });
+    ctx.restore();
+  }
+}
 function drawRoarTint() {
   drawKrakenGrip();
   if (soulShieldT > 0 || enemies.some(e => e.soul)) {
@@ -5271,7 +5340,7 @@ function drawRoarTint() {
 function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
-  dragon = null; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
+  dragon = null; bossIntro = null; bossCharges = []; bossSlowT = 0; bossFlash = 0; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
@@ -8159,6 +8228,7 @@ function update(dt) {
   updateSpell(dt);
   const spellSlow = spell && !(dragon && !dragon.dying);
   if (spellSlow) dt *= SPELL_SLOWMO;
+  if (bossSlowT > 0) { bossSlowT = Math.max(0, bossSlowT - realDt); dt *= 0.3 + 0.7 * (1 - bossSlowT / 1.4); }
   if (gameSpeed === 2 && !spellSlow && !reviveOffer && !speedOffer && !relicOffer && (state === "wave" || state === "break")) dt *= 2;
   const doomDt = dt;
   if (doom && !doom.hit) dt *= 0.3;
@@ -11487,7 +11557,7 @@ function frame(now) {
       ctx.translate(rand(-1, 1) * s, rand(-1, 1) * s);
       if (doom && doom.hit) { const z = 1 + 0.06 * Math.max(0, 1 - (doom.t - DOOM_HIT) / 0.5); ctx.translate(W / 2, (HUD_H + FRONT_Y) / 2); ctx.scale(z, z); ctx.translate(-W / 2, -(HUD_H + FRONT_Y) / 2); }
     }
-    drawWorld(); drawDragonFireballs(); drawDanger(paused ? 0 : dt); drawRoarTint(); drawDoom(); drawHud(); drawSpell(); ctx.restore();
+    drawWorld(); drawDragonFireballs(); drawDanger(paused ? 0 : dt); drawRoarTint(); drawBossFx(); drawDoom(); drawHud(); drawSpell(); ctx.restore();
   }
   if (drag) {
     drag.card.drawBattle();
