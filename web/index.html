@@ -999,6 +999,7 @@ SAMPLE_SRC.wild_drop = "assets/audio/wild_drop.mp3";
 SAMPLE_SRC.stage_clear = "assets/audio/stage_clear.mp3";
 SAMPLE_SRC.battle_loop = "assets/audio/battle_loop.mp3";
 SAMPLE_SRC.dragon_loop = "assets/audio/dragon_loop.mp3";
+for (const [k, [o, n]] of Object.entries({"soul_appear":[0,54902],"soul_shot":[54902,22301],"soul_blast":[77203,18853],"soul_shield":[96056,36720],"soul_summon":[132776,48946],"soul_die":[181722,60858],"soul_idle":[242580,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/soul_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"kraken_rise":[0,54902],"kraken_spit":[54902,18853],"kraken_splat":[73755,6627],"kraken_slither":[80382,20107],"kraken_grab":[100489,20107],"kraken_release":[120596,21360],"kraken_die":[141956,60858],"kraken_idle":[202814,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/kraken_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"dragon_roar":[0,42676],"dragon_shot":[42676,27316],"dragon_step":[69992,12897],"dragon_die":[82889,60858],"dragon_breath":[143747,66814],"danger_alarm":[210561,24809]})) SAMPLE_SRC[k] = `pack:assets/audio/dragon_sounds.mp3#${o},${n}`;
 const SAMPLES = {};
@@ -4731,13 +4732,13 @@ function startSoul() {
   dragon = { kind: "soul", def, dir: SOUL_DIR, anim: new SpriteAnim(def, SOUL_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
   dragon.rune = dragonRuneFor(); dragon.anim.speed = SOUL_ANIM_SPEED; dragon.anim.play("walk");
   showBanner("THE SOUL EATER AWAKENS!", "#7ab8ff");
-  playSample("dragon_roar", 0.8, 1.35); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
+  playSample("soul_appear", 1, 1); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
 }
 function soulAttack() {
   const d = dragon, a = SOUL_DEF.animations.shot, what = d.next || "shot"; d.phase = "attack";
   d.extra = a.frames / a.fps * (1 - 1 / d.anim.speed);
   const act = what === "shield" ? soulShield : what === "summon" ? soulSummon : soulShoot;
-  d.anim.play("shot", { [a.fireFrame - 2]: () => what === "shot" ? playSample("dragon_shot", 1, 1.3) : playSpellSound("spell_work"), [a.fireFrame]: act }, () => dragonIdle());
+  d.anim.play("shot", { [a.fireFrame - 2]: () => playSample(what === "shield" ? "soul_shield" : what === "summon" ? "soul_summon" : "soul_shot", 1, 1), [a.fireFrame]: act }, () => dragonIdle());
 }
 function soulMouth() { const d = dragon, k = W / SOUL_DEF.frameWidth, m = SOUL_DEF.animations.shot.mouth; return { x: m.x * k, y: d.y + m.y * k }; }
 function soulShoot() {
@@ -4751,13 +4752,11 @@ function soulShield() {
   showBanner("SOUL SHIELD! Enemies can't be hurt!", "#7ab8ff");
   dragonWaves.push({ x, y, t: 0, kind: "sdie" }, { x, y, t: -0.2, kind: "sdie" });
   for (const e of enemies) addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "120,180,255", size: 14, grow: 60, w: 5, sq: 0.6, life: 0.6 });
-  playSfx("light", "hit"); playSample("kraken_rise", 0.5, 1.4);
 }
 function soulSummon() {
   const n = clamp(3 + Math.floor(wave / 10), 3, 10);
   showBanner("SOULS RISE FROM THE GROUND!", "#7ab8ff");
   for (let i = 0; i < n; i++) soulRises.push({ x: rand(70, W - 70), y: rand(HUD_H + 160, FRONT_Y - 260), t: -i * 0.18, done: false, kind: pickKind(Math.max(1, wave)) });
-  playSample("kraken_rise", 0.8, 1.2);
 }
 function updateSoul(dt) {
   soulShieldT = Math.max(0, soulShieldT - dt);
@@ -4911,7 +4910,7 @@ function bossPrep(d) {
   for (const n of Object.keys(d.def.animations)) { const f = d.def.animations[n].file; if (!keep.has(f)) freeSheet(d.dir + f); }
 }
 function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD + (dragon.extra || 0); dragon.extra = 0; dragon.anim.play("idle", { 1: dragonBreath }); bossPrep(dragon); }
-function dragonBreath() { const d = dragon; if (!d || d.phase !== "idle" || time - (d.breathAt || -9) < (d.kind === "kraken" ? 5.5 : 4.5)) return; d.breathAt = time; playSample(d.kind === "kraken" ? "kraken_idle" : "dragon_breath", 0.55, rand(0.95, 1.05)); }
+function dragonBreath() { const d = dragon; if (!d || d.phase !== "idle" || time - (d.breathAt || -9) < (d.kind === "dragon" ? 4.5 : 5.5)) return; d.breathAt = time; playSample(d.kind === "kraken" ? "kraken_idle" : d.kind === "soul" ? "soul_idle" : "dragon_breath", 0.55, rand(0.95, 1.05)); }
 function dragonShoot() {
   const d = dragon, { w } = dragonSize(), k = w / DRAGON_DEF.frameWidth, m = DRAGON_DEF.animations.shoot.mouth;
   const x = m.x * k, y = d.y + m.y * k, tx = clamp(x + rand(-220, 220), 60, W - 60), ty = FRONT_Y - 6;
@@ -4945,7 +4944,7 @@ function dragonDie() {
   save.gems += DRAGON_GEMS; runGems += DRAGON_GEMS; writeSave(); track("boss"); track("dragon");
   showBanner(`${bossName().toUpperCase()} SLAIN!  +${DRAGON_GEMS} gems`, "#ffd84a");
   if (d.kind === "soul") {
-    soulShieldT = 0; d.anim.speed = SOUL_ANIM_SPEED; d.deathWait = true; d.anim.sheet("death"); playSample("dragon_die", 1, 1.3); playSfx("light", "hit");
+    soulShieldT = 0; d.anim.speed = SOUL_ANIM_SPEED; d.deathWait = true; d.anim.sheet("death"); playSample("soul_die", 1, 1);
     const cy = d.y + dragonSize().h * 0.45; for (let i = 0; i < 3; i++) dragonWaves.push({ x: W / 2, y: cy, t: -i * 0.25, kind: "sdie" });
     for (let i = 0; i < 40; i++) addPart({ kind: "smoke", x: W / 2 + rand(-240, 240), y: cy + rand(-60, 100), vx: rand(-40, 40), vy: -rand(40, 140), life: rand(1, 1.8), size: rand(16, 30), grow: 1.3, col: Math.random() < 0.5 ? "#3a5cff" : "#9ec4ff", a: 0.5 });
     if (spell && spell.dragonOnly) spell = null;
@@ -5102,7 +5101,7 @@ function dragonBlast(x, y, air = false, blue = false) {
   for (let i = 0; i < 30; i++) addPart({ kind: "chunk", x, y, vx: rand(-340, 340), vy: -rand(200, 560), g: 1100, life: rand(0.6, 1.1), size: rand(3, 8), col: blue ? (Math.random() < 0.5 ? "#5a8aff" : "#0e1430") : Math.random() < 0.5 ? "#ff8a3a" : "#3a1a0c", rot: rand(0, 6), hot: !blue && Math.random() < 0.5 });
   for (let i = 0; i < 12; i++) addPart({ kind: "smoke", x: x + rand(-80, 80), y: y + rand(-30, 10), vx: rand(-40, 40), vy: -rand(40, 110), life: rand(1, 1.7), size: rand(18, 34), grow: 1.4, col: blue ? "#141a3a" : "#2a1a14", a: 0.45 });
   shakeT = Math.max(shakeT, 0.6); shakeAmp = Math.max(shakeAmp, 16); buzz(120);
-  playSfx("lava", "hit"); playSfx("earth", "hit");
+  if (blue) playSample("soul_blast", 1, 1); else { playSfx("lava", "hit"); playSfx("earth", "hit"); }
 }
 function dRadial(x, y, r, stops) { const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(1, r)); for (const [o, c] of stops) g.addColorStop(o, c); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, Math.PI * 2); ctx.fill(); }
 const DFIRE = [[255, 255, 230], [255, 220, 90], [255, 130, 30], [200, 40, 10], [60, 15, 5]];
