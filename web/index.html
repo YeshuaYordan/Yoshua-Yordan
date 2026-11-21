@@ -4682,6 +4682,7 @@ const SOUL_DEF = { frameWidth: 768, frameHeight: 408, columns: 4, base: ["walk",
 } };
 const SOUL_DIR = "sprites/soul/", SOUL_SHIELD_TIME = 10, SOUL_ANIM_SPEED = 1.5;
 let soulShieldT = 0, soulRises = [];
+const BOSS_Y = HUD_H + 110;
 const BOSS_NAME = { dragon: "Dragon", kraken: "Kraken", soul: "Soul Eater" };
 const bossName = () => BOSS_NAME[dragon ? dragon.kind : "dragon"];
 let specialBag = [];
@@ -4729,7 +4730,7 @@ function dragonPreload() { if (bossMode || (wave + 3) % DRAGON_EVERY >= 3) retur
 function startSpecialBoss() { const k = specialKind(wave); if (k === "kraken") startKraken(); else if (k === "soul") startSoul(); else startDragon(); }
 function startSoul() {
   const def = SOUL_DEF, h = def.frameHeight * W / def.frameWidth, n = 5 + Math.floor(Math.random() * 11);
-  dragon = { kind: "soul", def, dir: SOUL_DIR, anim: new SpriteAnim(def, SOUL_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
+  dragon = { kind: "soul", def, dir: SOUL_DIR, anim: new SpriteAnim(def, SOUL_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: BOSS_Y, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
   dragon.rune = dragonRuneFor(); dragon.anim.speed = SOUL_ANIM_SPEED; dragon.anim.play("walk");
   bossIntro = { t: 0, kind: "soul" };
   playSample("soul_appear", 1, 1); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
@@ -4775,7 +4776,7 @@ function updateSoul(dt) {
 }
 function startKraken() {
   const n = 5 + Math.floor(Math.random() * 11);
-  dragon = { kind: "kraken", def: KRAKEN_DEF, dir: KRAKEN_DIR, anim: new SpriteAnim(KRAKEN_DEF, KRAKEN_DIR), phase: "enter", t: 0, y: HUD_H + 6, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
+  dragon = { kind: "kraken", def: KRAKEN_DEF, dir: KRAKEN_DIR, anim: new SpriteAnim(KRAKEN_DEF, KRAKEN_DIR), phase: "enter", t: 0, y: BOSS_Y, y1: BOSS_Y, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
   dragon.rune = dragonRuneFor();
   bossIntro = { t: 0, kind: "kraken" };
 }
@@ -4882,7 +4883,7 @@ function dragonRuneFor() {
 }
 function startDragon() {
   const { h } = dragonSize(), n = 5 + Math.floor(Math.random() * 11);
-  dragon = { kind: "dragon", def: DRAGON_DEF, dir: DRAGON_DIR, anim: new SpriteAnim(DRAGON_DEF, DRAGON_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
+  dragon = { kind: "dragon", def: DRAGON_DEF, dir: DRAGON_DIR, anim: new SpriteAnim(DRAGON_DEF, DRAGON_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: BOSS_Y, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
   dragon.rune = dragonRuneFor(); dragon.anim.speed = DRAGON_ANIM_SPEED;
   dragon.anim.play("walk", { 5: dragonStep, 15: dragonStep });
   bossIntro = { t: 0, kind: "dragon" };
@@ -5125,7 +5126,10 @@ function drawDragon() {
   if (!drawn) return;
   if (d.rune && d.phase !== "enter") {
     const pulse = 0.5 + 0.5 * Math.sin(time * 4), pop = 1 + d.runePop * 0.4;
-    drawDragonRune(d.rune, W / 2, d.y + h * 0.42, 120 * pop, 1, pulse);
+    const rx = 14, ry = HUD_H + 132 + (curses.size ? 60 : 0), rs = 132, cx = rx + rs / 2, cy = ry + rs / 2 + 12;
+    rrect(rx, ry, rs, rs + 24, 16); ctx.fillStyle = "rgba(10,6,20,0.82)"; ctx.fill(); ctx.strokeStyle = bc.ring; ctx.lineWidth = 3; ctx.stroke();
+    text("DRAW", cx, ry + 20, 16, bc.label, { weight: 900, outline: 4 });
+    drawDragonRune(d.rune, cx, cy + 4, 104 * pop, 1, pulse);
   }
   if (d.phase !== "enter" && !d.dying) {
     const n = d.total, pw = Math.min(26, 460 / n), y = d.y + h + 6, x0 = W / 2 - (n * pw) / 2;
