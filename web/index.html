@@ -962,7 +962,7 @@ function sfxUnlock() {
     loadSamples();
   } catch (e) { Sfx.ctx = null; }
 }
-const SAMPLE_SRC = {"summon_rise": "assets/audio/summon_rise.mp3", "summon_zap": "assets/audio/summon_zap.mp3", "summon_step": "assets/audio/summon_step.mp3", "summon_implode": "assets/audio/summon_implode.mp3", "summon_boom": "assets/audio/summon_boom.mp3", "summon_boom_epic": "assets/audio/summon_boom_epic.mp3", "summon_boom_legend": "assets/audio/summon_boom_legend.mp3", "summon_flip": "assets/audio/summon_flip.mp3", "summon_flip_rare": "assets/audio/summon_flip_rare.mp3", "athena_atk": "assets/audio/athena_atk.mp3", "athena_hit": "assets/audio/athena_hit.mp3", "ares_atk": "assets/audio/ares_atk.mp3", "ares_hit": "assets/audio/ares_hit.mp3", "apollo_atk": "assets/audio/apollo_atk.mp3", "apollo_hit": "assets/audio/apollo_hit.mp3", "artemis_atk": "assets/audio/artemis_atk.mp3", "artemis_hit": "assets/audio/artemis_hit.mp3", "hermes_atk": "assets/audio/hermes_atk.mp3", "hermes_hit": "assets/audio/hermes_hit.mp3", "hephaestus_atk": "assets/audio/hephaestus_atk.mp3", "hephaestus_hit": "assets/audio/hephaestus_hit.mp3", "hera_atk": "assets/audio/hera_atk.mp3", "hera_hit": "assets/audio/hera_hit.mp3", "sp_totem_up": "assets/audio/sp_totem_up.mp3", "sp_flight_up": "assets/audio/sp_flight_up.mp3", "sp_midas_up": "assets/audio/sp_midas_up.mp3", "sp_mirror_up": "assets/audio/sp_mirror_up.mp3", "sp_hourglass_up": "assets/audio/sp_hourglass_up.mp3", "sp_bulwark_up": "assets/audio/sp_bulwark_up.mp3", "sp_seer_up": "assets/audio/sp_seer_up.mp3", "sp_chainlink_up": "assets/audio/sp_chainlink_up.mp3", "sp_chalice_up": "assets/audio/sp_chalice_up.mp3", "sp_hex_up": "assets/audio/sp_hex_up.mp3", "sp_midas": "assets/audio/sp_midas.mp3", "sp_mirror": "assets/audio/sp_mirror.mp3", "sp_hourglass": "assets/audio/sp_hourglass.mp3", "sp_bulwark": "assets/audio/sp_bulwark.mp3", "sp_seer": "assets/audio/sp_seer.mp3", "sp_chainlink": "assets/audio/sp_chainlink.mp3", "sp_chalice": "assets/audio/sp_chalice.mp3", "sp_hex": "assets/audio/sp_hex.mp3", "cerberus_atk": "assets/audio/cerberus_atk.mp3", "cerberus_hit": "assets/audio/cerberus_hit.mp3", "basilisk_atk": "assets/audio/basilisk_atk.mp3", "basilisk_hit": "assets/audio/basilisk_hit.mp3", "griffin_atk": "assets/audio/griffin_atk.mp3", "griffin_hit": "assets/audio/griffin_hit.mp3", "qilin_atk": "assets/audio/qilin_atk.mp3", "qilin_hit": "assets/audio/qilin_hit.mp3", "kraken_atk": "assets/audio/kraken_atk.mp3", "kraken_hit": "assets/audio/kraken_hit.mp3", "banshee_atk": "assets/audio/banshee_atk.mp3", "banshee_hit": "assets/audio/banshee_hit.mp3", "kitsune_boom": "assets/audio/kitsune_boom.mp3", "kitsune_atk": "assets/audio/kitsune_atk.mp3", "kitsune_hit": "assets/audio/kitsune_hit.mp3", "kitsune_collect": "assets/audio/kitsune_collect.wav", "fenrir_atk": "assets/audio/fenrir_atk.mp3", "fenrir_hit": "assets/audio/fenrir_hit.mp3", "fenrir_scratch": "assets/audio/fenrir_scratch.mp3", "serpent_atk": "assets/audio/serpent_atk.mp3", "serpent_hit": "assets/audio/serpent_hit.mp3", "serpent_whirl": "assets/audio/serpent_whirl.mp3", "spell_fail": "assets/audio/spell_fail.mp3", "spell_work": "assets/audio/spell_work.mp3", "dead_slime": "assets/audio/dead_slime.mp3", "dead_boar": "assets/audio/dead_boar.mp3", "dead_mummy": "assets/audio/dead_mummy.mp3", "dead_orc": "assets/audio/dead_orc.mp3", "ash_atk": "assets/audio/ash_atk.mp3", "aurora_atk": "assets/audio/aurora_atk.mp3", "aurora_hit": "assets/audio/aurora_hit.mp3", "blizzard_atk": "assets/audio/blizzard_atk.mp3", "blizzard_hit": "assets/audio/blizzard_hit.mp3", "dust_atk": "assets/audio/dust_atk.mp3", "dust_hit": "assets/audio/dust_hit.mp3", "earth_atk": "assets/audio/earth_atk.mp3", "earth_hit": "assets/audio/earth_hit.mp3", "fire_atk": "assets/audio/fire_atk.mp3", "fire_hit": "assets/audio/fire_hit.mp3", "frostveil_atk": "assets/audio/frostveil_atk.mp3", "frostveil_hit": "assets/audio/frostveil_hit.mp3", "geyser_atk": "assets/audio/geyser_atk.mp3", "geyser_hit": "assets/audio/geyser_hit.mp3", "grove_atk": "assets/audio/grove_atk.mp3", "grove_hit": "assets/audio/grove_hit.mp3", "ice_atk": "assets/audio/ice_atk.mp3", "ice_hit": "assets/audio/ice_hit.mp3", "lava_atk": "assets/audio/lava_atk.mp3", "lava_hit": "assets/audio/lava_hit.mp3", "lightning_atk": "assets/audio/lightning_atk.mp3", "lightning_hit": "assets/audio/lightning_hit.mp3", "magmabloom_atk": "assets/audio/magmabloom_atk.mp3", "magmabloom_hit": "assets/audio/magmabloom_hit.mp3", "obsidian_atk": "assets/audio/obsidian_atk.mp3", "obsidian_hit": "assets/audio/obsidian_hit.mp3", "phoenix_atk": "assets/audio/phoenix_atk.mp3", "phoenix_hit": "assets/audio/phoenix_hit.mp3", "plant_atk": "assets/audio/plant_atk.mp3", "plant_hit": "assets/audio/plant_hit.mp3", "sandstorm_atk": "assets/audio/sandstorm_atk.mp3", "sandstorm_hit": "assets/audio/sandstorm_hit.mp3", "steam_atk": "assets/audio/steam_atk.mp3", "steam_hit": "assets/audio/steam_hit.mp3", "storm_atk": "assets/audio/storm_atk.mp3", "storm_hit": "assets/audio/storm_hit.mp3", "ui_pick": "assets/audio/ui_pick.mp3", "ui_place": "assets/audio/ui_place.mp3", "ui_sell": "assets/audio/ui_sell.mp3", "water_atk": "assets/audio/water_atk.mp3", "water_hit": "assets/audio/water_hit.mp3", "wildfire_atk": "assets/audio/wildfire_atk.mp3", "wildfire_hit": "assets/audio/wildfire_hit.mp3", "wind_atk": "assets/audio/wind_atk.mp3", "wind_hit": "assets/audio/wind_hit.mp3"};
+const SAMPLE_SRC = {"summon_rise": "assets/audio/summon_rise.mp3", "summon_zap": "assets/audio/summon_zap.mp3", "summon_step": "assets/audio/summon_step.mp3", "summon_implode": "assets/audio/summon_implode.mp3", "summon_boom": "assets/audio/summon_boom.mp3", "summon_boom_epic": "assets/audio/summon_boom_epic.mp3", "summon_boom_legend": "assets/audio/summon_boom_legend.mp3", "summon_flip": "assets/audio/summon_flip.mp3", "summon_flip_rare": "assets/audio/summon_flip_rare.mp3", "athena_atk": "assets/audio/athena_atk.mp3", "athena_hit": "assets/audio/athena_hit.mp3", "ares_atk": "assets/audio/ares_atk.mp3", "ares_hit": "assets/audio/ares_hit.mp3", "apollo_atk": "assets/audio/apollo_atk.mp3", "apollo_hit": "assets/audio/apollo_hit.mp3", "artemis_atk": "assets/audio/artemis_atk.mp3", "artemis_hit": "assets/audio/artemis_hit.mp3", "hermes_atk": "assets/audio/hermes_atk.mp3", "hermes_hit": "assets/audio/hermes_hit.mp3", "hephaestus_atk": "assets/audio/hephaestus_atk.mp3", "hephaestus_hit": "assets/audio/hephaestus_hit.mp3", "hera_atk": "assets/audio/hera_atk.mp3", "hera_hit": "assets/audio/hera_hit.mp3", "sp_totem_up": "pack:assets/audio/sp_pack.mp3#0,17599", "sp_flight_up": "pack:assets/audio/sp_pack.mp3#17599,17599", "sp_midas_up": "pack:assets/audio/sp_pack.mp3#35198,17599", "sp_mirror_up": "pack:assets/audio/sp_pack.mp3#52797,17599", "sp_hourglass_up": "pack:assets/audio/sp_pack.mp3#70396,12897", "sp_bulwark_up": "pack:assets/audio/sp_pack.mp3#83293,17599", "sp_seer_up": "pack:assets/audio/sp_pack.mp3#100892,17599", "sp_chainlink_up": "pack:assets/audio/sp_pack.mp3#118491,12897", "sp_chalice_up": "pack:assets/audio/sp_pack.mp3#131388,17599", "sp_hex_up": "pack:assets/audio/sp_pack.mp3#148987,17599", "sp_midas": "pack:assets/audio/sp_pack.mp3#166586,10389", "sp_mirror": "pack:assets/audio/sp_pack.mp3#176975,10389", "sp_hourglass": "pack:assets/audio/sp_pack.mp3#187364,12897", "sp_bulwark": "pack:assets/audio/sp_pack.mp3#200261,10389", "sp_seer": "pack:assets/audio/sp_pack.mp3#210650,10389", "sp_chainlink": "pack:assets/audio/sp_pack.mp3#221039,10389", "sp_chalice": "pack:assets/audio/sp_pack.mp3#231428,10389", "sp_hex": "pack:assets/audio/sp_pack.mp3#241817,10389", "cerberus_atk": "assets/audio/cerberus_atk.mp3", "cerberus_hit": "assets/audio/cerberus_hit.mp3", "basilisk_atk": "assets/audio/basilisk_atk.mp3", "basilisk_hit": "assets/audio/basilisk_hit.mp3", "griffin_atk": "assets/audio/griffin_atk.mp3", "griffin_hit": "assets/audio/griffin_hit.mp3", "qilin_atk": "assets/audio/qilin_atk.mp3", "qilin_hit": "assets/audio/qilin_hit.mp3", "kraken_atk": "assets/audio/kraken_atk.mp3", "kraken_hit": "assets/audio/kraken_hit.mp3", "banshee_atk": "assets/audio/banshee_atk.mp3", "banshee_hit": "assets/audio/banshee_hit.mp3", "kitsune_boom": "assets/audio/kitsune_boom.mp3", "kitsune_atk": "assets/audio/kitsune_atk.mp3", "kitsune_hit": "assets/audio/kitsune_hit.mp3", "kitsune_collect": "assets/audio/kitsune_collect.wav", "fenrir_atk": "assets/audio/fenrir_atk.mp3", "fenrir_hit": "assets/audio/fenrir_hit.mp3", "fenrir_scratch": "assets/audio/fenrir_scratch.mp3", "serpent_atk": "assets/audio/serpent_atk.mp3", "serpent_hit": "assets/audio/serpent_hit.mp3", "serpent_whirl": "assets/audio/serpent_whirl.mp3", "spell_fail": "assets/audio/spell_fail.mp3", "spell_work": "assets/audio/spell_work.mp3", "dead_slime": "assets/audio/dead_slime.mp3", "dead_boar": "assets/audio/dead_boar.mp3", "dead_mummy": "assets/audio/dead_mummy.mp3", "dead_orc": "assets/audio/dead_orc.mp3", "ash_atk": "assets/audio/ash_atk.mp3", "aurora_atk": "assets/audio/aurora_atk.mp3", "aurora_hit": "assets/audio/aurora_hit.mp3", "blizzard_atk": "assets/audio/blizzard_atk.mp3", "blizzard_hit": "assets/audio/blizzard_hit.mp3", "dust_atk": "assets/audio/dust_atk.mp3", "dust_hit": "assets/audio/dust_hit.mp3", "earth_atk": "assets/audio/earth_atk.mp3", "earth_hit": "assets/audio/earth_hit.mp3", "fire_atk": "assets/audio/fire_atk.mp3", "fire_hit": "assets/audio/fire_hit.mp3", "frostveil_atk": "assets/audio/frostveil_atk.mp3", "frostveil_hit": "assets/audio/frostveil_hit.mp3", "geyser_atk": "assets/audio/geyser_atk.mp3", "geyser_hit": "assets/audio/geyser_hit.mp3", "grove_atk": "assets/audio/grove_atk.mp3", "grove_hit": "assets/audio/grove_hit.mp3", "ice_atk": "assets/audio/ice_atk.mp3", "ice_hit": "assets/audio/ice_hit.mp3", "lava_atk": "assets/audio/lava_atk.mp3", "lava_hit": "assets/audio/lava_hit.mp3", "lightning_atk": "assets/audio/lightning_atk.mp3", "lightning_hit": "assets/audio/lightning_hit.mp3", "magmabloom_atk": "assets/audio/magmabloom_atk.mp3", "magmabloom_hit": "assets/audio/magmabloom_hit.mp3", "obsidian_atk": "assets/audio/obsidian_atk.mp3", "obsidian_hit": "assets/audio/obsidian_hit.mp3", "phoenix_atk": "assets/audio/phoenix_atk.mp3", "phoenix_hit": "assets/audio/phoenix_hit.mp3", "plant_atk": "assets/audio/plant_atk.mp3", "plant_hit": "assets/audio/plant_hit.mp3", "sandstorm_atk": "assets/audio/sandstorm_atk.mp3", "sandstorm_hit": "assets/audio/sandstorm_hit.mp3", "steam_atk": "assets/audio/steam_atk.mp3", "steam_hit": "assets/audio/steam_hit.mp3", "storm_atk": "assets/audio/storm_atk.mp3", "storm_hit": "assets/audio/storm_hit.mp3", "ui_pick": "assets/audio/ui_pick.mp3", "ui_place": "assets/audio/ui_place.mp3", "ui_sell": "assets/audio/ui_sell.mp3", "water_atk": "assets/audio/water_atk.mp3", "water_hit": "assets/audio/water_hit.mp3", "wildfire_atk": "assets/audio/wildfire_atk.mp3", "wildfire_hit": "assets/audio/wildfire_hit.mp3", "wind_atk": "assets/audio/wind_atk.mp3", "wind_hit": "assets/audio/wind_hit.mp3"};
 SAMPLE_SRC.lobby_loop = "assets/audio/lobby_loop.mp3";
 for (const k of "brimstone sulfur hellstorm hellbloom cinder frostburn trench mistmaw stormdeep drownroot quicksand black_ice bonefire spectral_mist gravebolt deadwood tomb_dust lich smolder specter darkbolt nightshade duststalker wendigo supernova heatwave solar_storm sunflower dune_blaze parhelion fire_opal rainbow laser prism_lily stardust kaleidoscope molten_gold sunmist divine_bolt world_tree gold_dust starfrost holy_fire paradise judgement eden miracle snow_angel blood_moon nightfall void_storm moonflower nebula polar_night".split(" ")) { SAMPLE_SRC[k + "_atk"] = `assets/audio/${k}_atk.mp3`; SAMPLE_SRC[k + "_hit"] = `assets/audio/${k}_hit.mp3`; }
 const EPIC40_PACK = {"mudslide_atk":[0,10389],"mudslide_hit":[10389,8508],"thunderforge_atk":[18897,17599],"thunderforge_hit":[36496,17599],"frostbloom_atk":[54095,16972],"frostbloom_hit":[71067,15091],"tumbleweed_atk":[86158,17599],"tumbleweed_hit":[103757,8822],"styx_atk":[112579,17599],"styx_hit":[130178,17599],"pyre_atk":[147777,17599],"pyre_hit":[165376,17599],"wraithfire_atk":[182975,17599],"wraithfire_hit":[200574,17599],"sunken_crypt_atk":[218173,17599],"sunken_crypt_hit":[235772,17599],"undertow_atk":[253371,17599],"undertow_hit":[270970,14464],"reaper_atk":[285434,8822],"reaper_hit":[294256,9762],"sunburst_atk":[304018,16345],"sunburst_hit":[320363,9135],"solar_crown_atk":[329498,17599],"solar_crown_hit":[347097,15405],"seraph_atk":[362502,17599],"seraph_hit":[380101,17599],"diamond_atk":[397700,15718],"diamond_hit":[413418,13524],"starlight_atk":[426942,15405],"starlight_hit":[442347,15091],"sanctuary_atk":[457438,17599],"sanctuary_hit":[475037,15405],"twin_flame_atk":[490442,17599],"twin_flame_hit":[508041,17599],"hellglass_atk":[525640,17599],"hellglass_hit":[543239,17599],"hellgold_atk":[560838,17599],"hellgold_hit":[578437,15405],"fallen_angel_atk":[593842,17599],"fallen_angel_hit":[611441,13524],"sunken_sun_atk":[624965,17285],"sunken_sun_hit":[642250,17599],"pearl_atk":[659849,11016],"pearl_hit":[670865,8195],"anglerlight_atk":[679060,17599],"anglerlight_hit":[696659,16658],"moon_tide_atk":[713317,17599],"moon_tide_hit":[730916,17599],"pharaoh_atk":[748515,17599],"pharaoh_hit":[766114,17599],"soul_crystal_atk":[783713,17599],"soul_crystal_hit":[801312,14464],"relic_atk":[815776,17599],"relic_hit":[833375,15718],"resurrection_atk":[849093,17599],"resurrection_hit":[866692,17599],"dusk_atk":[884291,14151],"dusk_hit":[898442,16031],"mirage_atk":[914473,17599],"mirage_hit":[932072,5687],"black_diamond_atk":[937759,16345],"black_diamond_hit":[954104,17599],"twilight_atk":[971703,16031],"twilight_hit":[987734,13210],"armageddon_atk":[1000944,17599],"armageddon_hit":[1018543,17599],"black_hole_atk":[1036142,17599],"black_hole_hit":[1053741,6627],"crypt_moon_atk":[1060368,17599],"crypt_moon_hit":[1077967,10703],"new_moon_atk":[1088670,14464],"new_moon_hit":[1103134,7568],"corona_atk":[1110702,17599],"corona_hit":[1128301,15718],"moonstone_atk":[1144019,17599],"moonstone_hit":[1161618,11016],"equinox_atk":[1172634,13837],"equinox_hit":[1186471,14151],"ascension_atk":[1200622,17599],"ascension_hit":[1218221,15091]};
@@ -2079,6 +2079,7 @@ class Enemy {
   }
   takeDamage(a, src, color) {
     if (this.dead) return;
+    if (soulShieldT > 0) { if (time - (this.immAt || -9) > 0.9) { this.immAt = time; fxs.push(new Fx("text", { x: this.x, y: this.y - 30, text: "IMMUNE", color: "#9ec4ff", size: 18, duration: 0.6 })); } return; }
     if (this.isBoss && hasRelic("bossbane")) a *= 1.3;
     if (this.curseT > 0) a *= 1 + this.curseAmt;
     const dealt = Math.min(a, Math.max(0, this.hp));
@@ -4671,7 +4672,17 @@ const gripBlocks = () => !!(krakenGrip && krakenGrip.held);
 const KRAKEN_DIR = "sprites/kraken/", KRAKEN_ANIM_SPEED = 1.5, KRAKEN_INK_HIT = 0.08, KRAKEN_INK_TIME = 5, KRAKEN_SPLAT = 6;
 let krakenInks = [], krakenSplats = [];
 const specialPicks = {};
-const SPECIAL_BOSSES = ["dragon", "kraken"];
+const SPECIAL_BOSSES = ["dragon", "kraken", "soul"];
+const SOUL_DEF = { frameWidth: 768, frameHeight: 408, columns: 4, base: ["walk", "idle"], animations: {
+  walk: { file: "souleater_walk_idle.webp", frames: 12, fps: 10, loop: true },
+  idle: { file: "souleater_walk_idle.webp", oy: 1224, frames: 16, fps: 8, loop: true },
+  shot: { file: "souleater_shot.webp", frames: 22, fps: 12, loop: false, fireFrame: 13, mouth: { x: 383, y: 254 } },
+  death: { file: "souleater_death.webp", frames: 26, fps: 12, loop: false },
+} };
+const SOUL_DIR = "sprites/soul/", SOUL_SHIELD_TIME = 10, SOUL_ANIM_SPEED = 1.5;
+let soulShieldT = 0, soulRises = [];
+const BOSS_NAME = { dragon: "Dragon", kraken: "Kraken", soul: "Soul Eater" };
+const bossName = () => BOSS_NAME[dragon ? dragon.kind : "dragon"];
 let specialBag = [];
 function specialKind(w) {
   if (specialPicks[w]) return specialPicks[w];
@@ -4683,7 +4694,8 @@ function resetSpecialBag() { specialBag = []; for (const k in specialPicks) dele
 const isKraken = () => !!(dragon && dragon.kind === "kraken");
 const BOSS_COL = { dragon: { glow: "255,120,30", glow2: "255,60,10", ring: "#ff7a2a", tip: "#ffb050", ember: "255,90,20", spark: "255,190,80", rune: "#ffb340", runeGlow: "255,200,90", runeOut: "255,120,30", runeCore: "40,8,0", runeEdge: "255,210,120", label: "#ffd27a" },
   kraken: { glow: "40,170,255", glow2: "20,80,255", ring: "#3ad0ff", tip: "#9ff0ff", ember: "60,200,255", spark: "120,230,255", rune: "#5ee0ff", runeGlow: "90,220,255", runeOut: "30,140,255", runeCore: "0,14,40", runeEdge: "150,240,255", label: "#8fe8ff" } };
-const bossCol = () => BOSS_COL[dragon && dragon.kind === "kraken" ? "kraken" : "dragon"];
+BOSS_COL.soul = { glow: "70,120,255", glow2: "60,30,220", ring: "#6a9cff", tip: "#b8d0ff", ember: "80,140,255", spark: "150,200,255", rune: "#7ab8ff", runeGlow: "110,170,255", runeOut: "60,90,255", runeCore: "4,8,30", runeEdge: "170,210,255", label: "#a8c8ff" };
+const bossCol = () => BOSS_COL[dragon && BOSS_COL[dragon.kind] ? dragon.kind : "dragon"];
 const DRAGON_DIR = "sprites/dragon/", DRAGON_EVERY = 10, DRAGON_GEMS = 50, DRAGON_CD = 4, DRAGON_ENTER = 4.5, DRAGON_FIRE_HIT = 0.08, DRAGON_ROAR_SLOW = 0.7, DRAGON_ROAR_TIME = 15, DRAGON_RAGE_TIME = 3, DRAGON_RAGE_MULT = 2, DRAGON_BURN = 6, DRAGON_ANIM_SPEED = 2;
 const DRAGON_RUNES = {
   line: [[[0.5, 0], [0.5, 1]]],
@@ -4712,8 +4724,55 @@ let dragon = null, dragonRoarT = 0, dragonRageT = 0, dragonAura = [], dragonWave
 const dragonWave = w => !bossMode && w > 0 && w % DRAGON_EVERY === 0;
 const dragonActive = () => !!(dragon && !dragon.dying && dragon.phase !== "enter");
 const dragonSize = () => { const def = dragon ? dragon.def : DRAGON_DEF, w = W, h = def.frameHeight * W / def.frameWidth; return { w, h }; };
-function dragonPreload() { if (bossMode || (wave + 3) % DRAGON_EVERY >= 3) return; const k = specialKind(wave + DRAGON_EVERY - wave % DRAGON_EVERY); if (k === "kraken") new SpriteAnim(KRAKEN_DEF, KRAKEN_DIR).ready(); else new SpriteAnim(DRAGON_DEF, DRAGON_DIR).ready(); }
-function startSpecialBoss() { if (specialKind(wave) === "kraken") startKraken(); else startDragon(); }
+function dragonPreload() { if (bossMode || (wave + 3) % DRAGON_EVERY >= 3) return; const k = specialKind(wave + DRAGON_EVERY - wave % DRAGON_EVERY); if (k === "kraken") new SpriteAnim(KRAKEN_DEF, KRAKEN_DIR).ready(); else if (k === "soul") new SpriteAnim(SOUL_DEF, SOUL_DIR).ready(); else new SpriteAnim(DRAGON_DEF, DRAGON_DIR).ready(); }
+function startSpecialBoss() { const k = specialKind(wave); if (k === "kraken") startKraken(); else if (k === "soul") startSoul(); else startDragon(); }
+function startSoul() {
+  const def = SOUL_DEF, h = def.frameHeight * W / def.frameWidth, n = 5 + Math.floor(Math.random() * 11);
+  dragon = { kind: "soul", def, dir: SOUL_DIR, anim: new SpriteAnim(def, SOUL_DIR), phase: "enter", t: 0, y: HUD_H - h, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
+  dragon.rune = dragonRuneFor(); dragon.anim.speed = SOUL_ANIM_SPEED; dragon.anim.play("walk");
+  showBanner("THE SOUL EATER AWAKENS!", "#7ab8ff");
+  playSample("dragon_roar", 0.8, 1.35); shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, 6);
+}
+function soulAttack() {
+  const d = dragon, a = SOUL_DEF.animations.shot, what = d.next || "shot"; d.phase = "attack";
+  d.extra = a.frames / a.fps * (1 - 1 / d.anim.speed);
+  const act = what === "shield" ? soulShield : what === "summon" ? soulSummon : soulShoot;
+  d.anim.play("shot", { [a.fireFrame - 2]: () => what === "shot" ? playSample("dragon_shot", 1, 1.3) : playSpellSound("spell_work"), [a.fireFrame]: act }, () => dragonIdle());
+}
+function soulMouth() { const d = dragon, k = W / SOUL_DEF.frameWidth, m = SOUL_DEF.animations.shot.mouth; return { x: m.x * k, y: d.y + m.y * k }; }
+function soulShoot() {
+  const { x, y } = soulMouth(), tx = clamp(x + rand(-220, 220), 60, W - 60), ty = FRONT_Y - 6;
+  dragonFireballs.push({ x, y, x0: x, y0: y, tx, ty, t: 0, burn: 0, dur: 1.1, trail: [], fl: [], sm: [], em: [], vx: 0, vy: 0, spin: rand(0, 6), blue: true });
+  dragonBlasts.push({ x, y, t: 0, muzzle: true, em: [], fl: [], blue: true });
+}
+function soulShield() {
+  soulShieldT = SOUL_SHIELD_TIME;
+  const { x, y } = soulMouth();
+  showBanner("SOUL SHIELD! Enemies can't be hurt!", "#7ab8ff");
+  dragonWaves.push({ x, y, t: 0, kind: "sdie" }, { x, y, t: -0.2, kind: "sdie" });
+  for (const e of enemies) addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "120,180,255", size: 14, grow: 60, w: 5, sq: 0.6, life: 0.6 });
+  playSfx("light", "hit"); playSample("kraken_rise", 0.5, 1.4);
+}
+function soulSummon() {
+  const n = clamp(3 + Math.floor(wave / 10), 3, 10);
+  showBanner("SOULS RISE FROM THE GROUND!", "#7ab8ff");
+  for (let i = 0; i < n; i++) soulRises.push({ x: rand(70, W - 70), y: rand(HUD_H + 160, FRONT_Y - 260), t: -i * 0.18, done: false, kind: pickKind(Math.max(1, wave)) });
+  playSample("kraken_rise", 0.8, 1.2);
+}
+function updateSoul(dt) {
+  soulShieldT = Math.max(0, soulShieldT - dt);
+  for (const r of soulRises) {
+    r.t += dt; if (r.t < 0) continue;
+    if (Math.random() < 0.8) addPart({ kind: "smoke", x: r.x + rand(-26, 26), y: r.y + rand(-6, 10), vx: rand(-20, 20), vy: -rand(30, 90), life: rand(0.7, 1.2), size: rand(14, 26), grow: 1.2, col: Math.random() < 0.5 ? "#3a5cff" : "#7ab8ff", a: 0.55 });
+    if (!r.done && r.t >= 0.7) {
+      r.done = true;
+      if (state === "wave" || state === "break") { const e = new Enemy(r.kind, Math.max(1, wave), r.x, r.y); e.wave = wave; e.soul = true; enemies.push(e); }
+      addPart({ add: true, kind: "ring", x: r.x, y: r.y + 10, rgb: "120,170,255", size: 10, grow: 90, w: 6, sq: 0.4, life: 0.5 });
+      for (let i = 0; i < 14; i++) { const a = rand(0, Math.PI * 2), v = rand(80, 240); addPart({ add: true, kind: "spark", x: r.x, y: r.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, drag: 2, life: rand(0.3, 0.6), size: 2.5, rgb: "150,200,255", len: 0.05 }); }
+    }
+  }
+  soulRises = soulRises.filter(r => r.t < 1.4);
+}
 function startKraken() {
   const n = 5 + Math.floor(Math.random() * 11);
   dragon = { kind: "kraken", def: KRAKEN_DEF, dir: KRAKEN_DIR, anim: new SpriteAnim(KRAKEN_DEF, KRAKEN_DIR), phase: "enter", t: 0, y: HUD_H + 6, y1: HUD_H + 6, cd: DRAGON_CD, total: n, left: n, rune: null, runePop: 0, hitT: 0, dying: false, dieT: 0, wave };
@@ -4830,6 +4889,7 @@ function startDragon() {
 function dragonStep() { if (!dragon || dragon.phase !== "enter") return; playSample("dragon_step", 0.9, rand(0.92, 1.05)); shakeT = Math.max(shakeT, 0.15); shakeAmp = Math.max(shakeAmp, 3); }
 function dragonAttack() {
   if (isKraken()) return krakenAttack();
+  if (dragon.kind === "soul") return soulAttack();
   const d = dragon; d.phase = "attack";
   const pick = d.next || (Math.random() < 0.6 ? "shoot" : "roar"), pa = DRAGON_DEF.animations[pick];
   d.extra = pa.frames / pa.fps * (1 - 1 / d.anim.speed);
@@ -4841,10 +4901,13 @@ function dragonAttack() {
     d.anim.play("roar", { [Math.max(1, s0 - 3)]: () => playSample("dragon_roar", 1, 1), [s0]: () => dragonRoar(s1 - s0, a.fps) }, () => dragonIdle());
   }
 }
+const bossAnim = (d, n) => d.def.animations[n] ? n : "shot";
 function bossPrep(d) {
-  const kr = d.kind === "kraken", next = kr ? (Math.random() < 0.5 && !krakenGrip ? "tentacle" : "spit") : (Math.random() < 0.6 ? "shoot" : "roar");
-  d.next = next; d.anim.sheet(next);
-  const keep = new Set([(d.anim.base || d.def.base).map(n => d.def.animations[n].file), d.def.animations[next].file, d.anim.name ? d.def.animations[d.anim.name].file : ""].flat());
+  const kr = d.kind === "kraken", r = Math.random();
+  const next = kr ? (r < 0.5 && !krakenGrip ? "tentacle" : "spit") : d.kind === "soul" ? (r < 0.5 ? "shot" : r < 0.75 && soulShieldT <= 0 ? "shield" : r < 0.75 ? "shot" : "summon") : (r < 0.6 ? "shoot" : "roar");
+  d.next = next; d.anim.sheet(bossAnim(d, next));
+  if (d.def.animations.death && d.left <= 2) d.anim.sheet("death");
+  const keep = new Set([(d.anim.base || d.def.base).map(n => d.def.animations[n].file), d.def.animations[bossAnim(d, next)].file, d.anim.name ? d.def.animations[d.anim.name].file : "", d.def.animations.death && d.left <= 2 ? d.def.animations.death.file : ""].flat());
   for (const n of Object.keys(d.def.animations)) { const f = d.def.animations[n].file; if (!keep.has(f)) freeSheet(d.dir + f); }
 }
 function dragonIdle() { if (!dragon || dragon.dying) return; dragon.phase = "idle"; dragon.cd = DRAGON_CD + (dragon.extra || 0); dragon.extra = 0; dragon.anim.play("idle", { 1: dragonBreath }); bossPrep(dragon); }
@@ -4872,7 +4935,7 @@ function dragonRuneHit() {
   for (let i = 0; i < 40; i++) { const a = rand(0, Math.PI * 2), v = rand(160, 520); addPart({ add: true, kind: "spark", x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, drag: 3, life: rand(0.4, 0.8), size: 3, rgb: bc.spark, len: 0.05 }); }
   addPart({ add: true, kind: "ring", x: cx, y: cy, rgb: bc.runeGlow, size: 30, grow: 320, w: 9, sq: 0.7, life: 0.5 });
   shakeT = Math.max(shakeT, 0.35); shakeAmp = Math.max(shakeAmp, 9);
-  playSfx("light", "hit"); playSfx(d.kind === "kraken" ? "water" : "lava", "hit");
+  playSfx("light", "hit"); playSfx(d.kind === "kraken" ? "water" : d.kind === "soul" ? "dark" : "lava", "hit");
   if (d.left <= 0) { dragonDie(); return; }
   d.rune = dragonRuneFor();
   fxs.push(new Fx("text", { x: cx, y: cy - 40, text: `Rune broken!  ${d.left} left`, color: bc.label, size: 30, duration: 1.1 }));
@@ -4880,7 +4943,14 @@ function dragonRuneHit() {
 function dragonDie() {
   const d = dragon; d.dying = true; d.dieT = 0; d.rune = null;
   save.gems += DRAGON_GEMS; runGems += DRAGON_GEMS; writeSave(); track("boss"); track("dragon");
-  showBanner(`${d.kind === "kraken" ? "KRAKEN" : "DRAGON"} SLAIN!  +${DRAGON_GEMS} gems`, "#ffd84a");
+  showBanner(`${bossName().toUpperCase()} SLAIN!  +${DRAGON_GEMS} gems`, "#ffd84a");
+  if (d.kind === "soul") {
+    soulShieldT = 0; d.anim.speed = SOUL_ANIM_SPEED; d.deathWait = true; d.anim.sheet("death"); playSample("dragon_die", 1, 1.3); playSfx("light", "hit");
+    const cy = d.y + dragonSize().h * 0.45; for (let i = 0; i < 3; i++) dragonWaves.push({ x: W / 2, y: cy, t: -i * 0.25, kind: "sdie" });
+    for (let i = 0; i < 40; i++) addPart({ kind: "smoke", x: W / 2 + rand(-240, 240), y: cy + rand(-60, 100), vx: rand(-40, 40), vy: -rand(40, 140), life: rand(1, 1.8), size: rand(16, 30), grow: 1.3, col: Math.random() < 0.5 ? "#3a5cff" : "#9ec4ff", a: 0.5 });
+    if (spell && spell.dragonOnly) spell = null;
+    return;
+  }
   shakeT = Math.max(shakeT, 1.4); shakeAmp = Math.max(shakeAmp, 18);
   if (d.kind === "kraken") {
     d.anim.speed = KRAKEN_ANIM_SPEED; d.anim.play("death"); playSample("kraken_die", 1, 1);
@@ -4916,7 +4986,7 @@ function updateDragon(dt) {
     if (!f.done && Math.random() < 0.8) f.em.push({ x: f.x, y: f.y, vx: rand(-160, 160), vy: rand(-200, 40), t: 0, life: rand(0.4, 0.8) });
     if (k >= 1 && !f.done) {
       f.done = true; damageCastle(castleMax * DRAGON_FIRE_HIT); wallFlash = 1;
-      dragonBlast(f.tx, f.ty);
+      dragonBlast(f.tx, f.ty, false, !!f.blue);
     }
   }
   for (const f of dragonFireballs) for (const key of ["fl", "sm", "em"]) {
@@ -4943,7 +5013,7 @@ function updateDragon(dt) {
     f.dr = f.dr.filter(q => q.t < q.life);
   }
   krakenInks = krakenInks.filter(f => !f.done || f.dr.length);
-  updateKrakenGrip(dt);
+  updateKrakenGrip(dt); updateSoul(dt);
   for (const sp of krakenSplats) { sp.t += dt; if (sp.mini) { sp.vy += 700 * dt; sp.x += sp.vx * dt; sp.y += sp.vy * dt; } }
   krakenSplats = krakenSplats.filter(sp => sp.t < sp.life);
   const d = dragon; if (!d) return;
@@ -4951,7 +5021,8 @@ function updateDragon(dt) {
   if (d.dying) {
     d.dieT += dt;
     if (Math.random() < 0.8) { const { h } = dragonSize(); addPart({ add: true, kind: "glow", x: rand(60, W - 60), y: d.y + rand(h * 0.2, h * 0.9), vy: -rand(40, 120), life: 0.8, size: rand(20, 40), grow: 0.5, rgb: d.kind === "kraken" ? "90,200,255" : "255,150,60", a: 0.7 }); }
-    if (d.kind === "kraken" ? d.anim.done : d.dieT > 2.2) { dragon = null; dragonSlainT = 0; for (const n of Object.keys(d.def.animations)) freeSheet(d.dir + d.def.animations[n].file); }
+    if (d.deathWait && d.anim.sheet("death").ready) { d.deathWait = false; d.anim.play("death"); }
+    if (d.kind === "kraken" ? d.anim.done : d.kind === "soul" ? (!d.deathWait && d.anim.name === "death" && d.anim.done) || d.dieT > 8 : d.dieT > 2.2) { dragon = null; dragonSlainT = 0; for (const n of Object.keys(d.def.animations)) freeSheet(d.dir + d.def.animations[n].file); }
     return;
   }
   if (d.phase === "enter") {
@@ -4959,10 +5030,10 @@ function updateDragon(dt) {
     if (d.kind === "kraken") { if (!d.started) krakenAppear(); return; }
     d.t += dt; const k = Math.min(1, d.t / DRAGON_ENTER);
     d.y = lerp(HUD_H - dragonSize().h, d.y1, 1 - Math.pow(1 - k, 2));
-    if (k >= 1) { dragonIdle(); showInfo("Tap Spell and draw the glowing rune on the dragon's chest! Your cards can't hurt it."); }
+    if (k >= 1) { dragonIdle(); showInfo(`Tap Spell and draw the glowing rune on the ${d.kind === "soul" ? "Soul Eater" : "dragon's chest"}! Your cards can't hurt it.`); }
     return;
   }
-  if (d.phase === "idle") { d.cd -= dt; if (d.cd <= 0 && (!d.next || d.anim.sheet(d.next).ready)) dragonAttack(); }
+  if (d.phase === "idle") { d.cd -= dt; if (d.cd <= 0 && (!d.next || d.anim.sheet(bossAnim(d, d.next)).ready)) dragonAttack(); }
 }
 function drawDragonRune(key, cx, cy, size, alpha, pulse) {
   const rune = DRAGON_RUNES[key]; if (!rune) return;
@@ -4981,8 +5052,8 @@ function drawDragonRune(key, cx, cy, size, alpha, pulse) {
 }
 function drawDragon() {
   const d = dragon; if (!d) return;
-  const kr = d.kind === "kraken", bc = bossCol(), { w, h } = dragonSize(), fade = d.dying && !kr ? Math.max(0, 1 - d.dieT / 2.2) : 1;
-  const aK = kr ? (d.phase === "enter" ? (d.started ? d.anim.frame / 23 : 0) : d.dying ? Math.max(0, 1 - d.dieT / 1.5) : 1) : 1;
+  const kr = d.kind === "kraken", hd = !!d.def.animations.death, bc = bossCol(), { w, h } = dragonSize(), fade = d.dying && !hd ? Math.max(0, 1 - d.dieT / 2.2) : 1;
+  const aK = kr && d.phase === "enter" ? (d.started ? d.anim.frame / 23 : 0) : hd && d.dying ? Math.max(0, 1 - d.dieT / 1.5) : 1;
   ctx.save();
   ctx.globalAlpha *= fade;
   if (d.dying) { ctx.translate(rand(-4, 4), rand(-4, 4)); }
@@ -5002,13 +5073,13 @@ function drawDragon() {
   }
   const drawn = d.anim.draw(bx, by, bw, bh, !settings.lite);
   if (drawn && !d.dying && d.phase !== "enter" && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= 0.1 + 0.12 * (0.5 + 0.5 * Math.sin(time * 3)) + 0.2 * Math.min(1, Math.max(0, dragonRoarT - (DRAGON_ROAR_TIME - 2)) / 2); d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
-  if (drawn && (d.hitT > 0 || d.dying)) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= d.dying ? (kr ? aK * 0.4 : 1) * (0.5 + 0.4 * Math.sin(d.dieT * 30)) : d.hitT * 0.6; d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
+  if (drawn && (d.hitT > 0 || d.dying)) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= d.dying ? (hd ? aK * 0.4 : 1) * (0.5 + 0.4 * Math.sin(d.dieT * 30)) : d.hitT * 0.6; d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   if (!settings.lite) for (const q of dragonAura) { const k = q.t / q.life; ctx.globalAlpha = (k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8) * fade;
     if (kr) { circle(q.x, q.y, q.r * 3, "rgba(40,160,255,0.25)"); ring(q.x + Math.sin(q.t * 5 + q.ph) * 3, q.y, q.r * 1.8, "rgba(170,240,255,0.9)", 1.5); circle(q.x - q.r * 0.6, q.y - q.r * 0.6, q.r * 0.45, "rgba(255,255,255,0.9)"); }
-    else { circle(q.x, q.y, q.r * 3, `rgba(${bc.ember},0.35)`); circle(q.x, q.y, q.r, `rgb(255,${180 + 60 * (1 - k)},90)`); } }
-  for (const wv of dragonWaves) { if (wv.t <= 0) continue; const k = wv.t / 1.2, e = 1 - Math.pow(1 - k, 2), r = (wv.kind === "ink" ? 20 : 40) + ({ die: 700, kdie: 700, ink: 220 }[wv.kind] || 520) * e;
-    ctx.globalAlpha = (1 - k) * 0.9; ctx.strokeStyle = { die: "#ffd27a", kdie: "#9ff0ff", kraken: "#3ad0ff", ink: "#7a3cff" }[wv.kind] || "#ff5a30"; ctx.lineWidth = 16 * (1 - k) + 2; ctx.beginPath(); ctx.ellipse(wv.x, wv.y, r, r * (wv.kind === "ink" ? 0.3 : 0.55), 0, 0, Math.PI * 2); ctx.stroke();
+    else { circle(q.x, q.y, q.r * 3, `rgba(${bc.ember},0.35)`); circle(q.x, q.y, q.r, d.kind === "soul" ? `rgb(${bc.spark})` : `rgb(255,${180 + 60 * (1 - k)},90)`); } }
+  for (const wv of dragonWaves) { if (wv.t <= 0) continue; const k = wv.t / 1.2, e = 1 - Math.pow(1 - k, 2), r = (wv.kind === "ink" ? 20 : 40) + ({ die: 700, kdie: 700, sdie: 700, ink: 220 }[wv.kind] || 520) * e;
+    ctx.globalAlpha = (1 - k) * 0.9; ctx.strokeStyle = { die: "#ffd27a", kdie: "#9ff0ff", kraken: "#3ad0ff", ink: "#7a3cff", sdie: "#9ec4ff" }[wv.kind] || "#ff5a30"; ctx.lineWidth = 16 * (1 - k) + 2; ctx.beginPath(); ctx.ellipse(wv.x, wv.y, r, r * (wv.kind === "ink" ? 0.3 : 0.55), 0, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = (1 - k) * 0.35; ctx.lineWidth = 40 * (1 - k); ctx.stroke(); }
   ctx.restore();
   ctx.restore();
@@ -5020,16 +5091,16 @@ function drawDragon() {
   if (d.phase !== "enter" && !d.dying) {
     const n = d.total, pw = Math.min(26, 460 / n), y = d.y + h + 6, x0 = W / 2 - (n * pw) / 2;
     rrect(x0 - 14, y - 6, n * pw + 28, 28, 14); ctx.fillStyle = kr ? "rgba(4,12,24,0.7)" : "rgba(20,8,8,0.65)"; ctx.fill(); ctx.strokeStyle = kr ? "rgba(120,220,255,0.7)" : "rgba(255,180,80,0.7)"; ctx.lineWidth = 2; ctx.stroke();
-    for (let i = 0; i < n; i++) { const on = i < d.left, px = x0 + i * pw + pw / 2; poly([[px, y + 1], [px + 6, y + 8], [px, y + 15], [px - 6, y + 8]], on ? (kr ? "#4fd8ff" : "#ff9a3a") : "rgba(255,255,255,0.15)", on ? (kr ? "#03203a" : "#3a1004") : null, 1.5); }
+    for (let i = 0; i < n; i++) { const on = i < d.left, px = x0 + i * pw + pw / 2; poly([[px, y + 1], [px + 6, y + 8], [px, y + 15], [px - 6, y + 8]], on ? (kr ? "#4fd8ff" : d.kind === "soul" ? "#7ab8ff" : "#ff9a3a") : "rgba(255,255,255,0.15)", on ? (kr ? "#03203a" : d.kind === "soul" ? "#0a1238" : "#3a1004") : null, 1.5); }
   }
 }
-function dragonBlast(x, y, air = false) {
-  const b = { x, y, t: 0, em: [], fl: [], air };
+function dragonBlast(x, y, air = false, blue = false) {
+  const b = { x, y, t: 0, em: [], fl: [], air, blue };
   for (let i = 0; i < 46; i++) { const a = rand(Math.PI * 1.05, Math.PI * 1.95), v = rand(250, 720); b.em.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: rand(0.6, 1.3), w: rand(2, 4.5) }); }
   for (let i = 0; i < 26; i++) { const a = rand(0, Math.PI * 2), v = rand(260, 560); b.fl.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.55 - 80, t: 0, life: rand(0.5, 0.9), r: rand(30, 60) }); }
   dragonBlasts.push(b);
-  for (let i = 0; i < 30; i++) addPart({ kind: "chunk", x, y, vx: rand(-340, 340), vy: -rand(200, 560), g: 1100, life: rand(0.6, 1.1), size: rand(3, 8), col: Math.random() < 0.5 ? "#ff8a3a" : "#3a1a0c", rot: rand(0, 6), hot: Math.random() < 0.5 });
-  for (let i = 0; i < 12; i++) addPart({ kind: "smoke", x: x + rand(-80, 80), y: y + rand(-30, 10), vx: rand(-40, 40), vy: -rand(40, 110), life: rand(1, 1.7), size: rand(18, 34), grow: 1.4, col: "#2a1a14", a: 0.45 });
+  for (let i = 0; i < 30; i++) addPart({ kind: "chunk", x, y, vx: rand(-340, 340), vy: -rand(200, 560), g: 1100, life: rand(0.6, 1.1), size: rand(3, 8), col: blue ? (Math.random() < 0.5 ? "#5a8aff" : "#0e1430") : Math.random() < 0.5 ? "#ff8a3a" : "#3a1a0c", rot: rand(0, 6), hot: !blue && Math.random() < 0.5 });
+  for (let i = 0; i < 12; i++) addPart({ kind: "smoke", x: x + rand(-80, 80), y: y + rand(-30, 10), vx: rand(-40, 40), vy: -rand(40, 110), life: rand(1, 1.7), size: rand(18, 34), grow: 1.4, col: blue ? "#141a3a" : "#2a1a14", a: 0.45 });
   shakeT = Math.max(shakeT, 0.6); shakeAmp = Math.max(shakeAmp, 16); buzz(120);
   playSfx("lava", "hit"); playSfx("earth", "hit");
 }
@@ -5064,60 +5135,80 @@ function drawKrakenInk() {
   }
   ctx.restore();
 }
+let FBB = false;
+const BLUE_CACHE = new Map();
+function blueStr(s) {
+  let v = BLUE_CACHE.get(s); if (v) return v;
+  let r, g, b, a = null, m = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/);
+  if (m) { r = +m[1]; g = +m[2]; b = +m[3]; a = m[4] !== undefined ? +m[4] : null; }
+  else if (/^#[0-9a-f]{6}$/i.test(s)) { r = parseInt(s.slice(1, 3), 16); g = parseInt(s.slice(3, 5), 16); b = parseInt(s.slice(5, 7), 16); }
+  else return s;
+  const mx = Math.max(r, g, b) / 255, mn = Math.min(r, g, b) / 255, l = (mx + mn) / 2, dd = mx - mn;
+  let h = 0, sat = 0;
+  if (dd) { sat = dd / (1 - Math.abs(2 * l - 1)); const R = r / 255, G = g / 255, B = b / 255; h = mx === R ? ((G - B) / dd) % 6 : mx === G ? (B - R) / dd + 2 : (R - G) / dd + 4; h *= 60; }
+  h = (h + 190) % 360; if (h < 0) h += 360;
+  const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m0 = l - c / 2;
+  const [r1, g1, b1] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  const R2 = Math.round((r1 + m0) * 255), G2 = Math.round((g1 + m0) * 255), B2 = Math.round((b1 + m0) * 255);
+  v = a === null ? `rgb(${R2},${G2},${B2})` : `rgba(${R2},${G2},${B2},${a})`;
+  if (BLUE_CACHE.size > 4000) BLUE_CACHE.clear(); BLUE_CACHE.set(s, v); return v;
+}
+const C = s => FBB ? blueStr(s) : s;
 function drawDragonFireballs() {
   drawKrakenInk();
   ctx.save();
-  for (const b of dragonBlasts) if (!b.muzzle && !b.air) {
+  for (const b of dragonBlasts) if ((FBB = !!b.blue, true) && !b.muzzle && !b.air) {
     const sk = Math.min(1, b.t / 0.25), fade = Math.max(0, 1 - b.t / DRAGON_BURN);
-    ctx.globalAlpha = 0.55 * fade; ctx.fillStyle = "#1a0a04"; ctx.beginPath(); ctx.ellipse(b.x, b.y + 6, 130 * sk, 34 * sk, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.6 * fade * (0.6 + 0.4 * Math.sin(time * 9 + b.x)); dRadial(b.x, b.y + 4, 90 * sk, [[0, "rgba(255,120,30,0.8)"], [1, "rgba(255,60,10,0)"]]);
+    ctx.globalAlpha = 0.55 * fade; ctx.fillStyle = C("#1a0a04"); ctx.beginPath(); ctx.ellipse(b.x, b.y + 6, 130 * sk, 34 * sk, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.6 * fade * (0.6 + 0.4 * Math.sin(time * 9 + b.x)); dRadial(b.x, b.y + 4, 90 * sk, [[0, C("rgba(255,120,30,0.8)")], [1, C("rgba(255,60,10,0)")]]);
   }
   ctx.globalAlpha = 1;
-  for (const f of dragonFireballs) if (!f.done) {
+  for (const f of dragonFireballs) if ((FBB = !!f.blue, true) && !f.done) {
     const k = Math.min(1, f.t / f.dur), pulse = 0.5 + 0.5 * Math.sin(time * 14);
     ctx.save(); ctx.translate(f.tx, f.ty); ctx.scale(1, 0.32);
-    ctx.globalAlpha = 0.25 + 0.55 * k; dRadial(0, 0, 120 * (0.5 + 0.5 * k), [[0, "rgba(255,60,20,0.55)"], [0.7, "rgba(255,40,10,0.18)"], [1, "rgba(255,40,10,0)"]]);
-    ctx.lineWidth = 6; ctx.strokeStyle = `rgba(255,${90 + 80 * pulse},40,${0.5 + 0.5 * k})`; ctx.beginPath(); ctx.arc(0, 0, 130 - 60 * k, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 0.25 + 0.55 * k; dRadial(0, 0, 120 * (0.5 + 0.5 * k), [[0, C("rgba(255,60,20,0.55)")], [0.7, C("rgba(255,40,10,0.18)")], [1, C("rgba(255,40,10,0)")]]);
+    ctx.lineWidth = 6; ctx.strokeStyle = C(`rgba(255,${90 + 80 * pulse},40,${0.5 + 0.5 * k})`); ctx.beginPath(); ctx.arc(0, 0, 130 - 60 * k, 0, Math.PI * 2); ctx.stroke();
     ctx.lineWidth = 3; ctx.setLineDash([18, 12]); ctx.lineDashOffset = -time * 80; ctx.beginPath(); ctx.arc(0, 0, 160 - 60 * k, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
     ctx.restore();
   }
-  for (const f of dragonFireballs) for (const q of f.sm) { const k = q.t / q.life; ctx.globalAlpha = 0.4 * (1 - k); dRadial(q.x, q.y, q.r * (1.2 + 1.4 * k), [[0, "rgba(50,28,18,0.8)"], [1, "rgba(50,28,18,0)"]]); }
+  for (const f of dragonFireballs) if ((FBB = !!f.blue, true)) for (const q of f.sm) { const k = q.t / q.life; ctx.globalAlpha = 0.4 * (1 - k); dRadial(q.x, q.y, q.r * (1.2 + 1.4 * k), [[0, C("rgba(50,28,18,0.8)")], [1, C("rgba(50,28,18,0)")]]); }
   ctx.globalAlpha = 1; ctx.globalCompositeOperation = "lighter";
-  for (const b of dragonBlasts) if (b.muzzle && b.t < 0.4) { const k = b.t / 0.4; ctx.globalAlpha = 1 - k; dRadial(b.x, b.y, 60 + 120 * k, [[0, "rgba(255,240,180,0.9)"], [0.4, "rgba(255,140,40,0.6)"], [1, "rgba(255,60,10,0)"]]); }
+  for (const b of dragonBlasts) if ((FBB = !!b.blue, true) && b.muzzle && b.t < 0.4) { const k = b.t / 0.4; ctx.globalAlpha = 1 - k; dRadial(b.x, b.y, 60 + 120 * k, [[0, C("rgba(255,240,180,0.9)")], [0.4, C("rgba(255,140,40,0.6)")], [1, C("rgba(255,60,10,0)")]]); }
   for (const f of dragonFireballs) {
-    if (!f.done) for (let i = f.trail.length - 1; i >= 0; i--) { const [x, y] = f.trail[i], u = i / f.trail.length, sc = 0.8 + 0.8 * Math.min(1, f.t / f.dur); ctx.globalAlpha = (f.done ? 0.4 : 0.55) * (1 - u); circle(x, y, (34 - 26 * u) * sc, `rgb(${colAt(DFIRE, 0.35 + u * 0.6)})`); }
-    for (const q of f.fl) { const k = q.t / q.life; ctx.globalAlpha = 0.8 * (1 - k); dRadial(q.x, q.y, q.r * (1 - 0.4 * k), [[0, `rgba(${colAt(DFIRE, 0.15 + k * 0.7)},0.9)`], [1, `rgba(${colAt(DFIRE, 0.5 + k * 0.5)},0)`]]); }
-    for (const q of f.em) { const k = q.t / q.life; ctx.globalAlpha = 1 - k; ctx.strokeStyle = `rgb(${colAt(DFIRE, 0.1 + k * 0.6)})`; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * 0.03, q.y - q.vy * 0.03); ctx.stroke(); }
+    FBB = !!f.blue;
+    if (!f.done) for (let i = f.trail.length - 1; i >= 0; i--) { const [x, y] = f.trail[i], u = i / f.trail.length, sc = 0.8 + 0.8 * Math.min(1, f.t / f.dur); ctx.globalAlpha = (f.done ? 0.4 : 0.55) * (1 - u); circle(x, y, (34 - 26 * u) * sc, C(`rgb(${colAt(DFIRE, 0.35 + u * 0.6)})`)); }
+    for (const q of f.fl) { const k = q.t / q.life; ctx.globalAlpha = 0.8 * (1 - k); dRadial(q.x, q.y, q.r * (1 - 0.4 * k), [[0, C(`rgba(${colAt(DFIRE, 0.15 + k * 0.7)},0.9)`)], [1, C(`rgba(${colAt(DFIRE, 0.5 + k * 0.5)},0)`)]]); }
+    for (const q of f.em) { const k = q.t / q.life; ctx.globalAlpha = 1 - k; ctx.strokeStyle = C(`rgb(${colAt(DFIRE, 0.1 + k * 0.6)})`); ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * 0.03, q.y - q.vy * 0.03); ctx.stroke(); }
     if (f.done) continue;
     const k = Math.min(1, f.t / f.dur), sc = 0.8 + 0.8 * k, fl = 0.9 + 0.1 * Math.sin(time * 40 + f.spin), ang = Math.atan2(f.vy || 1, f.vx || 0);
     ctx.globalAlpha = 1;
-    dRadial(f.x, f.y, 110 * sc * fl, [[0, "rgba(255,170,60,0.55)"], [0.5, "rgba(255,80,20,0.25)"], [1, "rgba(255,40,10,0)"]]);
+    dRadial(f.x, f.y, 110 * sc * fl, [[0, C("rgba(255,170,60,0.55)")], [0.5, C("rgba(255,80,20,0.25)")], [1, C("rgba(255,40,10,0)")]]);
     ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(ang);
     for (let i = 0; i < 7; i++) {
       const w = (i - 3) / 3, len = (70 + 30 * Math.sin(time * 18 + i * 1.7 + f.spin)) * sc, wid = (26 - Math.abs(w) * 10) * sc;
       ctx.save(); ctx.rotate(Math.PI + w * 0.55);
-      const g = ctx.createLinearGradient(0, 0, len, 0); g.addColorStop(0, "rgba(255,230,120,0.9)"); g.addColorStop(0.4, "rgba(255,120,30,0.7)"); g.addColorStop(1, "rgba(200,30,10,0)");
+      const g = ctx.createLinearGradient(0, 0, len, 0); g.addColorStop(0, C("rgba(255,230,120,0.9)")); g.addColorStop(0.4, C("rgba(255,120,30,0.7)")); g.addColorStop(1, C("rgba(200,30,10,0)"));
       ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, -wid); ctx.quadraticCurveTo(len * 0.5, -wid * 0.9 + Math.sin(time * 22 + i) * 6, len, 0); ctx.quadraticCurveTo(len * 0.5, wid * 0.9 + Math.cos(time * 20 + i) * 6, 0, wid); ctx.closePath(); ctx.fill();
       ctx.restore();
     }
     ctx.rotate(time * 6 + f.spin);
-    for (let i = 0; i < 3; i++) { ctx.strokeStyle = `rgba(255,${200 - i * 40},${80 - i * 20},0.8)`; ctx.lineWidth = (5 - i) * sc; ctx.beginPath(); ctx.arc(0, 0, (34 + i * 7) * sc, i * 2.1, i * 2.1 + 1.6); ctx.stroke(); }
+    for (let i = 0; i < 3; i++) { ctx.strokeStyle = C(`rgba(255,${200 - i * 40},${80 - i * 20},0.8)`); ctx.lineWidth = (5 - i) * sc; ctx.beginPath(); ctx.arc(0, 0, (34 + i * 7) * sc, i * 2.1, i * 2.1 + 1.6); ctx.stroke(); }
     ctx.restore();
-    dRadial(f.x, f.y, 44 * sc * fl, [[0, "rgba(255,255,240,1)"], [0.35, "rgba(255,230,120,0.95)"], [0.7, "rgba(255,130,30,0.8)"], [1, "rgba(220,50,10,0)"]]);
+    dRadial(f.x, f.y, 44 * sc * fl, [[0, C("rgba(255,255,240,1)")], [0.35, C("rgba(255,230,120,0.95)")], [0.7, C("rgba(255,130,30,0.8)")], [1, C("rgba(220,50,10,0)")]]);
     ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
-    circle(f.x, f.y, 15 * sc * fl, "#fffef0");
+    circle(f.x, f.y, 15 * sc * fl, C("#fffef0"));
     ctx.globalCompositeOperation = "lighter";
   }
-  for (const b of dragonBlasts) if (!b.muzzle) {
+  for (const b of dragonBlasts) if ((FBB = !!b.blue, true) && !b.muzzle) {
     const t = b.t;
-    if (t < 0.18) { ctx.globalAlpha = 0.45 * (1 - t / 0.18); ctx.fillStyle = "#ffd9a0"; ctx.fillRect(0, -TOP, W, H + TOP); }
-    if (t < 0.6) { const k = t / 0.6, e = 1 - Math.pow(1 - k, 3); ctx.globalAlpha = 1 - k; dRadial(b.x, b.y - 30 * e, 40 + 190 * e, [[0, "rgba(255,255,220,1)"], [0.3, "rgba(255,200,80,0.9)"], [0.65, "rgba(255,90,20,0.6)"], [1, "rgba(180,30,10,0)"]]); }
-    if (t < 1) { const k = t / 1; ctx.globalAlpha = (1 - k) * 0.9; const hgt = 260 * Math.min(1, t / 0.2), wd = 70 * (1 - k * 0.6); const g = ctx.createLinearGradient(0, b.y, 0, b.y - hgt); g.addColorStop(0, "rgba(255,240,180,0.9)"); g.addColorStop(0.4, "rgba(255,130,30,0.6)"); g.addColorStop(1, "rgba(255,60,10,0)"); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(b.x - wd, b.y); ctx.quadraticCurveTo(b.x - wd * 0.3, b.y - hgt * 0.6, b.x, b.y - hgt); ctx.quadraticCurveTo(b.x + wd * 0.3, b.y - hgt * 0.6, b.x + wd, b.y); ctx.closePath(); ctx.fill(); }
-    for (let r = 0; r < 2; r++) { const k = (t - r * 0.08) / 0.6; if (k <= 0 || k >= 1) continue; const e = 1 - Math.pow(1 - k, 2); ctx.globalAlpha = 1 - k; ctx.strokeStyle = r ? "rgba(255,220,150,1)" : "rgba(255,120,40,1)"; ctx.lineWidth = 14 * (1 - k) + 2; ctx.beginPath(); ctx.ellipse(b.x, b.y, 40 + 300 * e, (40 + 300 * e) * 0.3, 0, 0, Math.PI * 2); ctx.stroke(); }
-    for (const q of b.fl) { const k = q.t / q.life; ctx.globalAlpha = 0.5 * (1 - k) * (1 - k); dRadial(q.x, q.y, q.r * (0.6 + 0.6 * k), [[0, `rgba(${colAt(DFIRE, 0.3 + k * 0.7)},0.8)`], [1, `rgba(${colAt(DFIRE, 0.5 + k * 0.5)},0)`]]); }
-    for (const q of b.em) { const k = q.t / q.life; ctx.globalAlpha = 1 - k; ctx.strokeStyle = `rgb(${colAt(DFIRE, 0.05 + k * 0.6)})`; ctx.lineWidth = q.w; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * 0.035, q.y - q.vy * 0.035); ctx.stroke(); }
+    if (t < 0.18) { ctx.globalAlpha = 0.45 * (1 - t / 0.18); ctx.fillStyle = C("#ffd9a0"); ctx.fillRect(0, -TOP, W, H + TOP); }
+    if (t < 0.6) { const k = t / 0.6, e = 1 - Math.pow(1 - k, 3); ctx.globalAlpha = 1 - k; dRadial(b.x, b.y - 30 * e, 40 + 190 * e, [[0, C("rgba(255,255,220,1)")], [0.3, C("rgba(255,200,80,0.9)")], [0.65, C("rgba(255,90,20,0.6)")], [1, C("rgba(180,30,10,0)")]]); }
+    if (t < 1) { const k = t / 1; ctx.globalAlpha = (1 - k) * 0.9; const hgt = 260 * Math.min(1, t / 0.2), wd = 70 * (1 - k * 0.6); const g = ctx.createLinearGradient(0, b.y, 0, b.y - hgt); g.addColorStop(0, C("rgba(255,240,180,0.9)")); g.addColorStop(0.4, C("rgba(255,130,30,0.6)")); g.addColorStop(1, C("rgba(255,60,10,0)")); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(b.x - wd, b.y); ctx.quadraticCurveTo(b.x - wd * 0.3, b.y - hgt * 0.6, b.x, b.y - hgt); ctx.quadraticCurveTo(b.x + wd * 0.3, b.y - hgt * 0.6, b.x + wd, b.y); ctx.closePath(); ctx.fill(); }
+    for (let r = 0; r < 2; r++) { const k = (t - r * 0.08) / 0.6; if (k <= 0 || k >= 1) continue; const e = 1 - Math.pow(1 - k, 2); ctx.globalAlpha = 1 - k; ctx.strokeStyle = r ? C("rgba(255,220,150,1)") : C("rgba(255,120,40,1)"); ctx.lineWidth = 14 * (1 - k) + 2; ctx.beginPath(); ctx.ellipse(b.x, b.y, 40 + 300 * e, (40 + 300 * e) * 0.3, 0, 0, Math.PI * 2); ctx.stroke(); }
+    for (const q of b.fl) { const k = q.t / q.life; ctx.globalAlpha = 0.5 * (1 - k) * (1 - k); dRadial(q.x, q.y, q.r * (0.6 + 0.6 * k), [[0, C(`rgba(${colAt(DFIRE, 0.3 + k * 0.7)},0.8)`)], [1, C(`rgba(${colAt(DFIRE, 0.5 + k * 0.5)},0)`)]]); }
+    for (const q of b.em) { const k = q.t / q.life; ctx.globalAlpha = 1 - k; ctx.strokeStyle = C(`rgb(${colAt(DFIRE, 0.05 + k * 0.6)})`); ctx.lineWidth = q.w; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * 0.035, q.y - q.vy * 0.035); ctx.stroke(); }
   }
-  ctx.restore();
+  ctx.restore(); FBB = false;
 }
 let dangerK = 0, dangerHitT = 0, dangerSfxAt = -99;
 function drawDanger(dt) {
@@ -5146,6 +5237,16 @@ function drawDanger(dt) {
 }
 function drawRoarTint() {
   drawKrakenGrip();
+  if (soulShieldT > 0 || enemies.some(e => e.soul)) {
+    const a = Math.min(1, soulShieldT * 2), p = 0.5 + 0.5 * Math.sin(time * 6);
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (const e of enemies) {
+      if (e.soul) { ctx.globalAlpha = 0.35 + 0.15 * p; ctx.beginPath(); ctx.ellipse(e.x, e.y + 10, 28, 9, 0, 0, Math.PI * 2); ctx.fillStyle = "#3a6aff"; ctx.fill(); }
+      if (soulShieldT > 0) { const r = (e.size || 24) + 14; ctx.globalAlpha = a * (0.35 + 0.25 * p); ctx.beginPath(); ctx.arc(e.x, e.y - 4, r, 0, Math.PI * 2); ctx.fillStyle = "rgba(90,150,255,0.25)"; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = "#9ec4ff"; ctx.stroke(); }
+    }
+    ctx.restore();
+    if (soulShieldT > 0) text(`ENEMIES SHIELDED  ${Math.ceil(soulShieldT)}s`, W / 2, FRONT_Y - 100, 24, `rgba(150,200,255,${a})`, { weight: 900, outline: 6 });
+  }
   for (let i = 0; i < SLOTS; i++) { const c = rows.active[i]; if (!c || !(c.inkT > 0) || !c.inkBlobs) continue; const p = slotPos("active", i), a = Math.min(1, c.inkT / 0.6);
     ctx.save(); ctx.globalAlpha = a; rrect(p.x - CARD_W / 2, p.y - CARD_H / 2, CARD_W, CARD_H, 12); ctx.clip();
     ctx.fillStyle = "rgba(20,8,35,0.35)"; ctx.fillRect(p.x - CARD_W / 2, p.y - CARD_H / 2, CARD_W, CARD_H);
@@ -5171,7 +5272,7 @@ function drawRoarTint() {
 function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
-  dragon = null; krakenInks = []; krakenSplats = []; krakenGrip = null; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
+  dragon = null; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
@@ -6070,7 +6171,7 @@ function updateBeam(c, dt) {
     if (d.slow) e.slow(d.slow, 0.3);
     b.acc += amt; b.pop += dt;
     e.takeDamage(amt, src, d.color);
-    if (b.pop > 1 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(b.acc)), color: "#ffe34a", size: 18, duration: 0.7 })); b.acc = 0; b.pop = 0; }
+    if (b.pop > 1 && settings.dmgNums && soulShieldT <= 0) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(b.acc)), color: "#ffe34a", size: 18, duration: 0.7 })); b.acc = 0; b.pop = 0; }
     if (Math.random() < dt * 6) addPart({ add: true, kind: "spark", x: e.x + rand(-8, 8), y: e.y + rand(-8, 8), vx: rand(-220, 220), vy: rand(-220, 220), drag: 4, life: 0.25, size: 2, rgb: "220,235,255", len: 0.04 });
   }
 }
@@ -6644,7 +6745,7 @@ function updateLance(c, dt) {
     if (d.slow) e.slow(d.slow, 0.3);
     e.lanceAcc = (e.lanceAcc || 0) + amt; e.lanceHitT = time; e.lancePop = (e.lancePop || 0) + dt;
     e.takeDamage(amt, src, d.color);
-    if (e.lancePop > 1 && settings.dmgNums) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(e.lanceAcc)), color: "#9fe6ff", size: 18, duration: 0.7 })); e.lanceAcc = 0; e.lancePop = 0; }
+    if (e.lancePop > 1 && settings.dmgNums && soulShieldT <= 0) { fxs.push(new Fx("text", { x: e.x + rand(-12, 12), y: e.y - 30, text: String(Math.round(e.lanceAcc)), color: "#9fe6ff", size: 18, duration: 0.7 })); e.lanceAcc = 0; e.lancePop = 0; }
     if (Math.random() < dt * 10) addPart({ kind: "drop", x: e.x, y: e.y, vx: rand(-160, 160), vy: -rand(80, 220), g: 900, life: 0.5, size: rand(2.5, 4), col: "#7fd8ff" });
   }
   for (let n = Math.floor(dt * 40 + Math.random()); n > 0; n--) {
@@ -6981,7 +7082,7 @@ function hitEnemy(e, el, r, dmg, sm = 1) {
   if (sc && !e.dead) { const L = idolNext(sc, "hex"); if (L) { const a = IDOL_VAL.hex(L); e.curseAmt = e.curseT > 0 ? Math.max(e.curseAmt, a) : a; e.curseT = Math.max(e.curseT, 3); playSpecial("sp_hex", 0.4, 0.6); } }
   if (crit) addPart({ add: true, kind: "ring", x, y, rgb: "200,140,255", size: 10, grow: 70, w: 4, sq: 0.7, life: 0.3 });
   const col = crit ? "#e0a0ff" : mult > 1.01 ? "#ffe34a" : mult < 0.99 ? "#a89878" : PARCH;
-  if (settings.dmgNums || crit) fxs.push(new Fx("text", { x: x + rand(-14, 14), y: y - 30, text: crit ? `${Math.round(amount)}!` : String(Math.round(amount)), color: col, size: crit ? 24 : 18, duration: 0.8 }));
+  if ((settings.dmgNums || crit) && soulShieldT <= 0) fxs.push(new Fx("text", { x: x + rand(-14, 14), y: y - 30, text: crit ? `${Math.round(amount)}!` : String(Math.round(amount)), color: col, size: crit ? 24 : 18, duration: 0.8 }));
 }
 
 const SPECIAL_SHOP_CD = 90;
@@ -7448,7 +7549,7 @@ function finishRune(timedOut) {
     playSpellSound("spell_work");
   } else {
     spell.match = null; spell.failT = 1.6;
-    spell.reason = timedOut ? "Out of time" : spell.dragonOnly ? `Draw the rune on the ${isKraken() ? "Kraken" : "dragon"} (spells are on cooldown)` : "";
+    spell.reason = timedOut ? "Out of time" : spell.dragonOnly ? `Draw the rune on the ${bossName()} (spells are on cooldown)` : "";
     playSpellSound("spell_fail");
   }
 }
@@ -7753,7 +7854,7 @@ function drawSpell() {
     rrect(160, 176, 400, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
     rrect(160, 176, 400 * k, 16, 8); ctx.fillStyle = k > 0.3 ? "#b36bff" : "#e0533f"; ctx.fill();
     text(`${spell.t.toFixed(1)}s`, W / 2, 222, 22, PARCH, { outline: 5 });
-    if (dragonActive() && dragon.rune) { drawDragonRune(dragon.rune, W - 86, 290, 64, 0.95, 0.5 + 0.5 * Math.sin(time * 4)); text(isKraken() ? "Kraken rune" : "Dragon rune", W - 86, 350, 15, bossCol().label, { weight: 800, outline: 4 }); }
+    if (dragonActive() && dragon.rune) { drawDragonRune(dragon.rune, W - 86, 290, 64, 0.95, 0.5 + 0.5 * Math.sin(time * 4)); text(`${bossName()} rune`, W - 86, 350, 15, bossCol().label, { weight: 800, outline: 4 }); }
   } else if (spell.match) {
     const sp = SPELLS[spell.match];
     text(sp.name, W / 2, 170, 56, sp.color, { font: DISPLAY, weight: 900, outline: 10 });
