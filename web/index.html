@@ -4613,7 +4613,6 @@ function altarRecipe(cards) {
   return DIVINE_RECIPES.find(r => [...r.parts].sort().join("|") === have) || null;
 }
 const boardHasEl = el => [...rows.active, ...rows.storage, ...rows.altar].some(c => c && c.element === el);
-const recipeReady = () => DIVINE_RECIPES.some(r => r.parts.every(el => boardHasEl(el)));
 let restartArmed = 0;
 let enemies = [], projectiles = [], zones = [], fxs = [];
 let castleMax = CASTLE_MAX, castleArmor = 0;
@@ -8899,11 +8898,9 @@ function drawChamber() {
   }
 }
 function drawAltarBtn(b) {
-  const ready = recipeReady(), p = 0.5 + 0.5 * Math.sin(time * 4);
-  if (ready) { ctx.save(); ctx.shadowColor = "#ffe27a"; ctx.shadowBlur = settings.lite ? 0 : 14 + 10 * p; rrect(b.x - 3, b.y - 3, b.w + 6, b.h + 12, 26); ctx.fillStyle = hexA("#ffe27a", 0.25 + 0.3 * p); ctx.fill(); ctx.restore(); }
-  b.fill = ready ? "#ffd76a" : "#c9b8ff"; b.fillDown = ready ? "#e0b040" : "#a890f0";
+  // no "recipe ready" hint on purpose: players discover Divine recipes themselves
+  b.fill = "#c9b8ff"; b.fillDown = "#a890f0";
   drawBtn(b);
-  if (ready) { const bx = b.x + b.w - 6, by = b.y + 4, pl = 1 + 0.12 * Math.sin(time * 6); circle(bx, by, 13 * pl, "#e0533f"); ring(bx, by, 13 * pl, INK, 2.5); text("!", bx, by + 1, 19, "#fff", { weight: 900, baseline: "middle" }); }
 }
 // Altar look: starfield + nebula, light shafts, rune ring, living globe, energy tethers from every card,
 // spin sparks, pedestal motes, and a globe flare + lightning during Ascend. Heavy layers are off in Low settings.
