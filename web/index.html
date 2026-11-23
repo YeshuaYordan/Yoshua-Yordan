@@ -239,7 +239,7 @@ const EL = {
   hermes:    { name: "Hermes", tier: 3, legendCard: true, art: "hermes", theme: "hermes", color: "#7ae0c8", shape: "swirl", parts: ["wind", "water"], desc: "Messenger of the gods: lightning-fast strikes leap through 8 enemies and slow them.", dmg: 34, rate: 1.3, chain: 8, slow: 0.6 },
   hephaestus:{ name: "Hephaestus", tier: 3, legendCard: true, art: "hephaestus", theme: "hephaestus", color: "#ff7a2a", shape: "rock", parts: ["fire", "earth"], desc: "God of the forge: a red-hot hammer slams an area, stunning foes and leaving molten metal pools.", dmg: 50, rate: 0.9, speed: 620, splash: 90, root: 0.7, puddle: 60, puddle_dps: 16, burn: 6 },
   nyxarion:  { name: "Nyxarion", tier: 3, divine: true, art: "nyxarion", theme: "hera", color: "#8a6aff", shape: "swirl", parts: ["dark", "water", "light"], desc: "Divine lord of night: fires black orbs wreathed in dark blue fire that curse (+30% damage taken) and slow. Every 7 s it casts a slow black hole instead: it drifts to the first enemy, then to the middle of the field, dragging every enemy it passes, and explodes for x3 damage. Night aura: the cards right next to it deal +30% damage.", dmg: 40, rate: 1.1, speed: 780, shotScale: 1.6, curse: 0.3, slow: 0.55, aura: 0.3, blackhole: true },
-  elyndor:   { name: "Elyndor", tier: 3, divine: true, art: "elyndor", frame: "elyndor_frame", win: [250, 249, 310, 400], theme: "apollo", color: "#b070ff", shape: "spiky", parts: ["fire", "water", "light"], desc: "Divine twin of sun and moon: charges a red and a blue orb, fuses them into purple, then fires a wide green-purple laser straight up its column that destroys anything it touches. Once placed in the attack row it is bound there for 30 s.", dmg: 0, rate: 1, laser: true },
+  elyndor:   { name: "Elyndor", tier: 3, divine: true, art: "elyndor", frame: "elyndor_frame", win: [250, 249, 310, 400], fx: "elyndor", theme: "apollo", color: "#b070ff", shape: "spiky", parts: ["fire", "water", "light"], desc: "Divine twin of sun and moon: charges a red and a blue orb, fuses them into purple, then fires a wide green-purple laser straight up its column that destroys anything it touches. Once placed in the attack row it is bound there for 30 s.", dmg: 0, rate: 1, laser: true },
   hera:      { name: "Hera", tier: 3, legendCard: true, art: "hera", theme: "hera", color: "#d68aff", shape: "swirl", parts: ["water", "light"], desc: "Queen of the gods: a peacock feather bursts over a wide area and marks foes (+15% damage taken). Royal aura: the cards right next to her deal +25% damage.", dmg: 38, rate: 1.0, speed: 760, splash: 130, curse: 0.15, aura: 0.25 },
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [168, 93, 170], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400 / 1.5 * 3, rate: (1 / 16) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 11, shotScale: 4 },
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [150, 122, 200], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
@@ -1228,6 +1228,51 @@ function trailPts(o, a, dir, TRAIL, SEG, rx, ry) {
 const TRAIL_STYLES = new Map();
 function trailStyles(key, SEG, fn) { let v = TRAIL_STYLES.get(key); if (!v) { v = []; for (let k = 0; k <= SEG; k++) v[k] = fn(1 - k / SEG); TRAIL_STYLES.set(key, v); } return v; }
 // Divine frame extras (code-drawn around the user's frame art; off in Low settings)
+// Elyndor's own frame effects (sun / tide / purple union), built around its frame art:
+// left sun crescent + left orb at art px (213,395), right wave + orb at (595,395), purple orb on top at (404,150).
+function elyBack(hw, hh, t) {
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  // split aura: warm on the left, cold on the right, purple crown above
+  const L = ctx.createRadialGradient(-hw * 0.6, 0, 10, -hw * 0.6, 0, 110); L.addColorStop(0, `rgba(255,110,50,${0.3 + 0.08 * Math.sin(t * 2.4)})`); L.addColorStop(1, "rgba(255,110,50,0)"); ctx.fillStyle = L; ctx.fillRect(-170, -140, 200, 280);
+  const R = ctx.createRadialGradient(hw * 0.6, 0, 10, hw * 0.6, 0, 110); R.addColorStop(0, `rgba(60,140,255,${0.3 + 0.08 * Math.sin(t * 2.4 + 2)})`); R.addColorStop(1, "rgba(60,140,255,0)"); ctx.fillStyle = R; ctx.fillRect(-30, -140, 200, 280);
+  const T = ctx.createRadialGradient(0, -hh - 4, 4, 0, -hh - 4, 60); T.addColorStop(0, `rgba(190,110,255,${0.45 + 0.15 * Math.sin(t * 3)})`); T.addColorStop(1, "rgba(190,110,255,0)"); ctx.fillStyle = T; ctx.fillRect(-60, -hh - 64, 120, 120);
+  // sun rays fanning out behind the left side
+  ctx.save(); ctx.translate(-hw + 4, -hh * 0.45); ctx.rotate(t * 0.3);
+  for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); const len = 34 + 10 * Math.sin(t * 3 + i * 1.7); ctx.fillStyle = `rgba(255,${150 + (i % 2) * 50},70,0.22)`; ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(0, -len); ctx.lineTo(3, 0); ctx.fill(); }
+  ctx.restore();
+  // fire tongues climbing the left edge
+  for (let i = 0; i < 6; i++) { const y = hh - 10 - i * 22, ph = t * 3.5 + i * 1.3, w = 8 + 4 * Math.sin(ph), h = 14 + 8 * (0.5 + 0.5 * Math.sin(ph * 1.7));
+    const g = ctx.createLinearGradient(-hw, y, -hw - h, y); g.addColorStop(0, "rgba(255,140,60,0.55)"); g.addColorStop(1, "rgba(255,60,30,0)"); ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(-hw + 2, y - w); ctx.quadraticCurveTo(-hw - h * 0.6, y - w * 0.3 + Math.sin(ph) * 4, -hw - h, y - 2); ctx.quadraticCurveTo(-hw - h * 0.6, y + w * 0.4, -hw + 2, y + w); ctx.fill(); }
+  // waves curling along the right edge
+  for (let i = 0; i < 4; i++) { const u = (t * 0.22 + i / 4) % 1, y = hh - 6 - u * (hh * 2 - 12), ph = t * 2.6 + i * 1.9, h = (10 + 8 * (0.5 + 0.5 * Math.sin(ph))) * (0.7 + 0.3 * Math.sin(i * 2.7)), a = Math.sin(u * Math.PI);
+    ctx.strokeStyle = `rgba(120,185,255,${0.55 * a})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(hw - 2, y + 8); ctx.quadraticCurveTo(hw + h, y + 5, hw + h * 0.75, y - 5); ctx.quadraticCurveTo(hw + h * 0.35, y - 9, hw + h * 0.4, y - 3); ctx.stroke();
+    circle(hw + h * 0.9, y - 7, 1.6, `rgba(220,240,255,${0.8 * a})`); }
+  ctx.restore();
+}
+function elyFront(hw, hh, t, K) {
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+  const P = (x, y) => [-hw + (x - 180) * K, -hh + (y - 160) * K];
+  const [lx, ly] = P(213, 395), [rx, ry] = P(595, 395), [tx, ty] = P(404, 150);
+  // the two side orbs breathe in turn; the top orb pulses when both are bright
+  const pl = 0.5 + 0.5 * Math.sin(t * 2.5), pr = 0.5 + 0.5 * Math.sin(t * 2.5 + Math.PI), pt = pl * pr * 4;
+  const glow = (x, y, r, col, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(${col},${a})`); g.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+  glow(lx, ly, 16 + 5 * pl, "255,120,60", 0.55 + 0.35 * pl); glow(rx, ry, 16 + 5 * pr, "80,160,255", 0.55 + 0.35 * pr); glow(tx, ty, 22 + 8 * pt, "200,120,255", 0.4 + 0.4 * pt);
+  // embers rising from the sun side, bubbles rising on the tide side
+  for (let i = 0; i < 7; i++) { const u = (t * 0.5 + i / 7) % 1; circle(lx - 6 + Math.sin(i * 3.1 + t * 2) * 8, ly - u * 70, 1.8 * (1 - u) + 0.5, `rgba(255,${200 - 120 * u | 0},80,${0.9 * (1 - u)})`); }
+  for (let i = 0; i < 7; i++) { const u = (t * 0.4 + i / 7) % 1, bx = rx + 6 + Math.sin(i * 2.3 + t * 3) * 6, by = ry - u * 70; ring(bx, by, 2 + 1.5 * (1 - u), `rgba(170,215,255,${0.85 * (1 - u)})`, 1.2); }
+  // a red spark climbs the left border and a blue one the right; they meet at the top orb and flash purple
+  const cyc = (t * 0.45) % 1, up = Math.min(1, cyc / 0.8), yA = hh - (hh * 2) * up;
+  const trail = (x, col, side) => { for (let k = 12; k >= 1; k--) { const y0 = yA + k * 4, y1 = yA + (k - 1) * 4, f = 1 - k / 12; ctx.strokeStyle = `rgba(${col},${0.85 * f})`; ctx.lineWidth = 1 + 3.5 * f; ctx.beginPath(); ctx.moveTo(x, Math.max(-hh, y0)); ctx.lineTo(x, Math.max(-hh, y1)); ctx.stroke(); } circle(x, Math.max(-hh, yA), 2.6, "#ffffff"); };
+  if (cyc < 0.8) { trail(-hw + 1, "255,130,60", -1); trail(hw - 1, "90,160,255", 1); }
+  else { const k = (cyc - 0.8) / 0.2; glow(tx, ty, 30 + 40 * k, "230,190,255", 0.9 * (1 - k)); ring(tx, ty, 8 + 36 * k, `rgba(220,180,255,${1 - k})`, 3 * (1 - k) + 0.5); }
+  // a thin purple bond arcs from each side orb up to the top orb now and then
+  const seed = Math.floor(t * 5); if ((seed * 7919) % 4 === 0) for (const [sx, sy] of [[lx, ly], [rx, ry]]) {
+    ctx.strokeStyle = "rgba(210,160,255,0.8)"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(sx, sy);
+    for (let i = 1; i < 7; i++) { const u = i / 7, mx = sx + (tx - sx) * u + Math.sin(seed * 9.1 + i * 4.3) * 5, my = sy + (ty - sy) * u - Math.sin(u * Math.PI) * 14; ctx.lineTo(mx, my); }
+    ctx.lineTo(tx, ty); ctx.stroke(); }
+  ctx.restore();
+}
 function divineBack(hw, hh, t) {
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   // slowly turning dark vortex behind the card
@@ -1543,7 +1588,7 @@ class Card {
   drawDivineCard(hw, hh, t, d) {
     // art window in full-size frame px (card area starts at 180,160); each Divine card can have its own frame (d.frame, d.win)
     const K = 0.25, win = d.win || [247, 230, 315, 407], WX = -hw + (win[0] - 180) * K, WY = -hh + (win[1] - 160) * K, WW = win[2] * K, WH = win[3] * K;
-    if (!settings.lite) { const p = 0.5 + 0.5 * Math.sin(t * 2.2); const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(150,110,255,${0.28 + 0.12 * p})`); g.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260); divineBack(hw, hh, t); }
+    if (!settings.lite) { if (d.fx === "elyndor") elyBack(hw, hh, t); else { const p = 0.5 + 0.5 * Math.sin(t * 2.2); const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(150,110,255,${0.28 + 0.12 * p})`); g.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260); divineBack(hw, hh, t); } }
     rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 10); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
     rrect(-hw + 4, -hh + 4, CARD_W - 8, CARD_H - 8, 8); ctx.fillStyle = "#120a26"; ctx.fill();
     const art = CARD_ILLUS[d.art];
@@ -1558,7 +1603,7 @@ class Card {
     ctx.restore();
     const fr = loadSheet(`assets/img/${d.frame || "divine_frame"}.webp`);
     if (fr.ready) ctx.drawImage(fr.img, -hw - 180 * K, -hh - 160 * K, 808 * K, 864 * K);
-    if (!settings.lite) divineFront(hw, hh, t, K, !d.frame);
+    if (!settings.lite) { if (d.fx === "elyndor") elyFront(hw, hh, t, K); else divineFront(hw, hh, t, K, !d.frame); }
     if (!this.noLabel) text("DIVINE", 0, WY + 9, 9, "#c8f6ff", { weight: 800, outline: 4, outlineColor: "#140a28" });
     text(d.name, 0, WY + WH - 9, 14, "#e6dcff", { font: DISPLAY, weight: 900, outline: 4, outlineColor: "#140a28", baseline: "middle" });
   }
