@@ -1203,6 +1203,21 @@ function playSfx(el, kind) {
   viaFx(() => playSample(`${el}_${kind}`, 0.7) || (EL[el] && EL[el].look && playSample(`${EL[el].look}_${kind}`, 0.7)) || set[kind]());
 }
 
+// Orbit helpers (same maths as before, just computed once and reused): cached orbit-ring paths,
+// shared point buffers for the trails, and pre-built colour strings per trail segment.
+const ORBITS = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]].map(([tilt, speed, phase]) => ({ ct: Math.cos(tilt), st: Math.sin(tilt), speed, phase }));
+const ORBIT_RING = new Map();
+function orbitRing(o, rx, ry) {
+  const key = o.ct + "|" + o.st + "|" + rx + "|" + ry; let p = ORBIT_RING.get(key);
+  if (!p) { p = new Path2D(); for (let k = 0; k <= 48; k++) { const a = k / 48 * Math.PI * 2, x = Math.cos(a) * rx, y = Math.sin(a) * ry, px = x * o.ct - y * o.st, py = x * o.st + y * o.ct; k ? p.lineTo(px, py) : p.moveTo(px, py); } ORBIT_RING.set(key, p); }
+  return p;
+}
+const TRX = new Float64Array(64), TRY = new Float64Array(64), TRZ = new Float64Array(64);
+function trailPts(o, a, dir, TRAIL, SEG, rx, ry) {
+  for (let k = 0; k <= SEG; k++) { const aa = a - dir * TRAIL * k / SEG, x = Math.cos(aa) * rx, y = Math.sin(aa) * ry; TRX[k] = x * o.ct - y * o.st; TRY[k] = x * o.st + y * o.ct; TRZ[k] = Math.sin(aa); }
+}
+const TRAIL_STYLES = new Map();
+function trailStyles(key, SEG, fn) { let v = TRAIL_STYLES.get(key); if (!v) { v = []; for (let k = 0; k <= SEG; k++) v[k] = fn(1 - k / SEG); TRAIL_STYLES.set(key, v); } return v; }
 class Card {
   constructor(el, r) {
     this.element = el; this.rarity = r; this.seed = Math.random() * 100; this.cooldown = Math.random() * 0.5;
@@ -1755,28 +1770,23 @@ class Card {
     if (theme === "under") return this.drawSkullOrbit(hw, hh, t, back);
     if (LEGEND_ORBIT[theme]) return this.drawIconOrbit(hw, hh, t, back, LEGEND_ORBIT[theme]);
     ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
-    const orbits = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]];
     const rx = hw + 30, ry = 20, TRAIL = 1.5, SEG = 22;
-    for (const [tilt, speed, phase] of orbits) {
-      const ct = Math.cos(tilt), st = Math.sin(tilt);
-      const at = a => { const x = Math.cos(a) * rx, y = Math.sin(a) * ry; return [x * ct - y * st, x * st + y * ct, Math.sin(a)]; };
-      if (back) {
-        ctx.beginPath();
-        for (let k = 0; k <= 48; k++) { const [x, y] = at(k / 48 * Math.PI * 2); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-        ctx.strokeStyle = "rgba(255,225,140,0.14)"; ctx.lineWidth = 1.2; ctx.stroke();
-      }
+    const ST = trailStyles("leg", SEG, f => [`rgba(255,${200 + Math.round(40 * f)},${110 + Math.round(90 * f)},${0.55 * f * f})`, 1 + 5.5 * f, `rgba(255,250,220,${0.6 * f})`]);
+    for (const ob of ORBITS) {
+      const { speed, phase } = ob;
+      if (back) { ctx.strokeStyle = "rgba(255,225,140,0.14)"; ctx.lineWidth = 1.2; ctx.stroke(orbitRing(ob, rx, ry)); }
       for (const o of [0, Math.PI]) {
         const a = t * speed + phase + o, dir = Math.sign(speed);
+        trailPts(ob, a, dir, TRAIL, SEG, rx, ry);
         for (let k = SEG; k >= 1; k--) {
-          const a0 = a - dir * TRAIL * k / SEG, a1 = a - dir * TRAIL * (k - 1) / SEG;
-          const [x0, y0, z0] = at(a0), [x1, y1] = at(a1);
+          const x0 = TRX[k], y0 = TRY[k], z0 = TRZ[k], x1 = TRX[k - 1], y1 = TRY[k - 1];
           if ((z0 < 0) !== back) continue;
-          const f = 1 - k / SEG;
-          ctx.strokeStyle = `rgba(255,${200 + Math.round(40 * f)},${110 + Math.round(90 * f)},${0.55 * f * f})`; ctx.lineWidth = 1 + 5.5 * f;
+          const sk = ST[k];
+          ctx.strokeStyle = sk[0]; ctx.lineWidth = sk[1];
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-          if (k % 4 === 0) circle(x0 + Math.sin(t * 9 + k) * 2, y0 + Math.cos(t * 7 + k) * 2, 1.2, `rgba(255,250,220,${0.6 * f})`);
+          if (k % 4 === 0) circle(x0 + Math.sin(t * 9 + k) * 2, y0 + Math.cos(t * 7 + k) * 2, 1.2, sk[2]);
         }
-        const [x, y, z] = at(a);
+        const x = TRX[0], y = TRY[0], z = TRZ[0];
         if ((z < 0) !== back) continue;
         const s2 = 4.5 + z * 1.5 + Math.sin(t * 8 + o) * 0.8;
         circle(x, y, s2 * 3.4, "rgba(255,190,80,0.2)");
@@ -1787,29 +1797,26 @@ class Card {
     ctx.restore();
   }
   drawIconOrbit(hw, hh, t, back, th) {
-    const orbits = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]];
     const rx = hw + 30, ry = 20, TRAIL = 1.5, SEG = 20, [r0, g0, b0] = th.tail;
+    const ST = trailStyles("ico" + th.tail, SEG, f => [`rgba(${r0},${g0},${b0},${0.5 * f * f})`, 1 + 5 * f, `rgba(255,250,230,${0.6 * f})`]);
+    const ringCol = th.ringCol || (th.ringCol = `rgba(${r0},${g0},${b0},0.16)`);
     ctx.save();
-    for (const [tilt, speed, phase] of orbits) {
-      const ct = Math.cos(tilt), st = Math.sin(tilt);
-      const at = a => { const x = Math.cos(a) * rx, y = Math.sin(a) * ry; return [x * ct - y * st, x * st + y * ct, Math.sin(a)]; };
-      if (back) {
-        ctx.beginPath();
-        for (let k = 0; k <= 48; k++) { const [x, y] = at(k / 48 * Math.PI * 2); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-        ctx.strokeStyle = `rgba(${r0},${g0},${b0},0.16)`; ctx.lineWidth = 1.2; ctx.stroke();
-      }
+    for (const ob of ORBITS) {
+      const { speed, phase } = ob;
+      if (back) { ctx.strokeStyle = ringCol; ctx.lineWidth = 1.2; ctx.stroke(orbitRing(ob, rx, ry)); }
       for (const o of [0, Math.PI]) {
         const a = t * speed + phase + o, dir = Math.sign(speed);
         ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+        trailPts(ob, a, dir, TRAIL, SEG, rx, ry);
         for (let k = SEG; k >= 1; k--) {
-          const [x0, y0, z0] = at(a - dir * TRAIL * k / SEG), [x1, y1] = at(a - dir * TRAIL * (k - 1) / SEG);
+          const x0 = TRX[k], y0 = TRY[k], z0 = TRZ[k], x1 = TRX[k - 1], y1 = TRY[k - 1];
           if ((z0 < 0) !== back) continue;
-          const f = 1 - k / SEG;
-          ctx.strokeStyle = `rgba(${r0},${g0},${b0},${0.5 * f * f})`; ctx.lineWidth = 1 + 5 * f;
+          const sk = ST[k];
+          ctx.strokeStyle = sk[0]; ctx.lineWidth = sk[1];
           ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-          if (k % 4 === 0) circle(x0 + Math.sin(t * 9 + k) * 2, y0 + Math.cos(t * 7 + k) * 2, 1.2, `rgba(255,250,230,${0.6 * f})`);
+          if (k % 4 === 0) circle(x0 + Math.sin(t * 9 + k) * 2, y0 + Math.cos(t * 7 + k) * 2, 1.2, sk[2]);
         }
-        const [x, y, z] = at(a);
+        const x = TRX[0], y = TRY[0], z = TRZ[0];
         if ((z < 0) !== back) { ctx.restore(); continue; }
         const r = 7.2 + z * 1.8, gl = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
         gl.addColorStop(0, `rgba(${r0},${g0},${b0},0.45)`); gl.addColorStop(1, `rgba(${r0},${g0},${b0},0)`); ctx.fillStyle = gl; ctx.fillRect(x - r * 3, y - r * 3, r * 6, r * 6);
@@ -1820,29 +1827,25 @@ class Card {
     ctx.restore();
   }
   drawSkullOrbit(hw, hh, t, back) {
-    const orbits = [[0.0, 1.9, 0], [1.05, -1.5, 2.1], [-1.05, 1.3, 4.2]];
     const rx = hw + 30, ry = 20, TRAIL = 1.6, SEG = 20;
+    const ST = trailStyles("skull", SEG, f => [`rgba(${170 + Math.round(60 * f)},${90 + Math.round(70 * f)},255,${0.42 * f * f})`, 2 + 7 * f]);
     ctx.save();
-    for (const [tilt, speed, phase] of orbits) {
-      const ct = Math.cos(tilt), st = Math.sin(tilt);
-      const at = a => { const x = Math.cos(a) * rx, y = Math.sin(a) * ry; return [x * ct - y * st, x * st + y * ct, Math.sin(a)]; };
-      if (back) {
-        ctx.beginPath();
-        for (let k = 0; k <= 48; k++) { const [x, y] = at(k / 48 * Math.PI * 2); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-        ctx.strokeStyle = "rgba(190,120,255,0.16)"; ctx.lineWidth = 1.2; ctx.stroke();
-      }
+    for (const ob of ORBITS) {
+      const { speed, phase } = ob;
+      if (back) { ctx.strokeStyle = "rgba(190,120,255,0.16)"; ctx.lineWidth = 1.2; ctx.stroke(orbitRing(ob, rx, ry)); }
       for (const o of [0, Math.PI]) {
         const a = t * speed + phase + o, dir = Math.sign(speed);
         ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+        trailPts(ob, a, dir, TRAIL, SEG, rx, ry);
         for (let k = SEG; k >= 1; k--) {
-          const [x0, y0, z0] = at(a - dir * TRAIL * k / SEG), [x1, y1] = at(a - dir * TRAIL * (k - 1) / SEG);
+          const x0 = TRX[k], y0 = TRY[k], z0 = TRZ[k], x1 = TRX[k - 1], y1 = TRY[k - 1];
           if ((z0 < 0) !== back) continue;
           const f = 1 - k / SEG, wv = Math.sin(t * 5 + k * 0.6) * 2 * f;
-          ctx.strokeStyle = `rgba(${170 + Math.round(60 * f)},${90 + Math.round(70 * f)},255,${0.42 * f * f})`; ctx.lineWidth = 2 + 7 * f;
+          ctx.strokeStyle = ST[k][0]; ctx.lineWidth = ST[k][1];
           ctx.beginPath(); ctx.moveTo(x0, y0 + wv); ctx.lineTo(x1, y1 + wv); ctx.stroke();
         }
         ctx.restore();
-        const [x, y, z] = at(a);
+        const x = TRX[0], y = TRY[0], z = TRZ[0];
         if ((z < 0) !== back) continue;
         const r = 5 + z * 1.3, lv = Math.round((0.5 + 0.5 * Math.sin(t * 6 + o)) * 12);
         ctx.save(); ctx.globalCompositeOperation = "lighter";
