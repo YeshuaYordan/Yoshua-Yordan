@@ -4653,12 +4653,43 @@ function updateAltar(dt) {
   if (!altarSpin && !(fusion && fusion.divine)) altarRot += (altarRotTo - altarRot) * Math.min(1, dt * 10);
   rows.altar.forEach((c, i) => { if (c && !c.dragging) { const q = altarSlot(i); c.setHome(q.x, q.y, true); } });
 }
+// Recipe ingredients: an exact card key ("hades") or a wildcard "any:<tier>[:<element>]", tier = epic | myth | legend,
+// element = a base element the card is made of (via parts), e.g. "any:legend", "any:myth:dark", "any:epic:fire".
+const isWild = tok => tok.startsWith("any:");
+function tokenMatches(tok, el) {
+  if (!isWild(tok)) return el === tok;
+  const [, tier, elem] = tok.split(":"), d = EL[el];
+  const ok = tier === "legend" ? !!d.legendCard : tier === "myth" ? !!d.myth : tier === "epic" ? d.tier === 3 && !d.myth && !d.legendCard && !d.divine && !d.special : false;
+  return ok && (!elem || (d.parts || []).includes(elem));
+}
+function tokenName(tok) {
+  if (!isWild(tok)) return EL[tok].name;
+  const [, tier, elem] = tok.split(":");
+  return "Any " + (elem ? EL[elem].name + " " : "") + tier[0].toUpperCase() + tier.slice(1);
+}
+// exact cards first, then the most specific wildcards; backtracking so every card is used exactly once
+function recipeFits(parts, els) {
+  if (parts.length !== els.length) return false;
+  const order = [...parts].sort((a, b) => (isWild(a) ? (a.split(":").length === 3 ? 1 : 2) : 0) - (isWild(b) ? (b.split(":").length === 3 ? 1 : 2) : 0));
+  const used = new Array(els.length).fill(false);
+  const go = k => { if (k === order.length) return true; for (let i = 0; i < els.length; i++) if (!used[i] && tokenMatches(order[k], els[i])) { used[i] = true; if (go(k + 1)) return true; used[i] = false; } return false; };
+  return go(0);
+}
 function altarRecipe(cards) {
   if (cards.length < 2) return null;
-  const have = cards.map(c => c.element).sort().join("|");
-  return DIVINE_RECIPES.find(r => [...r.parts].sort().join("|") === have) || null;
+  const els = cards.map(c => c.element);
+  return DIVINE_RECIPES.find(r => recipeFits(r.parts, els)) || null;
 }
-const boardHasEl = (el, n = 1) => [...rows.active, ...rows.storage, ...rows.altar].filter(c => c && c.element === el).length >= n;
+const boardCards = () => [...rows.active, ...rows.storage, ...rows.altar].filter(Boolean);
+const boardHasEl = (el, n = 1) => boardCards().filter(c => c.element === el).length >= n;
+// recipe book: is the nth copy of this ingredient covered? wildcards don't count cards an exact ingredient of the same recipe needs
+function boardHasToken(recipe, tok, n) {
+  if (!isWild(tok)) return boardHasEl(tok, n);
+  const reserved = {}; for (const p of recipe.parts) if (!isWild(p)) reserved[p] = (reserved[p] || 0) + 1;
+  let have = 0; const seen = {};
+  for (const c of boardCards()) { if (!tokenMatches(tok, c.element)) continue; seen[c.element] = (seen[c.element] || 0) + 1; if (seen[c.element] > (reserved[c.element] || 0)) have++; }
+  return have >= n;
+}
 let restartArmed = 0;
 let enemies = [], projectiles = [], zones = [], fxs = [];
 let castleMax = CASTLE_MAX, castleArmor = 0;
@@ -9380,7 +9411,7 @@ function drawRecipeBook() {
   dim(0.8);
   // text-only list: ingredient names (green when that card is on your board) = result name
   const x = 26, w = W - 52, rows = DIVINE_RECIPES.map(r => {
-    const words = r.parts.map(el => EL[el].name), lines = []; let line = [];
+    const words = r.parts.map(tokenName), lines = []; let line = [];
     ctx.font = `700 22px ${FONT}`;
     for (let i = 0; i < r.parts.length; i++) { const t = [...line, words[i]].join(" + "); if (line.length && ctx.measureText(t).width > w - 100) { lines.push(line); line = []; } line.push(i); }
     if (line.length) lines.push(line);
@@ -9395,13 +9426,13 @@ function drawRecipeBook() {
     rrect(x + 22, ry, w - 44, q.h, 14); ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill(); ctx.strokeStyle = hexA("#9ff0ff", 0.4); ctx.lineWidth = 2; ctx.stroke();
     q.lines.forEach((ln, li) => {
       ctx.font = `700 22px ${FONT}`;
-      const parts = ln.map((i, k) => (k ? " + " : "") + EL[q.r.parts[i]].name), tw = ctx.measureText(parts.join("")).width;
+      const parts = ln.map((i, k) => (k ? " + " : "") + tokenName(q.r.parts[i])), tw = ctx.measureText(parts.join("")).width;
       let cx = W / 2 - tw / 2;
       ln.forEach((i, k) => {
         const nth = q.r.parts.slice(0, i + 1).filter(x => x === q.r.parts[i]).length;
         if (k) { text(" + ", cx, ry + 34 + li * 30, 22, GOLD, { weight: 800, outline: 5, align: "left" }); cx += ctx.measureText(" + ").width; }
-        const el = q.r.parts[i], nm = EL[el].name;
-        text(nm, cx, ry + 34 + li * 30, 22, boardHasEl(el, nth) ? "#8dff9a" : PARCH, { weight: 700, outline: 5, align: "left" }); ctx.font = `700 22px ${FONT}`; cx += ctx.measureText(nm).width;
+        const el = q.r.parts[i], nm = tokenName(el);
+        text(nm, cx, ry + 34 + li * 30, 22, boardHasToken(q.r, el, nth) ? "#8dff9a" : PARCH, { weight: 700, outline: 5, align: "left" }); ctx.font = `700 22px ${FONT}`; cx += ctx.measureText(nm).width;
       });
     });
     text("= " + EL[q.r.result].name, W / 2, ry + 34 + q.lines.length * 30 + 8, 26, "#c8f6ff", { font: DISPLAY, weight: 900, outline: 6, outlineColor: "#140a28" });
