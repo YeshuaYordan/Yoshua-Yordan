@@ -238,7 +238,7 @@ const EL = {
   artemis:   { name: "Artemis", tier: 3, legendCard: true, art: "artemis", theme: "artemis", color: "#b8c8ff", shape: "crystal", parts: ["wind", "light"], desc: "Goddess of the hunt: 4 moonlight arrows that never miss, chilling their targets.", dmg: 30, rate: 1.2, speed: 1150, multishot: 4, slow: 0.7 },
   hermes:    { name: "Hermes", tier: 3, legendCard: true, art: "hermes", theme: "hermes", color: "#7ae0c8", shape: "swirl", parts: ["wind", "water"], desc: "Messenger of the gods: lightning-fast strikes leap through 8 enemies and slow them.", dmg: 34, rate: 1.3, chain: 8, slow: 0.6 },
   hephaestus:{ name: "Hephaestus", tier: 3, legendCard: true, art: "hephaestus", theme: "hephaestus", color: "#ff7a2a", shape: "rock", parts: ["fire", "earth"], desc: "God of the forge: a red-hot hammer slams an area, stunning foes and leaving molten metal pools.", dmg: 50, rate: 0.9, speed: 620, splash: 90, root: 0.7, puddle: 60, puddle_dps: 16, burn: 6 },
-  nyxarion:  { name: "Nyxarion", tier: 3, divine: true, art: "nyxarion", theme: "hera", color: "#8a6aff", shape: "swirl", parts: ["dark", "water", "light"], desc: "Divine storm of night: dark lightning leaps through 10 enemies, cursing (+30% damage taken) and slowing them. Night aura: the cards right next to it deal +30% damage.", dmg: 40, rate: 1.1, chain: 10, curse: 0.3, slow: 0.55, aura: 0.3 },
+  nyxarion:  { name: "Nyxarion", tier: 3, divine: true, art: "nyxarion", theme: "hera", color: "#8a6aff", shape: "swirl", parts: ["dark", "water", "light"], desc: "Divine lord of night: fires black orbs wreathed in dark blue fire that curse (+30% damage taken) and slow. Every 7 s it casts a slow black hole instead: it drifts to the first enemy, then to the middle of the field, dragging every enemy it passes, and explodes for x3 damage. Night aura: the cards right next to it deal +30% damage.", dmg: 40, rate: 1.1, speed: 780, shotScale: 1.6, curse: 0.3, slow: 0.55, aura: 0.3, blackhole: true },
   hera:      { name: "Hera", tier: 3, legendCard: true, art: "hera", theme: "hera", color: "#d68aff", shape: "swirl", parts: ["water", "light"], desc: "Queen of the gods: a peacock feather bursts over a wide area and marks foes (+15% damage taken). Royal aura: the cards right next to her deal +25% damage.", dmg: 38, rate: 1.0, speed: 760, splash: 130, curse: 0.15, aura: 0.25 },
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [168, 93, 170], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400 / 1.5 * 3, rate: (1 / 16) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 11, shotScale: 4 },
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [150, 122, 200], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
@@ -2924,7 +2924,7 @@ const VFX_STYLE = {
   sunfire: "corona", prism: "prism", gem: "radiantgem", halo: "haloring", eclipse: "eclipse",
 };
 for (const [k, d] of Object.entries(EL)) if (d.look && !VFX_STYLE[k]) VFX_STYLE[k] = VFX_STYLE[d.look];
-VFX_STYLE.nyxarion = VFX_STYLE.hermes;
+VFX_STYLE.nyxarion = "mx_nyx";
 const VFX_SCALE = 1.35;
 const EP_HEADS = ["thornball", "comet", "cube", "bubble", "wisp", "gyro", "boltarrow", "spike", "rune", "flower", "orbs3", "galaxy", "shard", "eye", "feather", "arrow"];
 const EP_HEAD_BY = {
@@ -5458,7 +5458,7 @@ function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; altarMode = false; recipeOpen = false; fusion = null;
   dragon = null; bossIntro = null; bossCharges = []; bossSlowT = 0; bossFlash = 0; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
-  spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
+  spellCd = 0; enemies = []; projectiles = []; blackholes = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
   pause: { name: "Pause", desc: "The whole battlefield stops for 15 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 15 },
@@ -6330,6 +6330,90 @@ function updateMirror(c, dt) {
   if (c.cooldown <= 0 && enemies.length) {
     fireCard({ element: L.element, rarity: L.rarity, stars: L.stars, x: c.x, y: c.y, kick: 0, mirror: c });
     c.kick = 1; c.cooldown = 1 / rateOf(L.element, L.rarity); playSpecial("sp_mirror", 0.4, 0.5);
+  }
+}
+// Nyxarion shot: black orb with dark blue / purple fire trail
+const NYX_COLS = [[190, 160, 255], [120, 80, 240], [60, 60, 210], [30, 18, 90]];
+MYTHFX.mx_nyx = {
+  trail(pr, n, back, bx, by, R) {
+    for (let i = n(45); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 70), 30), life: rand(0.3, 0.55), size: R * rand(0.55, 0.95), grow: 0.5, cols: NYX_COLS, a: 0.75 });
+    for (let i = n(24); i > 0; i--) addPart({ kind: "smoke", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(10, 40), 20), life: rand(0.35, 0.6), size: R * rand(0.35, 0.6), grow: 1.1, col: "#120822", a: 0.5 });
+  },
+  head(pr, R, t, glow) {
+    ctx.restore(); ctx.save();
+    ctx.translate(pr.x, pr.y); glow(R * 3.2, "110,70,255");
+    ctx.globalCompositeOperation = "lighter";
+    for (let k = 0; k < 4; k++) { const a = t * 9 + k * Math.PI / 2; ctx.strokeStyle = k % 2 ? "rgba(90,120,255,0.8)" : "rgba(190,120,255,0.85)"; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(0, 0, R * 1.25, a, a + 1.1); ctx.stroke(); }
+    ctx.globalCompositeOperation = "source-over";
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, "#000000"); g.addColorStop(0.7, "#0a0418"); g.addColorStop(1, "#3a1a7a");
+    circle(0, 0, R, g); ring(0, 0, R, "rgba(200,170,255,0.9)", 1.6);
+  },
+  hit(...a) { return MYTHFX.mx_banshee.hit(...a); },
+};
+// Nyxarion black hole: every NYX_BH.every s (of attack time) instead of shooting; drifts to the first target, then to the
+// middle field (where special bosses stand), dragging enemies it passes (bosses resist, heavy enemies half), then explodes for x3.
+const NYX_BH = { every: 7, speed: 110, pullR: 140, pull: 150, boomR: 175, mult: 3 };
+let blackholes = [];
+function nyxUpdate(c, dt) {
+  if (c.bh && !c.bh.done) return true;
+  c.bh = null; c.bhT = (c.bhT || 0) + dt;
+  if (c.bhT < NYX_BH.every || !enemies.length) return false;
+  const tg = closestTo(c.x, c.y - 60, 1)[0]; if (!tg) return false;
+  c.bhT = 0; c.kick = 1;
+  c.bh = { x: c.x, y: c.y - 70, tgt: tg, phase: 0, t: 0, card: c, done: false, motes: [] }; blackholes.push(c.bh);
+  playSample("summon_implode", 0.8, 0.7);
+  return true;
+}
+function nyxExplode(b) {
+  b.done = true; const c = b.card, dmg = damageOf(c.element, c.rarity) * powerMult(c) * NYX_BH.mult;
+  hitSrc = c;
+  for (const e of enemies) { if (e.dead) continue; if (Math.hypot(e.x - b.x, e.y - b.y) < NYX_BH.boomR) hitEnemy(e, c.element, c.rarity, dmg, powerMult(c)); }
+  hitSrc = null;
+  shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 10); buzz(90);
+  playSample("summon_boom_epic", 0.9, 0.8);
+  const n = settings.lite ? 40 : 110;
+  for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, v = rand(120, 520); addPart({ add: true, kind: "glow", x: b.x, y: b.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.7, drag: 2.5, life: rand(0.4, 0.9), size: rand(5, 12), grow: 0.2, cols: NYX_COLS, a: 0.9 }); }
+  mxFx(b.x, b.y, 0.8, (fx, k) => {
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const r = NYX_BH.boomR * (0.2 + 0.9 * Math.sqrt(k));
+    const g = ctx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, r); g.addColorStop(0, `rgba(230,220,255,${0.9 * (1 - k)})`); g.addColorStop(0.4, `rgba(140,90,255,${0.6 * (1 - k)})`); g.addColorStop(1, "rgba(60,40,200,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 3; i++) { const u = clamp(k * 1.4 - i * 0.15, 0, 1); if (u <= 0 || u >= 1) continue; ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.6); ring(0, 0, NYX_BH.boomR * 1.2 * u, `rgba(${i ? "120,140,255" : "220,190,255"},${1 - u})`, 8 * (1 - u) + 1); ctx.restore(); }
+    ctx.restore();
+  });
+  fxs.push(new Fx("text", { x: b.x, y: b.y - 40, text: "BLACK HOLE!", color: "#c8a8ff", size: 26, duration: 0.9 }));
+}
+function updateBlackHoles(dt) {
+  for (const b of blackholes) {
+    if (b.done) continue;
+    b.t += dt;
+    if (b.phase === 0 && (!b.tgt || b.tgt.dead || !enemies.includes(b.tgt))) b.phase = 1;
+    const tx = b.phase === 0 ? b.tgt.x : W / 2, ty = b.phase === 0 ? b.tgt.y : BOSS_Y + 40;
+    const dx = tx - b.x, dy = ty - b.y, dd = Math.hypot(dx, dy), step = NYX_BH.speed * dt;
+    if (dd <= step) { b.x = tx; b.y = ty; if (b.phase === 0) b.phase = 1; else { nyxExplode(b); continue; } }
+    else { b.x += dx / dd * step; b.y += dy / dd * step; }
+    for (const e of enemies) {
+      if (e.dead) continue; const ex = b.x - e.x, ey = b.y - e.y, d = Math.hypot(ex, ey);
+      if (d < NYX_BH.pullR && d > 3) { const pl = NYX_BH.pull * (e.isBoss ? 0 : e.heavy ? 0.5 : 1) * dt * Math.min(1, d / 25); e.x += ex / d * pl; e.y += ey / d * pl; }
+    }
+    if (Math.random() < dt * (settings.lite ? 12 : 40)) b.motes.push({ a: Math.random() * 6.28, r: NYX_BH.pullR * rand(0.7, 1), t: 0 });
+    for (const m of b.motes) { m.t += dt; m.a += dt * (2 + 120 / Math.max(10, m.r)); m.r -= dt * 110; }
+    b.motes = b.motes.filter(m => m.r > 8);
+  }
+  blackholes = blackholes.filter(b => !b.done);
+}
+function drawBlackHoles() {
+  for (const b of blackholes) {
+    const t = b.t, R = 22 + 3 * Math.sin(t * 7) + Math.min(1, t * 3) * 6, lite = settings.lite;
+    ctx.save(); ctx.translate(b.x, b.y); ctx.globalCompositeOperation = "lighter";
+    if (!lite) { const h = ctx.createRadialGradient(0, 0, R, 0, 0, NYX_BH.pullR); h.addColorStop(0, "rgba(120,80,255,0.32)"); h.addColorStop(1, "rgba(60,40,200,0)"); ctx.fillStyle = h; ctx.beginPath(); ctx.arc(0, 0, NYX_BH.pullR, 0, Math.PI * 2); ctx.fill(); }
+    ctx.save(); ctx.scale(1, 0.4); ring(0, 0, NYX_BH.pullR * 0.95, `rgba(170,140,255,${0.25 + 0.1 * Math.sin(t * 5)})`, 2, -t * 2, -t * 2 + Math.PI * 1.5); ctx.restore();
+    for (const m of b.motes) { const x = Math.cos(m.a) * m.r, y = Math.sin(m.a) * m.r * 0.45; circle(x, y, 2.2, m.t % 0.3 < 0.15 ? "rgba(200,180,255,0.9)" : "rgba(110,150,255,0.9)"); }
+    for (let k = 0; k < 3; k++) { ctx.save(); ctx.rotate(t * (2.5 + k) * (k % 2 ? -1 : 1)); ctx.scale(1, 0.38); ctx.strokeStyle = ["rgba(200,160,255,0.9)", "rgba(100,130,255,0.85)", "rgba(240,220,255,0.7)"][k]; ctx.lineWidth = 4 - k; ctx.beginPath(); ctx.arc(0, 0, R * (1.55 + k * 0.35), 0, Math.PI * 1.3); ctx.stroke(); ctx.restore(); }
+    ctx.globalCompositeOperation = "source-over";
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, "#000000"); g.addColorStop(0.75, "#05020c"); g.addColorStop(1, "#2a1060");
+    circle(0, 0, R, g); ring(0, 0, R, "rgba(210,180,255,0.95)", 2);
+    ctx.restore();
   }
 }
 function fireCard(c) {
@@ -8590,6 +8674,7 @@ function update(dt) {
       if (gripBlocks()) continue;
       if (EL[c.element].beam) { updateBeam(c, dt * spd); continue; }
       if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
+      if (EL[c.element].blackhole && nyxUpdate(c, dt * spd)) continue;
       c.cooldown -= dt * spd;
       if (!enemies.length) c.frenzyN = 0;
       if (c.cooldown <= 0 && enemies.length) { fireCard(c); const fz = EL[c.element].frenzy; if (fz) c.frenzyN = Math.min(fz, (c.frenzyN || 0) + 1); c.cooldown = 1 / (rateOf(c.element, c.rarity) * (fz ? 1 + c.frenzyN * 0.1 : 1)); }
@@ -8602,6 +8687,7 @@ function update(dt) {
   updateDragon(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
+  updateBlackHoles(dt);
   updateParts(dt);
   updateMeteors(dt); updateDoom(doomDt);
   for (const f of fxs) f.update(dt);
@@ -8894,7 +8980,7 @@ function drawWorld() {
   try { for (const r of boardRows) for (const c of rows[r]) if (onShow(r, c)) c.drawBattle(); } finally { GOD_BACK_OFF = false; }
   if (!chamberOpen) { drawStorageNav(); drawShopLocks(); drawTotemLinks(); drawGather(); }
   if (!chamberOpen) {
-    drawParts(); for (const p of projectiles) p.draw();
+    drawParts(); for (const p of projectiles) p.draw(); drawBlackHoles();
     if (timeStopT > 0) {
       const rnd = Math.random; let sd = 12345; Math.random = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
       try { drawLances(); drawBeams(); } finally { Math.random = rnd; }
