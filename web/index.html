@@ -641,7 +641,8 @@ const divineScale = () => (state === "wave" || state === "break") ? Math.max(1, 
 const damageOf = (el, r) => EL[el].dmg * RARITY_DMG[r] * levelMult(el) * runDmgMult(el) * (EL[el].divine ? divineScale() : 1);
 const rateOf = (el, r) => EL[el].rate * RARITY_RATE[r];
 const priceOf = (el, r) => RARITY_PRICE[r] * EL[el].tier;
-const sellOf = (el, r) => Math.max(1, Math.floor(priceOf(el, r) / 2));
+const SELL_FIXED = { [MYTH]: 200, [LEGEND_R]: 500, [DIVINE]: 1200 }; // top tiers sell for fixed amounts (user's numbers)
+const sellOf = (el, r) => SELL_FIXED[r] || Math.max(1, Math.floor(priceOf(el, r) / 2));
 function elementMult(el, resist, flying) {
   let m = 1;
   const parts = EL[el].parts;
