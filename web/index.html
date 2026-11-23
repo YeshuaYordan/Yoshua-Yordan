@@ -720,6 +720,7 @@ const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth && 
 const MYTH_ELS = Object.keys(EL).filter(k => EL[k].myth);
 const LEGEND_ELS = Object.keys(EL).filter(k => EL[k].legendCard && !EL[k].wip);
 const LEGEND_ALL = Object.keys(EL).filter(k => EL[k].legendCard);
+const DIVINE_ELS = Object.keys(EL).filter(k => EL[k].divine);
 const UPGRADABLE = [...BASE, ...NEXT_ELS, ...EPIC_ELS, ...MYTH_ELS, ...LEGEND_ELS, ...SPECIALS];
 const showRarity = el => EL[el].divine ? DIVINE : EL[el].special ? SPECIAL : EL[el].legendCard ? LEGEND_R : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : V3;
 const pickOne = a => a[Math.floor(Math.random() * a.length)];
@@ -10268,8 +10269,8 @@ let bioOpen = false;
 const TESTER_RESET = true;
 let resetArmed = 0;
 let testPick = null, testBtns = [], testDrag = null;
-const TEST_GROUPS = () => [["Main", BASE], ["Next", NEXT_ELS], ["Epic", EPIC_ELS], ["Myth", MYTH_ELS], ["Legend", LEGEND_ALL], ["Special", SPECIALS]];
-const testRarity = (el, lvl) => EL[el].special ? SPECIAL : EL[el].legendCard ? LEGEND_R : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : lvl;
+const TEST_GROUPS = () => [["Main", BASE], ["Next", NEXT_ELS], ["Epic", EPIC_ELS], ["Myth", MYTH_ELS], ["Legend", LEGEND_ALL], ["Divine", DIVINE_ELS], ["Special", SPECIALS]];
+const testRarity = (el, lvl) => EL[el].divine ? DIVINE : EL[el].special ? SPECIAL : EL[el].legendCard ? LEGEND_R : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : lvl;
 function testGive(el) {
   const slot = firstFree();
   if (!slot) { showInfo("No free slot. Sell or merge a card first."); playSfx("ash", "hit"); return; }
@@ -11529,10 +11530,11 @@ function wrapInk(s, x, y, maxW, size, lh, align = "left") {
 }
 
 const CARD_GROUPS = [["Main Elements", BASE], ["Next Elements", NEXT_ELS], ["Epic Elements", EPIC_ELS], ["Myth Cards", MYTH_ELS],
-  ...(LEGEND_ELS.length ? [["Legend Cards", LEGEND_ELS]] : []), ["Special Cards", SPECIALS]];
+  ...(LEGEND_ELS.length ? [["Legend Cards", LEGEND_ELS]] : []), ...(DIVINE_ELS.length ? [["Divine Cards", DIVINE_ELS]] : []), ["Special Cards", SPECIALS]];
 let cardsScroll = 0;
 const CARDS_TOP = 236;
 const collectionCards = {}, upgradeBtns = {};
+for (const el of DIVINE_ELS) { const c = new Card(el, DIVINE); c.noLabel = true; collectionCards[el] = c; upgradeBtns[el] = makeBtn("", 0, -999, 0, 0, () => {}); } // Divine cards have no levels
 for (const el of UPGRADABLE) {
   const c = new Card(el, showRarity(el)); c.noLabel = true; collectionCards[el] = c;
   upgradeBtns[el] = Object.assign(makeBtn("Upgrade", 0, 0, 130, 40, () => {
@@ -11572,7 +11574,7 @@ function drawCardsUi(dt) {
     if (!cardKnown(el)) {
       if (!drawShadowCard(el, cx, top + 49) && LOBBY.card_back.ready) { ctx.save(); ctx.globalAlpha = 0.9; ctx.drawImage(LOBBY.card_back.img, cx - 40, top, 80, 98); ctx.restore(); }
       text("???", cx, top + 122, 19, PARCH, { weight: 700, outline: 5 });
-      const hint = d.special ? "Summon to unlock" : copiesOf(el) ? `${copiesOf(el)} cop${copiesOf(el) > 1 ? "ies" : "y"} saved` : d.myth ? "Fuse in Chamber" : "Fuse to discover";
+      const hint = d.divine ? "Ascend at the Altar" : d.special ? "Summon to unlock" : copiesOf(el) ? `${copiesOf(el)} cop${copiesOf(el) > 1 ? "ies" : "y"} saved` : d.myth ? "Fuse in Chamber" : "Fuse to discover";
       text(hint, cx, top + 144, 15, hexA(PARCH, 0.75), { outline: 4 });
       continue;
     }
@@ -11582,6 +11584,7 @@ function drawCardsUi(dt) {
       ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(cx, top + 49, 70 * (1 - k * 0.4), `rgba(160,255,160,${0.5 * k})`); ctx.restore();
       text(`Lv ${levelOf(el)}!`, cx, top + 20 - (1 - k) * 30, 30, "#9cff9c", { weight: 800, outline: 7 });
     }
+    if (d.divine) { text("Divine", cx, top + 122, 19, "#c8f6ff", { weight: 800, outline: 5 }); text("Made at the Altar", cx, top + 144, 15, hexA(PARCH, 0.75), { outline: 4 }); continue; }
     const lvl = levelOf(el), need = levelNeed(el), b = upgradeBtns[el];
     text(`Lv ${lvl}` + (lvl > 1 ? `  +${Math.round((lvl - 1) * LEVEL_BONUS * 100)}%` : ""), cx, top + 122, 19, lvl > 1 ? "#9cff9c" : PARCH, { weight: 700, outline: 5 });
     if (canUpgrade(el)) { b.x = cx - 65; b.y = top + 132; drawBtn(b); }
