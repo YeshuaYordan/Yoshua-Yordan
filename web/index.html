@@ -83,11 +83,11 @@ const INK = "#2a1a12", PARCH = "#f3e3c3", GOLD = "#f2c14e";
 const FONT = "Fredoka, system-ui, sans-serif";
 const DISPLAY = '"Cinzel Decorative", Georgia, serif';
 
-const RARITY_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Myth", "Legend", "Special"];
-const RARITY_COLORS = ["#B8BEC8", "#5CBF6E", "#4F8BEA", "#9A68E8", "#E8614E", "#F2B632", "#ff4fd8"];
-const RARITY_DMG = [1.0, 1.7, 2.8, 4.5, 7.0, 11.0, 4.5];
-const RARITY_RATE = [1.0, 1.08, 1.16, 1.26, 1.38, 1.5, 1.26];
-const RARITY_PRICE = [3, 6, 12, 24, 45, 80, 15];
+const RARITY_NAMES = ["Common", "Uncommon", "Rare", "Epic", "Myth", "Legend", "Special", "Divine"];
+const RARITY_COLORS = ["#B8BEC8", "#5CBF6E", "#4F8BEA", "#9A68E8", "#E8614E", "#F2B632", "#ff4fd8", "#6fe8ff"];
+const RARITY_DMG = [1.0, 1.7, 2.8, 4.5, 7.0, 11.0, 4.5, 16.0];
+const RARITY_RATE = [1.0, 1.08, 1.16, 1.26, 1.38, 1.5, 1.26, 1.6];
+const RARITY_PRICE = [3, 6, 12, 24, 45, 80, 15, 140];
 const MAX_RARITY = 5;
 const BASE = ["fire", "water", "earth", "wind", "dark", "light"];
 const COUNTERS = { water: "fire", fire: "wind", wind: "earth", earth: "water", dark: "light", light: "dark" };
@@ -238,6 +238,7 @@ const EL = {
   artemis:   { name: "Artemis", tier: 3, legendCard: true, art: "artemis", theme: "artemis", color: "#b8c8ff", shape: "crystal", parts: ["wind", "light"], desc: "Goddess of the hunt: 4 moonlight arrows that never miss, chilling their targets.", dmg: 30, rate: 1.2, speed: 1150, multishot: 4, slow: 0.7 },
   hermes:    { name: "Hermes", tier: 3, legendCard: true, art: "hermes", theme: "hermes", color: "#7ae0c8", shape: "swirl", parts: ["wind", "water"], desc: "Messenger of the gods: lightning-fast strikes leap through 8 enemies and slow them.", dmg: 34, rate: 1.3, chain: 8, slow: 0.6 },
   hephaestus:{ name: "Hephaestus", tier: 3, legendCard: true, art: "hephaestus", theme: "hephaestus", color: "#ff7a2a", shape: "rock", parts: ["fire", "earth"], desc: "God of the forge: a red-hot hammer slams an area, stunning foes and leaving molten metal pools.", dmg: 50, rate: 0.9, speed: 620, splash: 90, root: 0.7, puddle: 60, puddle_dps: 16, burn: 6 },
+  nyxarion:  { name: "Nyxarion", tier: 3, divine: true, art: "nyxarion", theme: "hera", color: "#8a6aff", shape: "swirl", parts: ["dark", "water", "light"], desc: "Divine storm of night: dark lightning leaps through 10 enemies, cursing (+30% damage taken) and slowing them. Night aura: the cards right next to it deal +30% damage.", dmg: 40, rate: 1.1, chain: 10, curse: 0.3, slow: 0.55, aura: 0.3 },
   hera:      { name: "Hera", tier: 3, legendCard: true, art: "hera", theme: "hera", color: "#d68aff", shape: "swirl", parts: ["water", "light"], desc: "Queen of the gods: a peacock feather bursts over a wide area and marks foes (+15% damage taken). Royal aura: the cards right next to her deal +25% damage.", dmg: 38, rate: 1.0, speed: 760, splash: 130, curse: 0.15, aura: 0.25 },
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [168, 93, 170], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400 / 1.5 * 3, rate: (1 / 16) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 11, shotScale: 4 },
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [150, 122, 200], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
@@ -277,7 +278,7 @@ const rkey = (a, b) => [a, b].sort().join("+");
 for (const r of RECIPE_LIST) RECIPES[rkey(r[0], r[1])] = r[2];
 
 const V3 = 2, EPIC = 3;
-const MYTH = 4, SPECIAL = 6, LEGEND_R = 5;
+const MYTH = 4, SPECIAL = 6, LEGEND_R = 5, DIVINE = 7;
 const maxRarity = el => EL[el].special ? SPECIAL : EL[el].tier === 3 ? EPIC : V3;
 const MAX_STARS = 5;
 const starMult = c => 1 + (c && c.stars ? c.stars : 0);
@@ -607,7 +608,7 @@ function synMult(c) {
   return 1 + b;
 }
 const powerMult = c => synMult(c) * modDmg(c) * heraAura(c) * starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
-const canStar = (el, r) => r === MYTH || r === LEGEND_R;
+const canStar = (el, r) => r === MYTH || r === LEGEND_R || r === DIVINE;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };
   if (EL[aEl].special || EL[bEl].special) return null;
@@ -711,12 +712,12 @@ let totemBuys = {};
 const totemShopChance = el => TOTEM_SHOP_CHANCES[Math.min(totemBuys[el] || 0, TOTEM_SHOP_CHANCES.length - 1)];
 const NEXT_ELS = ["lava", "steam", "lightning", "plant", "dust", "ice", "hellfire", "abyss", "grave", "shade", "sunfire", "prism", "gem", "halo", "eclipse"];
 const SPECIALS = ["totem", "flight", "midas", "mirror", "hourglass", "bulwark", "seer", "chainlink", "chalice", "hex"];
-const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth && !EL[k].legendCard);
+const EPIC_ELS = Object.keys(EL).filter(k => EL[k].tier === 3 && !EL[k].myth && !EL[k].legendCard && !EL[k].divine);
 const MYTH_ELS = Object.keys(EL).filter(k => EL[k].myth);
 const LEGEND_ELS = Object.keys(EL).filter(k => EL[k].legendCard && !EL[k].wip);
 const LEGEND_ALL = Object.keys(EL).filter(k => EL[k].legendCard);
 const UPGRADABLE = [...BASE, ...NEXT_ELS, ...EPIC_ELS, ...MYTH_ELS, ...LEGEND_ELS, ...SPECIALS];
-const showRarity = el => EL[el].special ? SPECIAL : EL[el].legendCard ? LEGEND_R : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : V3;
+const showRarity = el => EL[el].divine ? DIVINE : EL[el].special ? SPECIAL : EL[el].legendCard ? LEGEND_R : EL[el].myth ? MYTH : EL[el].tier === 3 ? EPIC : V3;
 const pickOne = a => a[Math.floor(Math.random() * a.length)];
 const levelOf = el => save.levels[el] || 1;
 const levelMult = el => 1 + LEVEL_BONUS * (levelOf(el) - 1);
@@ -1182,7 +1183,7 @@ const SOUND_OF = {
   storm: "zap", blizzard: "ice", obsidian: "magma", grove: "plant", wildfire: "blaze",
   geyser: "geyser", ash: "hiss", magmabloom: "magma", frostveil: "hiss", aurora: "zap", sandstorm: "dust",
   phoenix: "phoenix", zeus: "thunder", hades: "soul", serpent: "water", fenrir: "zap", kitsune: "phoenix",
-  athena: "wind", ares: "blaze", apollo: "phoenix", artemis: "wind", hermes: "zap", hephaestus: "magma", hera: "soul",
+  athena: "wind", ares: "blaze", apollo: "phoenix", artemis: "wind", hermes: "zap", hephaestus: "magma", hera: "soul", nyxarion: "zap",
   cerberus: "blaze", basilisk: "earth", griffin: "wind", qilin: "thunder", kraken: "geyser", banshee: "soul",
   dark: "soul", light: "zap", eclipse: "soul", hellfire: "blaze",
   ...Object.fromEntries(Object.entries(EL).filter(([, d]) => d.look).map(([k, d]) => [k, d.look === "eclipse" ? "soul" : d.look === "hellfire" ? "blaze" : "zap"])), abyss: "water", grave: "earth", shade: "wind", sunfire: "fire", prism: "zap", gem: "ice", halo: "wind",
@@ -1467,7 +1468,7 @@ class Card {
     ctx.beginPath(); ctx.moveTo(-rw / 2, ry - 10); ctx.lineTo(rw / 2, ry - 10); ctx.lineTo(rw / 2 + 8, ry); ctx.lineTo(rw / 2, ry + 10); ctx.lineTo(-rw / 2, ry + 10); ctx.lineTo(-rw / 2 - 8, ry); ctx.closePath();
     const rg = ctx.createLinearGradient(0, ry - 10, 0, ry + 10); rg.addColorStop(0, "#5a2d9a"); rg.addColorStop(1, "#2a1250");
     ctx.fillStyle = rg; ctx.fill(); ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 2.5; ctx.stroke();
-    if (!this.noLabel) text("LEGEND", 0, -hh + 18, 9, "#fff6c8", { weight: 800, outline: 4, outlineColor: CI });
+    if (!this.noLabel) text(this.rarity === DIVINE ? "DIVINE" : "LEGEND", 0, -hh + 18, 9, this.rarity === DIVINE ? "#c8f6ff" : "#fff6c8", { weight: 800, outline: 4, outlineColor: CI });
     text(d.name, 0, ry + 1, 15, "#ffe08a", { font: DISPLAY, weight: 900, outline: 4, outlineColor: CI, baseline: "middle" });
   }
   drawIllustrated(hw, hh, t, d) {
@@ -1502,6 +1503,7 @@ class Card {
     ctx.restore();
     this.drawLegendShimmer(hw, hh, t);
     this.drawLegendFrame(hw, hh, t, d);
+    if (this.rarity === DIVINE) drawDivineHalo(hw, hh, t);
     if (d.theme === "under") {
       const creep = k => Math.sin(t * 0.9 + k) * 4, curl = k => 0.25 + 0.45 * (0.5 + 0.5 * Math.sin(t * 1.6 + k));
       drawGrabHand(-hw * 0.52, -hh - 4 + creep(0) * 0.5, Math.PI / 2 + 0.12, 0.88, curl(0));
@@ -2086,7 +2088,7 @@ function shrunkArt(img, sx, sy, sw, sh, w, h) {
   const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(src, x, y, cw, ch, 0, 0, w, h);
   return c;
 }
-for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp", "cerberus": "assets/img/cerberus.webp", "basilisk": "assets/img/basilisk.webp", "griffin": "assets/img/griffin.webp", "qilin": "assets/img/qilin.webp", "kraken": "assets/img/kraken.webp", "banshee": "assets/img/banshee.webp", "athena": "assets/img/athena.webp", "ares": "assets/img/ares.webp", "apollo": "assets/img/apollo.webp", "artemis": "assets/img/artemis.webp", "hermes": "assets/img/hermes.webp", "hephaestus": "assets/img/hephaestus.webp", "hera": "assets/img/hera.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
+for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp", "cerberus": "assets/img/cerberus.webp", "basilisk": "assets/img/basilisk.webp", "griffin": "assets/img/griffin.webp", "qilin": "assets/img/qilin.webp", "kraken": "assets/img/kraken.webp", "banshee": "assets/img/banshee.webp", "athena": "assets/img/athena.webp", "ares": "assets/img/ares.webp", "apollo": "assets/img/apollo.webp", "artemis": "assets/img/artemis.webp", "hermes": "assets/img/hermes.webp", "hephaestus": "assets/img/hephaestus.webp", "hera": "assets/img/hera.webp", "nyxarion": "assets/img/nyxarion.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
 const GRAD_CACHE = new Map();
 let EN_DETAIL = true;
 const CARD_SNAP = new Map(); let snapClearT = 0;
@@ -2892,6 +2894,7 @@ const VFX_STYLE = {
   sunfire: "corona", prism: "prism", gem: "radiantgem", halo: "haloring", eclipse: "eclipse",
 };
 for (const [k, d] of Object.entries(EL)) if (d.look && !VFX_STYLE[k]) VFX_STYLE[k] = VFX_STYLE[d.look];
+VFX_STYLE.nyxarion = VFX_STYLE.hermes;
 const VFX_SCALE = 1.35;
 const EP_HEADS = ["thornball", "comet", "cube", "bubble", "wisp", "gyro", "boltarrow", "spike", "rune", "flower", "orbs3", "galaxy", "shard", "eye", "feather", "arrow"];
 const EP_HEAD_BY = {
@@ -4556,6 +4559,20 @@ function chamberChance() {
 }
 const CHAMBER_Y = 340;
 let chamberOpen = false;
+// Divine Altar: a mode of the Chamber (uses rows.chamber slots 1-3). A matching recipe always succeeds; any other 3 cards are destroyed.
+const DIVINE_RECIPES = [
+  { result: "nyxarion", parts: ["zeus", "hera", "kraken"] },
+];
+let altarMode = false, recipeOpen = false;
+const ALTAR_SLOTS = [1, 2, 3];
+const altarCards = () => ALTAR_SLOTS.map(i => rows.chamber[i]).filter(Boolean);
+function altarRecipe(cards) {
+  if (cards.length !== 3) return null;
+  const have = cards.map(c => c.element).sort().join("|");
+  return DIVINE_RECIPES.find(r => [...r.parts].sort().join("|") === have) || null;
+}
+const boardHasEl = el => [...rows.active, ...rows.storage, ...(altarMode ? rows.chamber : [])].some(c => c && c.element === el);
+const recipeReady = () => DIVINE_RECIPES.some(r => r.parts.every(el => boardHasEl(el)));
 let restartArmed = 0;
 let enemies = [], projectiles = [], zones = [], fxs = [];
 let castleMax = CASTLE_MAX, castleArmor = 0;
@@ -4648,8 +4665,10 @@ function slotPos(row, i) {
   return { x: 80 + i * 130, y: SHOP_Y };
 }
 function slotAt(p) {
+  if (recipeOpen) return null;
   const list = chamberOpen ? ["chamber", "active", "storage"] : ["active", "storage", "shop"];
   for (const row of list) for (let i = 0; i < rows[row].length; i++) {
+    if (row === "chamber" && altarMode && !ALTAR_SLOTS.includes(i)) continue;
     const s = slotPos(row, i);
     if (row === "storage" && (s.x < 0 || s.x > W)) continue;
     if (inRect(p, { x: s.x - CARD_W / 2 - 10, y: s.y - CARD_H / 2 - 10, w: CARD_W + 20, h: CARD_H + 20 })) return [row, i];
@@ -5390,7 +5409,7 @@ function drawRoarTint() {
 }
 function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
-  for (const r in rows) rows[r].fill(null); chamberOpen = false; fusion = null;
+  for (const r in rows) rows[r].fill(null); chamberOpen = false; altarMode = false; recipeOpen = false; fusion = null;
   dragon = null; bossIntro = null; bossCharges = []; bossSlowT = 0; bossFlash = 0; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
   spellCd = 0; enemies = []; projectiles = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
@@ -6120,7 +6139,7 @@ function toBreak() {
   }
 }
 function gameOver() {
-  state = "gameover"; cancelDrag(); goT0 = performance.now(); spell = null; relicOffer = null; questsOpen = false; bringPick = null; chamberOpen = false; fusion = null; paused = false;
+  state = "gameover"; cancelDrag(); goT0 = performance.now(); spell = null; relicOffer = null; questsOpen = false; bringPick = null; chamberOpen = false; altarMode = false; recipeOpen = false; fusion = null; paused = false;
   if (bossMode) { bossLastRun = bossKills; endBossRun(); bossModeOver = true; submitScore("boss", bossKills); return; }
   bossModeOver = false;
   if (wavesCleared > save.best) save.best = wavesCleared;
@@ -7415,7 +7434,26 @@ function cancelDrag() { if (drag) { drag.card.dragging = false; } drag = null; h
 
 const FUSE = { converge: 0.5, spin: 1.9, reveal: 4.2, end: 5.6 };
 let fusion = null;
+function fuseAltar() {
+  if (fusion) return;
+  const cards = altarCards();
+  if (cards.length < 3) { showInfo("Put 3 cards on the altar to ascend."); return; }
+  const rec = altarRecipe(cards), center = slotPos("chamber", 2), parts = [];
+  for (const c of cards) {
+    const col = EL[c.element].color;
+    for (let i = 0; i < 40; i++) parts.push({
+      sx: c.x + rand(-CARD_W / 2, CARD_W / 2), sy: c.y + rand(-CARD_H / 2, CARD_H / 2),
+      col: Math.random() < 0.45 ? "#ffffff" : col, delay: Math.random() * 0.45, bulge: rand(-90, 90),
+      ang: Math.random() * Math.PI * 2, rad: rand(20, 75), size: rand(2, 4.5),
+    });
+  }
+  fusion = { t: 0, n: 3, chance: 100, success: !!rec, center, parts, dust: [], done: false, divine: true,
+    cards: cards.map(c => ({ card: c, x: c.x, y: c.y })), el: rec ? rec.result : null, legend: true, rarity: DIVINE };
+  rows.chamber.fill(null);
+  showInfo(""); playUi("ui_pick");
+}
 function fuseChamber() {
+  if (altarMode) return fuseAltar();
   if (fusion) return;
   const cards = rows.chamber.filter(Boolean), n = cards.length;
   if (n < 3) { showInfo("Put at least 3 cards on the altars to fuse."); return; }
@@ -7452,19 +7490,20 @@ function updateFusion(dt) {
     const c = f.center;
     if (f.success) {
       const m = new Card(f.el, f.rarity); m.setHome(c.x, c.y, true); m.scale = 1.7; m.evolveAt = 0; rows.chamber[2] = m;
-      const word = f.legend ? "LEGEND" : "MYTH";
+      const word = f.divine ? "DIVINE" : f.legend ? "LEGEND" : "MYTH";
       fxs.push(new Fx("burst", { x: c.x, y: c.y, color: RARITY_COLORS[f.rarity], radius: 180, duration: 0.8 }));
       fxs.push(new Fx("burst", { x: c.x, y: c.y, color: f.legend ? "#ff6a3c" : GOLD, radius: 120, duration: 0.7 }));
-      showBanner(`${word} ${EL[f.el].name.toUpperCase()} CREATED!`, RARITY_COLORS[f.rarity]); track(f.legend ? "legend" : "myth");
+      showBanner(`${word} ${EL[f.el].name.toUpperCase()} ${f.divine ? "ASCENDS" : "CREATED"}!`, RARITY_COLORS[f.rarity]); if (!f.divine) track(f.legend ? "legend" : "myth");
       discover(f.el);
-      showInfo(`Success (${f.chance}% chance)! Close the Chamber to put your ${f.legend ? "Legend" : "Myth"} card on the board.`);
+      if (f.divine) { fxs.push(new Fx("burst", { x: c.x, y: c.y, color: "#ffffff", radius: 240, duration: 1 })); shakeT = Math.max(shakeT, 0.6); shakeAmp = Math.max(shakeAmp, 8); }
+      showInfo(f.divine ? "The gods answered! Close the Altar to put your Divine card on the board." : `Success (${f.chance}% chance)! Close the Chamber to put your ${f.legend ? "Legend" : "Myth"} card on the board.`);
     } else {
       for (let i = 0; i < 160; i++) f.dust.push({
         x: c.x + rand(-CARD_W / 2, CARD_W / 2), y: c.y + rand(-CARD_H / 2, CARD_H / 2),
         vx: rand(-70, 70), vy: rand(-90, 10), size: rand(1.5, 4), col: ["#8d8278", "#6f655d", "#b2a698", "#5a524c"][i % 4],
       });
-      showBanner("Fusion failed...", "#a89878");
-      showInfo(`The ${f.n} cards crumbled to dust (${f.chance}% chance).`);
+      showBanner(f.divine ? "The gods refused..." : "Fusion failed...", "#a89878");
+      showInfo(f.divine ? "Those cards match no Divine recipe. They crumbled to dust." : `The ${f.n} cards crumbled to dust (${f.chance}% chance).`);
     }
   }
   for (const d of f.dust) { d.vy += 140 * dt; d.vx *= 0.98; d.x += d.vx * dt; d.y += d.vy * dt; }
@@ -8026,6 +8065,11 @@ const btn = {
   chamber: makeBtn("Chamber", 450, 9, 140, 54, () => openChamber(), 24),
   fuse: makeBtn("Fuse", 150, 520, 200, 76, () => fuseChamber(), 30),
   closeChamber: makeBtn("Close", 370, 520, 200, 76, () => closeChamber(), 28),
+  altar: makeBtn("Altar", 488, HUD_H + 14, 100, 60, () => openAltar(), 22),
+  ascend: Object.assign(makeBtn("Ascend", 46, 520, 200, 76, () => fuseAltar(), 28), { fill: "#ffd76a", fillDown: "#e0b040" }),
+  recipes: makeBtn("Recipes", 260, 520, 200, 76, () => { recipeOpen = true; showInfo(""); playUi("ui_pick"); }, 26),
+  closeAltar: makeBtn("Close", 474, 520, 200, 76, () => closeChamber(), 28),
+  recipeClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { recipeOpen = false; playUi("ui_pick"); }, 26),
   pause: makeBtn("II", 600, 9, 106, 54, () => { cancelDrag(); paused = true; }),
   next: makeBtn("Next Wave", 14, HUD_H + 14, 176, 60, () => beginWave(), 22),
   runes: makeBtn("Runes", 202, HUD_H + 14, 134, 60, () => { openBook(); bookTab = "runes"; playUi("ui_pick"); }, 24),
@@ -8124,21 +8168,27 @@ function openChamber() {
   for (const f of fxs) f.underChamber = true;
   showInfo("Drag Epic cards onto the altars. 3 or more are needed.");
 }
+function openAltar() {
+  cancelDrag(); chamberOpen = true; altarMode = true; recipeOpen = false; playUi("ui_pick");
+  for (const f of fxs) f.underChamber = true;
+  showInfo("Place the 3 cards of a Divine recipe on the altar, then tap Ascend.");
+}
 function closeChamber() {
   for (let i = 0; i < rows.chamber.length; i++) {
     const c = rows.chamber[i]; if (!c) continue;
     const slot = firstFree(); if (!slot) break;
     rows.chamber[i] = null; rows[slot[0]][slot[1]] = c; const p = slotPos(slot[0], slot[1]); c.setHome(p.x, p.y);
   }
-  chamberOpen = false;
+  chamberOpen = false; altarMode = false; recipeOpen = false;
 }
 function chamberDrop(d, p) {
   if (!d.moved) return;
   const target = slotAt(p);
   if (!target || (target[0] === d.from && target[1] === d.index)) return;
   const card = d.card, other = rows[target[0]][target[1]];
-  if (target[0] === "chamber" && !canGoOnAltar(card) && d.from !== "chamber") { showInfo("Only Epic and Myth cards can go on the altars."); card.shake = 1; return; }
-  if (d.from === "chamber" && other && !canGoOnAltar(other) && target[0] !== "chamber") { showInfo("Drop it on an empty slot."); return; }
+  const altarOk = c => altarMode ? !!c && !EL[c.element].special : canGoOnAltar(c);
+  if (target[0] === "chamber" && !altarOk(card) && d.from !== "chamber") { showInfo(altarMode ? "Special cards can't go on the Divine Altar." : "Only Epic and Myth cards can go on the altars."); card.shake = 1; return; }
+  if (d.from === "chamber" && other && !altarOk(other) && target[0] !== "chamber") { showInfo("Drop it on an empty slot."); return; }
   rows[d.from][d.index] = other; rows[target[0]][target[1]] = card;
   const a = slotPos(target[0], target[1]); card.setHome(a.x, a.y);
   if (other) { const b = slotPos(d.from, d.index); other.setHome(b.x, b.y); }
@@ -8160,7 +8210,8 @@ function baseButtons() {
   if (reviveOffer) return adSim || adBusy ? [] : [btn.revive, btn.reviveNo];
   if (bookOpen) return [btn.closeBook, btn.tabFusions, btn.tabRunes];
   if (spell) return spell.phase === "result" && spell.match ? [btn.castSpell, btn.cancelSpell] : [];
-  if (chamberOpen) return fusion ? [] : [btn.fuse, btn.closeChamber];
+  if (chamberOpen && recipeOpen) return [btn.recipeClose];
+  if (chamberOpen) return fusion ? [] : altarMode ? [btn.ascend, btn.recipes, btn.closeAltar] : [btn.fuse, btn.closeChamber];
   if (state === "title") {
     if (castleOpen) return castleButtons();
     if (shopOpen) return shopButtons();
@@ -8180,7 +8231,7 @@ function baseButtons() {
   if (state === "gameover") return bossModeOver ? [btn.title] : [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, ...(bossMode ? [] : [btn.restart]), btn.quit, btn.sound];
   const list = [btn.chamber, btn.pause, btn.reroll, btn.storNext, btn.storPrev];
-  if (!drag) list.push(btn.next, btn.runes, btn.spell, btn.speed, ...(bossMode ? [] : [btn.quests]), ...(TESTER_RESET ? [btn.testCards] : []));
+  if (!drag) list.push(btn.next, btn.runes, btn.spell, btn.speed, ...(training ? [] : [btn.altar]), ...(bossMode ? [] : [btn.quests]), ...(TESTER_RESET ? [btn.testCards] : []));
   return list;
 }
 function bubbleBody(x, y, w, h, base, press = 0, R = Math.min(h / 2, 24)) {
@@ -8298,7 +8349,7 @@ canvas.addEventListener("wheel", ev => {
 document.addEventListener("keydown", ev => {
   if (nameOpen) { if (ev.key === "Escape" && !nameFirst) closeNameBox(); return; }
   if (state === "title" && !bookOpen && (ev.key === "ArrowLeft" || ev.key === "ArrowRight")) setLobbyPage(lobbyPage + (ev.key === "ArrowRight" ? 1 : -1));
-  if (ev.key === "Escape") { if (bookOpen) bookOpen = false; else if (chamberOpen && !fusion) closeChamber(); else if (state === "wave" || state === "break") paused = !paused; }
+  if (ev.key === "Escape") { if (bookOpen) bookOpen = false; else if (recipeOpen) recipeOpen = false; else if (chamberOpen && !fusion) closeChamber(); else if (state === "wave" || state === "break") paused = !paused; }
 });
 
 function update(dt) {
@@ -8719,12 +8770,15 @@ function drawHud() {
   btn.reroll.label = `Reroll\n${rerollPrice()} gold`;
   btn.next.label = state === "break" && breakTimer > 0 && callCd <= 0 ? `Next Wave (${Math.ceil(breakTimer)})` : "Next Wave";
   if (chamberOpen) {
-    if (!fusion) { drawBtn(btn.fuse, chamberCount() < 3); drawBtn(btn.closeChamber); }
+    if (!fusion && altarMode) { drawBtn(btn.ascend, altarCards().length < 3); drawBtn(btn.recipes); drawBtn(btn.closeAltar); }
+    else if (!fusion) { drawBtn(btn.fuse, chamberCount() < 3); drawBtn(btn.closeChamber); }
+    if (recipeOpen) drawRecipeBook();
   } else {
     drawBtn(btn.chamber); drawBtn(btn.pause); drawBtn(btn.reroll, gold < rerollPrice());
     drawSellBox();
   }
   if (!drag && !paused && !chamberOpen && !spell) {
+    if (!training) drawAltarBtn(btn.altar);
     btn.spell.label = spellCd > 0 ? `Spell ${Math.ceil(spellCd)}s` : "Spell";
     drawBtn(btn.spell, spellCd > 0);
     if (spellCd > 0) { const b = btn.spell; rrect(b.x + 10, b.y + b.h - 12, (b.w - 20) * (1 - spellCd / SPELL_COOLDOWN), 6, 3); ctx.fillStyle = "#c9a6ff"; ctx.fill(); }
@@ -8752,6 +8806,7 @@ function drawHud() {
   }
 }
 function drawChamber() {
+  if (altarMode) return drawAltar();
   ctx.fillStyle = "rgba(10,4,20,0.6)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
   ctx.fillStyle = "rgba(10,4,20,0.75)"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
   const legend = fusion ? fusion.legend : isLegendChamber();
@@ -8785,6 +8840,83 @@ function drawChamber() {
     text("3 cards: 36%   4 cards: 48%   5 cards: 60%", W / 2, 462, 24, PARCH, { outline: 6 });
     text("Success creates one Myth card. Add a Myth for a Legend!", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
   }
+}
+function drawDivineHalo(hw, hh, t) {
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const p = 0.5 + 0.5 * Math.sin(t * 2.6);
+  ctx.shadowColor = "#9ff0ff"; ctx.shadowBlur = settings.lite ? 0 : 18 + 10 * p;
+  rrect(-hw - 4, -hh - 4, CARD_W + 8, CARD_H + 8, 13); ctx.strokeStyle = `rgba(190,245,255,${0.55 + 0.35 * p})`; ctx.lineWidth = 3; ctx.stroke();
+  ctx.shadowBlur = 0;
+  for (let i = 0; i < 6; i++) {
+    const a = t * 0.9 + i * Math.PI / 3, x = Math.cos(a) * (hw + 14), y = Math.sin(a) * (hh + 12), s = 3 + 1.5 * Math.sin(t * 5 + i);
+    ctx.strokeStyle = i % 2 ? "rgba(255,255,255,0.9)" : "rgba(170,140,255,0.9)"; ctx.lineWidth = 1.6; ctx.beginPath();
+    ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.moveTo(x, y - s); ctx.lineTo(x, y + s); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawAltarBtn(b) {
+  const ready = recipeReady(), p = 0.5 + 0.5 * Math.sin(time * 4);
+  if (ready) { ctx.save(); ctx.shadowColor = "#ffe27a"; ctx.shadowBlur = settings.lite ? 0 : 14 + 10 * p; rrect(b.x - 3, b.y - 3, b.w + 6, b.h + 12, 26); ctx.fillStyle = hexA("#ffe27a", 0.25 + 0.3 * p); ctx.fill(); ctx.restore(); }
+  b.fill = ready ? "#ffd76a" : "#c9b8ff"; b.fillDown = ready ? "#e0b040" : "#a890f0";
+  drawBtn(b);
+  if (ready) { const bx = b.x + b.w - 6, by = b.y + 4, pl = 1 + 0.12 * Math.sin(time * 6); circle(bx, by, 13 * pl, "#e0533f"); ring(bx, by, 13 * pl, INK, 2.5); text("!", bx, by + 1, 19, "#fff", { weight: 900, baseline: "middle" }); }
+}
+function drawAltar() {
+  ctx.fillStyle = "rgba(6,4,20,0.66)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
+  ctx.fillStyle = "rgba(6,4,20,0.78)"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
+  const pg = ctx.createLinearGradient(0, 96, 0, 716); pg.addColorStop(0, "#1c2a5a"); pg.addColorStop(1, "#120a30");
+  rrect(20, 96, W - 40, 620, 26); ctx.fillStyle = pg; ctx.fill();
+  ctx.strokeStyle = "#9ff0ff"; ctx.lineWidth = 4; ctx.stroke();
+  const pulse = 0.5 + 0.5 * Math.sin(time * 2);
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 4; i++) { const a = -Math.PI / 2 + (i - 1.5) * 0.28 + Math.sin(time * 0.6 + i) * 0.05; ctx.save(); ctx.translate(W / 2, 96); ctx.rotate(a + Math.PI / 2);
+    const g = ctx.createLinearGradient(0, 0, 0, 420); g.addColorStop(0, `rgba(200,240,255,${0.16 + 0.08 * pulse})`); g.addColorStop(1, "rgba(200,240,255,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.lineTo(60, 420); ctx.lineTo(-60, 420); ctx.fill(); ctx.restore(); }
+  ctx.restore();
+  text("Divine Altar", W / 2, 158, 42, "#c8f6ff", { font: DISPLAY, weight: 900, outline: 8 });
+  text("Offer the 3 cards of a Divine recipe", W / 2, 198, 22, PARCH, { outline: 5 });
+  for (const i of ALTAR_SLOTS) {
+    const p = slotPos("chamber", i);
+    ctx.save(); ctx.translate(p.x, p.y + 58); ctx.scale(1, 0.32);
+    circle(0, 0, 64, hexA("#9ff0ff", 0.12 + 0.12 * pulse));
+    ring(0, 0, 60, hexA("#c8f6ff", 0.75), 4); ring(0, 0, 44, hexA("#a890ff", 0.7), 3, time, time + Math.PI * 1.5);
+    ctx.restore();
+    slotFrame(p.x, p.y, hexA("#c8f6ff", 0.45));
+  }
+  if (fusion) { text(fusion.t < FUSE.reveal ? "The gods are listening..." : "", W / 2, 470, 28, "#c8f6ff", { weight: 700, outline: 8 }); return; }
+  const n = altarCards().length;
+  if (altarCards().some(c => c.rarity === DIVINE)) { text("Close the Altar to take your Divine card", W / 2, 462, 26, "#c8f6ff", { weight: 700, outline: 8 }); return; }
+  text(n < 3 ? `${n} / 3 cards on the altar` : "The altar is full. Ascend?", W / 2, 462, 28, n < 3 ? PARCH : GOLD, { weight: 700, outline: 8 });
+  text("A true recipe always ascends. Wrong cards are lost forever!", W / 2, 498, 19, "#ff9a8a", { outline: 5 });
+}
+const BOOK_CARDS = {};
+function bookCard(el, x, y, sc) {
+  const c = BOOK_CARDS[el] || (BOOK_CARDS[el] = new Card(el, showRarity(el)));
+  c.t = time + c.seed; c.x = x; c.y = y; c.scale = sc; c.noLabel = sc < 0.7;
+  c.draw();
+}
+function drawRecipeBook() {
+  dim(0.8);
+  const x = 26, w = W - 52, rowH = 300, h = Math.min(H - 200, 170 + DIVINE_RECIPES.length * rowH), y = Math.max(96, (H - h) / 2);
+  questFrame(x, y, w, h, 24);
+  text("Divine Recipes", W / 2, y + 62, 42, GOLD, { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#140a20" });
+  text("Offer exactly these 3 cards on the altar", W / 2, y + 96, 20, PARCH, { weight: 600, outline: 5 });
+  DIVINE_RECIPES.forEach((r, k) => {
+    const ry = y + 130 + k * rowH, d = EL[r.result];
+    rrect(x + 22, ry, w - 44, rowH - 20, 16); ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill(); ctx.strokeStyle = hexA("#9ff0ff", 0.4); ctx.lineWidth = 2; ctx.stroke();
+    r.parts.forEach((el, i) => {
+      const cx = x + 90 + i * 128, cy = ry + 78;
+      bookCard(el, cx, cy, 0.68);
+      const own = boardHasEl(el);
+      text(EL[el].name, cx, cy + 62, 17, own ? "#8dff9a" : PARCH, { weight: 800, outline: 5 });
+      if (own) { circle(cx + 34, cy - 40, 12, "#3aa84a"); ring(cx + 34, cy - 40, 12, INK, 2); text("\u2713", cx + 34, cy - 39, 16, "#fff", { weight: 900, baseline: "middle" }); }
+      if (i < 2) text("+", cx + 64, cy + 8, 34, GOLD, { weight: 900, outline: 6 });
+    });
+    text("=", x + 440, ry + 86, 40, "#c8f6ff", { weight: 900, outline: 7 });
+    bookCard(r.result, x + 540, ry + 82, 0.9);
+    wrapLines(d.desc, 18, w - 90).forEach((ln, i) => text(ln, W / 2, ry + 176 + i * 23, 18, hexA(PARCH, 0.9), { weight: 600, outline: 5 }));
+  });
+  btn.recipeClose.y = y + h - 92; drawBtn(btn.recipeClose);
 }
 function drawSellBox() {
   const r = SELL_RECT, selling = drag && drag.from !== "shop";
