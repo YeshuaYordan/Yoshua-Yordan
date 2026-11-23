@@ -9633,7 +9633,7 @@ function drawRecipeBook() {
   const x = 26, w = W - 52, rows = DIVINE_RECIPES.map(r => {
     const words = r.parts.map(tokenName), lines = []; let line = [];
     ctx.font = `700 22px ${FONT}`;
-    for (let i = 0; i < r.parts.length; i++) { const t = [...line, words[i]].join(" + "); if (line.length && ctx.measureText(t).width > w - 100) { lines.push(line); line = []; } line.push(i); }
+    for (let i = 0; i < r.parts.length; i++) { const t = [...line.map(j => words[j]), words[i]].join(" + "); if (line.length && ctx.measureText(t).width > w - 110) { lines.push(line); line = []; } line.push(i); }
     if (line.length) lines.push(line);
     return { r, lines, h: 30 + lines.length * 30 + 42 };
   });
@@ -9646,11 +9646,11 @@ function drawRecipeBook() {
     rrect(x + 22, ry, w - 44, q.h, 14); ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill(); ctx.strokeStyle = hexA("#9ff0ff", 0.4); ctx.lineWidth = 2; ctx.stroke();
     q.lines.forEach((ln, li) => {
       ctx.font = `700 22px ${FONT}`;
-      const parts = ln.map((i, k) => (k ? " + " : "") + tokenName(q.r.parts[i])), tw = ctx.measureText(parts.join("")).width;
+      const parts = ln.map((i, k) => (k || li ? " + " : "") + tokenName(q.r.parts[i])), tw = ctx.measureText(parts.join("")).width;
       let cx = W / 2 - tw / 2;
       ln.forEach((i, k) => {
         const nth = q.r.parts.slice(0, i + 1).filter(x => x === q.r.parts[i]).length;
-        if (k) { text(" + ", cx, ry + 34 + li * 30, 22, GOLD, { weight: 800, outline: 5, align: "left" }); cx += ctx.measureText(" + ").width; }
+        if (k || li) { text(" + ", cx, ry + 34 + li * 30, 22, GOLD, { weight: 800, outline: 5, align: "left" }); cx += ctx.measureText(" + ").width; }
         const el = q.r.parts[i], nm = tokenName(el);
         text(nm, cx, ry + 34 + li * 30, 22, boardHasToken(q.r, el, nth) ? "#8dff9a" : PARCH, { weight: 700, outline: 5, align: "left" }); ctx.font = `700 22px ${FONT}`; cx += ctx.measureText(nm).width;
       });
