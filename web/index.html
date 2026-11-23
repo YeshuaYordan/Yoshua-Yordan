@@ -6575,9 +6575,9 @@ function drawBlackHoles() {
     ctx.restore();
   }
 }
-// Elyndor laser cycle (time in s): red orb 1, blue orb 3, merge 4-5, charge 6-7, laser 7-8.5, then repeat.
+// Elyndor laser cycle (time in s): red orb 2, blue orb 6, merge 8-10, charge 12-14, laser 14-17, then repeat.
 // The laser goes straight up the card's column and kills everything it touches. In the attack row the card is bound for 60 s.
-const ELY = { red: 1, blue: 3, merge0: 4, merge1: 5, charge: 6, fire: 7, end: 8.5, width: 110, lock: 60 };
+const ELY = { red: 2, blue: 6, merge0: 8, merge1: 10, charge: 12, fire: 14, end: 17, width: 110, lock: 60 }; // 2x slower than the first version (user, 2026-11-23)
 function updateLaser(c, dt) {
   const prev = c.lzT || 0; c.lzT = prev + dt; const t = c.lzT;
   if (prev < ELY.red && t >= ELY.red) playSample("summon_zap", 0.5, 0.8);
