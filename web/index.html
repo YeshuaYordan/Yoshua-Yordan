@@ -608,7 +608,7 @@ function synMult(c) {
   return 1 + b;
 }
 const powerMult = c => synMult(c) * modDmg(c) * heraAura(c) * starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
-const canStar = (el, r) => r === MYTH || r === LEGEND_R || r === DIVINE;
+const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };
   if (EL[aEl].special || EL[bEl].special) return null;
@@ -7487,10 +7487,13 @@ function fuseAltar() {
   const cards = altarCards();
   if (cards.length < 2) { showInfo("Put the cards of a recipe on the altar to ascend."); return; }
   altarRot = altarRotTo; const front = altarFront();
-  const rec = altarRecipe(cards), center = slotPos("altar", front);
+  const rec0 = altarRecipe(cards), center = slotPos("altar", front);
+  // only one of each Divine card: a recipe for one the player already has is refused, and the cards are lost
+  const dup = !!rec0 && [...rows.active, ...rows.storage, ...rows.altar].some(c => c && !cards.includes(c) && c.element === rec0.result);
+  const rec = dup ? null : rec0;
   const list = cards.map((c, k) => { const i = rows.altar.indexOf(c), q = altarSlot(i); return { card: c, x: q.x, y: q.y, sc: q.sc, col: EL[c.element].color, ph: k / cards.length * Math.PI * 2, trail: [] }; });
   fusion = { t: 0, n: cards.length, chance: 100, success: !!rec, center, parts: [], dust: [], done: false, divine: true, slot: front, rot0: altarRot,
-    cards: list, el: rec ? rec.result : null, legend: true, rarity: DIVINE, fx: [], shards: [], waves: [], burstDone: false, failDone: false, sndRes: false };
+    cards: list, el: rec ? rec.result : null, dup: dup ? rec0.result : null, legend: true, rarity: DIVINE, fx: [], shards: [], waves: [], burstDone: false, failDone: false, sndRes: false };
   rows.altar.fill(null);
   showInfo(""); playSample("divine_combine", 1, 1);
 }
@@ -7615,7 +7618,7 @@ function drawDivineFusion() {
       ctx.restore();
     }
   }
-  if (!f.success && t >= DIV.burst) { const a = clamp((t - DIV.burst - 0.3) / 0.4, 0, 1) * clamp((DIV.failEnd - t) / 0.5, 0, 1); ctx.save(); ctx.globalAlpha = a; text("The gods refused...", W / 2, 560, 38, "#ff8a9a", { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#1a0610" }); text("These cards match no Divine recipe", W / 2, 600, 20, PARCH, { outline: 5 }); ctx.restore(); }
+  if (!f.success && t >= DIV.burst) { const a = clamp((t - DIV.burst - 0.3) / 0.4, 0, 1) * clamp((DIV.failEnd - t) / 0.5, 0, 1); ctx.save(); ctx.globalAlpha = a; text("The gods refused...", W / 2, 560, 38, "#ff8a9a", { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#1a0610" }); text(f.dup ? `You already have ${EL[f.dup].name}. Only one of each Divine card!` : "These cards match no Divine recipe", W / 2, 600, 20, PARCH, { outline: 5 }); ctx.restore(); }
   // the flash
   const fl = t >= DIV.burst ? Math.max(0, 1 - (t - DIV.burst) / (f.success ? 0.55 : 0.3)) : Math.max(0, (t - DIV.implode + 0.05) / 0.05) * 0.4;
   if (fl > 0) { ctx.fillStyle = f.success ? `rgba(255,255,255,${fl})` : `rgba(255,60,80,${0.6 * fl})`; ctx.fillRect(0, -TOP, W, H + TOP); }
