@@ -1236,6 +1236,17 @@ function elyBack(hw, hh, t) {
   const L = ctx.createRadialGradient(-hw * 0.6, 0, 10, -hw * 0.6, 0, 110); L.addColorStop(0, `rgba(255,110,50,${0.3 + 0.08 * Math.sin(t * 2.4)})`); L.addColorStop(1, "rgba(255,110,50,0)"); ctx.fillStyle = L; ctx.fillRect(-170, -140, 200, 280);
   const R = ctx.createRadialGradient(hw * 0.6, 0, 10, hw * 0.6, 0, 110); R.addColorStop(0, `rgba(60,140,255,${0.3 + 0.08 * Math.sin(t * 2.4 + 2)})`); R.addColorStop(1, "rgba(60,140,255,0)"); ctx.fillStyle = R; ctx.fillRect(-30, -140, 200, 280);
   const T = ctx.createRadialGradient(0, -hh - 4, 4, 0, -hh - 4, 60); T.addColorStop(0, `rgba(190,110,255,${0.45 + 0.15 * Math.sin(t * 3)})`); T.addColorStop(1, "rgba(190,110,255,0)"); ctx.fillStyle = T; ctx.fillRect(-60, -hh - 64, 120, 120);
+  // twin halo: a slowly turning ring, red on the sun side and blue on the tide side
+  ctx.save(); ctx.rotate(Math.sin(t * 0.4) * 0.08);
+  for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2 + t * 0.5, x = Math.cos(a), warm = x < 0, br = 0.5 + 0.5 * Math.sin(t * 3 + i * 0.9);
+    ctx.strokeStyle = warm ? `rgba(255,${120 + 60 * br | 0},60,${0.3 + 0.25 * br})` : `rgba(80,${150 + 50 * br | 0},255,${0.3 + 0.25 * br})`; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.ellipse(0, 0, hw + 14, hh + 14, 0, a, a + 0.18); ctx.stroke(); }
+  ctx.restore();
+  // a tiny sun and moon orbiting the card (back half drawn here, front half in elyFront)
+  elyOrbiters(hw, hh, t, false);
+  // star glints around the card
+  for (let i = 0; i < 8; i++) { const a = i * 0.785 + 0.3, r = 1 + ((t * 0.7 + i * 0.37) % 1), x = Math.cos(a) * (hw + 24), y = Math.sin(a) * (hh + 20), tw = Math.max(0, Math.sin(t * 2.2 + i * 1.9)); if (tw < 0.2) continue;
+    const s2 = 4 * tw; ctx.strokeStyle = `rgba(255,245,220,${0.85 * tw})`; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(x - s2, y); ctx.lineTo(x + s2, y); ctx.moveTo(x, y - s2); ctx.lineTo(x, y + s2); ctx.stroke(); }
   // sun rays fanning out behind the left side
   ctx.save(); ctx.translate(-hw + 4, -hh * 0.45); ctx.rotate(t * 0.3);
   for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); const len = 34 + 10 * Math.sin(t * 3 + i * 1.7); ctx.fillStyle = `rgba(255,${150 + (i % 2) * 50},70,0.22)`; ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(0, -len); ctx.lineTo(3, 0); ctx.fill(); }
@@ -1250,6 +1261,16 @@ function elyBack(hw, hh, t) {
     circle(hw + h * 0.9, y - 7, 1.6, `rgba(220,240,255,${0.8 * a})`); }
   ctx.restore();
 }
+function elyOrbiters(hw, hh, t, front) {
+  for (const [ph, sun] of [[0, true], [Math.PI, false]]) {
+    const a = t * 0.9 + ph, z = Math.sin(a); if ((z > 0) !== front) continue;
+    const x = Math.cos(a) * (hw + 20), y = z * 18 - hh * 0.15, r = 4.5 + 1.3 * z;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 3.2); g.addColorStop(0, sun ? "rgba(255,170,80,0.9)" : "rgba(140,190,255,0.9)"); g.addColorStop(1, sun ? "rgba(255,90,40,0)" : "rgba(60,120,255,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 3.2, 0, Math.PI * 2); ctx.fill();
+    circle(x, y, r, sun ? "#ffd27a" : "#cfe6ff");
+    for (let k = 1; k <= 6; k++) { const aa = a - k * 0.09; circle(Math.cos(aa) * (hw + 20), Math.sin(aa) * 18 - hh * 0.15, r * (1 - k / 7) * 0.8, sun ? `rgba(255,140,60,${0.5 * (1 - k / 7)})` : `rgba(110,170,255,${0.5 * (1 - k / 7)})`); }
+  }
+}
 function elyFront(hw, hh, t, K) {
   ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
   const P = (x, y) => [-hw + (x - 180) * K, -hh + (y - 160) * K];
@@ -1263,7 +1284,7 @@ function elyFront(hw, hh, t, K) {
   for (let i = 0; i < 7; i++) { const u = (t * 0.4 + i / 7) % 1, bx = rx + 6 + Math.sin(i * 2.3 + t * 3) * 6, by = ry - u * 70; ring(bx, by, 2 + 1.5 * (1 - u), `rgba(170,215,255,${0.85 * (1 - u)})`, 1.2); }
   // a red spark climbs the left border and a blue one the right; they meet at the top orb and flash purple
   const cyc = (t * 0.45) % 1, up = Math.min(1, cyc / 0.8), yA = hh - (hh * 2) * up;
-  const trail = (x, col, side) => { for (let k = 12; k >= 1; k--) { const y0 = yA + k * 4, y1 = yA + (k - 1) * 4, f = 1 - k / 12; ctx.strokeStyle = `rgba(${col},${0.85 * f})`; ctx.lineWidth = 1 + 3.5 * f; ctx.beginPath(); ctx.moveTo(x, Math.max(-hh, y0)); ctx.lineTo(x, Math.max(-hh, y1)); ctx.stroke(); } circle(x, Math.max(-hh, yA), 2.6, "#ffffff"); };
+  const trail = (x, col, side) => { for (let k = 12; k >= 1; k--) { const y0 = yA + k * 4, y1 = yA + (k - 1) * 4, f = 1 - k / 12; ctx.strokeStyle = `rgba(${col},${0.85 * f})`; ctx.lineWidth = 1 + 3.5 * f; ctx.beginPath(); ctx.moveTo(x, clamp(y0, -hh, hh)); ctx.lineTo(x, clamp(y1, -hh, hh)); ctx.stroke(); } circle(x, Math.max(-hh, yA), 2.6, "#ffffff"); };
   if (cyc < 0.8) { trail(-hw + 1, "255,130,60", -1); trail(hw - 1, "90,160,255", 1); }
   else { const k = (cyc - 0.8) / 0.2; glow(tx, ty, 30 + 40 * k, "230,190,255", 0.9 * (1 - k)); ring(tx, ty, 8 + 36 * k, `rgba(220,180,255,${1 - k})`, 3 * (1 - k) + 0.5); }
   // a thin purple bond arcs from each side orb up to the top orb now and then
@@ -1271,6 +1292,26 @@ function elyFront(hw, hh, t, K) {
     ctx.strokeStyle = "rgba(210,160,255,0.8)"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(sx, sy);
     for (let i = 1; i < 7; i++) { const u = i / 7, mx = sx + (tx - sx) * u + Math.sin(seed * 9.1 + i * 4.3) * 5, my = sy + (ty - sy) * u - Math.sin(u * Math.PI) * 14; ctx.lineTo(mx, my); }
     ctx.lineTo(tx, ty); ctx.stroke(); }
+  // glowing border: red on the left fading through purple to blue on the right, a pulse running round it
+  { const g = ctx.createLinearGradient(-hw, 0, hw, 0); const pu = 0.35 + 0.2 * Math.sin(t * 3); g.addColorStop(0, `rgba(255,110,60,${pu})`); g.addColorStop(0.5, `rgba(190,110,255,${pu})`); g.addColorStop(1, `rgba(80,150,255,${pu})`);
+    rrect(-hw - 1, -hh - 1, CARD_W + 2, CARD_H + 2, 10); ctx.strokeStyle = g; ctx.lineWidth = 3; ctx.stroke(); }
+  // light sweeping diagonally across the art every few seconds
+  { const sw = (t * 0.28) % 1; if (sw < 0.35) { const u = sw / 0.35, x = -hw - 40 + u * (CARD_W + 80);
+      ctx.save(); rrect(-hw + 16, -hh + 22, CARD_W - 32, CARD_H - 44, 6); ctx.clip(); ctx.translate(x, 0); ctx.rotate(0.35);
+      const g = ctx.createLinearGradient(-14, 0, 14, 0); g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.5, "rgba(255,245,230,0.28)"); g.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = g; ctx.fillRect(-14, -120, 28, 240); ctx.restore(); } }
+  // the top orb crackles: lightning reaching upward and a turning ring
+  ctx.save(); ctx.translate(tx, ty); ctx.scale(1, 0.4); ring(0, 0, 20 + 3 * Math.sin(t * 4), `rgba(220,170,255,${0.5 + 0.3 * pt})`, 2, t * 2, t * 2 + Math.PI * 1.3); ctx.restore();
+  if (Math.floor(t * 7) % 3 === 0) { const sd = Math.floor(t * 7); ctx.strokeStyle = "rgba(230,200,255,0.85)"; ctx.lineWidth = 1.3;
+    for (let j = 0; j < 2; j++) { let x = tx, y = ty; ctx.beginPath(); ctx.moveTo(x, y); const dir = -Math.PI / 2 + Math.sin(sd * 3.7 + j * 2.1) * 0.9;
+      for (let i = 0; i < 5; i++) { x += Math.cos(dir) * 6 + Math.sin(sd * 5.3 + i * 2.9 + j) * 4; y += Math.sin(dir) * 6; ctx.lineTo(x, y); } ctx.stroke(); } }
+  // little satellites: flame motes circling the red orb, droplets circling the blue orb
+  for (let i = 0; i < 4; i++) { const a = t * 3 + i * Math.PI / 2; circle(lx + Math.cos(a) * 11, ly + Math.sin(a) * 6, 1.8, `rgba(255,${170 + 20 * i},80,0.9)`); }
+  for (let i = 0; i < 4; i++) { const a = -t * 2.6 + i * Math.PI / 2; circle(rx + Math.cos(a) * 11, ry + Math.sin(a) * 6, 1.8, "rgba(180,220,255,0.9)"); }
+  // steam where fire and water meet at the bottom gem
+  { const [bx, by] = P(404, 690); for (let i = 0; i < 5; i++) { const u = (t * 0.6 + i / 5) % 1; ctx.fillStyle = `rgba(230,225,255,${0.28 * Math.sin(u * Math.PI)})`; ctx.beginPath(); ctx.arc(bx + Math.sin(i * 2.2 + t * 1.5) * 10 * u, by + 4 - u * 26, 3 + 7 * u, 0, Math.PI * 2); ctx.fill(); }
+    const pg = 0.5 + 0.5 * Math.sin(t * 4); const g = ctx.createRadialGradient(bx, by, 0, bx, by, 12); g.addColorStop(0, `rgba(210,160,255,${0.5 + 0.4 * pg})`); g.addColorStop(1, "rgba(210,160,255,0)"); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(bx, by, 12, 0, Math.PI * 2); ctx.fill(); }
+  // the sun and moon swing in front of the card on their way round
+  elyOrbiters(hw, hh, t, true);
   ctx.restore();
 }
 function divineBack(hw, hh, t) {
