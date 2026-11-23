@@ -6378,19 +6378,58 @@ function updateMirror(c, dt) {
 const NYX_COLS = [[190, 160, 255], [120, 80, 240], [60, 60, 210], [30, 18, 90]];
 MYTHFX.mx_nyx = {
   trail(pr, n, back, bx, by, R) {
-    for (let i = n(45); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 70), 30), life: rand(0.3, 0.55), size: R * rand(0.55, 0.95), grow: 0.5, cols: NYX_COLS, a: 0.75 });
-    for (let i = n(24); i > 0; i--) addPart({ kind: "smoke", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(10, 40), 20), life: rand(0.35, 0.6), size: R * rand(0.35, 0.6), grow: 1.1, col: "#120822", a: 0.5 });
+    for (let i = n(50); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-5, 5), y: by + rand(-5, 5), ...back(rand(20, 70), 30), life: rand(0.3, 0.6), size: R * rand(0.5, 0.95), grow: 0.5, cols: NYX_COLS, a: 0.75 });
+    for (let i = n(26); i > 0; i--) addPart({ kind: "smoke", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(10, 40), 20), life: rand(0.4, 0.7), size: R * rand(0.35, 0.6), grow: 1.2, col: "#0e061c", a: 0.55 });
+    for (let i = n(10); i > 0; i--) { const a = pr.ang + Math.PI + rand(-1.3, 1.3), v = rand(60, 160); addPart({ add: true, kind: "glow", x: bx, y: by, vx: Math.cos(a) * v, vy: Math.sin(a) * v, drag: 2, life: rand(0.35, 0.7), size: rand(2, 3.5), grow: 0, rgb: Math.random() < 0.5 ? "200,170,255" : "120,170,255", a: 1 }); }
+    if (Math.random() < n(3)) addPart({ add: true, kind: "ring", x: bx, y: by, rgb: "160,120,255", size: R * 0.6, grow: R * 2, w: 2, sq: 0.5, life: 0.3 });
   },
   head(pr, R, t, glow) {
     ctx.restore(); ctx.save();
-    ctx.translate(pr.x, pr.y); glow(R * 3.2, "110,70,255");
+    const lite = settings.lite, h = mxHist(pr, 18);
+    // twin helix of dark-blue / purple fire wrapped around a black core streak
+    if (h.length > 3) {
+      ctx.fillStyle = "rgba(8,3,20,0.55)"; mxRibbon(h, (i, f) => R * 1.1 * (1 - f), "rgba(8,3,20,0.55)");
+      ctx.globalCompositeOperation = "lighter";
+      if (!lite) for (const [ph, col] of [[0, "rgba(170,110,255,0.55)"], [Math.PI, "rgba(80,120,255,0.5)"]])
+        mxRibbon(mxBend(h, (i, f) => Math.sin(i * 0.85 - t * 16 + ph) * R * 0.95 * (0.3 + f)), (i, f) => R * 0.42 * (1 - f * 0.85), col);
+      mxRibbon(h, (i, f) => R * 0.35 * (1 - f), "rgba(210,190,255,0.35)");
+      ctx.globalCompositeOperation = "source-over";
+    }
+    ctx.translate(pr.x, pr.y); glow(R * 3.8, "110,70,255");
     ctx.globalCompositeOperation = "lighter";
-    for (let k = 0; k < 4; k++) { const a = t * 9 + k * Math.PI / 2; ctx.strokeStyle = k % 2 ? "rgba(90,120,255,0.8)" : "rgba(190,120,255,0.85)"; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(0, 0, R * 1.25, a, a + 1.1); ctx.stroke(); }
+    // accretion disk, tilted and spinning
+    ctx.save(); ctx.rotate(pr.ang + 0.4); ctx.scale(1, 0.34);
+    for (let k = 0; k < 3; k++) { ctx.strokeStyle = ["rgba(210,160,255,0.95)", "rgba(110,140,255,0.85)", "rgba(255,240,255,0.7)"][k]; ctx.lineWidth = 3.2 - k * 0.8; ctx.beginPath(); const a = t * (14 + k * 5) * (k % 2 ? -1 : 1); ctx.arc(0, 0, R * (1.6 + k * 0.32), a, a + 1.6 + k * 0.4); ctx.stroke(); }
+    ctx.restore();
+    // three dark motes orbiting the core
+    for (let k = 0; k < 3; k++) { const a = t * 9 + k * 2.09, x = Math.cos(a) * R * 1.9, y = Math.sin(a) * R * 0.8; circle(x, y, R * 0.28, "rgba(170,120,255,0.5)"); }
+    // crackling arcs
+    if (!lite && Math.random() < 0.35) { ctx.strokeStyle = "rgba(220,200,255,0.9)"; ctx.lineWidth = 1.4; const a = Math.random() * 6.28; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R, Math.sin(a) * R); for (let i = 1; i <= 4; i++) { const r = R * (1 + i * 0.35); ctx.lineTo(Math.cos(a + rand(-0.4, 0.4)) * r, Math.sin(a + rand(-0.4, 0.4)) * r); } ctx.stroke(); }
     ctx.globalCompositeOperation = "source-over";
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, "#000000"); g.addColorStop(0.7, "#0a0418"); g.addColorStop(1, "#3a1a7a");
-    circle(0, 0, R, g); ring(0, 0, R, "rgba(200,170,255,0.9)", 1.6);
+    for (let k = 0; k < 3; k++) { const a = t * 9 + k * 2.09; circle(Math.cos(a) * R * 1.9, Math.sin(a) * R * 0.8, R * 0.16, "#06020e"); }
+    // black core with a white-hot photon ring
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 1.05); g.addColorStop(0, "#000000"); g.addColorStop(0.72, "#040110"); g.addColorStop(0.9, "#3a1a8a"); g.addColorStop(1, "rgba(120,80,255,0)");
+    circle(0, 0, R * 1.05, g);
+    ctx.globalCompositeOperation = "lighter"; ring(0, 0, R * 0.82, `rgba(240,225,255,${0.75 + 0.25 * Math.sin(t * 40)})`, 1.6); ring(0, 0, R * 0.95, "rgba(140,110,255,0.6)", 1.2, t * 6, t * 6 + 2.2);
+    ctx.globalCompositeOperation = "source-over";
   },
-  hit(...a) { return MYTHFX.mx_banshee.hit(...a); },
+  hit(x, y, P, A, burst, ringFx) {
+    const R = 26 * P + A * 0.4;
+    // implode, then burst
+    mxFx(x, y, 0.55, (fx, k) => {
+      ctx.save(); ctx.globalCompositeOperation = "lighter";
+      if (k < 0.35) { const u = k / 0.35; for (let i = 0; i < 3; i++) ring(fx.x, fx.y, R * (1.4 - u) * (1 - i * 0.2), `rgba(${i ? "120,140,255" : "210,170,255"},${0.8 * u})`, 3 - i); }
+      else { const u = (k - 0.35) / 0.65, g = ctx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, R * (0.5 + 1.3 * u)); g.addColorStop(0, `rgba(240,230,255,${0.9 * (1 - u)})`); g.addColorStop(0.4, `rgba(140,90,255,${0.6 * (1 - u)})`); g.addColorStop(1, "rgba(60,40,200,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx.x, fx.y, R * (0.5 + 1.3 * u), 0, Math.PI * 2); ctx.fill();
+        ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.55); ring(0, 0, R * (0.4 + 1.6 * u), `rgba(200,170,255,${1 - u})`, 5 * (1 - u) + 1); ctx.restore(); }
+      ctx.globalCompositeOperation = "source-over";
+      if (k < 0.4) circle(fx.x, fx.y, R * 0.35 * (1 - k / 0.4), "#05020c");
+      ctx.restore();
+    });
+    burst(settings.lite ? 8 : 20, (cx, cy) => { const v = rand(90, 260); addPart({ add: true, kind: "glow", x, y, vx: cx * v, vy: cy * v * 0.7, drag: 3, life: rand(0.35, 0.6), size: rand(3, 7), grow: 0.2, cols: NYX_COLS, a: 0.9 }); });
+    burst(settings.lite ? 3 : 8, (cx, cy) => addPart({ kind: "smoke", x: x + cx * 8, y: y + cy * 8, vx: cx * 40, vy: cy * 30 - 20, life: rand(0.5, 0.8), size: rand(6, 11), grow: 1, col: "#120822", a: 0.5 }));
+    ringFx("170,120,255", 10 * P, 60 * P + A, 4, 0.55, true, 0.4);
+  },
 };
 // Nyxarion black hole: every NYX_BH.every s (of attack time) instead of shooting; drifts to the first target, then to the
 // middle field (where special bosses stand), dragging enemies it passes (bosses resist, heavy enemies half), then explodes for x3.
