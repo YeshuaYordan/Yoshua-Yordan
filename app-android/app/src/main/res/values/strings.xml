@@ -1,1 +1,7 @@
-<resources><string name="app_name">Arcane Fusion</string></resources>
+<resources>
+    <string name="app_name">Arcane Fusion</string>
+    <!-- Google Play Games: fill these in from Play Console (Play Games Services > Configuration). Empty = leaderboards off. -->
+    <string name="game_services_project_id" translatable="false"></string>
+    <string name="leaderboard_best_wave" translatable="false"></string>
+    <string name="leaderboard_boss_break_out" translatable="false"></string>
+</resources>

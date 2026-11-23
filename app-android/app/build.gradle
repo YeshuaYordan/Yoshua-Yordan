@@ -46,4 +46,5 @@ tasks.named('preBuild') { dependsOn copyGame }
 dependencies {
     implementation 'androidx.webkit:webkit:1.12.1'
     implementation 'com.android.billingclient:billing:7.1.1'
+    implementation 'com.google.android.gms:play-services-games-v2:21.0.0'
 }

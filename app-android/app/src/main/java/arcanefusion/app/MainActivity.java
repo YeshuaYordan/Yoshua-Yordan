@@ -16,6 +16,7 @@ import androidx.webkit.WebViewAssetLoader;
 public class MainActivity extends Activity {
     private WebView web;
     private PlayBilling billing;
+    private PlayGamesBridge games;
     private float safeTop = 0;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -41,7 +42,7 @@ public class MainActivity extends Activity {
                 return loader.shouldInterceptRequest(r.getUrl());
             }
             @Override
-            public void onPageFinished(WebView v, String url) { sendSafeTop(); if (billing != null) billing.onPageReady(); }
+            public void onPageFinished(WebView v, String url) { sendSafeTop(); if (billing != null) billing.onPageReady(); if (games != null) games.notifyPage(); }
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 return !"appassets.androidplatform.net".equals(r.getUrl().getHost());
@@ -49,6 +50,8 @@ public class MainActivity extends Activity {
         });
         billing = new PlayBilling(this, web);
         web.addJavascriptInterface(billing, "AndroidBilling");
+        games = new PlayGamesBridge(this, web);
+        web.addJavascriptInterface(games, "AndroidGames");
         web.setOnApplyWindowInsetsListener((v, insets) -> {
             int top = 0;
             if (android.os.Build.VERSION.SDK_INT >= 28 && insets.getDisplayCutout() != null) top = insets.getDisplayCutout().getSafeInsetTop();

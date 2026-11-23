@@ -6121,9 +6121,10 @@ function toBreak() {
 }
 function gameOver() {
   state = "gameover"; cancelDrag(); goT0 = performance.now(); spell = null; relicOffer = null; questsOpen = false; bringPick = null; chamberOpen = false; fusion = null; paused = false;
-  if (bossMode) { bossLastRun = bossKills; endBossRun(); bossModeOver = true; return; }
+  if (bossMode) { bossLastRun = bossKills; endBossRun(); bossModeOver = true; submitScore("boss", bossKills); return; }
   bossModeOver = false;
   if (wavesCleared > save.best) save.best = wavesCleared;
+  if (!challenge && !training) submitScore("wave", wavesCleared);
   chalMsg = "";
   if (challenge) {
     const c = chalToday(), gain = Math.max(0, Math.min(CHAL_GEMS_MAX - c.gems, (wavesCleared - c.best) * CHAL_GEMS_PER_WAVE));
@@ -8068,6 +8069,7 @@ const btn = {
   sfxDown: makeBtn("-", 0, 0, 66, 56, () => changeSfx(-0.1), 32),
   sfxUp: makeBtn("+", 0, 0, 66, 56, () => changeSfx(0.1), 32),
   challenge: makeBtn("", W - 126, 760, 112, 112, () => { chalOpen = true; playUi("ui_pick"); }),
+  leaderboard: makeBtn("", 14, 640, 112, 112, () => openLeaderboard()),
   chalPlay: Object.assign(makeBtn("Play", 0, 0, 260, 84, () => startChallenge(), 28), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   chalClose: makeBtn("Close", 0, 0, 200, 76, () => { chalOpen = false; playUi("ui_pick"); }, 24),
   missions: makeBtn("", W - 126, 248, 112, 112, () => { missionsOpen = true; missionsTab = 0; achScroll = 0; playUi("ui_pick"); }),
@@ -8085,7 +8087,7 @@ const btn = {
   speedNo: makeBtn("Not now", 0, 0, 200, 84, () => { speedOffer = false; }, 24),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
   getGems: makeBtn("", 14, 372, 112, 112, () => openShop()),
-  starter: makeBtn("", 14, 640, 112, 112, () => openStarter()),
+  starter: makeBtn("", 14, 800, 112, 112, () => openStarter()),
   starterBuy: Object.assign(makeBtn("Buy now $1.00", 0, 0, 380, 84, () => buyStarter(), 32), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   starterClose: makeBtn("Not now", 0, 0, 220, 64, () => { starterOpen = false; playUi("ui_pick"); }, 22),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
@@ -8171,7 +8173,7 @@ function baseButtons() {
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.bio, btn.settingsBtn, btn.gemPill];
-    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.challenge, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, btn.castleUp, ...(starterAvailable() ? [btn.starter] : []), ...top];
+    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.challenge, btn.leaderboard, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, btn.castleUp, ...(starterAvailable() ? [btn.starter] : []), ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
     return [...visibleUpgradeBtns(), ...top];
   }
@@ -10412,6 +10414,34 @@ function drawChallengePanel() {
   btn.chalPlay.x = x + w - 40 - btn.chalPlay.w; btn.chalPlay.y = y + h - 112; btn.chalClose.x = x + 40; btn.chalClose.y = y + h - 108;
   drawBtn(btn.chalPlay); drawBtn(btn.chalClose);
 }
+// Leaderboards: Google Play Games in the Android app (window.AndroidGames). Boards: "wave" = best wave in a normal run, "boss" = Boss Break Out kills.
+const gamesApi = () => (window.AndroidGames && window.AndroidGames.available()) ? window.AndroidGames : null;
+function submitScore(key, score) { const g = gamesApi(); if (g && score > 0) try { g.submit(key, score); } catch (e) {} }
+window.onGamesReady = ok => { if (ok) { submitScore("wave", save.best || 0); submitScore("boss", save.bossBest || 0); } };
+window.onGamesFail = () => { shopToast = { text: "Play Games failed", color: "#ff9a8a", t: 0 }; };
+function openLeaderboard() {
+  playUi("ui_pick");
+  const g = gamesApi();
+  if (g) g.show();
+  else shopToast = { text: "Android app only", color: "#ffd77a", t: 0 };
+}
+function drawLeaderboardIcon(b) {
+  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = 46 * sp, p = 0.5 + 0.5 * Math.sin(lobbyT * 2.4 + 1);
+  ctx.save(); ctx.shadowColor = `rgba(255,215,110,${0.45 + 0.4 * p})`; ctx.shadowBlur = settings.lite ? 0 : 16;
+  rrect(cx - r, cy - r, r * 2, r * 2, 22); const g = ctx.createLinearGradient(0, cy - r, 0, cy + r); g.addColorStop(0, "#3a5aa8"); g.addColorStop(1, "#141e44"); ctx.fillStyle = g; ctx.fill(); ctx.restore();
+  rrect(cx - r, cy - r, r * 2, r * 2, 22); ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 4; ctx.stroke();
+  const LN = "#1a0b12", u = r * 0.6, by = cy + u * 0.95;
+  // podium: 2nd, 1st, 3rd
+  for (const [dx, h, c, n] of [[-0.62, 0.5, "#c9d3e6", "2"], [0, 0.78, "#f2c14e", "1"], [0.62, 0.34, "#d08a4a", "3"]]) {
+    const x0 = cx + (dx - 0.3) * u, w = 0.6 * u, y0 = by - h * u;
+    ctx.fillStyle = c; ctx.fillRect(x0, y0, w, h * u); ctx.strokeStyle = LN; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, w, h * u);
+    text(n, x0 + w / 2, y0 + h * u / 2 + 1, u * 0.36, LN, { weight: 900, baseline: "middle" });
+  }
+  // little crown over 1st place
+  const ky = by - 0.78 * u - u * 0.22, bob = Math.sin(lobbyT * 3) * 2;
+  poly([[cx - u * 0.3, ky + bob], [cx - u * 0.34, ky - u * 0.34 + bob], [cx - u * 0.14, ky - u * 0.16 + bob], [cx, ky - u * 0.42 + bob], [cx + u * 0.14, ky - u * 0.16 + bob], [cx + u * 0.34, ky - u * 0.34 + bob], [cx + u * 0.3, ky + bob]], "#ffe27a", LN, 1.8);
+  text("Leaderboard", cx, b.y + b.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+}
 function drawChallengeIcon(b) {
   const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = 46 * sp, p = 0.5 + 0.5 * Math.sin(lobbyT * 3);
   ctx.save(); ctx.shadowColor = `rgba(156,255,156,${0.5 + 0.4 * p})`; ctx.shadowBlur = settings.lite ? 0 : 16;
@@ -11071,6 +11101,7 @@ function drawHomeUi() {
   drawIconBtn(GUIDE_ICON[save.tut && save.tut.lobby ? "tutorial" : "tutorial_notify"], btn.help, "Tutorial");
   drawIconBtn(GUIDE_ICON[save.guide ? "merge_guide" : "merge_guide_notify"], btn.mergeGuide, "Merge Guide", 7);
   drawChallengeIcon(btn.challenge);
+  drawLeaderboardIcon(btn.leaderboard);
   const mi = MISSION_ICON[missionsClaimable() ? "mission_notify" : "mission"], mb = btn.missions, mp = mb.down ? 0.92 : 1;
   if (mi && mi.ready) { const sz = mb.w * mp; ctx.drawImage(mi.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, mb.x + (mb.w - sz) / 2, mb.y + (mb.h - sz) / 2, sz, sz); }
   text("Missions", mb.x + mb.w / 2, mb.y + mb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
