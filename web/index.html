@@ -6651,8 +6651,9 @@ function updateLaser(c, dt) {
 function laserLocks(dt) {
   for (const r of ["active", "storage"]) for (const c of rows[r]) {
     if (!c || !EL[c.element].laser) continue;
-    if (r === "active") { if (!c.lockSeen) { c.lockSeen = true; c.lockT = ELY.lock; } else if (c.lockT > 0) c.lockT = Math.max(0, c.lockT - dt); }
-    else { c.lockSeen = false; c.lockT = 0; c.lzT = 0; }
+    // re-lock every time it lands in a different attack-row slot (also when moved within the row), not only when it comes from storage
+    if (r === "active") { const i = rows.active.indexOf(c); if (c.lockSlot !== i) { c.lockSlot = i; c.lockT = ELY.lock; c.lzT = 0; } else if (c.lockT > 0) c.lockT = Math.max(0, c.lockT - dt); }
+    else { c.lockSlot = -1; c.lockT = 0; c.lzT = 0; }
   }
 }
 const cardLocked = c => !!c && EL[c.element].laser && c.lockT > 0 && rows.active.includes(c);
@@ -7879,7 +7880,8 @@ function applyMerge(card, res) {
 function moveCard(fr, fi, tr, ti) {
   if (fr === tr && fi === ti) return "";
   const card = rows[fr][fi], other = rows[tr][ti];
-  if (cardLocked(other)) { showInfo(`${EL[other.element].name} is bound to this slot for ${Math.ceil(other.lockT)} more seconds.`); other.shake = 1; return ""; }
+  const lk = cardLocked(card) ? card : cardLocked(other) ? other : null;
+  if (lk) { showInfo(`${EL[lk.element].name} is bound to this slot for ${Math.ceil(lk.lockT)} more seconds.`); lk.shake = 1; return ""; }
   if (!card) return "";
   if (!other) { rows[fr][fi] = null; rows[tr][ti] = card; const s = slotPos(tr, ti); card.setHome(s.x, s.y); return "move"; }
   let res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
@@ -8778,7 +8780,8 @@ function chamberDrop(d, p) {
   const target = slotAt(p);
   if (!target || (target[0] === d.from && target[1] === d.index)) return;
   const card = d.card, other = rows[target[0]][target[1]];
-  if (cardLocked(other)) { showInfo(`${EL[other.element].name} is bound to this slot for ${Math.ceil(other.lockT)} more seconds.`); other.shake = 1; return; }
+  const lk = cardLocked(card) ? card : cardLocked(other) ? other : null;
+  if (lk) { showInfo(`${EL[lk.element].name} is bound to this slot for ${Math.ceil(lk.lockT)} more seconds.`); lk.shake = 1; return; }
   const altarOk = c => altarMode ? !!c && !EL[c.element].special : canGoOnAltar(c), onAlt = r => r === "chamber" || r === "altar";
   if (onAlt(target[0]) && !altarOk(card) && !onAlt(d.from)) { showInfo(altarMode ? "Special cards can't go on the Divine Altar." : "Only Epic and Myth cards can go on the altars."); card.shake = 1; return; }
   if (onAlt(d.from) && other && !altarOk(other) && !onAlt(target[0])) { showInfo("Drop it on an empty slot."); return; }
