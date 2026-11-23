@@ -1533,7 +1533,7 @@ class Card {
     text(d.name, 0, ry + 1, 15, "#ffe08a", { font: DISPLAY, weight: 900, outline: 4, outlineColor: CI, baseline: "middle" });
   }
   // (Divine frame extras live in divineBack / divineFront below the class)
-  // Divine frame: the user's 808x864 sheet (24 frames, 6 cols), stored at half size; card area 448x544 at (180,160), art window (247,230) 315x407.
+  // Divine frame: the user's static 808x864 frame picture, stored at half size (404x432); card area 448x544 at (180,160), art window (247,230) 315x407.
   drawDivineCard(hw, hh, t, d) {
     const K = 0.25, WX = -hw + 67 * K, WY = -hh + 70 * K, WW = 315 * K, WH = 407 * K;
     if (!settings.lite) { const p = 0.5 + 0.5 * Math.sin(t * 2.2); const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(150,110,255,${0.28 + 0.12 * p})`); g.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260); divineBack(hw, hh, t); }
@@ -1550,7 +1550,7 @@ class Card {
     ctx.fillStyle = g; ctx.fillRect(WX, WY + WH - 30, WW, 30);
     ctx.restore();
     const fr = loadSheet("assets/img/divine_frame.webp");
-    if (fr.ready) { const k = settings.lite ? 0 : Math.floor(t * 12) % 24, fw = 404, fh = 432; ctx.drawImage(fr.img, (k % 6) * fw, Math.floor(k / 6) * fh, fw, fh, -hw - 180 * K, -hh - 160 * K, 808 * K, 864 * K); }
+    if (fr.ready) ctx.drawImage(fr.img, -hw - 180 * K, -hh - 160 * K, 808 * K, 864 * K);
     if (!settings.lite) divineFront(hw, hh, t, K);
     if (!this.noLabel) text("DIVINE", 0, WY + 9, 9, "#c8f6ff", { weight: 800, outline: 4, outlineColor: "#140a28" });
     text(d.name, 0, WY + WH - 9, 14, "#e6dcff", { font: DISPLAY, weight: 900, outline: 4, outlineColor: "#140a28", baseline: "middle" });
