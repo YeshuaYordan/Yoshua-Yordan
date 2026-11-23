@@ -1050,6 +1050,7 @@ SAMPLE_SRC.wild_drop = "assets/audio/wild_drop.mp3";
 SAMPLE_SRC.stage_clear = "assets/audio/stage_clear.mp3";
 SAMPLE_SRC.battle_loop = "assets/audio/battle_loop.mp3";
 SAMPLE_SRC.dragon_loop = "assets/audio/dragon_loop.mp3";
+for (const [k, [o, n]] of Object.entries({"divine_combine":[0,44244],"divine_result":[44244,27003]})) SAMPLE_SRC[k] = `pack:assets/audio/divine_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"soul_appear":[0,54902],"soul_shot":[54902,22301],"soul_blast":[77203,18853],"soul_shield":[96056,36720],"soul_summon":[132776,48946],"soul_die":[181722,60858],"soul_idle":[242580,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/soul_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"kraken_rise":[0,54902],"kraken_spit":[54902,18853],"kraken_splat":[73755,6627],"kraken_slither":[80382,20107],"kraken_grab":[100489,20107],"kraken_release":[120596,21360],"kraken_die":[141956,60858],"kraken_idle":[202814,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/kraken_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"dragon_roar":[0,42676],"dragon_shot":[42676,27316],"dragon_step":[69992,12897],"dragon_die":[82889,60858],"dragon_breath":[143747,66814],"danger_alarm":[210561,24809]})) SAMPLE_SRC[k] = `pack:assets/audio/dragon_sounds.mp3#${o},${n}`;
@@ -4604,7 +4605,7 @@ function altarTurn(n) { altarRotTo += n * ALTAR_STEP; playUi("ui_pick"); }
 function updateAltar(dt) {
   if (!altarMode) return;
   updateAltarFx(dt);
-  if (!altarSpin) altarRot += (altarRotTo - altarRot) * Math.min(1, dt * 10);
+  if (!altarSpin && !(fusion && fusion.divine)) altarRot += (altarRotTo - altarRot) * Math.min(1, dt * 10);
   rows.altar.forEach((c, i) => { if (c && !c.dragging) { const q = altarSlot(i); c.setHome(q.x, q.y, true); } });
 }
 function altarRecipe(cards) {
@@ -7479,25 +7480,146 @@ function cancelDrag() { if (drag) { drag.card.dragging = false; } drag = null; h
 
 const FUSE = { converge: 0.5, spin: 1.9, reveal: 4.2, end: 5.6 };
 let fusion = null;
+// Divine Ascension: its own 7 s sequence (offering, spiral, implosion, supernova, reveal). Fail = the globe cracks and shatters.
+const DIV = { gather: 1.2, spiral: 3.0, implode: 3.7, burst: 3.75, end: 7.2, failEnd: 5.8 };
 function fuseAltar() {
   if (fusion) return;
   const cards = altarCards();
   if (cards.length < 2) { showInfo("Put the cards of a recipe on the altar to ascend."); return; }
   altarRot = altarRotTo; const front = altarFront();
-  for (const c of cards) { const i = rows.altar.indexOf(c), q = altarSlot(i); c.x = q.x; c.y = q.y; }
-  const rec = altarRecipe(cards), center = slotPos("altar", front), parts = [];
-  for (const c of cards) {
-    const col = EL[c.element].color;
-    for (let i = 0; i < 40; i++) parts.push({
-      sx: c.x + rand(-CARD_W / 2, CARD_W / 2), sy: c.y + rand(-CARD_H / 2, CARD_H / 2),
-      col: Math.random() < 0.45 ? "#ffffff" : col, delay: Math.random() * 0.45, bulge: rand(-90, 90),
-      ang: Math.random() * Math.PI * 2, rad: rand(20, 75), size: rand(2, 4.5),
-    });
-  }
-  fusion = { t: 0, n: cards.length, chance: 100, success: !!rec, center, parts, dust: [], done: false, divine: true, slot: front,
-    cards: cards.map(c => ({ card: c, x: c.x, y: c.y })), el: rec ? rec.result : null, legend: true, rarity: DIVINE };
+  const rec = altarRecipe(cards), center = slotPos("altar", front);
+  const list = cards.map((c, k) => { const i = rows.altar.indexOf(c), q = altarSlot(i); return { card: c, x: q.x, y: q.y, sc: q.sc, col: EL[c.element].color, ph: k / cards.length * Math.PI * 2, trail: [] }; });
+  fusion = { t: 0, n: cards.length, chance: 100, success: !!rec, center, parts: [], dust: [], done: false, divine: true, slot: front, rot0: altarRot,
+    cards: list, el: rec ? rec.result : null, legend: true, rarity: DIVINE, fx: [], shards: [], waves: [], burstDone: false, failDone: false, sndRes: false };
   rows.altar.fill(null);
-  showInfo(""); playSample("summon_rise", 0.9, 0.85);
+  showInfo(""); playSample("divine_combine", 1, 1);
+}
+const easeIO = u => u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+function divCardPos(f, k, t) {
+  const c = f.cards[k], gx = W / 2, gy = altarGlobeY();
+  if (t < DIV.gather) { const u = easeIO(t / DIV.gather); return { x: c.x, y: c.y - u * 70, sc: c.sc * (1 + 0.15 * u), rot: Math.sin(t * 6 + k) * 0.05 * u, a: 1 }; }
+  const u = clamp((t - DIV.gather) / (DIV.spiral - DIV.gather), 0, 1), e = u * u;
+  const ang = c.ph + (t - DIV.gather) * (2.5 + 9 * e), r = (1 - e) * 230 + 10;
+  const sx = c.x, sy = c.y - 70, tx = gx + Math.cos(ang) * r, ty = gy + Math.sin(ang) * r * 0.45;
+  const blend = clamp(u * 3, 0, 1);
+  return { x: sx + (tx - sx) * blend, y: sy + (ty - sy) * blend, sc: c.sc * 1.15 * (1 - 0.85 * e), rot: ang * 0.5 * blend, a: 1 - clamp((u - 0.7) / 0.3, 0, 1) };
+}
+function updateDivineFusion(dt) {
+  const f = fusion, prev = f.t; f.t += dt; const t = f.t, gx = W / 2, gy = altarGlobeY(), lite = settings.lite;
+  // the ring spins two full turns and lands back on the same front slot
+  altarRot = f.rot0 + easeIO(clamp(t / DIV.implode, 0, 1)) * Math.PI * 4; altarRotTo = f.rot0 + Math.PI * 4;
+  f.cards.forEach((c, k) => {
+    const p = divCardPos(f, k, t); c.cur = p; c.trail.push([p.x, p.y]); if (c.trail.length > 14) c.trail.shift();
+    if (t > DIV.gather && t < DIV.spiral && Math.random() < dt * (lite ? 20 : 60)) f.fx.push({ x: p.x, y: p.y, tx: gx, ty: gy, t: 0, life: rand(0.35, 0.7), col: Math.random() < 0.4 ? "#ffffff" : c.col, size: rand(1.5, 3.5), seek: true });
+  });
+  if (t > DIV.spiral && t < DIV.implode && Math.random() < dt * (lite ? 30 : 90)) { const a = Math.random() * 6.28, r = rand(260, 420); f.fx.push({ x: gx + Math.cos(a) * r, y: gy + Math.sin(a) * r, tx: gx, ty: gy, t: 0, life: rand(0.3, 0.5), col: Math.random() < 0.5 ? "#c8f6ff" : "#b98aff", size: rand(1.5, 3), seek: true }); }
+  if (t > DIV.gather && t < DIV.implode) { shakeT = Math.max(shakeT, 0.08); shakeAmp = Math.max(shakeAmp, 1 + 7 * clamp((t - DIV.gather) / (DIV.implode - DIV.gather), 0, 1)); }
+  if (prev < DIV.burst && t >= DIV.burst) {
+    shakeT = Math.max(shakeT, 0.8); shakeAmp = Math.max(shakeAmp, f.success ? 16 : 11); buzz(f.success ? 220 : 120);
+    if (f.success) {
+      playSample("divine_result", 1, 1);
+      for (let i = 0; i < (lite ? 90 : 260); i++) { const a = Math.random() * 6.28, v = rand(120, 720); f.fx.push({ x: gx, y: gy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, life: rand(0.6, 1.6), col: ["#ffffff", "#c8f6ff", "#b98aff", "#ffe27a", "#7ff0ff"][i % 5], size: rand(1.5, 4.5), drag: 1.6 }); }
+      for (let i = 0; i < 4; i++) f.waves.push({ t: -i * 0.12, col: ["#ffffff", "#9ff0ff", "#b98aff", "#ffe27a"][i] });
+      discover(f.el); track("divine");
+    } else {
+      playSample("summon_implode", 1, 0.55); playSample("dragon_die", 0.6, 1.3);
+      for (let i = 0; i < 26; i++) { const a = Math.random() * 6.28, v = rand(160, 460); f.shards.push({ x: gx, y: gy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, rot: Math.random() * 6, vr: rand(-8, 8), s: rand(8, 20), t: 0 }); }
+      for (let i = 0; i < 120; i++) f.dust.push({ x: gx + rand(-40, 40), y: gy + rand(-40, 40), vx: rand(-90, 90), vy: rand(-60, 40), size: rand(2, 5), col: ["#3a1020", "#5a1a2a", "#2a1a2a", "#8a2a3a"][i % 4] });
+      f.waves.push({ t: 0, col: "#ff4a5a" });
+    }
+  }
+  for (const p of f.fx) { p.t += dt; if (p.seek) { const k = clamp(p.t / p.life, 0, 1); p.cx = p.x + (p.tx - p.x) * k * k; p.cy = p.y + (p.ty - p.y) * k * k; } else { const dr = Math.max(0, 1 - (p.drag || 0) * dt); p.vx *= dr; p.vy *= dr; p.vy += 60 * dt; p.x += p.vx * dt; p.y += p.vy * dt; } }
+  f.fx = f.fx.filter(p => p.t < p.life);
+  for (const s2 of f.shards) { s2.t += dt; s2.vy += 520 * dt; s2.x += s2.vx * dt; s2.y += s2.vy * dt; s2.rot += s2.vr * dt; }
+  for (const d of f.dust) { d.vy += 50 * dt; d.vx *= 0.98; d.x += d.vx * dt; d.y += d.vy * dt; }
+  for (const w of f.waves) w.t += dt;
+  if (f.success && t > DIV.burst + 0.6 && t < DIV.end - 0.8 && Math.random() < dt * (lite ? 10 : 30)) f.fx.push({ x: rand(60, W - 60), y: 110, vx: rand(-20, 20), vy: rand(60, 160), t: 0, life: rand(1.2, 2.2), col: Math.random() < 0.5 ? "#ffe27a" : "#c8f6ff", size: rand(1.5, 3), drag: 0, star: true });
+  const end = f.success ? DIV.end : DIV.failEnd;
+  if (t >= end) {
+    if (f.success) { const m = new Card(f.el, DIVINE); const q = slotPos("altar", f.slot); m.setHome(q.x, q.y, true); m.scale = 1.4; rows.altar[f.slot] = m; altarBurst(q.x, q.y, "#c8f6ff"); showBanner(`DIVINE ${EL[f.el].name.toUpperCase()} ASCENDS!`, RARITY_COLORS[DIVINE]); }
+    else showBanner("The gods refused...", "#c86a7a");
+    fusion = null;
+  }
+}
+function drawCardBack(x, y, sc, t) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+  const hw = CARD_W / 2, hh = CARD_H / 2;
+  rrect(-hw, -hh, CARD_W, CARD_H, 10); const g = ctx.createLinearGradient(0, -hh, 0, hh); g.addColorStop(0, "#1c1650"); g.addColorStop(1, "#0a0620"); ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = "#c8f6ff"; ctx.lineWidth = 3; ctx.stroke();
+  rrect(-hw + 8, -hh + 8, CARD_W - 16, CARD_H - 16, 6); ctx.strokeStyle = "rgba(200,246,255,0.5)"; ctx.lineWidth = 1.5; ctx.stroke();
+  ring(0, 0, 30, "rgba(200,246,255,0.9)", 2.5); ring(0, 0, 20, "rgba(185,138,255,0.8)", 2, t * 2, t * 2 + Math.PI * 1.4);
+  drawRune(ALTAR_RUNES[3], 0, 0, 11, "#e8fbff", 2.5);
+  ctx.restore();
+}
+function drawDivineFusion() {
+  const f = fusion, t = f.t, gx = W / 2, gy = altarGlobeY(), lite = settings.lite;
+  ctx.save(); ctx.beginPath(); ctx.rect(0, -TOP, W, H + TOP); ctx.clip();
+  // darkness falls during the implosion and lifts after the burst
+  const dark = t < DIV.spiral ? 0.25 * clamp((t - DIV.gather) / 1.2, 0, 1) : t < DIV.burst ? 0.25 + 0.6 * clamp((t - DIV.spiral) / (DIV.implode - DIV.spiral), 0, 1) : 0.85 * Math.max(0, 1 - (t - DIV.burst) / 0.9) + (f.success ? 0.35 : 0.2) * clamp((t - DIV.burst) / 0.9, 0, 1);
+  ctx.fillStyle = `rgba(4,2,14,${dark})`; ctx.fillRect(0, -TOP, W, H + TOP);
+  ctx.globalCompositeOperation = "lighter";
+  // offering: light pillars under each rising card
+  if (t < DIV.spiral) for (const c of f.cards) { const a = clamp(1 - Math.abs(t - DIV.gather * 0.6) / 1.1, 0, 1); if (a <= 0) continue; const g = ctx.createLinearGradient(0, c.y + 70, 0, 96); g.addColorStop(0, hexA(c.col, 0.5 * a)); g.addColorStop(1, hexA(c.col, 0)); ctx.fillStyle = g; ctx.fillRect(c.x - 40 * c.sc, 96, 80 * c.sc, c.y + 70 - 96); }
+  // card trails
+  if (!lite) for (const c of f.cards) { if (!c.cur || c.cur.a <= 0 || t < DIV.gather) continue; ctx.lineCap = "round"; for (let i = 1; i < c.trail.length; i++) { const k = i / c.trail.length; ctx.strokeStyle = hexA(c.col, 0.5 * k * c.cur.a); ctx.lineWidth = 14 * k * c.cur.sc + 1; ctx.beginPath(); ctx.moveTo(c.trail[i - 1][0], c.trail[i - 1][1]); ctx.lineTo(c.trail[i][0], c.trail[i][1]); ctx.stroke(); } }
+  // globe core: grows while charging, collapses to a blinding point, then the supernova
+  if (t < DIV.burst) {
+    const u = clamp(t / DIV.spiral, 0, 1), imp = clamp((t - DIV.spiral) / (DIV.implode - DIV.spiral), 0, 1);
+    const R = (40 + 70 * u) * (1 - 0.92 * imp * imp), hg = ctx.createRadialGradient(gx, gy, 0, gx, gy, R * 3 + 40 * imp);
+    hg.addColorStop(0, `rgba(255,255,255,${0.6 + 0.4 * imp})`); hg.addColorStop(0.3, `rgba(160,220,255,${0.45 + 0.3 * u})`); hg.addColorStop(1, "rgba(120,80,255,0)");
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(gx, gy, R * 3 + 40 * imp, 0, Math.PI * 2); ctx.fill();
+    if (imp > 0) { ctx.strokeStyle = `rgba(255,255,255,${0.5 * imp})`; ctx.lineWidth = 2; for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6 + t * 3, r1 = 300 * (1 - imp) + 30, r2 = r1 + 60; ctx.beginPath(); ctx.moveTo(gx + Math.cos(a) * r2, gy + Math.sin(a) * r2 * 0.7); ctx.lineTo(gx + Math.cos(a) * r1, gy + Math.sin(a) * r1 * 0.7); ctx.stroke(); } }
+    if (!f.success && imp > 0.3) { ctx.strokeStyle = `rgba(255,70,90,${imp})`; ctx.lineWidth = 2.5; for (let i = 0; i < 5; i++) { const a = i * 1.26 + 0.3; zigzag(gx, gy, gx + Math.cos(a) * 70 * imp, gy + Math.sin(a) * 70 * imp, 5, 6); } }
+  }
+  // shockwaves
+  for (const w of f.waves) { if (w.t < 0) continue; const u = w.t / 1.1; if (u > 1) continue; ctx.save(); ctx.translate(gx, gy); ctx.scale(1, 0.55); ring(0, 0, 30 + 560 * easeIO(u), hexA(w.col, 1 - u), 12 * (1 - u) + 2); ctx.restore(); ring(gx, gy, 20 + 420 * u, hexA(w.col, 0.6 * (1 - u)), 4 * (1 - u) + 1); }
+  if (f.success && t >= DIV.burst) {
+    const u = t - DIV.burst, k = clamp(u / 0.4, 0, 1), fade = t > DIV.end - 0.6 ? clamp((DIV.end - t) / 0.6, 0, 1) : 1;
+    // god rays behind the card
+    ctx.save(); ctx.translate(gx, gy + 30); ctx.rotate(u * 0.35);
+    for (let i = 0; i < 18; i++) { ctx.rotate(Math.PI * 2 / 18); const L = 520 * k, g = ctx.createLinearGradient(0, 0, 0, -L); g.addColorStop(0, `rgba(230,250,255,${(i % 2 ? 0.28 : 0.18) * fade})`); g.addColorStop(1, "rgba(230,250,255,0)"); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.lineTo(34, -L); ctx.lineTo(-34, -L); ctx.fill(); }
+    ctx.restore();
+    const hg = ctx.createRadialGradient(gx, gy + 30, 0, gx, gy + 30, 200); hg.addColorStop(0, `rgba(200,240,255,${0.55 * fade})`); hg.addColorStop(1, "rgba(160,120,255,0)"); ctx.fillStyle = hg; ctx.fillRect(gx - 200, gy - 170, 400, 400);
+  }
+  // particles
+  for (const p of f.fx) { const a = 1 - p.t / p.life, x = p.seek ? p.cx : p.x, y = p.seek ? p.cy : p.y; if (x === undefined) continue; if (p.star) { const s = p.size * 2.2; ctx.strokeStyle = hexA(p.col, a); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.moveTo(x, y - s); ctx.lineTo(x, y + s); ctx.stroke(); } else circle(x, y, p.size * (p.seek ? 1 : a) + 0.4, hexA(p.col, a)); }
+  ctx.globalCompositeOperation = "source-over";
+  // the offered cards themselves
+  for (const c of f.cards) { const p = c.cur; if (!p || p.a <= 0) continue; ctx.save(); ctx.globalAlpha = p.a; ctx.translate(p.x, p.y); ctx.rotate(p.rot); const cd = c.card, ox = cd.x, oy = cd.y, os = cd.scale; cd.x = 0; cd.y = 0; cd.scale = p.sc; cd.draw(); cd.x = ox; cd.y = oy; cd.scale = os;
+    if (t > DIV.gather) { ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = p.a * clamp((t - DIV.gather) / (DIV.spiral - DIV.gather), 0, 1) * 0.8; rrect(-CARD_W / 2 * p.sc, -CARD_H / 2 * p.sc, CARD_W * p.sc, CARD_H * p.sc, 8); ctx.fillStyle = c.col; ctx.fill(); }
+    ctx.restore(); }
+  // failure: shards and ash
+  for (const s2 of f.shards) { ctx.save(); ctx.translate(s2.x, s2.y); ctx.rotate(s2.rot); ctx.globalAlpha = Math.max(0, 1 - s2.t / 1.6); poly([[-s2.s, 0], [0, -s2.s * 0.6], [s2.s * 0.8, s2.s * 0.2], [0, s2.s * 0.5]], "#4a2a6a", "#ff6a7a", 1.5); ctx.restore(); }
+  for (const d of f.dust) circle(d.x, d.y, d.size, hexA(d.col, Math.max(0, 1 - (t - DIV.burst) / 2)));
+  // the reveal: the card flips in from its back
+  if (f.success && t >= DIV.burst) {
+    const u = t - DIV.burst, fade = t > DIV.end - 0.5 ? clamp((DIV.end - t) / 0.5, 0, 1) : 1;
+    const grow = easeIO(clamp(u / 0.5, 0, 1)), flip = clamp((u - 0.35) / 0.7, 0, 1), sx = Math.cos(flip * Math.PI);
+    const q = slotPos("altar", f.slot), land = clamp((t - (DIV.end - 0.5)) / 0.5, 0, 1);
+    const cx = gx + (q.x - gx) * land, cy = gy + 30 + Math.sin(u * 2) * 4 + (q.y - gy - 30) * land, sc = (0.3 + 1.5 * grow) * (1 - 0.45 * land);
+    if (!f.revealCard) { f.revealCard = new Card(f.el, DIVINE); f.revealCard.seed = 1; }
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(Math.max(0.02, Math.abs(sx)), 1);
+    if (sx > 0) drawCardBack(0, 0, sc, t);
+    else { const rc = f.revealCard; rc.t = u; rc.x = 0; rc.y = 0; rc.scale = sc; rc.draw(); }
+    ctx.restore();
+    if (flip > 0 && flip < 1) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 1 - Math.abs(sx); drawCardLight(cx, cy, 1, 1, 0.6 * (1 - Math.abs(sx))); ctx.restore(); }
+    // title and the name, letter by letter
+    const ta = clamp((u - 0.9) / 0.4, 0, 1) * fade;
+    if (ta > 0) {
+      ctx.save(); ctx.globalAlpha = ta; if (!lite) { ctx.shadowColor = "#9ff0ff"; ctx.shadowBlur = 20; }
+      text("DIVINE ASCENSION", W / 2, 150, 34, "#e8fbff", { font: DISPLAY, weight: 900, outline: 7, outlineColor: "#140a28" });
+      ctx.restore();
+      const nm = EL[f.el].name.toUpperCase(), shown = Math.floor(clamp((u - 1.2) / 1.0, 0, 1) * nm.length + 0.001);
+      ctx.save(); ctx.globalAlpha = fade; if (!lite) { ctx.shadowColor = "#b98aff"; ctx.shadowBlur = 24; }
+      text(nm.slice(0, shown), W / 2, 600, 52, "#ffffff", { font: DISPLAY, weight: 900, outline: 9, outlineColor: "#2a1060" });
+      ctx.restore();
+    }
+  }
+  if (!f.success && t >= DIV.burst) { const a = clamp((t - DIV.burst - 0.3) / 0.4, 0, 1) * clamp((DIV.failEnd - t) / 0.5, 0, 1); ctx.save(); ctx.globalAlpha = a; text("The gods refused...", W / 2, 560, 38, "#ff8a9a", { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#1a0610" }); text("These cards match no Divine recipe", W / 2, 600, 20, PARCH, { outline: 5 }); ctx.restore(); }
+  // the flash
+  const fl = t >= DIV.burst ? Math.max(0, 1 - (t - DIV.burst) / (f.success ? 0.55 : 0.3)) : Math.max(0, (t - DIV.implode + 0.05) / 0.05) * 0.4;
+  if (fl > 0) { ctx.fillStyle = f.success ? `rgba(255,255,255,${fl})` : `rgba(255,60,80,${0.6 * fl})`; ctx.fillRect(0, -TOP, W, H + TOP); }
+  ctx.restore();
 }
 function fuseChamber() {
   if (altarMode) return fuseAltar();
@@ -7531,6 +7653,7 @@ function spinAngle(u) {
 }
 function updateFusion(dt) {
   if (!fusion) return;
+  if (fusion.divine) return updateDivineFusion(dt);
   const f = fusion, prev = f.t;
   f.t += dt;
   if (prev < FUSE.reveal && f.t >= FUSE.reveal) {
@@ -7568,6 +7691,7 @@ function drawCardLight(cx, cy, sx, glow, alpha) {
 }
 function drawFusion() {
   const f = fusion; if (!f) return;
+  if (f.divine) return drawDivineFusion();
   const t = f.t, c = f.center;
   for (const k of f.cards) {
     const a = clamp(1 - t / 0.7, 0, 1);
@@ -8930,7 +9054,7 @@ function updateAltarFx(dt) {
   for (const k of F.sparks) { k.t += dt; k.vy += 160 * dt; k.vx *= 0.97; k.x += k.vx * dt; k.y += k.vy * dt; }
   for (const b of F.bursts) b.t += dt;
   F.motes = F.motes.filter(m => m.t < m.life); F.sparks = F.sparks.filter(k => k.t < k.life); F.bursts = F.bursts.filter(b => b.t < 0.6);
-  if (fusion && fusion.divine && fusion.t < FUSE.reveal) { F.bolt -= dt; if (F.bolt <= 0) { F.bolt = rand(0.06, 0.2); shakeT = Math.max(shakeT, 0.1); shakeAmp = Math.max(shakeAmp, 2 + 4 * fusion.t / FUSE.reveal); } }
+  if (false) { F.bolt -= dt; if (F.bolt <= 0) { F.bolt = rand(0.06, 0.2); shakeT = Math.max(shakeT, 0.1); shakeAmp = Math.max(shakeAmp, 2 + 4 * fusion.t / FUSE.reveal); } }
 }
 function zigzag(x1, y1, x2, y2, n, amp) {
   ctx.beginPath(); ctx.moveTo(x1, y1);
@@ -8939,7 +9063,7 @@ function zigzag(x1, y1, x2, y2, n, amp) {
 }
 function drawAltar() {
   const lite = settings.lite, pulse = 0.5 + 0.5 * Math.sin(time * 2), n = altarCards().length, energy = n / ALTAR_N;
-  const fu = fusion && fusion.divine ? fusion : null, charge = fu ? clamp(fu.t / FUSE.reveal, 0, 1) : 0, flash = fu ? Math.max(0, 1 - Math.abs(fu.t - FUSE.reveal) / 0.35) : 0;
+  const fu = fusion && fusion.divine ? fusion : null, charge = fu ? clamp(fu.t / DIV.spiral, 0, 1) * (fu.t < DIV.burst ? 1 : 0) : 0, flash = 0;
   ctx.fillStyle = "rgba(6,4,20,0.72)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
   ctx.fillStyle = "rgba(6,4,20,0.8)"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
   ctx.save(); rrect(20, 96, W - 40, 620, 26); ctx.clip();
@@ -8957,8 +9081,9 @@ function drawAltar() {
   const eg = ctx.createLinearGradient(0, 96, 0, 716); eg.addColorStop(0, "#e8fbff"); eg.addColorStop(0.5, "#8a7cff"); eg.addColorStop(1, "#9ff0ff");
   ctx.save(); if (!lite) { ctx.shadowColor = "#9ff0ff"; ctx.shadowBlur = 14 + 10 * pulse; } rrect(20, 96, W - 40, 620, 26); ctx.strokeStyle = eg; ctx.lineWidth = 4; ctx.stroke(); ctx.restore();
   ctx.save(); if (!lite) { ctx.shadowColor = "#9ff0ff"; ctx.shadowBlur = 18; }
-  text("Divine Altar", W / 2, 158, 44, "#d8faff", { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#140a28" }); ctx.restore();
-  text("Offer the cards of a Divine recipe", W / 2, 198, 22, PARCH, { outline: 5 });
+  const hideTitle = fu && fu.t >= DIV.burst;
+  if (!hideTitle) text("Divine Altar", W / 2, 158, 44, "#d8faff", { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#140a28" }); ctx.restore();
+  if (!hideTitle) text("Offer the cards of a Divine recipe", W / 2, 198, 22, PARCH, { outline: 5 });
   const gx = W / 2, gy = altarGlobeY();
   // ring floor: two glowing rings and rune glyphs riding the outer ring
   ctx.save(); ctx.translate(gx, ALTAR_CY - ALTAR_LIFT / 2 + 58); ctx.scale(1, 0.42);
@@ -8995,8 +9120,8 @@ function drawAltar() {
       ctx.strokeStyle = hexA(col, 0.25 + 0.25 * q.alpha); ctx.lineWidth = 6 * q.sc; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo((sx + gx) / 2, Math.min(sy, gy) - 40, gx, gy); ctx.stroke();
       ctx.strokeStyle = hexA("#ffffff", 0.5 * q.alpha); ctx.lineWidth = 1.5; ctx.stroke();
       for (let k = 0; k < 3; k++) { const u = (time * 0.8 + k / 3 + i * 0.13) % 1, mx = (sx + gx) / 2, my = Math.min(sy, gy) - 40, x = (1 - u) * (1 - u) * sx + 2 * (1 - u) * u * mx + u * u * gx, y = (1 - u) * (1 - u) * sy + 2 * (1 - u) * u * my + u * u * gy; circle(x, y, 3 * q.sc + 1, hexA(col, 0.9)); circle(x, y, 1.4, "#ffffff"); }
-      if (fu && fu.t < FUSE.reveal && Math.random() < 0.5) { ctx.strokeStyle = "rgba(230,250,255,0.85)"; ctx.lineWidth = 2; zigzag(gx, gy, sx, sy, 8, 14); } });
-    if (fu && fu.t < FUSE.reveal && !lite) for (let k = 0; k < 1 + Math.floor(charge * 3); k++) if (Math.random() < 0.6) {
+      if (fu && fu.t < DIV.spiral && Math.random() < 0.5) { ctx.strokeStyle = "rgba(230,250,255,0.85)"; ctx.lineWidth = 2; zigzag(gx, gy, sx, sy, 8, 14); } });
+    if (false) for (let k = 0; k < 1 + Math.floor(charge * 3); k++) if (Math.random() < 0.6) {
       const c = fu.center, tx = c.x + rand(-50, 50), ty = c.y + rand(-60, 60);
       ctx.strokeStyle = `rgba(160,200,255,${0.5 + 0.4 * charge})`; ctx.lineWidth = 6; zigzag(gx, gy + 20, tx, ty, 9, 16);
       ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = 2; zigzag(gx, gy + 20, tx, ty, 9, 10); }
@@ -9028,7 +9153,7 @@ function drawAltar() {
   for (const b of altarFx.bursts) { const u = b.t / 0.6; ring(b.x, b.y, 20 + 90 * u, hexA(b.col, 1 - u), 4 * (1 - u) + 1); ring(b.x, b.y, 10 + 50 * u, hexA("#ffffff", 0.8 * (1 - u)), 2); }
   if (flash > 0) { ctx.fillStyle = `rgba(230,250,255,${0.75 * flash})`; ctx.fillRect(20, 96, W - 40, 620); }
   ctx.restore();
-  if (fusion) { text(fusion.t < FUSE.reveal ? "The gods are listening..." : "", W / 2, 568, 28, "#c8f6ff", { weight: 700, outline: 8 }); return; }
+  if (fusion) { text(fusion.t < DIV.spiral ? "The gods are listening..." : "", W / 2, 568, 28, "#c8f6ff", { weight: 700, outline: 8 }); return; }
   if (altarCards().some(c => c.rarity === DIVINE)) { text("Close the Altar to take your Divine card", W / 2, 568, 26, "#c8f6ff", { weight: 700, outline: 8 }); return; }
   const bw = 300, bx = W / 2 - bw / 2; rrect(bx, 540, bw, 10, 5); ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fill();
   if (n) { rrect(bx, 540, bw * energy, 10, 5); const g = ctx.createLinearGradient(bx, 0, bx + bw, 0); g.addColorStop(0, "#9ff0ff"); g.addColorStop(1, "#b98aff"); ctx.fillStyle = g; ctx.fill(); }
