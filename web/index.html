@@ -239,6 +239,7 @@ const EL = {
   hermes:    { name: "Hermes", tier: 3, legendCard: true, art: "hermes", theme: "hermes", color: "#7ae0c8", shape: "swirl", parts: ["wind", "water"], desc: "Messenger of the gods: lightning-fast strikes leap through 8 enemies and slow them.", dmg: 34, rate: 1.3, chain: 8, slow: 0.6 },
   hephaestus:{ name: "Hephaestus", tier: 3, legendCard: true, art: "hephaestus", theme: "hephaestus", color: "#ff7a2a", shape: "rock", parts: ["fire", "earth"], desc: "God of the forge: a red-hot hammer slams an area, stunning foes and leaving molten metal pools.", dmg: 50, rate: 0.9, speed: 620, splash: 90, root: 0.7, puddle: 60, puddle_dps: 16, burn: 6 },
   nyxarion:  { name: "Nyxarion", tier: 3, divine: true, art: "nyxarion", theme: "hera", color: "#8a6aff", shape: "swirl", parts: ["dark", "water", "light"], desc: "Divine lord of night: fires black orbs wreathed in dark blue fire that curse (+30% damage taken) and slow. Every 7 s it casts a slow black hole instead: it drifts to the first enemy, then to the middle of the field, dragging every enemy it passes, and explodes for x3 damage. Night aura: the cards right next to it deal +30% damage.", dmg: 40, rate: 1.1, speed: 780, shotScale: 1.6, curse: 0.3, slow: 0.55, aura: 0.3, blackhole: true },
+  elyndor:   { name: "Elyndor", tier: 3, divine: true, art: "elyndor", theme: "apollo", color: "#b070ff", shape: "spiky", parts: ["fire", "water", "light"], desc: "Divine twin of sun and moon: charges a red and a blue orb, fuses them into purple, then fires a wide green-purple laser straight up its column that destroys anything it touches. Once placed in the attack row it is bound there for 60 s.", dmg: 0, rate: 1, laser: true },
   hera:      { name: "Hera", tier: 3, legendCard: true, art: "hera", theme: "hera", color: "#d68aff", shape: "swirl", parts: ["water", "light"], desc: "Queen of the gods: a peacock feather bursts over a wide area and marks foes (+15% damage taken). Royal aura: the cards right next to her deal +25% damage.", dmg: 38, rate: 1.0, speed: 760, splash: 130, curse: 0.15, aura: 0.25 },
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [168, 93, 170], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400 / 1.5 * 3, rate: (1 / 16) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 11, shotScale: 4 },
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [150, 122, 200], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
@@ -665,7 +666,7 @@ function rollRarity(wave) {
   return 0;
 }
 const randomBase = () => BASE[Math.floor(Math.random() * BASE.length)];
-const describe = (el, r, st = 0, boost = 1) => EL[el].idol ? `${EL[el].name} Lv${lvlOfBoost(boost)}: never attacks. ${idolText(EL[el].totem, lvlOfBoost(boost))}. Drop another ${EL[el].name} on it to power it up (max Lv5).` : EL[el].totem ? `${EL[el].name} x${1 + boost}: never attacks. The cards right next to it (left and right) ${EL[el].totem === "spd" ? `attack x${1 + boost} faster` : `deal x${1 + boost} damage`}. Drop another ${EL[el].name} on it for +0.5x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * (1 + st))} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
+const describe = (el, r, st = 0, boost = 1) => EL[el].laser ? `Divine ${EL[el].name}: unlimited damage. ${EL[el].desc}` : EL[el].idol ? `${EL[el].name} Lv${lvlOfBoost(boost)}: never attacks. ${idolText(EL[el].totem, lvlOfBoost(boost))}. Drop another ${EL[el].name} on it to power it up (max Lv5).` : EL[el].totem ? `${EL[el].name} x${1 + boost}: never attacks. The cards right next to it (left and right) ${EL[el].totem === "spd" ? `attack x${1 + boost} faster` : `deal x${1 + boost} damage`}. Drop another ${EL[el].name} on it for +0.5x.` : `${RARITY_NAMES[r]} ${EL[el].name}${st ? " " + "\u2605".repeat(st) : ""}: ${Math.round(damageOf(el, r) * (1 + st))} dmg, ${rateOf(el, r).toFixed(1)} shots/s. ${EL[el].desc}`;
 
 const save = { discovered: {}, best: 0, gems: 0, pity: 0, copies: {}, levels: {}, specials: {}, tut: {} };
 try {
@@ -2161,7 +2162,7 @@ function shrunkArt(img, sx, sy, sw, sh, w, h) {
   const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(src, x, y, cw, ch, 0, 0, w, h);
   return c;
 }
-for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp", "cerberus": "assets/img/cerberus.webp", "basilisk": "assets/img/basilisk.webp", "griffin": "assets/img/griffin.webp", "qilin": "assets/img/qilin.webp", "kraken": "assets/img/kraken.webp", "banshee": "assets/img/banshee.webp", "athena": "assets/img/athena.webp", "ares": "assets/img/ares.webp", "apollo": "assets/img/apollo.webp", "artemis": "assets/img/artemis.webp", "hermes": "assets/img/hermes.webp", "hephaestus": "assets/img/hephaestus.webp", "hera": "assets/img/hera.webp", "nyxarion": "assets/img/nyxarion.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
+for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp", "cerberus": "assets/img/cerberus.webp", "basilisk": "assets/img/basilisk.webp", "griffin": "assets/img/griffin.webp", "qilin": "assets/img/qilin.webp", "kraken": "assets/img/kraken.webp", "banshee": "assets/img/banshee.webp", "athena": "assets/img/athena.webp", "ares": "assets/img/ares.webp", "apollo": "assets/img/apollo.webp", "artemis": "assets/img/artemis.webp", "hermes": "assets/img/hermes.webp", "hephaestus": "assets/img/hephaestus.webp", "hera": "assets/img/hera.webp", "nyxarion": "assets/img/nyxarion.webp", "elyndor": "assets/img/elyndor.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
 const GRAD_CACHE = new Map();
 let EN_DETAIL = true, ENEMY_CROWD = false;
 const CROWD_FREEZE = 40; // above this many enemies on screen, bodies are drawn as one cached still picture (they still hop)
@@ -4636,6 +4637,7 @@ let chamberOpen = false;
 // Divine Altar: a mode of the Chamber with its own row (rows.altar, 10 slots on a spinning ring). The cards on it must match one recipe exactly (always succeeds); otherwise they are all destroyed.
 const DIVINE_RECIPES = [
   { result: "nyxarion", parts: ["black_hole", "black_hole", "banshee", "kraken", "hades"] },
+  { result: "elyndor", parts: ["kitsune", "kitsune", "serpent", "serpent", "corona", "equinox", "apollo"] },
 ];
 let altarMode = false, recipeOpen = false;
 const ALTAR_N = 10, ALTAR_STEP = Math.PI * 2 / ALTAR_N, ALTAR_CY = 432, ALTAR_RX = 250, ALTAR_LIFT = 150;
@@ -6399,7 +6401,7 @@ function closestTo(x, y, n) {
 }
 function updateMirror(c, dt) {
   const i = rows.active.indexOf(c), L = rows.active[i - 1];
-  if (!L || EL[L.element].totem || EL[L.element].beam || EL[L.element].lance || (drag && drag.card === L)) { c.mirrorOf = null; return; }
+  if (!L || EL[L.element].totem || EL[L.element].beam || EL[L.element].lance || EL[L.element].laser || (drag && drag.card === L)) { c.mirrorOf = null; return; }
   if (c.mirrorOf !== L) { c.mirrorOf = L; c.cooldown = 0.4; }
   c.cooldown -= dt;
   if (c.cooldown <= 0 && enemies.length) {
@@ -6571,6 +6573,78 @@ function drawBlackHoles() {
     // crackling arcs off the disk
     if (!lite && Math.random() < 0.4) { ctx.strokeStyle = "rgba(220,200,255,0.85)"; ctx.lineWidth = 1.5; const a = Math.random() * 6.28; ctx.beginPath(); let x = Math.cos(a) * R * 1.5, y = Math.sin(a) * R * 0.5; ctx.moveTo(x, y); for (let i = 0; i < 5; i++) { x += Math.cos(a) * 12 + rand(-8, 8); y += Math.sin(a) * 6 + rand(-8, 8); ctx.lineTo(x, y); } ctx.stroke(); }
     ctx.restore();
+  }
+}
+// Elyndor laser cycle (time in s): red orb 1, blue orb 3, merge 4-5, charge 6-7, laser 7-8.5, then repeat.
+// The laser goes straight up the card's column and kills everything it touches. In the attack row the card is bound for 60 s.
+const ELY = { red: 1, blue: 3, merge0: 4, merge1: 5, charge: 6, fire: 7, end: 8.5, width: 110, lock: 60 };
+function updateLaser(c, dt) {
+  const prev = c.lzT || 0; c.lzT = prev + dt; const t = c.lzT;
+  if (prev < ELY.red && t >= ELY.red) playSample("summon_zap", 0.5, 0.8);
+  if (prev < ELY.blue && t >= ELY.blue) playSample("summon_zap", 0.5, 1.3);
+  if (prev < ELY.merge0 && t >= ELY.merge0) playSample("summon_rise", 0.7, 1.2);
+  if (prev < ELY.fire && t >= ELY.fire) { c.lzHit = new Set(); playSample("summon_boom_legend", 0.9, 1.3); shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 7); c.kick = 1; }
+  if (t >= ELY.fire && t < ELY.end) {
+    const hw = ELY.width / 2; hitSrc = c;
+    for (const e of enemies) { if (e.dead || c.lzHit.has(e) || e.y > c.y - 40 || Math.abs(e.x - c.x) > hw + e.size * 0.6) continue;
+      c.lzHit.add(e); hitEnemy(e, c.element, c.rarity, e.hp * 3 + 1, 1);
+      for (let i = 0; i < 8; i++) addPart({ add: true, kind: "glow", x: e.x, y: e.y, vx: rand(-160, 160), vy: rand(-160, 60), drag: 3, life: rand(0.3, 0.6), size: rand(3, 7), rgb: i % 2 ? "150,255,190" : "200,140,255", a: 0.9 }); }
+    hitSrc = null;
+  }
+  if (t >= ELY.end) c.lzT = 0;
+}
+function laserLocks(dt) {
+  for (const r of ["active", "storage"]) for (const c of rows[r]) {
+    if (!c || !EL[c.element].laser) continue;
+    if (r === "active") { if (!c.lockSeen) { c.lockSeen = true; c.lockT = ELY.lock; } else if (c.lockT > 0) c.lockT = Math.max(0, c.lockT - dt); }
+    else { c.lockSeen = false; c.lockT = 0; c.lzT = 0; }
+  }
+}
+const cardLocked = c => !!c && EL[c.element].laser && c.lockT > 0 && rows.active.includes(c);
+function drawLasers() {
+  const lite = settings.lite;
+  for (const c of rows.active) {
+    if (!c || !EL[c.element].laser || c.dragging) continue;
+    const t = c.lzT || 0, ox = c.x, oy = c.y - CARD_H / 2 - 34;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const orb = (x, y, r, col, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.3, `rgba(${col},${0.9 * a})`); g.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, Math.PI * 2); ctx.fill();
+      // solid core so it reads on bright maps too
+      ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = a; const cg = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r); cg.addColorStop(0, "#ffffff"); cg.addColorStop(0.45, `rgb(${col})`); cg.addColorStop(1, `rgba(${col},0.85)`); circle(x, y, r, cg); ring(x, y, r, "rgba(30,10,50,0.7)", 1.5); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "lighter"; };
+    if (t < ELY.fire) {
+      const mk = t < ELY.merge0 ? 0 : clamp((t - ELY.merge0) / (ELY.merge1 - ELY.merge0), 0, 1), sp = mk * mk, swirl = mk * Math.PI * 2;
+      const ra = clamp((t - ELY.red) / 0.4, 0, 1) * (1 - mk), ba = clamp((t - ELY.blue) / 0.4, 0, 1) * (1 - mk);
+      const dx = 30 * (1 - sp);
+      if (ra > 0) orb(ox - dx * Math.cos(swirl), oy - dx * Math.sin(swirl) * 0.4, 12 + Math.sin(t * 8), "255,70,60", ra);
+      if (ba > 0) orb(ox + dx * Math.cos(swirl), oy + dx * Math.sin(swirl) * 0.4, 12 + Math.sin(t * 8 + 1), "70,120,255", ba);
+      if (mk > 0) {
+        const ch = clamp((t - ELY.charge) / (ELY.fire - ELY.charge), 0, 1), R = 8 + 6 * mk + 10 * ch;
+        orb(ox, oy, R + Math.sin(t * 20) * ch * 2, "180,80,255", Math.min(1, mk * 1.5));
+        if (ch > 0) {
+          ring(ox, oy, R * 3.2 * (1 - ch) + R, `rgba(160,255,190,${0.8 * ch})`, 2.5); ring(ox, oy, R * 4.2 * (1 - ch) + R, `rgba(200,140,255,${0.6 * ch})`, 2);
+          if (!lite) for (let i = 0; i < 10; i++) { const a = i * 0.628 + t * 4, rr = R * 4 * (1 - ((t * 2 + i / 10) % 1)); circle(ox + Math.cos(a) * rr, oy + Math.sin(a) * rr, 2, i % 2 ? "rgba(150,255,190,0.9)" : "rgba(210,150,255,0.9)"); }
+          const pg = ctx.createLinearGradient(0, oy, 0, HUD_H); pg.addColorStop(0, `rgba(170,255,200,${0.25 * ch})`); pg.addColorStop(1, "rgba(170,255,200,0)"); ctx.fillStyle = pg; ctx.fillRect(ox - 3, HUD_H, 6, oy - HUD_H);
+        }
+      }
+    } else {
+      const u = (t - ELY.fire) / (ELY.end - ELY.fire), k = u < 0.12 ? u / 0.12 : u > 0.8 ? (1 - u) / 0.2 : 1, w = ELY.width * (0.6 + 0.4 * k) * (1 + 0.05 * Math.sin(t * 60));
+      const top = HUD_H - 40, h = oy - top;
+      // a solid body first, so the beam reads on bright maps
+      ctx.globalCompositeOperation = "source-over";
+      const sb = ctx.createLinearGradient(ox - w / 2, 0, ox + w / 2, 0); sb.addColorStop(0, "rgba(90,30,180,0)"); sb.addColorStop(0.15, `rgba(110,40,210,${0.55 * k})`); sb.addColorStop(0.35, `rgba(40,190,110,${0.7 * k})`); sb.addColorStop(0.65, `rgba(40,190,110,${0.7 * k})`); sb.addColorStop(0.85, `rgba(110,40,210,${0.55 * k})`); sb.addColorStop(1, "rgba(90,30,180,0)");
+      ctx.fillStyle = sb; ctx.fillRect(ox - w / 2, top, w, h);
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createLinearGradient(ox - w / 2, 0, ox + w / 2, 0);
+      g.addColorStop(0, "rgba(120,60,255,0)"); g.addColorStop(0.2, `rgba(160,90,255,${0.55 * k})`); g.addColorStop(0.38, `rgba(120,255,170,${0.85 * k})`); g.addColorStop(0.5, `rgba(255,255,255,${k})`); g.addColorStop(0.62, `rgba(120,255,170,${0.85 * k})`); g.addColorStop(0.8, `rgba(160,90,255,${0.55 * k})`); g.addColorStop(1, "rgba(120,60,255,0)");
+      ctx.fillStyle = g; ctx.fillRect(ox - w / 2, top, w, h);
+      if (!lite) { for (let i = 0; i < 2; i++) { ctx.strokeStyle = `rgba(${i ? "200,150,255" : "160,255,200"},${0.8 * k})`; ctx.lineWidth = 2; ctx.beginPath(); for (let y = oy; y > top; y -= 18) { const x = ox + (i ? 1 : -1) * w * 0.42 + Math.sin(y * 0.05 + t * 30 + i) * 6; y === oy ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke(); }
+        for (let i = 0; i < 4; i++) { const yy = oy - ((t * 900 + i * 260) % h); ctx.fillStyle = `rgba(230,255,240,${0.5 * k})`; ctx.fillRect(ox - w * 0.45, yy, w * 0.9, 4); } }
+      orb(ox, oy, 26 * k + 10, "180,80,255", k);
+      if (Math.random() < 0.7) addPart({ add: true, kind: "glow", x: ox + rand(-w / 2, w / 2), y: rand(top, oy), vx: rand(-120, 120), vy: rand(-40, 40), drag: 3, life: rand(0.2, 0.45), size: rand(3, 6), rgb: Math.random() < 0.5 ? "150,255,190" : "200,140,255", a: 0.9 });
+    }
+    ctx.restore();
+    if (cardLocked(c)) { const lx = c.x + CARD_W / 2 - 14, ly = c.y - CARD_H / 2 + 12; circle(lx, ly, 15, "rgba(20,10,40,0.85)"); ring(lx, ly, 15, "#c8a8ff", 2);
+      ctx.fillStyle = "#e8dcff"; ctx.fillRect(lx - 6, ly - 2, 12, 9); ctx.strokeStyle = "#e8dcff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(lx, ly - 3, 4, Math.PI, 0); ctx.stroke();
+      text(`${Math.ceil(c.lockT)}s`, lx, ly + 30, 15, "#e8dcff", { weight: 800, outline: 4, outlineColor: "#1a0a30" }); }
   }
 }
 function fireCard(c) {
@@ -7707,6 +7781,7 @@ function applyMerge(card, res) {
 function moveCard(fr, fi, tr, ti) {
   if (fr === tr && fi === ti) return "";
   const card = rows[fr][fi], other = rows[tr][ti];
+  if (cardLocked(other)) { showInfo(`${EL[other.element].name} is bound to this slot for ${Math.ceil(other.lockT)} more seconds.`); other.shake = 1; return ""; }
   if (!card) return "";
   if (!other) { rows[fr][fi] = null; rows[tr][ti] = card; const s = slotPos(tr, ti); card.setHome(s.x, s.y); return "move"; }
   let res = merge(card.element, card.rarity, other.element, other.rarity, card.stars, other.stars);
@@ -8605,6 +8680,7 @@ function chamberDrop(d, p) {
   const target = slotAt(p);
   if (!target || (target[0] === d.from && target[1] === d.index)) return;
   const card = d.card, other = rows[target[0]][target[1]];
+  if (cardLocked(other)) { showInfo(`${EL[other.element].name} is bound to this slot for ${Math.ceil(other.lockT)} more seconds.`); other.shake = 1; return; }
   const altarOk = c => altarMode ? !!c && !EL[c.element].special : canGoOnAltar(c), onAlt = r => r === "chamber" || r === "altar";
   if (onAlt(target[0]) && !altarOk(card) && !onAlt(d.from)) { showInfo(altarMode ? "Special cards can't go on the Divine Altar." : "Only Epic and Myth cards can go on the altars."); card.shake = 1; return; }
   if (onAlt(d.from) && other && !altarOk(other) && !onAlt(target[0])) { showInfo("Drop it on an empty slot."); return; }
@@ -8718,6 +8794,7 @@ canvas.addEventListener("pointerdown", ev => {
   if ((inGap && !s) || (Math.abs(p.y - STORAGE_Y) < CARD_H / 2 + 10 && (!s || (s[0] === "storage" && !rows.storage[s[1]])))) { storageSwipe = { x0: p.x }; return; }
   if (!s || !rows[s[0]][s[1]]) return;
   const card = rows[s[0]][s[1]];
+  if (cardLocked(card)) { showInfo(`${EL[card.element].name} is bound to this slot for ${Math.ceil(card.lockT)} more seconds.`); card.shake = 1; return; }
   drag = { card, from: s[0], index: s[1], ox: card.x - p.x, oy: card.y - p.y, px: p.x, py: p.y, moved: false };
   playUi("ui_pick");
   card.dragging = true;
@@ -8832,6 +8909,7 @@ function update(dt) {
       if (EL[c.element].beam) { updateBeam(c, dt * spd); continue; }
       if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
       if (EL[c.element].blackhole && nyxUpdate(c, dt * spd)) continue;
+      if (EL[c.element].laser) { updateLaser(c, dt * spd); continue; }
       c.cooldown -= dt * spd;
       if (!enemies.length) c.frenzyN = 0;
       if (c.cooldown <= 0 && enemies.length) { fireCard(c); const fz = EL[c.element].frenzy; if (fz) c.frenzyN = Math.min(fz, (c.frenzyN || 0) + 1); c.cooldown = 1 / (rateOf(c.element, c.rarity) * (fz ? 1 + c.frenzyN * 0.1 : 1)); }
@@ -8844,7 +8922,7 @@ function update(dt) {
   updateDragon(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
-  updateBlackHoles(dt);
+  updateBlackHoles(dt); laserLocks(dt);
   updateParts(dt);
   updateMeteors(dt); updateDoom(doomDt);
   for (const f of fxs) f.update(dt);
@@ -9137,7 +9215,7 @@ function drawWorld() {
   try { for (const r of boardRows) for (const c of rows[r]) if (onShow(r, c)) c.drawBattle(); } finally { GOD_BACK_OFF = false; }
   if (!chamberOpen) { drawStorageNav(); drawShopLocks(); drawTotemLinks(); drawGather(); }
   if (!chamberOpen) {
-    drawParts(); for (const p of projectiles) p.draw(); drawBlackHoles();
+    drawParts(); for (const p of projectiles) p.draw(); drawBlackHoles(); drawLasers();
     if (timeStopT > 0) {
       const rnd = Math.random; let sd = 12345; Math.random = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
       try { drawLances(); drawBeams(); } finally { Math.random = rnd; }
