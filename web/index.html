@@ -1051,6 +1051,7 @@ SAMPLE_SRC.wild_drop = "assets/audio/wild_drop.mp3";
 SAMPLE_SRC.stage_clear = "assets/audio/stage_clear.mp3";
 SAMPLE_SRC.battle_loop = "assets/audio/battle_loop.mp3";
 SAMPLE_SRC.dragon_loop = "assets/audio/dragon_loop.mp3";
+for (const [k, [o, n]] of Object.entries({"nyxarion_atk":[0,7881],"nyxarion_hit":[7881,6941],"nyx_bh":[14822,19480],"nyx_boom":[34302,21987]})) SAMPLE_SRC[k] = `pack:assets/audio/nyx_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"divine_combine":[0,44244],"divine_result":[44244,27003]})) SAMPLE_SRC[k] = `pack:assets/audio/divine_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"soul_appear":[0,54902],"soul_shot":[54902,22301],"soul_blast":[77203,18853],"soul_shield":[96056,36720],"soul_summon":[132776,48946],"soul_die":[181722,60858],"soul_idle":[242580,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/soul_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"kraken_rise":[0,54902],"kraken_spit":[54902,18853],"kraken_splat":[73755,6627],"kraken_slither":[80382,20107],"kraken_grab":[100489,20107],"kraken_release":[120596,21360],"kraken_die":[141956,60858],"kraken_idle":[202814,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/kraken_sounds.mp3#${o},${n}`;
@@ -6442,7 +6443,7 @@ function nyxUpdate(c, dt) {
   const tg = closestTo(c.x, c.y - 60, 1)[0]; if (!tg) return false;
   c.bhT = 0; c.kick = 1;
   c.bh = { x: c.x, y: c.y - 70, tgt: tg, phase: 0, t: 0, card: c, done: false, motes: [] }; blackholes.push(c.bh);
-  playSample("summon_implode", 0.8, 0.7);
+  playSample("nyx_bh", 1, 1);
   return true;
 }
 function nyxExplode(b) {
@@ -6451,15 +6452,28 @@ function nyxExplode(b) {
   for (const e of enemies) { if (e.dead) continue; if (Math.hypot(e.x - b.x, e.y - b.y) < NYX_BH.boomR) hitEnemy(e, c.element, c.rarity, dmg, powerMult(c)); }
   hitSrc = null;
   shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 10); buzz(90);
-  playSample("summon_boom_epic", 0.9, 0.8);
+  playSample("nyx_boom", 1, 1);
   const n = settings.lite ? 40 : 110;
   for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, v = rand(120, 520); addPart({ add: true, kind: "glow", x: b.x, y: b.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.7, drag: 2.5, life: rand(0.4, 0.9), size: rand(5, 12), grow: 0.2, cols: NYX_COLS, a: 0.9 }); }
-  mxFx(b.x, b.y, 0.8, (fx, k) => {
+  for (let i = 0; i < (settings.lite ? 6 : 16); i++) { const a = Math.random() * 6.28, v = rand(200, 420); addPart({ kind: "chunk", x: b.x, y: b.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, g: 600, drag: 0.5, vr: rand(-10, 10), life: rand(0.6, 1), size: rand(4, 8), col: "#2a1450" }); }
+  for (let i = 0; i < (settings.lite ? 5 : 12); i++) { const a = i / 12 * 6.28; addPart({ kind: "smoke", x: b.x + Math.cos(a) * 40, y: b.y + Math.sin(a) * 18, vx: Math.cos(a) * 90, vy: Math.sin(a) * 40, drag: 1.5, life: rand(0.9, 1.4), size: rand(16, 26), grow: 1.4, col: "#140a26", a: 0.55 }); }
+  const BR = NYX_BH.boomR;
+  mxFx(b.x, b.y, 1.1, (fx, k) => {
     ctx.save(); ctx.globalCompositeOperation = "lighter";
-    const r = NYX_BH.boomR * (0.2 + 0.9 * Math.sqrt(k));
-    const g = ctx.createRadialGradient(fx.x, fx.y, 0, fx.x, fx.y, r); g.addColorStop(0, `rgba(230,220,255,${0.9 * (1 - k)})`); g.addColorStop(0.4, `rgba(140,90,255,${0.6 * (1 - k)})`); g.addColorStop(1, "rgba(60,40,200,0)");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2); ctx.fill();
-    for (let i = 0; i < 3; i++) { const u = clamp(k * 1.4 - i * 0.15, 0, 1); if (u <= 0 || u >= 1) continue; ctx.save(); ctx.translate(fx.x, fx.y); ctx.scale(1, 0.6); ring(0, 0, NYX_BH.boomR * 1.2 * u, `rgba(${i ? "120,140,255" : "220,190,255"},${1 - u})`, 8 * (1 - u) + 1); ctx.restore(); }
+    const x = fx.x, y = fx.y, e = 1 - Math.pow(1 - Math.min(1, k * 1.6), 3);
+    // flash + expanding sphere
+    if (k < 0.12) { ctx.fillStyle = `rgba(240,230,255,${0.5 * (1 - k / 0.12)})`; ctx.fillRect(0, -TOP, W, H + TOP); }
+    const r = BR * (0.25 + 0.95 * e), g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,250,255,${0.95 * (1 - k)})`); g.addColorStop(0.3, `rgba(180,130,255,${0.7 * (1 - k)})`); g.addColorStop(0.7, `rgba(90,70,240,${0.35 * (1 - k)})`); g.addColorStop(1, "rgba(40,20,160,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    // spinning god rays
+    if (!settings.lite) { ctx.save(); ctx.translate(x, y); ctx.rotate(k * 1.2); for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); const L = BR * 1.5 * e, gr = ctx.createLinearGradient(0, 0, 0, -L); gr.addColorStop(0, `rgba(230,215,255,${0.45 * (1 - k)})`); gr.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(i % 2 ? 16 : 26, -L); ctx.lineTo(i % 2 ? -16 : -26, -L); ctx.fill(); } ctx.restore(); }
+    // ground shockwaves
+    for (let i = 0; i < 3; i++) { const u = clamp(k * 1.3 - i * 0.12, 0, 1); if (u <= 0 || u >= 1) continue; ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.5); ring(0, 0, BR * 1.4 * u, `rgba(${["240,220,255", "160,120,255", "110,140,255"][i]},${1 - u})`, 10 * (1 - u) + 1); ctx.restore(); }
+    // a pillar of light shooting up
+    const pa = Math.max(0, 1 - k * 1.4); if (pa > 0) { const pg = ctx.createLinearGradient(0, y, 0, y - 420); pg.addColorStop(0, `rgba(220,200,255,${0.6 * pa})`); pg.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = pg; ctx.fillRect(x - 26 * pa - 4, y - 420, 52 * pa + 8, 420); }
+    ctx.globalCompositeOperation = "source-over";
+    // the collapsing core for the first instant
+    if (k < 0.1) circle(x, y, 28 * (1 - k / 0.1), "#000000");
     ctx.restore();
   });
   fxs.push(new Fx("text", { x: b.x, y: b.y - 40, text: "BLACK HOLE!", color: "#c8a8ff", size: 26, duration: 0.9 }));
@@ -6485,15 +6499,45 @@ function updateBlackHoles(dt) {
 }
 function drawBlackHoles() {
   for (const b of blackholes) {
-    const t = b.t, R = 22 + 3 * Math.sin(t * 7) + Math.min(1, t * 3) * 6, lite = settings.lite;
-    ctx.save(); ctx.translate(b.x, b.y); ctx.globalCompositeOperation = "lighter";
-    if (!lite) { const h = ctx.createRadialGradient(0, 0, R, 0, 0, NYX_BH.pullR); h.addColorStop(0, "rgba(120,80,255,0.32)"); h.addColorStop(1, "rgba(60,40,200,0)"); ctx.fillStyle = h; ctx.beginPath(); ctx.arc(0, 0, NYX_BH.pullR, 0, Math.PI * 2); ctx.fill(); }
-    ctx.save(); ctx.scale(1, 0.4); ring(0, 0, NYX_BH.pullR * 0.95, `rgba(170,140,255,${0.25 + 0.1 * Math.sin(t * 5)})`, 2, -t * 2, -t * 2 + Math.PI * 1.5); ctx.restore();
-    for (const m of b.motes) { const x = Math.cos(m.a) * m.r, y = Math.sin(m.a) * m.r * 0.45; circle(x, y, 2.2, m.t % 0.3 < 0.15 ? "rgba(200,180,255,0.9)" : "rgba(110,150,255,0.9)"); }
-    for (let k = 0; k < 3; k++) { ctx.save(); ctx.rotate(t * (2.5 + k) * (k % 2 ? -1 : 1)); ctx.scale(1, 0.38); ctx.strokeStyle = ["rgba(200,160,255,0.9)", "rgba(100,130,255,0.85)", "rgba(240,220,255,0.7)"][k]; ctx.lineWidth = 4 - k; ctx.beginPath(); ctx.arc(0, 0, R * (1.55 + k * 0.35), 0, Math.PI * 1.3); ctx.stroke(); ctx.restore(); }
+    const t = b.t, lite = settings.lite, grow = Math.min(1, t * 2.5), R = (24 + 3 * Math.sin(t * 7) + 6 * Math.min(1, t)) * (0.3 + 0.7 * grow), PR = NYX_BH.pullR;
+    ctx.save(); ctx.translate(b.x, b.y);
+    // shadow warp on the ground + darkening of space around it
+    ctx.save(); ctx.scale(1, 0.4); const sh = ctx.createRadialGradient(0, R * 2.5, 0, 0, R * 2.5, PR); sh.addColorStop(0, "rgba(10,0,30,0.45)"); sh.addColorStop(1, "rgba(10,0,30,0)"); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, R * 2.5, PR, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    const dk = ctx.createRadialGradient(0, 0, R, 0, 0, PR * 0.9); dk.addColorStop(0, "rgba(6,0,18,0.55)"); dk.addColorStop(1, "rgba(6,0,18,0)"); ctx.fillStyle = dk; ctx.beginPath(); ctx.arc(0, 0, PR * 0.9, 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = "lighter";
+    if (!lite) { const h = ctx.createRadialGradient(0, 0, R, 0, 0, PR); h.addColorStop(0, "rgba(130,90,255,0.35)"); h.addColorStop(0.5, "rgba(70,60,220,0.12)"); h.addColorStop(1, "rgba(60,40,200,0)"); ctx.fillStyle = h; ctx.beginPath(); ctx.arc(0, 0, PR, 0, Math.PI * 2); ctx.fill(); }
+    // pull radius ring
+    ctx.save(); ctx.scale(1, 0.4); ring(0, 0, PR * 0.95, `rgba(170,140,255,${0.3 + 0.12 * Math.sin(t * 5)})`, 2, -t * 2, -t * 2 + Math.PI * 1.5); ring(0, 0, PR * 0.8, "rgba(110,140,255,0.2)", 1.5, t * 1.4, t * 1.4 + Math.PI); ctx.restore();
+    // tethers to the enemies being dragged
+    if (!lite) { ctx.lineCap = "round"; for (const e of enemies) { if (e.dead || e.isBoss) continue; const dx = e.x - b.x, dy = e.y - b.y, d = Math.hypot(dx, dy); if (d > PR || d < 4) continue; const a = 1 - d / PR;
+      ctx.strokeStyle = `rgba(170,120,255,${0.55 * a})`; ctx.lineWidth = 1 + 2.5 * a; ctx.beginPath(); ctx.moveTo(dx, dy); ctx.quadraticCurveTo(dx * 0.5 - dy * 0.25, dy * 0.5 + dx * 0.25, 0, 0); ctx.stroke(); } }
+    // polar jets
+    if (!lite) for (const sd of [-1, 1]) { const L = (90 + 20 * Math.sin(t * 9 + sd)) * grow, g = ctx.createLinearGradient(0, 0, 0, sd * L); g.addColorStop(0, "rgba(230,220,255,0.8)"); g.addColorStop(0.3, "rgba(150,110,255,0.45)"); g.addColorStop(1, "rgba(90,80,255,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-R * 0.25, 0); ctx.lineTo(-R * 0.08 - 6, sd * L); ctx.lineTo(R * 0.08 + 6, sd * L); ctx.lineTo(R * 0.25, 0); ctx.fill(); }
+    // in-falling debris streaks
+    ctx.lineCap = "round";
+    for (const m of b.motes) { const x = Math.cos(m.a) * m.r, y = Math.sin(m.a) * m.r * 0.45, x2 = Math.cos(m.a - 0.25) * (m.r + 8), y2 = Math.sin(m.a - 0.25) * (m.r + 8) * 0.45, al = Math.min(1, m.t * 3);
+      ctx.strokeStyle = m.t % 0.3 < 0.15 ? `rgba(210,190,255,${0.9 * al})` : `rgba(120,160,255,${0.9 * al})`; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x, y); ctx.stroke(); }
+    // accretion disk: back half (behind the core)
+    const disk = front => { ctx.save(); ctx.rotate(-0.25); ctx.scale(1, 0.32);
+      for (let k = 0; k < 5; k++) { const r = R * (1.45 + k * 0.28), w = 5 - k * 0.7, a0 = front ? 0 : Math.PI, rot = t * (3.2 - k * 0.4);
+        for (let s2 = 0; s2 < 6; s2++) { const aa = a0 + s2 * Math.PI / 6, mid = aa + Math.PI / 12, dop = 0.55 + 0.45 * Math.cos(mid + 0.3); // doppler: one side brighter
+          const flick = 0.75 + 0.25 * Math.sin(rot * 3 + s2 * 1.7 + k);
+          ctx.strokeStyle = k < 2 ? `rgba(255,${200 + 40 * dop | 0},255,${0.75 * dop * flick})` : k < 4 ? `rgba(170,120,255,${0.7 * dop * flick})` : `rgba(90,130,255,${0.55 * dop * flick})`;
+          ctx.lineWidth = w; ctx.beginPath(); ctx.arc(0, 0, r, aa, aa + Math.PI / 6 + 0.02); ctx.stroke(); } }
+      ctx.restore(); };
+    disk(false);
     ctx.globalCompositeOperation = "source-over";
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, "#000000"); g.addColorStop(0.75, "#05020c"); g.addColorStop(1, "#2a1060");
-    circle(0, 0, R, g); ring(0, 0, R, "rgba(210,180,255,0.95)", 2);
+    // the core
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R); g.addColorStop(0, "#000000"); g.addColorStop(0.8, "#020008"); g.addColorStop(1, "#1a0840");
+    circle(0, 0, R, g);
+    ctx.globalCompositeOperation = "lighter";
+    // Einstein ring (light bent over the top of the hole) and photon ring
+    ctx.save(); ctx.scale(1, 0.92); ring(0, -R * 0.12, R * 1.18, `rgba(220,200,255,${0.55 + 0.2 * Math.sin(t * 6)})`, 3, Math.PI * 1.05, Math.PI * 1.95); ctx.restore();
+    ring(0, 0, R * 1.02, `rgba(255,245,255,${0.7 + 0.3 * Math.sin(t * 30)})`, 1.6);
+    disk(true);
+    // crackling arcs off the disk
+    if (!lite && Math.random() < 0.4) { ctx.strokeStyle = "rgba(220,200,255,0.85)"; ctx.lineWidth = 1.5; const a = Math.random() * 6.28; ctx.beginPath(); let x = Math.cos(a) * R * 1.5, y = Math.sin(a) * R * 0.5; ctx.moveTo(x, y); for (let i = 0; i < 5; i++) { x += Math.cos(a) * 12 + rand(-8, 8); y += Math.sin(a) * 6 + rand(-8, 8); ctx.lineTo(x, y); } ctx.stroke(); }
     ctx.restore();
   }
 }
