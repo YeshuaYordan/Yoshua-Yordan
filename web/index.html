@@ -635,7 +635,10 @@ function mergeHint(a, b) {
   if (a.rarity !== b.rarity) return `Both cards must be the same level (like V2 + V2) to fuse.`;
   return "";
 }
-const damageOf = (el, r) => EL[el].dmg * RARITY_DMG[r] * levelMult(el) * runDmgMult(el);
+// Divine cards keep up with enemy HP at half speed (square root of the HP curve), tuned so typical normal enemies take ~2-4 hits around waves 70-100; never below their base damage.
+const DIVINE_SCALE_K = 0.5;
+const divineScale = () => (state === "wave" || state === "break") ? Math.max(1, DIVINE_SCALE_K * Math.sqrt(hpScale(Math.max(1, wave)))) : 1;
+const damageOf = (el, r) => EL[el].dmg * RARITY_DMG[r] * levelMult(el) * runDmgMult(el) * (EL[el].divine ? divineScale() : 1);
 const rateOf = (el, r) => EL[el].rate * RARITY_RATE[r];
 const priceOf = (el, r) => RARITY_PRICE[r] * EL[el].tier;
 const sellOf = (el, r) => Math.max(1, Math.floor(priceOf(el, r) / 2));
