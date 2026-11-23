@@ -4591,7 +4591,7 @@ const CHAMBER_Y = 340;
 let chamberOpen = false;
 // Divine Altar: a mode of the Chamber with its own row (rows.altar, 10 slots on a spinning ring). The cards on it must match one recipe exactly (always succeeds); otherwise they are all destroyed.
 const DIVINE_RECIPES = [
-  { result: "nyxarion", parts: ["zeus", "hera", "kraken"] },
+  { result: "nyxarion", parts: ["black_hole", "black_hole", "banshee", "kraken", "hades"] },
 ];
 let altarMode = false, recipeOpen = false;
 const ALTAR_N = 10, ALTAR_STEP = Math.PI * 2 / ALTAR_N, ALTAR_CY = 432, ALTAR_RX = 250, ALTAR_LIFT = 150;
@@ -4614,7 +4614,7 @@ function altarRecipe(cards) {
   const have = cards.map(c => c.element).sort().join("|");
   return DIVINE_RECIPES.find(r => [...r.parts].sort().join("|") === have) || null;
 }
-const boardHasEl = el => [...rows.active, ...rows.storage, ...rows.altar].some(c => c && c.element === el);
+const boardHasEl = (el, n = 1) => [...rows.active, ...rows.storage, ...rows.altar].filter(c => c && c.element === el).length >= n;
 let restartArmed = 0;
 let enemies = [], projectiles = [], zones = [], fxs = [];
 let castleMax = CASTLE_MAX, castleArmor = 0;
@@ -9272,9 +9272,10 @@ function drawRecipeBook() {
       const parts = ln.map((i, k) => (k ? " + " : "") + EL[q.r.parts[i]].name), tw = ctx.measureText(parts.join("")).width;
       let cx = W / 2 - tw / 2;
       ln.forEach((i, k) => {
+        const nth = q.r.parts.slice(0, i + 1).filter(x => x === q.r.parts[i]).length;
         if (k) { text(" + ", cx, ry + 34 + li * 30, 22, GOLD, { weight: 800, outline: 5, align: "left" }); cx += ctx.measureText(" + ").width; }
         const el = q.r.parts[i], nm = EL[el].name;
-        text(nm, cx, ry + 34 + li * 30, 22, boardHasEl(el) ? "#8dff9a" : PARCH, { weight: 700, outline: 5, align: "left" }); ctx.font = `700 22px ${FONT}`; cx += ctx.measureText(nm).width;
+        text(nm, cx, ry + 34 + li * 30, 22, boardHasEl(el, nth) ? "#8dff9a" : PARCH, { weight: 700, outline: 5, align: "left" }); ctx.font = `700 22px ${FONT}`; cx += ctx.measureText(nm).width;
       });
     });
     text("= " + EL[q.r.result].name, W / 2, ry + 34 + q.lines.length * 30 + 8, 26, "#c8f6ff", { font: DISPLAY, weight: 900, outline: 6, outlineColor: "#140a28" });
