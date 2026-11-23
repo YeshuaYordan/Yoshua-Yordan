@@ -9038,33 +9038,36 @@ function drawAltar() {
   text(`${n} / ${ALTAR_N} cards on the altar`, W / 2, 530, 24, n ? "#d8faff" : PARCH, { weight: 700, outline: 7 });
   text("Swipe to spin. A true recipe always ascends; wrong cards are lost!", W / 2, 586, 18, "#ff9a8a", { outline: 5 });
 }
-const BOOK_CARDS = {};
-function bookCard(el, x, y, sc) {
-  const c = BOOK_CARDS[el] || (BOOK_CARDS[el] = new Card(el, showRarity(el)));
-  c.t = time + c.seed; c.x = x; c.y = y; c.scale = sc; c.noLabel = sc < 0.7;
-  c.draw();
-}
 function drawRecipeBook() {
   dim(0.8);
-  const x = 26, w = W - 52, rowH = 300, h = Math.min(H - 200, 170 + DIVINE_RECIPES.length * rowH), y = Math.max(96, (H - h) / 2);
+  // text-only list: ingredient names (green when that card is on your board) = result name
+  const x = 26, w = W - 52, rows = DIVINE_RECIPES.map(r => {
+    const words = r.parts.map(el => EL[el].name), lines = []; let line = [];
+    ctx.font = `700 22px ${FONT}`;
+    for (let i = 0; i < r.parts.length; i++) { const t = [...line, words[i]].join(" + "); if (line.length && ctx.measureText(t).width > w - 100) { lines.push(line); line = []; } line.push(i); }
+    if (line.length) lines.push(line);
+    return { r, lines, h: 30 + lines.length * 30 + 42 };
+  });
+  const h = Math.min(H - 200, 124 + rows.reduce((a, q) => a + q.h + 12, 0) + 116), y = Math.max(96, (H - h) / 2);
   questFrame(x, y, w, h, 24);
   text("Divine Recipes", W / 2, y + 62, 42, GOLD, { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#140a20" });
   text("Offer exactly these cards on the altar", W / 2, y + 96, 20, PARCH, { weight: 600, outline: 5 });
-  DIVINE_RECIPES.forEach((r, k) => {
-    const ry = y + 130 + k * rowH, d = EL[r.result];
-    rrect(x + 22, ry, w - 44, rowH - 20, 16); ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill(); ctx.strokeStyle = hexA("#9ff0ff", 0.4); ctx.lineWidth = 2; ctx.stroke();
-    r.parts.forEach((el, i) => {
-      const cx = x + 90 + i * 128, cy = ry + 78;
-      bookCard(el, cx, cy, 0.68);
-      const own = boardHasEl(el);
-      text(EL[el].name, cx, cy + 62, 17, own ? "#8dff9a" : PARCH, { weight: 800, outline: 5 });
-      if (own) { circle(cx + 34, cy - 40, 12, "#3aa84a"); ring(cx + 34, cy - 40, 12, INK, 2); text("\u2713", cx + 34, cy - 39, 16, "#fff", { weight: 900, baseline: "middle" }); }
-      if (i < 2) text("+", cx + 64, cy + 8, 34, GOLD, { weight: 900, outline: 6 });
+  let ry = y + 124;
+  for (const q of rows) {
+    rrect(x + 22, ry, w - 44, q.h, 14); ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill(); ctx.strokeStyle = hexA("#9ff0ff", 0.4); ctx.lineWidth = 2; ctx.stroke();
+    q.lines.forEach((ln, li) => {
+      ctx.font = `700 22px ${FONT}`;
+      const parts = ln.map((i, k) => (k ? " + " : "") + EL[q.r.parts[i]].name), tw = ctx.measureText(parts.join("")).width;
+      let cx = W / 2 - tw / 2;
+      ln.forEach((i, k) => {
+        if (k) { text(" + ", cx, ry + 34 + li * 30, 22, GOLD, { weight: 800, outline: 5, align: "left" }); cx += ctx.measureText(" + ").width; }
+        const el = q.r.parts[i], nm = EL[el].name;
+        text(nm, cx, ry + 34 + li * 30, 22, boardHasEl(el) ? "#8dff9a" : PARCH, { weight: 700, outline: 5, align: "left" }); ctx.font = `700 22px ${FONT}`; cx += ctx.measureText(nm).width;
+      });
     });
-    text("=", x + 440, ry + 86, 40, "#c8f6ff", { weight: 900, outline: 7 });
-    bookCard(r.result, x + 540, ry + 82, 0.9);
-    wrapLines(d.desc, 18, w - 90).forEach((ln, i) => text(ln, W / 2, ry + 176 + i * 23, 18, hexA(PARCH, 0.9), { weight: 600, outline: 5 }));
-  });
+    text("= " + EL[q.r.result].name, W / 2, ry + 34 + q.lines.length * 30 + 8, 26, "#c8f6ff", { font: DISPLAY, weight: 900, outline: 6, outlineColor: "#140a28" });
+    ry += q.h + 12;
+  }
   btn.recipeClose.y = y + h - 92; drawBtn(btn.recipeClose);
 }
 function drawSellBox() {
