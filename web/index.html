@@ -8986,6 +8986,7 @@ canvas.addEventListener("wheel", ev => {
   if (testPick) { testPick.scroll = (testPick.scroll || 0) + ev.deltaY; ev.preventDefault(); }
   else if (bookOpen) { bookScroll += ev.deltaY; ev.preventDefault(); }
   else if (altarMode && !recipeOpen && !fusion) { altarRotTo += Math.sign(ev.deltaY || ev.deltaX) * ALTAR_STEP; ev.preventDefault(); }
+  else if (state === "title" && cardInfo) { cardInfo.scroll = clamp((cardInfo.scroll || 0) + ev.deltaY, 0, cardInfo.maxScroll || 0); ev.preventDefault(); }
   else if (state === "title" && missionsOpen) { achScroll += ev.deltaY; ev.preventDefault(); }
   else if (state === "title" && lobbyPage === -1) { cardsScroll = clamp(cardsScroll + ev.deltaY, 0, cardsMaxScroll()); ev.preventDefault(); }
 }, { passive: false });
@@ -9977,6 +9978,7 @@ function lobbyDown(p) {
 }
 function lobbyMove(p) {
   const s = lobbySwipe, dx = p.x - s.x0;
+  if (cardInfo) { const dy = p.y - s.y0; if (Math.abs(dy) > 8) { s.vscroll = true; if (s.btn) s.btn.down = false; cardInfo.scroll = clamp((s.scroll0 ?? (s.scroll0 = cardInfo.scroll || 0)) - dy, 0, cardInfo.maxScroll || 0); } return; }
   if (summonReveal || ratesOpen || cardInfo || castleOpen || shopOpen || dailyOpen || bioOpen || guide || settingsOpen || tutBlocking()) return;
   if (missionsOpen) { if (missionsTab === 1) { const dy = p.y - s.y0; if (Math.abs(dy) > 10) { s.vscroll = true; if (s.btn) s.btn.down = false; achScroll = (s.scroll0 ?? (s.scroll0 = achScroll)) - dy; } } return; }
   const dy = p.y - s.y0;
@@ -11702,6 +11704,7 @@ function effectLines(d) {
 }
 function howToGet(el) {
   const d = EL[el];
+  if (d.divine) { const r = DIVINE_RECIPES.find(q => q.result === el); return "Ascend at the Divine Altar during a run" + (r ? ": " + r.parts.map(tokenName).join(" + ") + "." : "."); }
   if (d.special) return "Summon (guaranteed by pull 100) or the Shop. Once unlocked it can appear in the battle shop (rare).";
   if (d.legendCard) return "Fusion Chamber with a Myth card on an altar (Legend chance), or Summon (1.5%).";
   if (d.myth) return "Fusion Chamber: fuse 3 or more Epic cards.";
@@ -11716,17 +11719,22 @@ function drawCardInfo(dt) {
   const x = 36, w = W - 72, h = 780, y = Math.max(100, H / 2 - h / 2);
   questFrame(x, y, w, h, 24);
   const c = ci.card; c.x = c.hx = x + 120; c.y = c.hy = y + 150; c.scale = 1.5; c.draw();
-  const group = d.idol ? "Special card: Idol" : d.totem ? "Special card: Totem" : d.special ? "Special card" : d.legendCard ? "Legend card" : d.myth ? "Myth card" : d.tier === 3 ? "Epic element" : d.tier === 2 ? "Next element" : "Main element";
+  const group = d.divine ? "Divine card" : d.idol ? "Special card: Idol" : d.totem ? "Special card: Totem" : d.special ? "Special card" : d.legendCard ? "Legend card" : d.myth ? "Myth card" : d.tier === 3 ? "Epic element" : d.tier === 2 ? "Next element" : "Main element";
   const tx = x + 232;
   text(d.name, tx, y + 74, d.name.length > 10 ? 34 : 40, INK, { align: "left", font: DISPLAY, weight: 900 });
   text(group, tx, y + 108, 21, RARITY_COLORS[showRarity(el)] === "#B8BEC8" ? "#6b3a22" : shade(RARITY_COLORS[showRarity(el)], -0.25), { align: "left", weight: 700 });
-  text(locked ? "Locked" : d.totem ? "Unlocked" : `Level ${lvl}` + (lvl > 1 ? `  (+${Math.round((lm - 1) * 100)}% damage)` : ""), tx, y + 146, 23, locked ? "#a05050" : lvl > 1 ? "#2f8f3f" : INK, { align: "left", weight: 700 });
+  text(d.divine ? "Unique: one per board" : locked ? "Locked" : d.totem ? "Unlocked" : `Level ${lvl}` + (lvl > 1 ? `  (+${Math.round((lm - 1) * 100)}% damage)` : ""), tx, y + 146, 23, locked ? "#a05050" : lvl > 1 ? "#2f8f3f" : INK, { align: "left", weight: 700 });
   const need = levelNeed(el);
-  if (!locked && !d.totem) text(need ? `${copiesOf(el)} / ${need} copies to Lv ${lvl + 1} (+${Math.round(lvl * LEVEL_BONUS * 100)}%)` : "Max level", tx, y + 178, 18, "#6b3a22", { align: "left", weight: 600 });
-  wrapInk(d.desc, tx, y + 214, w - 250, 19, 24);
-  let ry = y + 316;
+  if (!locked && !d.totem && !d.divine) text(need ? `${copiesOf(el)} / ${need} copies to Lv ${lvl + 1} (+${Math.round(lvl * LEVEL_BONUS * 100)}%)` : "Max level", tx, y + 178, 18, "#6b3a22", { align: "left", weight: 600 });
+  // everything below the header scrolls inside a clipped area, so long descriptions never overlap anything
+  const top = y + 272, bottom = y + h - 112;
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 12, top, w - 24, bottom - top); ctx.clip(); ctx.translate(0, -(ci.scroll || 0));
+  ctx.font = `600 19px ${FONT}`;
+  const descLines = (() => { const out = []; let ln = ""; for (const wd of d.desc.split(" ")) { const t2 = ln ? ln + " " + wd : wd; if (ctx.measureText(t2).width > w - 64 && ln) { out.push(ln); ln = wd; } else ln = t2; } if (ln) out.push(ln); return out; })();
+  descLines.forEach((l, i) => text(l, x + 32, top + 24 + i * 25, 19, "#6b3a22", { align: "left", weight: 600 }));
+  let ry = top + 24 + descLines.length * 25 + 46;
   const line = () => { ctx.fillStyle = "rgba(42,26,18,0.15)"; ctx.fillRect(x + 24, ry - 26, w - 48, 2); };
-  const forms = d.special ? [SPECIAL] : d.legendCard ? [LEGEND_R] : d.myth ? [MYTH] : d.tier === 3 ? [EPIC] : [0, 1, 2];
+  const forms = d.divine ? [DIVINE] : d.special ? [SPECIAL] : d.legendCard ? [LEGEND_R] : d.myth ? [MYTH] : d.tier === 3 ? [EPIC] : [0, 1, 2];
   const formName = r => r <= 2 ? `V${r + 1}` : RARITY_NAMES[r];
   line();
   if (d.idol) {
@@ -11747,13 +11755,17 @@ function drawCardInfo(dt) {
     text("Limit", x + 30, ry, 22, INK, { align: "left", weight: 700 }); text(`1 ${d.name} on the board`, x + w - 30, ry, 20, INK, { align: "right", weight: 600 });
     ry += 44; line();
   } else {
+  const unl = !!d.laser;
   text(d.beam ? "Damage per stream /s" : d.lance ? "Beam damage /s (each enemy)" : "Damage per hit", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  if (unl) text("Unlimited", x + w - 30, ry, 22, "#b4441f", { align: "right", weight: 800 }); else
   text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(d.beam ? damageOf(el, r) * rateOf(el, r) * BEAM_SHARE : d.lance ? damageOf(el, r) * rateOf(el, r) : damageOf(el, r))).join("   "), x + w - 30, ry, 22, "#b4441f", { align: "right", weight: 700 });
   ry += 44; line();
   text("Attack speed", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  if (unl) text(`1 laser every ${ELY.end} s`, x + w - 30, ry, 22, "#2f6fb4", { align: "right", weight: 700 }); else
   text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + rateOf(el, r).toFixed(1)).join("   ") + " /s", x + w - 30, ry, 22, "#2f6fb4", { align: "right", weight: 700 });
   ry += 44; line();
   text("Damage per second", x + 30, ry, 22, INK, { align: "left", weight: 700 });
+  if (unl) text("Unlimited", x + w - 30, ry, 22, "#7a3fb0", { align: "right", weight: 800 }); else
   text(forms.map(r => (forms.length > 1 ? formName(r) + " " : "") + Math.round(damageOf(el, r) * rateOf(el, r) * (d.beam ? BEAM_SHARE * d.beam : d.multishot || 1))).join("   "), x + w - 30, ry, 22, "#7a3fb0", { align: "right", weight: 700 });
   ry += 44; line();
   text("Element", x + 30, ry, 22, INK, { align: "left", weight: 700 });
@@ -11766,7 +11778,21 @@ function drawCardInfo(dt) {
   ry += Math.max(1, fx.length) * 28 + 18; line();
   }
   text("How to get", x + 30, ry, 22, INK, { align: "left", weight: 700 });
-  wrapInk(howToGet(el), x + 30, ry + 30, w - 60, 19, 24, "left");
+  ctx.font = `600 19px ${FONT}`;
+  const htg = (() => { const out = []; let ln = ""; for (const wd of howToGet(el).split(" ")) { const t2 = ln ? ln + " " + wd : wd; if (ctx.measureText(t2).width > w - 60 && ln) { out.push(ln); ln = wd; } else ln = t2; } if (ln) out.push(ln); return out; })();
+  htg.forEach((l, i) => text(l, x + 30, ry + 30 + i * 24, 19, "#6b3a22", { align: "left", weight: 600 }));
+  ry += 30 + htg.length * 24 + 10;
+  ctx.restore();
+  // scroll range, fades and a scrollbar when the content is taller than the area
+  const contentH = ry - top; ci.maxScroll = Math.max(0, contentH - (bottom - top)); ci.scroll = clamp(ci.scroll || 0, 0, ci.maxScroll);
+  if (ci.maxScroll > 0) {
+    const fadeC = "rgba(31,17,48,"; let g = ctx.createLinearGradient(0, top, 0, top + 26); g.addColorStop(0, fadeC + (ci.scroll > 2 ? "0.95)" : "0)")); g.addColorStop(1, fadeC + "0)"); ctx.fillStyle = g; ctx.fillRect(x + 12, top, w - 24, 26);
+    g = ctx.createLinearGradient(0, bottom - 30, 0, bottom); g.addColorStop(0, fadeC + "0)"); g.addColorStop(1, fadeC + (ci.scroll < ci.maxScroll - 2 ? "0.95)" : "0)")); ctx.fillStyle = g; ctx.fillRect(x + 12, bottom - 30, w - 24, 30);
+    const trackH = bottom - top - 16, barH = Math.max(40, trackH * (bottom - top) / contentH), by = top + 8 + (trackH - barH) * (ci.scroll / ci.maxScroll);
+    rrect(x + w - 20, top + 8, 6, trackH, 3); ctx.fillStyle = "rgba(255,255,255,0.12)"; ctx.fill();
+    rrect(x + w - 20, by, 6, barH, 3); ctx.fillStyle = "rgba(242,193,78,0.85)"; ctx.fill();
+    if (ci.scroll < 4) text("scroll \u2193", x + w - 34, bottom - 8, 15, "rgba(242,193,78,0.8)", { align: "right", weight: 700 });
+  }
   btn.closeInfo.y = btn.infoUpgrade.y = y + h - 96;
   if (canUpgrade(el)) { btn.closeInfo.x = x + 40; btn.infoUpgrade.x = x + w - 40 - btn.infoUpgrade.w; drawBtn(btn.infoUpgrade); }
   else btn.closeInfo.x = W / 2 - btn.closeInfo.w / 2;
