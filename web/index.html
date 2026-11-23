@@ -6583,7 +6583,12 @@ function updateLaser(c, dt) {
   if (prev < ELY.red && t >= ELY.red) playSample("summon_zap", 0.5, 0.8);
   if (prev < ELY.blue && t >= ELY.blue) playSample("summon_zap", 0.5, 1.3);
   if (prev < ELY.merge0 && t >= ELY.merge0) playSample("summon_rise", 0.7, 1.2);
-  if (prev < ELY.fire && t >= ELY.fire) { c.lzHit = new Set(); playSample("summon_boom_legend", 0.9, 1.3); shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 7); c.kick = 1; }
+  if (prev < ELY.merge1 && t >= ELY.merge1) { const ox = c.x, oy = c.y - CARD_H / 2 - 36; playSample("summon_implode", 0.7, 1.4); shakeT = Math.max(shakeT, 0.15); shakeAmp = Math.max(shakeAmp, 3);
+    for (let i = 0; i < (settings.lite ? 10 : 28); i++) { const a = Math.random() * 6.28, v = rand(80, 260); addPart({ add: true, kind: "glow", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6, drag: 3, life: rand(0.3, 0.6), size: rand(2, 5), rgb: i % 3 === 0 ? "255,90,60" : i % 3 === 1 ? "80,140,255" : "210,150,255", a: 1 }); } }
+  if (prev < ELY.fire && t >= ELY.fire) { const ox = c.x, oy = c.y - CARD_H / 2 - 36;
+    for (let i = 0; i < (settings.lite ? 12 : 36); i++) { const a = Math.random() * 6.28, v = rand(120, 380); addPart({ add: true, kind: "glow", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.5, drag: 2.5, life: rand(0.35, 0.7), size: rand(3, 7), rgb: i % 2 ? "160,255,200" : "210,150,255", a: 1 }); }
+    addPart({ add: true, kind: "ring", x: ox, y: oy, rgb: "220,255,230", size: 20, grow: 160, w: 6, sq: 0.35, life: 0.45 });
+    c.lzHit = new Set(); playSample("summon_boom_legend", 0.9, 1.3); shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 7); c.kick = 1; }
   if (t >= ELY.fire && t < ELY.end) {
     const hw = ELY.width / 2; hitSrc = c;
     for (const e of enemies) { if (e.dead || c.lzHit.has(e) || e.y > c.y - 40 || Math.abs(e.x - c.x) > hw + e.size * 0.6) continue;
@@ -6605,30 +6610,65 @@ function drawLasers() {
   const lite = settings.lite;
   for (const c of rows.active) {
     if (!c || !EL[c.element].laser || c.dragging) continue;
-    const t = c.lzT || 0, ox = c.x, oy = c.y - CARD_H / 2 - 34;
+    const t = c.lzT || 0, ox = c.x, oy = c.y - CARD_H / 2 - 36, T = time;
     ctx.save(); ctx.globalCompositeOperation = "lighter";
-    const orb = (x, y, r, col, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, r * 2.4); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.3, `rgba(${col},${0.9 * a})`); g.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 2.4, 0, Math.PI * 2); ctx.fill();
-      // solid core so it reads on bright maps too
-      ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = a; const cg = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r); cg.addColorStop(0, "#ffffff"); cg.addColorStop(0.45, `rgb(${col})`); cg.addColorStop(1, `rgba(${col},0.85)`); circle(x, y, r, cg); ring(x, y, r, "rgba(30,10,50,0.7)", 1.5); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "lighter"; };
+    const halo = (x, y, r, col, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(${col},${a})`); g.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+    const solid = (x, y, r, inner, outer, a) => { ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = a; const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, 0, x, y, r); g.addColorStop(0, "#ffffff"); g.addColorStop(0.4, inner); g.addColorStop(1, outer); circle(x, y, r, g); ring(x, y, r, "rgba(25,8,40,0.65)", 1.4); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "lighter"; };
+    // red sun: flickering corona rays + embers
+    const sun = (x, y, r, a) => {
+      halo(x, y, r * 3.2, "255,90,40", 0.55 * a);
+      if (!lite) { ctx.save(); ctx.translate(x, y); ctx.rotate(T * 1.5); for (let i = 0; i < 10; i++) { ctx.rotate(Math.PI / 5); const L = r * (1.5 + 0.45 * Math.sin(T * 9 + i * 2.1)); ctx.fillStyle = `rgba(255,${150 + 40 * (i % 2)},60,${0.55 * a})`; ctx.beginPath(); ctx.moveTo(-r * 0.25, -r * 0.8); ctx.quadraticCurveTo(0, -L * 1.1, r * 0.25, -r * 0.8); ctx.fill(); } ctx.restore();
+        for (let i = 0; i < 5; i++) { const u = (T * 0.9 + i / 5) % 1; circle(x + Math.sin(i * 7 + T * 2) * r * 0.9, y - r - u * r * 2.2, 2 * (1 - u) + 0.5, `rgba(255,${180 - 80 * u | 0},80,${a * (1 - u)})`); } }
+      solid(x, y, r, "#ff6a3a", "#b0201a", a);
+    };
+    // blue moon: water ripples, orbiting droplets, sparkles
+    const moon = (x, y, r, a) => {
+      halo(x, y, r * 3.2, "70,140,255", 0.55 * a);
+      if (!lite) { for (let i = 0; i < 2; i++) { const u = (T * 0.8 + i * 0.5) % 1; ring(x, y, r * (1.1 + 1.6 * u), `rgba(150,200,255,${0.7 * a * (1 - u)})`, 2); }
+        for (let i = 0; i < 4; i++) { const an = T * 3 + i * Math.PI / 2; circle(x + Math.cos(an) * r * 1.9, y + Math.sin(an) * r * 0.7, 2.4, `rgba(190,225,255,${a})`); }
+        const sp = (T * 4) % 1; ctx.strokeStyle = `rgba(255,255,255,${a * (1 - sp)})`; ctx.lineWidth = 1.4; const sx = x + r * 0.5, sy = y - r * 0.6, ss = 5 * sp + 2; ctx.beginPath(); ctx.moveTo(sx - ss, sy); ctx.lineTo(sx + ss, sy); ctx.moveTo(sx, sy - ss); ctx.lineTo(sx, sy + ss); ctx.stroke(); }
+      solid(x, y, r, "#6aa8ff", "#1a3aa8", a);
+      ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 0.35 * a; circle(x + r * 0.35, y - r * 0.1, r * 0.55, "#0a1a60"); ctx.globalAlpha = 1; ctx.globalCompositeOperation = "lighter";
+    };
+    // purple fusion orb: red/blue swirl inside, rune ring
+    const fused = (x, y, r, a, ch) => {
+      halo(x, y, r * (3.4 + 2 * ch), "180,80,255", 0.6 * a); halo(x, y, r * (2 + ch), "150,255,190", 0.25 * a * ch);
+      solid(x, y, r, "#b070ff", "#4a1490", a);
+      ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 0.92, 0, Math.PI * 2); ctx.clip();
+      for (const [ph, col] of [[0, "255,90,60"], [Math.PI, "80,140,255"]]) { ctx.strokeStyle = `rgba(${col},${0.85 * a})`; ctx.lineWidth = r * 0.28; ctx.beginPath(); for (let i = 0; i <= 16; i++) { const u = i / 16, an = T * 6 + ph + u * 4, rr = r * 0.85 * u; i ? ctx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr) : ctx.moveTo(x, y); } ctx.stroke(); }
+      ctx.restore();
+      if (!lite && typeof ALTAR_RUNES !== "undefined") for (let i = 0; i < 6; i++) { const an = -T * (1.5 + 3 * ch) + i * Math.PI / 3, rx = x + Math.cos(an) * r * 2.1, ry = y + Math.sin(an) * r * 0.8; drawRune(ALTAR_RUNES[i % ALTAR_RUNES.length], rx, ry, 4, `rgba(210,190,255,${0.8 * a})`, 1.4); }
+    };
     if (t < ELY.fire) {
-      const mk = t < ELY.merge0 ? 0 : clamp((t - ELY.merge0) / (ELY.merge1 - ELY.merge0), 0, 1), sp = mk * mk, swirl = mk * Math.PI * 2;
-      const ra = clamp((t - ELY.red) / 0.4, 0, 1) * (1 - mk), ba = clamp((t - ELY.blue) / 0.4, 0, 1) * (1 - mk);
-      const dx = 30 * (1 - sp);
-      if (ra > 0) orb(ox - dx * Math.cos(swirl), oy - dx * Math.sin(swirl) * 0.4, 12 + Math.sin(t * 8), "255,70,60", ra);
-      if (ba > 0) orb(ox + dx * Math.cos(swirl), oy + dx * Math.sin(swirl) * 0.4, 12 + Math.sin(t * 8 + 1), "70,120,255", ba);
-      if (mk > 0) {
-        const ch = clamp((t - ELY.charge) / (ELY.fire - ELY.charge), 0, 1), R = 8 + 6 * mk + 10 * ch;
-        orb(ox, oy, R + Math.sin(t * 20) * ch * 2, "180,80,255", Math.min(1, mk * 1.5));
+      const mk = t < ELY.merge0 ? 0 : clamp((t - ELY.merge0) / (ELY.merge1 - ELY.merge0), 0, 1), e = mk * mk * mk;
+      const ra = clamp((t - ELY.red) / 0.35, 0, 1), ba = clamp((t - ELY.blue) / 0.35, 0, 1), pop = k0 => 1 + 0.5 * Math.max(0, 1 - k0 * 3);
+      const spin = mk * mk * Math.PI * 7, d = 32 * (1 - e);
+      const rx = ox - d * Math.cos(spin), ry = oy - d * Math.sin(spin) * 0.45 - 4 * Math.sin(T * 3), bx = ox + d * Math.cos(spin), by = oy + d * Math.sin(spin) * 0.45 - 4 * Math.sin(T * 3 + 1);
+      if (mk < 1) {
+        // helix trails while they spiral together
+        if (mk > 0 && !lite) for (const [sgn, col] of [[-1, "255,90,60"], [1, "80,140,255"]]) { ctx.strokeStyle = `rgba(${col},0.7)`; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath(); for (let i = 0; i <= 14; i++) { const sp2 = spin - i * 0.18, dd = 32 * (1 - Math.pow(Math.max(0, mk - i * 0.02), 3)); const x = ox + sgn * dd * Math.cos(sp2), y = oy + sgn * dd * Math.sin(sp2) * 0.45; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); } ctx.stroke(); }
+        // energy arc between the two orbs
+        if (ra > 0 && ba > 0 && !lite && Math.random() < 0.8) { ctx.strokeStyle = "rgba(230,200,255,0.85)"; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(rx, ry); for (let i = 1; i < 6; i++) { const u = i / 6; ctx.lineTo(rx + (bx - rx) * u + rand(-3, 3), ry + (by - ry) * u + rand(-7, 7)); } ctx.lineTo(bx, by); ctx.stroke(); }
+        const sz = 12 * (1 - 0.35 * e);
+        if (ra > 0) sun(rx, ry, sz * pop(t - ELY.red), ra);
+        if (ba > 0) moon(bx, by, sz * pop(t - ELY.blue), ba);
+      }
+      if (mk >= 1) {
+        const ch = clamp((t - ELY.charge) / (ELY.fire - ELY.charge), 0, 1), inhale = t > ELY.fire - 0.15 ? 1 - (ELY.fire - t) / 0.15 : 0;
+        const R = (14 + 3 * Math.sin(T * 6) + 10 * ch) * (1 - 0.35 * inhale), born = clamp((t - ELY.merge1) / 0.3, 0, 1);
+        if (born < 1) { ring(ox, oy, 10 + 70 * born, `rgba(230,200,255,${1 - born})`, 4 * (1 - born) + 1); halo(ox, oy, 60 * (1 - born) + 10, "255,255,255", 0.8 * (1 - born)); }
         if (ch > 0) {
-          ring(ox, oy, R * 3.2 * (1 - ch) + R, `rgba(160,255,190,${0.8 * ch})`, 2.5); ring(ox, oy, R * 4.2 * (1 - ch) + R, `rgba(200,140,255,${0.6 * ch})`, 2);
-          if (!lite) for (let i = 0; i < 10; i++) { const a = i * 0.628 + t * 4, rr = R * 4 * (1 - ((t * 2 + i / 10) % 1)); circle(ox + Math.cos(a) * rr, oy + Math.sin(a) * rr, 2, i % 2 ? "rgba(150,255,190,0.9)" : "rgba(210,150,255,0.9)"); }
-          const pg = ctx.createLinearGradient(0, oy, 0, HUD_H); pg.addColorStop(0, `rgba(170,255,200,${0.25 * ch})`); pg.addColorStop(1, "rgba(170,255,200,0)"); ctx.fillStyle = pg; ctx.fillRect(ox - 3, HUD_H, 6, oy - HUD_H);
+          // converging streaks + rings, ground glow, aim line
+          if (!lite) { ctx.lineCap = "round"; for (let i = 0; i < 14; i++) { const an = i * 0.449 + T * 0.6, u = (T * 1.6 + i / 14) % 1, r1 = 150 * (1 - u) + R, r2 = r1 + 24; ctx.strokeStyle = i % 2 ? `rgba(150,255,190,${0.8 * ch * u})` : `rgba(210,150,255,${0.8 * ch * u})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ox + Math.cos(an) * r2, oy + Math.sin(an) * r2 * 0.7); ctx.lineTo(ox + Math.cos(an) * r1, oy + Math.sin(an) * r1 * 0.7); ctx.stroke(); } }
+          ring(ox, oy, R + 60 * (1 - ch), `rgba(150,255,190,${0.8 * ch})`, 2.5); ring(ox, oy, R + 90 * (1 - ch), `rgba(200,140,255,${0.6 * ch})`, 2);
+          ctx.save(); ctx.translate(ox, c.y + CARD_H / 2 - 4); ctx.scale(1, 0.25); halo(0, 0, 90, "170,120,255", 0.5 * ch); ctx.restore();
+          const fl = 0.25 + 0.35 * ch * (0.6 + 0.4 * Math.sin(T * 40)), pg = ctx.createLinearGradient(0, oy, 0, HUD_H); pg.addColorStop(0, `rgba(190,255,210,${fl})`); pg.addColorStop(1, "rgba(190,255,210,0)"); ctx.fillStyle = pg; ctx.fillRect(ox - 1.5 - 2 * ch, HUD_H, 3 + 4 * ch, oy - HUD_H);
         }
+        fused(ox, oy, R, Math.min(1, born * 2), ch);
       }
     } else {
-      const u = (t - ELY.fire) / (ELY.end - ELY.fire), k = u < 0.12 ? u / 0.12 : u > 0.8 ? (1 - u) / 0.2 : 1, w = ELY.width * (0.6 + 0.4 * k) * (1 + 0.05 * Math.sin(t * 60));
-      const top = HUD_H - 40, h = oy - top;
-      // a solid body first, so the beam reads on bright maps
+      const u = (t - ELY.fire) / (ELY.end - ELY.fire), k = u < 0.1 ? u / 0.1 : u > 0.78 ? (1 - u) / 0.22 : 1, thin = u > 0.78 ? 0.25 + 0.75 * k : 1;
+      const w = ELY.width * (0.55 + 0.45 * Math.min(1, u / 0.1)) * thin * (1 + 0.06 * Math.sin(T * 70)), top = HUD_H - 40, h = oy - top;
       ctx.globalCompositeOperation = "source-over";
       const sb = ctx.createLinearGradient(ox - w / 2, 0, ox + w / 2, 0); sb.addColorStop(0, "rgba(90,30,180,0)"); sb.addColorStop(0.15, `rgba(110,40,210,${0.55 * k})`); sb.addColorStop(0.35, `rgba(40,190,110,${0.7 * k})`); sb.addColorStop(0.65, `rgba(40,190,110,${0.7 * k})`); sb.addColorStop(0.85, `rgba(110,40,210,${0.55 * k})`); sb.addColorStop(1, "rgba(90,30,180,0)");
       ctx.fillStyle = sb; ctx.fillRect(ox - w / 2, top, w, h);
@@ -6636,10 +6676,18 @@ function drawLasers() {
       const g = ctx.createLinearGradient(ox - w / 2, 0, ox + w / 2, 0);
       g.addColorStop(0, "rgba(120,60,255,0)"); g.addColorStop(0.2, `rgba(160,90,255,${0.55 * k})`); g.addColorStop(0.38, `rgba(120,255,170,${0.85 * k})`); g.addColorStop(0.5, `rgba(255,255,255,${k})`); g.addColorStop(0.62, `rgba(120,255,170,${0.85 * k})`); g.addColorStop(0.8, `rgba(160,90,255,${0.55 * k})`); g.addColorStop(1, "rgba(120,60,255,0)");
       ctx.fillStyle = g; ctx.fillRect(ox - w / 2, top, w, h);
-      if (!lite) { for (let i = 0; i < 2; i++) { ctx.strokeStyle = `rgba(${i ? "200,150,255" : "160,255,200"},${0.8 * k})`; ctx.lineWidth = 2; ctx.beginPath(); for (let y = oy; y > top; y -= 18) { const x = ox + (i ? 1 : -1) * w * 0.42 + Math.sin(y * 0.05 + t * 30 + i) * 6; y === oy ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke(); }
-        for (let i = 0; i < 4; i++) { const yy = oy - ((t * 900 + i * 260) % h); ctx.fillStyle = `rgba(230,255,240,${0.5 * k})`; ctx.fillRect(ox - w * 0.45, yy, w * 0.9, 4); } }
-      orb(ox, oy, 26 * k + 10, "180,80,255", k);
-      if (Math.random() < 0.7) addPart({ add: true, kind: "glow", x: ox + rand(-w / 2, w / 2), y: rand(top, oy), vx: rand(-120, 120), vy: rand(-40, 40), drag: 3, life: rand(0.2, 0.45), size: rand(3, 6), rgb: Math.random() < 0.5 ? "150,255,190" : "200,140,255", a: 0.9 });
+      ctx.fillStyle = `rgba(255,255,255,${0.9 * k})`; ctx.fillRect(ox - w * 0.07, top, w * 0.14, h);
+      if (!lite) {
+        // twin helix wrapping the beam
+        for (const [ph, col] of [[0, "150,255,200"], [Math.PI, "215,160,255"]]) { ctx.strokeStyle = `rgba(${col},${0.9 * k})`; ctx.lineWidth = 3; ctx.beginPath(); for (let y = oy; y > top; y -= 10) { const x = ox + Math.sin(y * 0.045 + T * 26 + ph) * w * 0.48; y === oy ? ctx.moveTo(x, y) : ctx.lineTo(x, y); } ctx.stroke(); }
+        // energy rings racing up the beam
+        for (let i = 0; i < 5; i++) { const yy = oy - ((T * 1100 + i * h / 5) % h); ctx.save(); ctx.translate(ox, yy); ctx.scale(1, 0.25); ring(0, 0, w * 0.62, `rgba(${i % 2 ? "200,150,255" : "160,255,200"},${0.85 * k})`, 3); ctx.restore(); }
+        // ripple at the base and a flare at the top
+        const bw = (T * 3) % 1; ctx.save(); ctx.translate(ox, oy); ctx.scale(1, 0.3); ring(0, 0, w * 0.6 + bw * 90, `rgba(200,255,220,${0.8 * k * (1 - bw)})`, 4); ctx.restore();
+        halo(ox, top + 20, w * 1.1, "200,255,220", 0.6 * k);
+      }
+      halo(ox, oy, 50 * k + 18, "220,180,255", k); fused(ox, oy, 12 + 10 * k, k, 1);
+      if (Math.random() < 0.8) addPart({ add: true, kind: "glow", x: ox + rand(-w / 2, w / 2), y: rand(top, oy), vx: rand(-160, 160), vy: rand(-60, 40), drag: 3, life: rand(0.2, 0.5), size: rand(3, 7), rgb: Math.random() < 0.5 ? "150,255,190" : "200,140,255", a: 0.95 });
     }
     ctx.restore();
     if (cardLocked(c)) { const lx = c.x + CARD_W / 2 - 14, ly = c.y - CARD_H / 2 + 12; circle(lx, ly, 15, "rgba(20,10,40,0.85)"); ring(lx, ly, 15, "#c8a8ff", 2);
