@@ -240,7 +240,7 @@ const EL = {
   hephaestus:{ name: "Hephaestus", tier: 3, legendCard: true, art: "hephaestus", theme: "hephaestus", color: "#ff7a2a", shape: "rock", parts: ["fire", "earth"], desc: "God of the forge: a red-hot hammer slams an area, stunning foes and leaving molten metal pools.", dmg: 50, rate: 0.9, speed: 620, splash: 90, root: 0.7, puddle: 60, puddle_dps: 16, burn: 6 },
   nyxarion:  { name: "Nyxarion", tier: 3, divine: true, art: "nyxarion", theme: "hera", color: "#8a6aff", shape: "swirl", parts: ["dark", "water", "light"], desc: "Divine lord of night: fires black orbs wreathed in dark blue fire that curse (+30% damage taken) and slow. Every 7 s it casts a slow black hole instead: it drifts to the first enemy, then to the middle of the field, dragging every enemy it passes, and explodes for x3 damage. Night aura: the cards right next to it deal +30% damage.", dmg: 40, rate: 1.1, speed: 780, shotScale: 1.6, curse: 0.3, slow: 0.55, aura: 0.3, blackhole: true },
   elyndor:   { name: "Elyndor", tier: 3, divine: true, art: "elyndor", frame: "elyndor_frame", win: [250, 226, 310, 424], fx: "elyndor", theme: "apollo", color: "#b070ff", shape: "spiky", parts: ["fire", "water", "light"], desc: "Divine twin of sun and moon: charges a red and a blue orb, fuses them into purple, then fires a wide green-purple laser straight up its column that destroys anything it touches. Once placed in the attack row it is bound there for 30 s.", dmg: 0, rate: 1, laser: true },
-  tychor:    { name: "Tychor", tier: 3, divine: true, art: "tychor", fx: "tychor", color: "#ffcf4a", shape: "spiky", parts: ["light", "earth"], desc: "Divine lord of fortune: flings gold coins at enemies. Every 15 s its three slot reels spin: any triple (111-888) pays 100-1,000 gold, 999 destroys every enemy on the field, 777 is the JACKPOT: every card attacks 5x faster for 3x damage for 10 s. Anything else does nothing.", dmg: 40 / 3, rate: 1.1, speed: 820, shotScale: 1.3, slots: true },
+  tychor:    { name: "Tychor", tier: 3, divine: true, art: "tychor", fx: "tychor", color: "#ffcf4a", shape: "spiky", parts: ["light", "earth"], desc: "Divine lord of fortune: flings gold coins at enemies. Every 15 s its three slot reels spin: any triple (111-888) pays 100-1,000 gold, 999 destroys every enemy on the field, 777 is the JACKPOT: every card attacks 5x faster for 3x damage for 15 s. Anything else does nothing.", dmg: 40 / 3, rate: 1.1, speed: 820, shotScale: 1.3, slots: true },
   hera:      { name: "Hera", tier: 3, legendCard: true, art: "hera", theme: "hera", color: "#d68aff", shape: "swirl", parts: ["water", "light"], desc: "Queen of the gods: a peacock feather bursts over a wide area and marks foes (+15% damage taken). Royal aura: the cards right next to her deal +25% damage.", dmg: 38, rate: 1.0, speed: 760, splash: 130, curse: 0.15, aura: 0.25 },
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [168, 93, 170], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400 / 1.5 * 3, rate: (1 / 16) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 11, shotScale: 4 },
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [150, 122, 200], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
@@ -1056,7 +1056,7 @@ SAMPLE_SRC.battle_loop = "assets/audio/battle_loop.mp3";
 SAMPLE_SRC.dragon_loop = "assets/audio/dragon_loop.mp3";
 for (const [k, [o, n]] of Object.entries({"ely_sun":[0,10076],"ely_moon":[10076,9449],"ely_fuse":[19525,20420],"ely_charge":[39945,18539],"ely_laser":[58484,27003]})) SAMPLE_SRC[k] = `pack:assets/audio/ely_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"nyxarion_atk":[0,7881],"nyxarion_hit":[7881,6941],"nyx_bh":[14822,19480],"nyx_boom":[34302,21987]})) SAMPLE_SRC[k] = `pack:assets/audio/nyx_sounds.mp3#${o},${n}`;
-for (const [k, [o, n]] of Object.entries({"divine_combine":[0,44244],"divine_result":[44244,27003]})) SAMPLE_SRC[k] = `pack:assets/audio/divine_sounds.mp3#${o},${n}`;
+for (const [k, [o, n]] of Object.entries({"divine_combine":[0,44244],"divine_result":[44244,27003],"jackpot_loop":[71247,224906]})) SAMPLE_SRC[k] = `pack:assets/audio/divine_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"soul_appear":[0,54902],"soul_shot":[54902,22301],"soul_blast":[77203,18853],"soul_shield":[96056,36720],"soul_summon":[132776,48946],"soul_die":[181722,60858],"soul_idle":[242580,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/soul_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"kraken_rise":[0,54902],"kraken_spit":[54902,18853],"kraken_splat":[73755,6627],"kraken_slither":[80382,20107],"kraken_grab":[100489,20107],"kraken_release":[120596,21360],"kraken_die":[141956,60858],"kraken_idle":[202814,60858]})) SAMPLE_SRC[k] = `pack:assets/audio/kraken_sounds.mp3#${o},${n}`;
 for (const [k, [o, n]] of Object.entries({"dragon_roar":[0,42676],"dragon_shot":[42676,27316],"dragon_step":[69992,12897],"dragon_die":[82889,60858],"dragon_breath":[143747,66814],"danger_alarm":[210561,24809]})) SAMPLE_SRC[k] = `pack:assets/audio/dragon_sounds.mp3#${o},${n}`;
@@ -6815,9 +6815,9 @@ function drawLasers() {
   }
 }
 // Tychor: gold coin shots + a slot machine that spins every 15 s (of battle time while it's in the attack row).
-// Odds: any triple 111-888 (not 777) 30% = +100..1000 gold; 999 20% = every enemy dies; 777 10% = JACKPOT (all cards x5 speed, x3 damage, 10 s); else 40% nothing.
+// Odds: any triple 111-888 (not 777) 30% = +100..1000 gold; 999 20% = every enemy dies; 777 10% = JACKPOT (all cards x5 speed, x3 damage, 15 s); else 40% nothing.
 const SLOT = { every: 15, spin: 2.4, stops: [1.2, 1.8, 2.4], slowStop: 4.6, show: 3, fadeIn: 0.6, triple: 0.30, nines: 0.20, sevens: 0.10 }; // slowStop: the last reel crawls to a stop when the first two match
-const JACKPOT = { time: 10, spd: 5, dmg: 3 };
+const JACKPOT = { time: 15, spd: 5, dmg: 3 };
 let jackpotT = 0;
 function slotRoll() {
   const r = Math.random();
@@ -6871,6 +6871,12 @@ function drawSlots() {
   // jackpot: golden aura on every attacking card + a timer
   if (jackpotT > 0) {
     ctx.save(); ctx.globalCompositeOperation = "lighter";
+    // golden screen edges, pulsing to the beat (fade in at the start, out in the last second)
+    { const k = Math.min(1, (JACKPOT.time - jackpotT) / 0.4, jackpotT), pb = 0.75 + 0.25 * Math.sin(time * 15.7), a = 0.42 * k * pb, e = 120, y0 = -TOP, hh = H + TOP;
+      const edge = (x0, y0_, x1, y1_, rx, ry, rw, rh2) => { const g = ctx.createLinearGradient(x0, y0_, x1, y1_); g.addColorStop(0, `rgba(255,200,60,${a})`); g.addColorStop(0.35, `rgba(255,170,30,${a * 0.45})`); g.addColorStop(1, "rgba(255,150,20,0)"); ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh2); };
+      edge(0, 0, e, 0, 0, y0, e, hh); edge(W, 0, W - e, 0, W - e, y0, e, hh); edge(0, y0, 0, y0 + e, 0, y0, W, e); edge(0, H, 0, H - e, 0, H - e, W, e);
+      if (!lite) for (let i = 0; i < 18; i++) { const u = (time * 0.35 + i * 0.137) % 1, side = i % 2, sx = side ? W - 8 - (i * 37 % 40) : 8 + (i * 53 % 40), sy = y0 + hh * (1 - u), tw = 0.5 + 0.5 * Math.sin(time * 9 + i * 1.7);
+        circle(sx, sy, 1.5 + 2.5 * tw, `rgba(255,235,140,${0.8 * k * tw})`); } }
     for (const c of rows.active) { if (!c || c.dragging) continue; const p = 0.5 + 0.5 * Math.sin(time * 10 + c.x * 0.05);
       const g = ctx.createRadialGradient(c.x, c.y, 10, c.x, c.y, 95); g.addColorStop(0, `rgba(255,215,90,${0.35 + 0.2 * p})`); g.addColorStop(1, "rgba(255,180,40,0)"); ctx.fillStyle = g; ctx.fillRect(c.x - 95, c.y - 95, 190, 190);
       if (!lite) for (let i = 0; i < 3; i++) { const u = (time * 1.5 + i / 3 + c.x * 0.01) % 1; circle(c.x + Math.sin(i * 2.1 + time * 3) * 40, c.y + CARD_H / 2 - u * CARD_H * 1.2, 2.5 * (1 - u) + 0.5, `rgba(255,230,120,${1 - u})`); } }
@@ -7584,10 +7590,10 @@ function totemArc(x0, y0, x1, y1, t, kind = "dmg") {
   ctx.restore();
 }
 const Music = { src: null, gain: null, name: null };
-const MUSIC_VOL = { lobby_loop: 0.55, battle_loop: 0.4, dragon_loop: 0.45 };
+const MUSIC_VOL = { lobby_loop: 0.55, battle_loop: 0.4, dragon_loop: 0.45, jackpot_loop: 0.6 };
 function syncMusic() {
   const ac = Sfx.ctx;
-  const name = state === "title" ? "lobby_loop" : (state === "wave" || state === "break") ? (dragon && !dragon.dying ? "dragon_loop" : "battle_loop") : null;
+  const name = state === "title" ? "lobby_loop" : (state === "wave" || state === "break") ? (jackpotT > 0 ? "jackpot_loop" : dragon && !dragon.dying ? "dragon_loop" : "battle_loop") : null;
   const want = ac && ac.state === "running" && !Sfx.muted && name && SAMPLES[name] ? name : null;
   if (Music.src && Music.name !== want) {
     try { Music.gain.gain.cancelScheduledValues(ac.currentTime); Music.gain.gain.setTargetAtTime(0, ac.currentTime, 0.15); Music.src.stop(ac.currentTime + 1); } catch (e) {}
@@ -7595,8 +7601,8 @@ function syncMusic() {
   }
   if (want && !Music.src) {
     const src = ac.createBufferSource(), g = ac.createGain();
-    src.buffer = SAMPLES[want]; src.loop = true;
-    g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(MUSIC_VOL[want], ac.currentTime + 1.2);
+    src.buffer = SAMPLES[want]; src.loop = want !== "jackpot_loop";
+    g.gain.setValueAtTime(0.0001, ac.currentTime); g.gain.exponentialRampToValueAtTime(MUSIC_VOL[want], ac.currentTime + (want === "jackpot_loop" ? 0.05 : 1.2));
     src.connect(g); g.connect(Sfx.master); src.start();
     Music.src = src; Music.gain = g; Music.name = want;
   }
