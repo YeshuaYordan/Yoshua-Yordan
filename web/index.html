@@ -9830,7 +9830,9 @@ function drawBook() {
     const lh = Math.max(...l.segs.map(s => s[2])) * 1.4; y += lh;
     let widths = l.segs.map(s => { ctx.font = `${s[4] || 600} ${s[2]}px ${s[3] || FONT}`; return ctx.measureText(s[0]).width; });
     let x = l.center ? W / 2 - widths.reduce((a, b) => a + b, 0) / 2 : left + (l.indent || 0);
-    l.segs.forEach((s, i) => { text(s[0], x, y - lh * 0.25, s[2], s[1], { align: "left", font: s[3] || FONT, weight: s[4] || 600 }); x += widths[i]; });
+    // coloured names (card / element names) get a white outline so they read on the dark page; plain text and titles don't
+    l.segs.forEach((s, i) => { const named = s[1] !== INK && s[1] !== "#6b5a48" && s[3] !== DISPLAY && s[0].trim().length > 1;
+      text(s[0], x, y - lh * 0.25, s[2], s[1], { align: "left", font: s[3] || FONT, weight: s[4] || 600, ...(named ? { outline: Math.max(3, s[2] * 0.16), outlineColor: "#ffffff" } : {}) }); x += widths[i]; });
   }
   ctx.restore();
   if (total > bottom - top) {
