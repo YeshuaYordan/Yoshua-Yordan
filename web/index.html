@@ -240,6 +240,7 @@ const EL = {
   hephaestus:{ name: "Hephaestus", tier: 3, legendCard: true, art: "hephaestus", theme: "hephaestus", color: "#ff7a2a", shape: "rock", parts: ["fire", "earth"], desc: "God of the forge: a red-hot hammer slams an area, stunning foes and leaving molten metal pools.", dmg: 50, rate: 0.9, speed: 620, splash: 90, root: 0.7, puddle: 60, puddle_dps: 16, burn: 6 },
   nyxarion:  { name: "Nyxarion", tier: 3, divine: true, art: "nyxarion", theme: "hera", color: "#8a6aff", shape: "swirl", parts: ["dark", "water", "light"], desc: "Divine lord of night: fires black orbs wreathed in dark blue fire that curse (+30% damage taken) and slow. Every 7 s it casts a slow black hole instead: it drifts to the first enemy, then to the middle of the field, dragging every enemy it passes, and explodes for x3 damage. Night aura: the cards right next to it deal +30% damage.", dmg: 40, rate: 1.1, speed: 780, shotScale: 1.6, curse: 0.3, slow: 0.55, aura: 0.3, blackhole: true },
   elyndor:   { name: "Elyndor", tier: 3, divine: true, art: "elyndor", frame: "elyndor_frame", win: [250, 226, 310, 424], fx: "elyndor", theme: "apollo", color: "#b070ff", shape: "spiky", parts: ["fire", "water", "light"], desc: "Divine twin of sun and moon: charges a red and a blue orb, fuses them into purple, then fires a wide green-purple laser straight up its column that destroys anything it touches. Once placed in the attack row it is bound there for 30 s.", dmg: 0, rate: 1, laser: true },
+  tychor:    { name: "Tychor", tier: 3, divine: true, art: "tychor", fx: "tychor", color: "#ffcf4a", shape: "spiky", parts: ["light", "earth"], desc: "Divine lord of fortune: flings gold coins at enemies. Every 15 s its three slot reels spin: any triple (111-888) pays 100-1,000 gold, 999 destroys every enemy on the field, 777 is the JACKPOT: every card attacks 5x faster for 3x damage for 10 s. Anything else does nothing.", dmg: 40 / 3, rate: 1.1, speed: 820, shotScale: 1.3, slots: true },
   hera:      { name: "Hera", tier: 3, legendCard: true, art: "hera", theme: "hera", color: "#d68aff", shape: "swirl", parts: ["water", "light"], desc: "Queen of the gods: a peacock feather bursts over a wide area and marks foes (+15% damage taken). Royal aura: the cards right next to her deal +25% damage.", dmg: 38, rate: 1.0, speed: 760, splash: 130, curse: 0.15, aura: 0.25 },
   kitsune:   { name: "Kitsune", tier: 3, myth: true, art: "kitsune", medal: [168, 93, 170], color: "#ff4a6a", shape: "flame", parts: ["fire"], desc: "Nine-tailed fox: gathers power from thin air, then fires a fox-fire blast that bursts over a wide area.", dmg: 400 / 1.5 * 3, rate: (1 / 16) / RARITY_RATE[4], speed: 760, splash: 115, gather: 5, gatherRest: 11, shotScale: 4 },
   fenrir:    { name: "Fenrir", tier: 3, myth: true, art: "fenrir", medal: [150, 122, 200], color: "#7fd8ff", shape: "spiky", parts: ["wind"], desc: "Storm wolf: its lightning shot leaves an unseen field where lightning claws keep slashing and slowing every enemy inside.", dmg: 30, rate: 0.6 / RARITY_RATE[4], speed: 950, shotScale: 1.5, scratch: 95, scratch_dps: 14, scratch_slow: 0.5, scratch_time: 3 },
@@ -608,7 +609,7 @@ function synMult(c) {
   for (const e of new Set(EL[c.element].parts || [])) if (SYN[e]) b = Math.max(b, SYN[e].bonus);
   return 1 + b;
 }
-const powerMult = c => synMult(c) * modDmg(c) * heraAura(c) * starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
+const powerMult = c => (jackpotT > 0 ? JACKPOT.dmg : 1) * synMult(c) * modDmg(c) * heraAura(c) * starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };
@@ -1230,6 +1231,28 @@ function trailStyles(key, SEG, fn) { let v = TRAIL_STYLES.get(key); if (!v) { v 
 // Divine frame extras (code-drawn around the user's frame art; off in Low settings)
 // Elyndor's own frame effects (sun / tide / purple union), built around its frame art:
 // left sun crescent + left orb at art px (213,395), right wave + orb at (595,395), purple orb on top at (404,150).
+// Tychor's own frame effects: a spinning ring of gold coins behind, casino bulbs chasing round the border, sparkles and falling coins.
+function tyBack(hw, hh, t) {
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(255,190,60,${0.32 + 0.1 * Math.sin(t * 2.5)})`); g.addColorStop(1, "rgba(255,150,40,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260);
+  ctx.restore();
+  for (let i = 0; i < 10; i++) { const a = t * 0.8 + i * Math.PI / 5, z = Math.sin(a); if (z > 0) continue; const x = Math.cos(a) * (hw + 16), y = z * 14 - 6, sx = Math.max(0.2, Math.abs(Math.cos(t * 4 + i)));
+    ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); circle(0, 0, 5, "#d8a030"); ring(0, 0, 5, "#7a4a10", 1); ctx.restore(); }
+}
+function tyFront(hw, hh, t) {
+  ctx.save();
+  // chasing casino bulbs round the border
+  const per = 2 * (CARD_W + CARD_H), nb = 22, at = d => { d = ((d % per) + per) % per; if (d < CARD_W) return [-hw + d, -hh]; d -= CARD_W; if (d < CARD_H) return [hw, -hh + d]; d -= CARD_H; if (d < CARD_W) return [hw - d, hh]; d -= CARD_W; return [-hw, hh - d]; };
+  for (let i = 0; i < nb; i++) { const [x, y] = at(i * per / nb), on = (Math.floor(t * 6) + i) % 3 === 0; if (on) { ctx.globalCompositeOperation = "lighter"; circle(x, y, 6, "rgba(255,220,120,0.35)"); ctx.globalCompositeOperation = "source-over"; } circle(x, y, 2.6, on ? "#fff6c8" : "#8a5a10"); }
+  // coins in front half of the ring
+  for (let i = 0; i < 10; i++) { const a = t * 0.8 + i * Math.PI / 5, z = Math.sin(a); if (z <= 0) continue; const x = Math.cos(a) * (hw + 16), y = z * 14 - 6, sx = Math.max(0.2, Math.abs(Math.cos(t * 4 + i)));
+    ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); const g = ctx.createRadialGradient(-1.5, -1.5, 0, 0, 0, 6); g.addColorStop(0, "#fff6c8"); g.addColorStop(1, "#d8a030"); circle(0, 0, 6, g); ring(0, 0, 6, "#7a4a10", 1.2); ctx.restore(); }
+  // sparkles
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 6; i++) { const ph = (t * 0.9 + i * 0.37) % 1, x = Math.sin(i * 3.7) * (hw - 8), y = Math.cos(i * 2.3) * (hh - 10), s2 = 5 * Math.sin(ph * Math.PI);
+    ctx.strokeStyle = `rgba(255,245,200,${Math.sin(ph * Math.PI)})`; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x - s2, y); ctx.lineTo(x + s2, y); ctx.moveTo(x, y - s2); ctx.lineTo(x, y + s2); ctx.stroke(); }
+  ctx.restore();
+}
 function elyBack(hw, hh, t) {
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   // split aura: warm on the left, cold on the right, purple crown above
@@ -1629,7 +1652,7 @@ class Card {
   drawDivineCard(hw, hh, t, d) {
     // art window in full-size frame px (card area starts at 180,160); each Divine card can have its own frame (d.frame, d.win)
     const K = 0.25, win = d.win || [247, 230, 315, 407], WX = -hw + (win[0] - 180) * K, WY = -hh + (win[1] - 160) * K, WW = win[2] * K, WH = win[3] * K;
-    if (!settings.lite) { if (d.fx === "elyndor") elyBack(hw, hh, t); else { const p = 0.5 + 0.5 * Math.sin(t * 2.2); const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(150,110,255,${0.28 + 0.12 * p})`); g.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260); divineBack(hw, hh, t); } }
+    if (!settings.lite) { if (d.fx === "elyndor") elyBack(hw, hh, t); else if (d.fx === "tychor") tyBack(hw, hh, t); else { const p = 0.5 + 0.5 * Math.sin(t * 2.2); const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(150,110,255,${0.28 + 0.12 * p})`); g.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260); divineBack(hw, hh, t); } }
     rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 10); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
     rrect(-hw + 4, -hh + 4, CARD_W - 8, CARD_H - 8, 8); ctx.fillStyle = "#120a26"; ctx.fill();
     const art = CARD_ILLUS[d.art];
@@ -1644,7 +1667,7 @@ class Card {
     ctx.restore();
     const fr = loadSheet(`assets/img/${d.frame || "divine_frame"}.webp`);
     if (fr.ready) ctx.drawImage(fr.img, -hw - 180 * K, -hh - 160 * K, 808 * K, 864 * K);
-    if (!settings.lite) { if (d.fx === "elyndor") elyFront(hw, hh, t, K); else divineFront(hw, hh, t, K, !d.frame); }
+    if (!settings.lite) { if (d.fx === "elyndor") elyFront(hw, hh, t, K); else if (d.fx === "tychor") tyFront(hw, hh, t); else divineFront(hw, hh, t, K, !d.frame); }
     if (!this.noLabel) text("DIVINE", 0, WY + 9, 9, "#c8f6ff", { weight: 800, outline: 4, outlineColor: "#140a28" });
     text(d.name, 0, WY + WH - 9, 14, "#e6dcff", { font: DISPLAY, weight: 900, outline: 4, outlineColor: "#140a28", baseline: "middle" });
   }
@@ -2252,7 +2275,7 @@ function shrunkArt(img, sx, sy, sw, sh, w, h) {
   const g = c.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(src, x, y, cw, ch, 0, 0, w, h);
   return c;
 }
-for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp", "cerberus": "assets/img/cerberus.webp", "basilisk": "assets/img/basilisk.webp", "griffin": "assets/img/griffin.webp", "qilin": "assets/img/qilin.webp", "kraken": "assets/img/kraken.webp", "banshee": "assets/img/banshee.webp", "athena": "assets/img/athena.webp", "ares": "assets/img/ares.webp", "apollo": "assets/img/apollo.webp", "artemis": "assets/img/artemis.webp", "hermes": "assets/img/hermes.webp", "hephaestus": "assets/img/hephaestus.webp", "hera": "assets/img/hera.webp", "nyxarion": "assets/img/nyxarion.webp", "elyndor": "assets/img/elyndor.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
+for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp", "cerberus": "assets/img/cerberus.webp", "basilisk": "assets/img/basilisk.webp", "griffin": "assets/img/griffin.webp", "qilin": "assets/img/qilin.webp", "kraken": "assets/img/kraken.webp", "banshee": "assets/img/banshee.webp", "athena": "assets/img/athena.webp", "ares": "assets/img/ares.webp", "apollo": "assets/img/apollo.webp", "artemis": "assets/img/artemis.webp", "hermes": "assets/img/hermes.webp", "hephaestus": "assets/img/hephaestus.webp", "hera": "assets/img/hera.webp", "nyxarion": "assets/img/nyxarion.webp", "elyndor": "assets/img/elyndor.webp", "tychor": "assets/img/tychor.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
 const GRAD_CACHE = new Map();
 let EN_DETAIL = true, ENEMY_CROWD = false;
 const CROWD_FREEZE = 30, CROWD_FREEZE_FPS = 40; // more than 30 enemies on screen, or under 40 FPS: enemies are still pictures
@@ -3060,7 +3083,7 @@ const VFX_STYLE = {
   sunfire: "corona", prism: "prism", gem: "radiantgem", halo: "haloring", eclipse: "eclipse",
 };
 for (const [k, d] of Object.entries(EL)) if (d.look && !VFX_STYLE[k]) VFX_STYLE[k] = VFX_STYLE[d.look];
-VFX_STYLE.nyxarion = "mx_nyx";
+VFX_STYLE.nyxarion = "mx_nyx"; VFX_STYLE.tychor = "mx_tychor";
 const VFX_SCALE = 1.35;
 const EP_HEADS = ["thornball", "comet", "cube", "bubble", "wisp", "gyro", "boltarrow", "spike", "rune", "flower", "orbs3", "galaxy", "shard", "eye", "feather", "arrow"];
 const EP_HEAD_BY = {
@@ -4730,6 +4753,7 @@ let chamberOpen = false;
 const DIVINE_RECIPES = [
   { result: "nyxarion", parts: ["black_hole", "black_hole", "banshee", "kraken", "hades"] },
   { result: "elyndor", parts: ["kitsune", "kitsune", "serpent", "serpent", "corona", "equinox", "apollo"] },
+  { result: "tychor", parts: ["any:legend", "any:myth", "any:myth"] }, // placeholder recipe until the user picks one
 ];
 let altarMode = false, recipeOpen = false, altarIntro = null;
 const ALTAR_INTRO_WAVE = 25; // one-time popup that introduces the Divine Altar (save.altarIntro)
@@ -5628,7 +5652,7 @@ function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; altarMode = false; recipeOpen = false; altarIntro = null; fusion = null;
   dragon = null; bossIntro = null; bossCharges = []; bossSlowT = 0; bossFlash = 0; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
-  spellCd = 0; enemies = []; projectiles = []; blackholes = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
+  spellCd = 0; enemies = []; projectiles = []; blackholes = []; jackpotT = 0; slotFlash = null; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
   pause: { name: "Pause", desc: "The whole battlefield stops for 15 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 15 },
@@ -6790,6 +6814,116 @@ function drawLasers() {
       text(`${Math.ceil(c.lockT)}s`, lx, ly + 30, 15, "#e8dcff", { weight: 800, outline: 4, outlineColor: "#1a0a30" }); }
   }
 }
+// Tychor: gold coin shots + a slot machine that spins every 15 s (of battle time while it's in the attack row).
+// Odds: any triple 111-888 (not 777) 30% = +100..1000 gold; 999 20% = every enemy dies; 777 10% = JACKPOT (all cards x5 speed, x3 damage, 10 s); else 40% nothing.
+const SLOT = { every: 15, spin: 2.4, stops: [1.2, 1.8, 2.4], show: 3, triple: 0.30, nines: 0.20, sevens: 0.10 };
+const JACKPOT = { time: 10, spd: 5, dmg: 3 };
+let jackpotT = 0;
+function slotRoll() {
+  const r = Math.random();
+  if (r < SLOT.triple) { const d = pickOne([1, 2, 3, 4, 5, 6, 8]); return { digits: [d, d, d], kind: "triple" }; }
+  if (r < SLOT.triple + SLOT.nines) return { digits: [9, 9, 9], kind: "nines" };
+  if (r < SLOT.triple + SLOT.nines + SLOT.sevens) return { digits: [7, 7, 7], kind: "sevens" };
+  let dg; do { dg = [0, 1, 2].map(() => Math.floor(Math.random() * 10)); } while (dg[0] === dg[1] && dg[1] === dg[2]);
+  return { digits: dg, kind: "none" };
+}
+function updateSlots(c, dt) {
+  const s0 = c.slot || (c.slot = { t: 0, phase: "idle", digits: [7, 7, 7], kind: "none", pt: 0 });
+  s0.pt += dt;
+  if (s0.phase === "idle") { s0.t += dt; if (s0.t >= SLOT.every && enemies.length) { s0.t = 0; s0.phase = "spin"; s0.pt = 0; s0.res = slotRoll(); s0.stopped = 0; playSample("summon_flip", 0.6, 1.2); } return; }
+  if (s0.phase === "spin") {
+    while (s0.stopped < 3 && s0.pt >= SLOT.stops[s0.stopped]) { s0.digits[s0.stopped] = s0.res.digits[s0.stopped]; s0.stopped++; playSample("summon_step", 0.7, 1.5 + s0.stopped * 0.15); }
+    if (s0.stopped >= 3) { s0.phase = "show"; s0.pt = 0; s0.kind = s0.res.kind; slotPayout(c, s0.res); }
+    return;
+  }
+  if (s0.phase === "show" && s0.pt >= SLOT.show) { s0.phase = "idle"; s0.pt = 0; }
+}
+function slotPayout(c, res) {
+  const ox = c.x, oy = c.y - CARD_H / 2 - 40;
+  if (res.kind === "triple") {
+    const amt = Math.round((100 + Math.random() * 900) / 10) * 10; gold += amt; playUi("ui_sell"); playSample("summon_flip_rare", 0.8, 1);
+    fxs.push(new Fx("text", { x: ox, y: oy - 40, text: `+${amt} gold!`, color: GOLD, size: 32, duration: 1.4 }));
+    for (let i = 0; i < (settings.lite ? 20 : 50); i++) { const a = -Math.PI / 2 + rand(-1, 1), v = rand(180, 420); addPart({ kind: "chunk", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 700, drag: 0.4, vr: rand(-12, 12), life: rand(0.7, 1.2), size: rand(4, 7), col: "#ffcf4a" }); }
+  } else if (res.kind === "nines") {
+    playSample("nyx_boom", 0.9, 1.25); shakeT = Math.max(shakeT, 0.7); shakeAmp = Math.max(shakeAmp, 12); buzz(150);
+    showBanner("999: JUDGEMENT!", "#ff7ad8"); slotFlash = { t: 0, col: "255,120,220" };
+    hitSrc = c;
+    for (const e of [...enemies]) { if (e.dead) continue; hitEnemy(e, c.element, c.rarity, e.hp * 3 + 1, 1);
+      fxs.push(new Fx("bolt", { points: [[e.x + rand(-20, 20), HUD_H - 40], [e.x + rand(-10, 10), (HUD_H + e.y) / 2], [e.x, e.y]], color: "#ffd27a", duration: 0.35 }));
+      for (let i = 0; i < 6; i++) addPart({ add: true, kind: "glow", x: e.x, y: e.y, vx: rand(-140, 140), vy: rand(-160, 40), drag: 3, life: rand(0.3, 0.6), size: rand(3, 6), rgb: i % 2 ? "255,210,90" : "255,140,220", a: 1 }); }
+    hitSrc = null;
+  } else if (res.kind === "sevens") {
+    jackpotT = JACKPOT.time; playSample("divine_result", 0.9, 1.1); shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 8);
+    showBanner("JACKPOT!", GOLD); slotFlash = { t: 0, col: "255,220,90" };
+    for (let i = 0; i < (settings.lite ? 40 : 120); i++) addPart({ kind: "chunk", x: rand(30, W - 30), y: HUD_H + rand(-20, 40), vx: rand(-60, 60), vy: rand(40, 200), g: 300, drag: 0.3, vr: rand(-10, 10), life: rand(1.2, 2.2), size: rand(4, 7), col: pickOne(["#ffcf4a", "#ff6a8a", "#6af0ff", "#9cff9c", "#ffffff"]) });
+  } else { fxs.push(new Fx("text", { x: ox, y: oy - 36, text: "...", color: "#cfc2a8", size: 26, duration: 0.8 })); }
+}
+let slotFlash = null;
+let slotDrawLast = 0;
+function drawSlots() {
+  const lite = settings.lite, now = performance.now(), dt = Math.min(0.05, (now - (slotDrawLast || now)) / 1000); slotDrawLast = now;
+  if (slotFlash) { slotFlash.t += dt; const a = Math.max(0, 0.55 - slotFlash.t * 1.2); if (a <= 0) slotFlash = null; else { ctx.fillStyle = `rgba(${slotFlash.col},${a})`; ctx.fillRect(0, -TOP, W, H + TOP); } }
+  // jackpot: golden aura on every attacking card + a timer
+  if (jackpotT > 0) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (const c of rows.active) { if (!c || c.dragging) continue; const p = 0.5 + 0.5 * Math.sin(time * 10 + c.x * 0.05);
+      const g = ctx.createRadialGradient(c.x, c.y, 10, c.x, c.y, 95); g.addColorStop(0, `rgba(255,215,90,${0.35 + 0.2 * p})`); g.addColorStop(1, "rgba(255,180,40,0)"); ctx.fillStyle = g; ctx.fillRect(c.x - 95, c.y - 95, 190, 190);
+      if (!lite) for (let i = 0; i < 3; i++) { const u = (time * 1.5 + i / 3 + c.x * 0.01) % 1; circle(c.x + Math.sin(i * 2.1 + time * 3) * 40, c.y + CARD_H / 2 - u * CARD_H * 1.2, 2.5 * (1 - u) + 0.5, `rgba(255,230,120,${1 - u})`); } }
+    ctx.restore();
+    text(`JACKPOT!  x${JACKPOT.spd} speed  x${JACKPOT.dmg} damage  ${Math.ceil(jackpotT)}s`, W / 2, HUD_H + 150, 24, GOLD, { weight: 900, outline: 7, outlineColor: "#3a1a00" });
+  }
+  for (const c of rows.active) {
+    if (!c || !EL[c.element].slots || c.dragging) continue;
+    const s0 = c.slot || { phase: "idle", digits: [7, 7, 7], kind: "none", t: 0, pt: 0 }, bx = c.x, by = c.y - CARD_H / 2 - 40, rw = 30, rh = 40, gap = 4, tw = rw * 3 + gap * 2;
+    const win = s0.phase === "show" && s0.kind !== "none", wc = s0.kind === "nines" ? "#ff7ad8" : s0.kind === "sevens" ? "#ffd84a" : "#ffe9a0", flick = 0.5 + 0.5 * Math.sin(time * 18);
+    // cabinet
+    ctx.save();
+    if (win && !lite) { ctx.shadowColor = wc; ctx.shadowBlur = 18 + 10 * flick; }
+    rrect(bx - tw / 2 - 8, by - rh / 2 - 8, tw + 16, rh + 16, 10); ctx.fillStyle = "#5a0f1c"; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = win ? wc : "#ffcf4a"; ctx.stroke();
+    ctx.restore();
+    // chasing bulbs around the cabinet
+    const nb = 14, per = 2 * (tw + 16 + rh + 16);
+    for (let i = 0; i < nb; i++) { let d = (i / nb) * per, x, y; const W2 = tw + 16, H2 = rh + 16, x0 = bx - W2 / 2, y0 = by - H2 / 2;
+      if (d < W2) { x = x0 + d; y = y0; } else if ((d -= W2) < H2) { x = x0 + W2; y = y0 + d; } else if ((d -= H2) < W2) { x = x0 + W2 - d; y = y0 + H2; } else { d -= W2; x = x0; y = y0 + H2 - d; }
+      const on = (Math.floor(time * (s0.phase === "spin" ? 14 : 5)) + i) % 3 === 0 || win && flick > 0.5; circle(x, y, 2.4, on ? "#fff6c8" : "#7a4a10"); }
+    // reels
+    for (let k = 0; k < 3; k++) {
+      const rx = bx - tw / 2 + k * (rw + gap);
+      ctx.save(); rrect(rx, by - rh / 2, rw, rh, 5); ctx.fillStyle = "#fffaf0"; ctx.fill(); ctx.clip();
+      const spinning = s0.phase === "spin" && k >= (s0.stopped || 0);
+      if (spinning) { const off = (time * 900 + k * 37) % rh; for (let j = -1; j <= 1; j++) { const dg = Math.floor((time * 30 + k * 3 + j * 7) % 10); text(String(dg), rx + rw / 2, by + 11 + j * rh + off - rh / 2, 30, "#7a1a1a", { weight: 900 }); }
+        const g = ctx.createLinearGradient(0, by - rh / 2, 0, by + rh / 2); g.addColorStop(0, "rgba(0,0,0,0.35)"); g.addColorStop(0.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)"); ctx.fillStyle = g; ctx.fillRect(rx, by - rh / 2, rw, rh); }
+      else { const dg = s0.digits[k], col = dg === 7 ? "#d0202a" : dg === 9 ? "#8a1aa8" : "#2a1a12";
+        const land = s0.phase === "spin" || (s0.phase === "show" && s0.pt < 0.2) ? 1 + 0.15 * Math.max(0, 1 - s0.pt * 5) : 1;
+        ctx.save(); ctx.translate(rx + rw / 2, by + 11); ctx.scale(land, land); text(String(dg), 0, 0, 30, col, { weight: 900 }); ctx.restore(); }
+      ctx.restore();
+      rrect(rx, by - rh / 2, rw, rh, 5); ctx.strokeStyle = "#2a0a0a"; ctx.lineWidth = 2; ctx.stroke();
+    }
+    // countdown pips under the cabinet
+    if (s0.phase === "idle") { const k = Math.min(1, s0.t / SLOT.every); rrect(bx - tw / 2, by + rh / 2 + 12, tw, 5, 2.5); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill(); rrect(bx - tw / 2, by + rh / 2 + 12, Math.max(5, tw * k), 5, 2.5); ctx.fillStyle = "#ffcf4a"; ctx.fill(); }
+    if (win) text(s0.kind === "sevens" ? "JACKPOT!" : s0.kind === "nines" ? "999!" : "WIN!", bx, by - rh / 2 - 16, 20, wc, { weight: 900, outline: 5, outlineColor: "#2a0a10" });
+  }
+}
+// gold coin shot
+MYTHFX.mx_tychor = {
+  trail(pr, n, back, bx, by, R) {
+    for (let i = n(30); i > 0; i--) addPart({ add: true, kind: "glow", x: bx + rand(-4, 4), y: by + rand(-4, 4), ...back(rand(20, 60), 25), life: rand(0.25, 0.45), size: R * rand(0.35, 0.6), grow: 0.3, rgb: "255,205,80", a: 0.7 });
+    if (Math.random() < n(6)) addPart({ add: true, kind: "glow", x: bx, y: by, vx: rand(-60, 60), vy: rand(-60, 60), drag: 2, life: 0.4, size: 2.5, rgb: "255,255,220", a: 1 });
+  },
+  head(pr, R, t, glow) {
+    ctx.restore(); ctx.save(); ctx.translate(pr.x, pr.y); glow(R * 2.6, "255,190,60");
+    const sx = Math.max(0.15, Math.abs(Math.cos(t * 14)));
+    ctx.save(); ctx.scale(sx, 1);
+    const g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, 0, 0, 0, R); g.addColorStop(0, "#fff6c8"); g.addColorStop(0.5, "#ffcf4a"); g.addColorStop(1, "#b07a1e");
+    circle(0, 0, R, g); ring(0, 0, R, "#7a4a10", 1.6); ring(0, 0, R * 0.68, "rgba(122,74,16,0.7)", 1.2);
+    if (sx > 0.5) text("$", 0, R * 0.38, R * 1.05, "#8a5a10", { weight: 900 });
+    ctx.restore();
+  },
+  hit(x, y, P, A, burst, ringFx) {
+    burst(settings.lite ? 5 : 12, (cx, cy) => { const v = rand(80, 220); addPart({ kind: "chunk", x, y, vx: cx * v, vy: cy * v - 60, g: 600, drag: 0.5, vr: rand(-10, 10), life: rand(0.4, 0.7), size: rand(3, 5), col: "#ffcf4a" }); });
+    ringFx("255,215,90", 8 * P, 46 * P + A, 3, 0.55, true, 0.3);
+  },
+};
 function fireCard(c) {
   const d = EL[c.element], shots = d.multishot || 1, targets = closestTo(c.x, c.y - 60, shots);
   if (!targets.length) return;
@@ -9055,7 +9189,7 @@ function update(dt) {
     }
     for (const c of rows.active) {
       if (!c || (drag && drag.card === c)) continue;
-      const spd = (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult() * (hasRelic("haste") ? 1.15 : 1) * modRate() * (dragonRoarT > 0 ? DRAGON_ROAR_SLOW : 1);
+      const spd = (jackpotT > 0 ? JACKPOT.spd : 1) * (speedT > 0 ? SPEED_MULT : 1) * totemMult(c, "spd") * curseSpdMult() * (hasRelic("haste") ? 1.15 : 1) * modRate() * (dragonRoarT > 0 ? DRAGON_ROAR_SLOW : 1);
       if (EL[c.element].totem) { if (EL[c.element].totem === "mirror") updateMirror(c, dt * spd); continue; }
       if (c.inkT > 0) { c.inkT = Math.max(0, c.inkT - dt); continue; }
       if (gripBlocks()) continue;
@@ -9063,6 +9197,7 @@ function update(dt) {
       if (EL[c.element].lance) { updateLance(c, dt * spd); continue; }
       if (EL[c.element].blackhole && nyxUpdate(c, dt * spd)) continue;
       if (EL[c.element].laser) { updateLaser(c, dt * spd); continue; }
+      if (EL[c.element].slots) updateSlots(c, dt);
       c.cooldown -= dt * spd;
       if (!enemies.length) c.frenzyN = 0;
       if (c.cooldown <= 0 && enemies.length) { fireCard(c); const fz = EL[c.element].frenzy; if (fz) c.frenzyN = Math.min(fz, (c.frenzyN || 0) + 1); c.cooldown = 1 / (rateOf(c.element, c.rarity) * (fz ? 1 + c.frenzyN * 0.1 : 1)); }
@@ -9075,7 +9210,7 @@ function update(dt) {
   updateDragon(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
-  updateBlackHoles(dt); laserLocks(dt);
+  updateBlackHoles(dt); laserLocks(dt); if (jackpotT > 0 && state === "wave") jackpotT = Math.max(0, jackpotT - dt);
   updateParts(dt);
   updateMeteors(dt); updateDoom(doomDt);
   for (const f of fxs) f.update(dt);
@@ -9370,7 +9505,7 @@ function drawWorld() {
   try { for (const r of boardRows) for (const c of rows[r]) if (onShow(r, c)) c.drawBattle(); } finally { GOD_BACK_OFF = false; }
   if (!chamberOpen) { drawStorageNav(); drawShopLocks(); drawTotemLinks(); drawGather(); }
   if (!chamberOpen) {
-    drawParts(); for (const p of projectiles) p.draw(); drawBlackHoles(); drawLasers();
+    drawParts(); for (const p of projectiles) p.draw(); drawBlackHoles(); drawLasers(); drawSlots();
     if (timeStopT > 0) {
       const rnd = Math.random; let sd = 12345; Math.random = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
       try { drawLances(); drawBeams(); } finally { Math.random = rnd; }
