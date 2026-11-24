@@ -6816,7 +6816,7 @@ function drawLasers() {
 }
 // Tychor: gold coin shots + a slot machine that spins every 15 s (of battle time while it's in the attack row).
 // Odds: any triple 111-888 (not 777) 30% = +100..1000 gold; 999 20% = every enemy dies; 777 10% = JACKPOT (all cards x5 speed, x3 damage, 10 s); else 40% nothing.
-const SLOT = { every: 15, spin: 2.4, stops: [1.2, 1.8, 2.4], show: 3, triple: 0.30, nines: 0.20, sevens: 0.10 };
+const SLOT = { every: 15, spin: 2.4, stops: [1.2, 1.8, 2.4], slowStop: 4.6, show: 3, fadeIn: 0.6, triple: 0.30, nines: 0.20, sevens: 0.10 }; // slowStop: the last reel crawls to a stop when the first two match
 const JACKPOT = { time: 10, spd: 5, dmg: 3 };
 let jackpotT = 0;
 function slotRoll() {
@@ -6830,9 +6830,14 @@ function slotRoll() {
 function updateSlots(c, dt) {
   const s0 = c.slot || (c.slot = { t: 0, phase: "idle", digits: [7, 7, 7], kind: "none", pt: 0 });
   s0.pt += dt;
-  if (s0.phase === "idle") { s0.t += dt; if (s0.t >= SLOT.every && enemies.length) { s0.t = 0; s0.phase = "spin"; s0.pt = 0; s0.res = slotRoll(); s0.stopped = 0; playSample("summon_flip", 0.6, 1.2); } return; }
+  if (s0.phase === "idle") { s0.t += dt; if (s0.t >= SLOT.every && enemies.length) { s0.t = 0; s0.phase = "spin"; s0.pt = 0; s0.res = slotRoll(); s0.stopped = 0; s0.roll3 = 0;
+      s0.tease = s0.res.digits[0] === s0.res.digits[1]; s0.stops = s0.tease ? [SLOT.stops[0], SLOT.stops[1], SLOT.slowStop] : SLOT.stops; playSample("summon_flip", 0.6, 1.2); } return; }
   if (s0.phase === "spin") {
-    while (s0.stopped < 3 && s0.pt >= SLOT.stops[s0.stopped]) { s0.digits[s0.stopped] = s0.res.digits[s0.stopped]; s0.stopped++; playSample("summon_step", 0.7, 1.5 + s0.stopped * 0.15); }
+    // third reel position: full speed, or slowing down to a crawl when the first two reels match
+    const st3 = s0.stops[2], from = s0.stops[1], u = s0.tease && s0.pt > from ? clamp((s0.pt - from) / (st3 - from), 0, 1) : 0;
+    s0.roll3 += dt * (s0.tease && s0.pt > from ? Math.max(2.2, 30 * Math.pow(1 - u, 1.6)) : 30);
+    if (s0.tease && s0.stopped === 2 && Math.floor(s0.roll3) !== s0.lastTick) { s0.lastTick = Math.floor(s0.roll3); if (u > 0.35) playSample("summon_step", 0.35, 2.2); }
+    while (s0.stopped < 3 && s0.pt >= s0.stops[s0.stopped]) { s0.digits[s0.stopped] = s0.res.digits[s0.stopped]; s0.stopped++; playSample("summon_step", 0.7, 1.5 + s0.stopped * 0.15); }
     if (s0.stopped >= 3) { s0.phase = "show"; s0.pt = 0; s0.kind = s0.res.kind; slotPayout(c, s0.res); }
     return;
   }
@@ -6875,23 +6880,32 @@ function drawSlots() {
   for (const c of rows.active) {
     if (!c || !EL[c.element].slots || c.dragging) continue;
     const s0 = c.slot || { phase: "idle", digits: [7, 7, 7], kind: "none", t: 0, pt: 0 }, bx = c.x, by = c.y - CARD_H / 2 - 40, rw = 30, rh = 40, gap = 4, tw = rw * 3 + gap * 2;
+    // only visible while rolling: fades in just before a spin and out after the result
+    const vis = s0.phase === "spin" ? 1 : s0.phase === "show" ? clamp((SLOT.show - s0.pt) / 0.5, 0, 1) : clamp((s0.t - (SLOT.every - SLOT.fadeIn)) / SLOT.fadeIn, 0, 1);
+    if (vis <= 0) continue;
+    const tense = s0.phase === "spin" && s0.tease && s0.stopped === 2;
+    ctx.save(); ctx.globalAlpha = vis; ctx.translate(bx, by); const pop = 0.8 + 0.2 * vis + (tense ? 0.04 * Math.sin(time * 30) : 0); ctx.scale(pop, pop); ctx.translate(-bx, -by);
     const win = s0.phase === "show" && s0.kind !== "none", wc = s0.kind === "nines" ? "#ff7ad8" : s0.kind === "sevens" ? "#ffd84a" : "#ffe9a0", flick = 0.5 + 0.5 * Math.sin(time * 18);
     // cabinet
     ctx.save();
-    if (win && !lite) { ctx.shadowColor = wc; ctx.shadowBlur = 18 + 10 * flick; }
+    if ((win || tense) && !lite) { ctx.shadowColor = tense ? "#ffe27a" : wc; ctx.shadowBlur = 18 + 10 * flick; }
     rrect(bx - tw / 2 - 8, by - rh / 2 - 8, tw + 16, rh + 16, 10); ctx.fillStyle = "#5a0f1c"; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = win ? wc : "#ffcf4a"; ctx.stroke();
     ctx.restore();
     // chasing bulbs around the cabinet
     const nb = 14, per = 2 * (tw + 16 + rh + 16);
     for (let i = 0; i < nb; i++) { let d = (i / nb) * per, x, y; const W2 = tw + 16, H2 = rh + 16, x0 = bx - W2 / 2, y0 = by - H2 / 2;
       if (d < W2) { x = x0 + d; y = y0; } else if ((d -= W2) < H2) { x = x0 + W2; y = y0 + d; } else if ((d -= H2) < W2) { x = x0 + W2 - d; y = y0 + H2; } else { d -= W2; x = x0; y = y0 + H2 - d; }
-      const on = (Math.floor(time * (s0.phase === "spin" ? 14 : 5)) + i) % 3 === 0 || win && flick > 0.5; circle(x, y, 2.4, on ? "#fff6c8" : "#7a4a10"); }
+      const on = (Math.floor(time * (tense ? 26 : s0.phase === "spin" ? 14 : 5)) + i) % 3 === 0 || win && flick > 0.5; circle(x, y, 2.4, on ? "#fff6c8" : "#7a4a10"); }
     // reels
     for (let k = 0; k < 3; k++) {
       const rx = bx - tw / 2 + k * (rw + gap);
       ctx.save(); rrect(rx, by - rh / 2, rw, rh, 5); ctx.fillStyle = "#fffaf0"; ctx.fill(); ctx.clip();
       const spinning = s0.phase === "spin" && k >= (s0.stopped || 0);
-      if (spinning) { const off = (time * 900 + k * 37) % rh; for (let j = -1; j <= 1; j++) { const dg = Math.floor((time * 30 + k * 3 + j * 7) % 10); text(String(dg), rx + rw / 2, by + 11 + j * rh + off - rh / 2, 30, "#7a1a1a", { weight: 900 }); }
+      if (spinning && k === 2) { // last reel: drawn from its own roll position so it can visibly slow down
+        const r3 = s0.roll3 || 0, base = Math.floor(r3), frac = r3 - base;
+        for (let j = -1; j <= 1; j++) { const dg = ((base - j) % 10 + 10) % 10; text(String(dg), rx + rw / 2, by + 11 + (j + frac) * rh, 30, tense && s0.pt > s0.stops[1] + (s0.stops[2] - s0.stops[1]) * 0.6 ? "#d0202a" : "#7a1a1a", { weight: 900 }); }
+        if (!tense || (s0.stops[2] - s0.pt) > (s0.stops[2] - s0.stops[1]) * 0.5) { const g = ctx.createLinearGradient(0, by - rh / 2, 0, by + rh / 2); g.addColorStop(0, "rgba(0,0,0,0.35)"); g.addColorStop(0.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)"); ctx.fillStyle = g; ctx.fillRect(rx, by - rh / 2, rw, rh); } }
+      else if (spinning) { const off = (time * 900 + k * 37) % rh; for (let j = -1; j <= 1; j++) { const dg = Math.floor((time * 30 + k * 3 + j * 7) % 10); text(String(dg), rx + rw / 2, by + 11 + j * rh + off - rh / 2, 30, "#7a1a1a", { weight: 900 }); }
         const g = ctx.createLinearGradient(0, by - rh / 2, 0, by + rh / 2); g.addColorStop(0, "rgba(0,0,0,0.35)"); g.addColorStop(0.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)"); ctx.fillStyle = g; ctx.fillRect(rx, by - rh / 2, rw, rh); }
       else { const dg = s0.digits[k], col = dg === 7 ? "#d0202a" : dg === 9 ? "#8a1aa8" : "#2a1a12";
         const land = s0.phase === "spin" || (s0.phase === "show" && s0.pt < 0.2) ? 1 + 0.15 * Math.max(0, 1 - s0.pt * 5) : 1;
@@ -6899,9 +6913,9 @@ function drawSlots() {
       ctx.restore();
       rrect(rx, by - rh / 2, rw, rh, 5); ctx.strokeStyle = "#2a0a0a"; ctx.lineWidth = 2; ctx.stroke();
     }
-    // countdown pips under the cabinet
-    if (s0.phase === "idle") { const k = Math.min(1, s0.t / SLOT.every); rrect(bx - tw / 2, by + rh / 2 + 12, tw, 5, 2.5); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill(); rrect(bx - tw / 2, by + rh / 2 + 12, Math.max(5, tw * k), 5, 2.5); ctx.fillStyle = "#ffcf4a"; ctx.fill(); }
     if (win) text(s0.kind === "sevens" ? "JACKPOT!" : s0.kind === "nines" ? "999!" : "WIN!", bx, by - rh / 2 - 16, 20, wc, { weight: 900, outline: 5, outlineColor: "#2a0a10" });
+    else if (tense) text("...!", bx, by - rh / 2 - 16, 20, "#ffe27a", { weight: 900, outline: 5, outlineColor: "#2a0a10" });
+    ctx.restore();
   }
 }
 // gold coin shot
