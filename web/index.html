@@ -4731,7 +4731,8 @@ const DIVINE_RECIPES = [
   { result: "nyxarion", parts: ["black_hole", "black_hole", "banshee", "kraken", "hades"] },
   { result: "elyndor", parts: ["kitsune", "kitsune", "serpent", "serpent", "corona", "equinox", "apollo"] },
 ];
-let altarMode = false, recipeOpen = false;
+let altarMode = false, recipeOpen = false, altarIntro = null;
+const ALTAR_INTRO_WAVE = 25; // one-time popup that introduces the Divine Altar (save.altarIntro)
 const ALTAR_N = 10, ALTAR_STEP = Math.PI * 2 / ALTAR_N, ALTAR_CY = 432, ALTAR_RX = 250, ALTAR_LIFT = 150;
 let altarRot = 0, altarRotTo = 0, altarSpin = null;
 const altarCards = () => rows.altar.filter(Boolean);
@@ -5625,7 +5626,7 @@ function drawRoarTint() {
 }
 function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
-  for (const r in rows) rows[r].fill(null); chamberOpen = false; altarMode = false; recipeOpen = false; fusion = null;
+  for (const r in rows) rows[r].fill(null); chamberOpen = false; altarMode = false; recipeOpen = false; altarIntro = null; fusion = null;
   dragon = null; bossIntro = null; bossCharges = []; bossSlowT = 0; bossFlash = 0; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
   spellCd = 0; enemies = []; projectiles = []; blackholes = []; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
@@ -6355,7 +6356,7 @@ function toBreak() {
   }
 }
 function gameOver() {
-  state = "gameover"; cancelDrag(); goT0 = performance.now(); spell = null; relicOffer = null; questsOpen = false; bringPick = null; chamberOpen = false; altarMode = false; recipeOpen = false; fusion = null; paused = false;
+  state = "gameover"; cancelDrag(); goT0 = performance.now(); spell = null; relicOffer = null; questsOpen = false; bringPick = null; chamberOpen = false; altarMode = false; recipeOpen = false; altarIntro = null; fusion = null; paused = false;
   if (bossMode) { bossLastRun = bossKills; endBossRun(); bossModeOver = true; submitScore("boss", bossKills); return; }
   bossModeOver = false;
   if (wavesCleared > save.best) save.best = wavesCleared;
@@ -8709,6 +8710,8 @@ const btn = {
   closeAltar: makeBtn("Close", 474, 622, 200, 76, () => closeChamber(), 28),
   altarL: makeBtn("\u25C0", 30, ALTAR_CY - 110, 64, 72, () => altarTurn(1), 26),
   altarR: makeBtn("\u25B6", W - 94, ALTAR_CY - 110, 64, 72, () => altarTurn(-1), 26),
+  aiOpen: Object.assign(makeBtn("Open the Altar", 0, 0, 290, 78, () => { altarIntro = null; openAltar(); }, 26), { fill: "#c9b8ff", fillDown: "#a890f0" }),
+  aiLater: makeBtn("Later", 0, 0, 200, 78, () => { altarIntro = null; playUi("ui_pick"); }, 26),
   recipeClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { recipeOpen = false; playUi("ui_pick"); }, 26),
   pause: makeBtn("II", 600, 9, 106, 54, () => { cancelDrag(); paused = true; }),
   next: makeBtn("Next Wave", 14, HUD_H + 14, 176, 60, () => beginWave(), 22),
@@ -8841,6 +8844,7 @@ function visibleButtons() {
   if (settingsOpen) return settingsButtons();
   if (testPick) return [btn.testClose, ...testBtns];
   if (speedOffer) return shopBusy ? [] : [btn.speedBuy, btn.speedNo];
+  if (altarIntro && state !== "title") return [btn.aiOpen, btn.aiLater];
   if (relicOffer && state !== "title") return relicBtns;
   if (chalOpen && state === "title") return [btn.chalPlay, btn.chalClose];
   if (missionsOpen) return [btn.missionsClose, btn.tabDaily, btn.tabAch, ...missionBtns];
@@ -8926,7 +8930,7 @@ canvas.addEventListener("pointerdown", ev => {
       b.down = true; setTimeout(() => { b.down = false; }, 120); b.onTap(); return;
     }
   }
-  if (tutBlocking() || guide) return;
+  if (tutBlocking() || guide || altarIntro) return;
   if (bookOpen) { bookDrag = { y: p.y, s: bookScroll }; return; }
   if (fusion) return;
   if (spell) {
@@ -9020,7 +9024,7 @@ function update(dt) {
   for (const r in rows) for (const c of rows[r]) if (c) { if (r === "storage" && !c.dragging && (c.hx < -CARD_W || c.hx > W + CARD_W)) { c.x = c.hx; c.y = c.hy; continue; } c.update(dt); }
   if (chamberOpen) { updateAltar(dt); updateFusion(dt); for (const f of fxs) f.update(dt); fxs = fxs.filter(f => !f.dead); }
   if (paused || bookOpen || chamberOpen || settingsOpen || spell || guide || reviveOffer || speedOffer || relicOffer || testPick || timeStopT > 0 || state === "title" || state === "gameover") shakeT = 0;
-  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || relicOffer || settingsOpen || testPick || questsOpen || bringPick) return;
+  if (paused || bookOpen || chamberOpen || state === "title" || state === "gameover" || tutBlocking() || guide || reviveOffer || speedOffer || relicOffer || settingsOpen || testPick || questsOpen || bringPick || altarIntro) return;
   wallFlash = Math.max(0, wallFlash - dt * 3);
   if (callCd > 0 && state === "wave") quickArmed = true;
   if (quickArmed && callCd - dt <= 0 && state === "wave" && !bossMode && !training) { quickArmed = false; quickT = QUICK_WINDOW; }
@@ -9635,6 +9639,31 @@ function drawAltar() {
   if (n) { rrect(bx, 540, bw * energy, 10, 5); const g = ctx.createLinearGradient(bx, 0, bx + bw, 0); g.addColorStop(0, "#9ff0ff"); g.addColorStop(1, "#b98aff"); ctx.fillStyle = g; ctx.fill(); }
   text(`${n} / ${ALTAR_N} cards on the altar`, W / 2, 530, 24, n ? "#d8faff" : PARCH, { weight: 700, outline: 7 });
   text("Swipe to spin. A true recipe always ascends; wrong cards are lost!", W / 2, 586, 18, "#ff9a8a", { outline: 5 });
+}
+function drawAltarIntro(dt) {
+  const ai = altarIntro; ai.t += dt;
+  dim(0.82);
+  const k = Math.min(1, ai.t * 3), x = 26, w = W - 52;
+  ctx.font = `700 21px ${FONT}`;
+  const wrap = (str, maxW) => { const out = []; let ln = ""; for (const wd of str.split(" ")) { const t2 = ln ? ln + " " + wd : wd; if (ctx.measureText(t2).width > maxW && ln) { out.push(ln); ln = wd; } else ln = t2; } if (ln) out.push(ln); return out; };
+  const intro = wrap("The gods have noticed you. Offer the right cards at the Divine Altar (the Altar button next to Spell) to create a Divine card, the strongest tier there is. A true recipe always works, but wrong cards are lost forever!", w - 70);
+  const recs = DIVINE_RECIPES.map(r => ({ r, lines: wrap(r.parts.map(tokenName).join(" + ") + "  =  " + EL[r.result].name, w - 90) }));
+  const h = 240 + intro.length * 27 + 40 + recs.reduce((a, q) => a + q.lines.length * 26 + 18, 0) + 120, y = Math.max(90, (H - h) / 2);
+  ctx.save(); ctx.globalAlpha = k; ctx.translate(W / 2, y + h / 2); ctx.scale(0.9 + 0.1 * k, 0.9 + 0.1 * k); ctx.translate(-W / 2, -(y + h / 2));
+  questFrame(x, y, w, h, 24);
+  const gx = W / 2, gy = y + 92, T = ai.t, pulse = 0.5 + 0.5 * Math.sin(T * 3);
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; const hg = ctx.createRadialGradient(gx, gy, 4, gx, gy, 80); hg.addColorStop(0, `rgba(170,210,255,${0.6 + 0.2 * pulse})`); hg.addColorStop(1, "rgba(130,90,255,0)"); ctx.fillStyle = hg; ctx.fillRect(gx - 80, gy - 80, 160, 160); ctx.restore();
+  const gg = ctx.createRadialGradient(gx - 12, gy - 14, 3, gx, gy, 36); gg.addColorStop(0, "#f2fdff"); gg.addColorStop(0.4, "#8a9cff"); gg.addColorStop(1, "#1a1050"); circle(gx, gy, 36, gg); ring(gx, gy, 36, "rgba(200,245,255,0.8)", 2);
+  for (let i = 0; i < 6; i++) { const a = T * 1.2 + i * Math.PI / 3; drawRune(ALTAR_RUNES[i], gx + Math.cos(a) * 58, gy + Math.sin(a) * 22, 6, "rgba(210,190,255,0.9)", 1.8); }
+  text("The Divine Altar Awakens", W / 2, y + 172, 34, GOLD, { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#140a20" });
+  let ty = y + 214;
+  intro.forEach(l => { text(l, W / 2, ty, 21, PARCH, { weight: 600, outline: 5 }); ty += 27; });
+  ty += 16; text("Divine recipes", W / 2, ty, 24, "#c8f6ff", { font: DISPLAY, weight: 900, outline: 6, outlineColor: "#140a28" }); ty += 34;
+  for (const q of recs) { rrect(x + 26, ty - 22, w - 52, q.lines.length * 26 + 10, 12); ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill(); ctx.strokeStyle = hexA("#9ff0ff", 0.35); ctx.lineWidth = 2; ctx.stroke();
+    q.lines.forEach(l => { text(l, W / 2, ty, 19, "#e8dcff", { weight: 700, outline: 4 }); ty += 26; }); ty += 18; }
+  btn.aiOpen.x = W / 2 - 300; btn.aiLater.x = W / 2 + 20; btn.aiOpen.y = btn.aiLater.y = y + h - 104;
+  drawBtn(btn.aiOpen); drawBtn(btn.aiLater);
+  ctx.restore();
 }
 function drawRecipeBook() {
   dim(0.8);
@@ -12354,6 +12383,7 @@ function tutCheck() {
     return;
   }
   if (paused || bookOpen || chamberOpen || spell || drag || fusion || doom || (state !== "break" && state !== "wave")) return;
+  if (!save.altarIntro && !training && !bossMode && !challenge && wave >= ALTAR_INTRO_WAVE && !relicOffer && !tut && !altarIntro && !bringPick) { altarIntro = { t: 0 }; save.altarIntro = true; writeSave(); playSample("divine_result", 0.6, 1); }
   if (!seen("run1") && state === "break" && wave === 0) tutStart("run1");
   else if (!seen("merge") && state === "break" && wavesCleared >= 1) tutStart("merge");
   else if (!seen("spells") && state === "break" && wavesCleared >= 2) tutStart("spells");
@@ -12676,6 +12706,7 @@ function frame(now) {
   if (bringPick && state !== "title") drawBringPick(dt);
   if (speedOffer && state !== "title") drawSpeedOffer();
   if (relicOffer && (state === "wave" || state === "break")) drawRelicOffer();
+  if (altarIntro && (state === "wave" || state === "break")) drawAltarIntro(dt);
   if (testPick && state !== "title") drawTestPicker(dt);
   if (settingsOpen) drawSettings();
   if (shopToast && state !== "title") drawShopToast(dt);
