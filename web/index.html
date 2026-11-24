@@ -2255,7 +2255,7 @@ function shrunkArt(img, sx, sy, sw, sh, w, h) {
 for (const [k, u] of Object.entries({"kitsune": "assets/img/kitsune.webp", "fenrir": "assets/img/fenrir.webp", "serpent": "assets/img/serpent.webp", "hades": "assets/img/hades.webp", "poseidon": "assets/img/poseidon.webp", "zeus": "assets/img/zeus.webp", "cerberus": "assets/img/cerberus.webp", "basilisk": "assets/img/basilisk.webp", "griffin": "assets/img/griffin.webp", "qilin": "assets/img/qilin.webp", "kraken": "assets/img/kraken.webp", "banshee": "assets/img/banshee.webp", "athena": "assets/img/athena.webp", "ares": "assets/img/ares.webp", "apollo": "assets/img/apollo.webp", "artemis": "assets/img/artemis.webp", "hermes": "assets/img/hermes.webp", "hephaestus": "assets/img/hephaestus.webp", "hera": "assets/img/hera.webp", "nyxarion": "assets/img/nyxarion.webp", "elyndor": "assets/img/elyndor.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; CARD_ILLUS[k] = slot; }
 const GRAD_CACHE = new Map();
 let EN_DETAIL = true, ENEMY_CROWD = false;
-const CROWD_FREEZE = 40; // above this many enemies on screen, bodies are drawn as one cached still picture (they still hop)
+const CROWD_FREEZE = 40, CROWD_FREEZE_WAVE = 55; // from wave 55 on, enemies are always still pictures too // above this many enemies on screen, bodies are drawn as one cached still picture (they still hop)
 const CARD_SNAP = new Map(); let snapClearT = 0;
 if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener("loadingdone", () => CARD_SNAP.clear());
 const EN_LAYERS = new Map();
@@ -9347,7 +9347,7 @@ function drawWorld() {
 
   for (const z of zones) z.draw();
   EN_DETAIL = !settings.lite && enemies.length <= [18, 10, 0][perfLevel];
-  ENEMY_CROWD = enemies.length > CROWD_FREEZE;
+  ENEMY_CROWD = enemies.length > CROWD_FREEZE || wave >= CROWD_FREEZE_WAVE;
   for (const e of enemies) e.draw();
   if (chamberOpen) {
     drawDragon();
