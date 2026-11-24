@@ -4713,6 +4713,7 @@ class Fx {
 
 const rows = { active: Array(SLOTS).fill(null), storage: Array(STORAGE_N).fill(null), shop: Array(SHOP_N).fill(null), chamber: Array(5).fill(null), altar: Array(10).fill(null) };
 const CHAMBER_CHANCE = { 3: 45, 4: 60, 5: 75 };
+const FUSE_PITY_STEP = 15; // hidden: +15% real chance per failed fusion in a row
 const LEGEND = 5, LEGEND_PER_MYTH = 12, LEGEND_PER_EPIC = 4, LEGEND_MAX = 60;
 const isLegendChamber = () => rows.chamber.some(c => c && c.rarity === MYTH);
 function chamberChance() {
@@ -8087,7 +8088,11 @@ function fuseChamber() {
   if (fusion) return;
   const cards = rows.chamber.filter(Boolean), n = cards.length;
   if (n < 3) { showInfo("Put at least 3 cards on the altars to fuse."); return; }
-  const legend = isLegendChamber(), chance = chamberChance(), success = training || Math.random() * 100 < chance;
+  // hidden bad-luck protection (never shown to the player): every failed fusion in a row quietly adds FUSE_PITY_STEP % to the
+  // real chance of the next one (separately for Myth and Legend fusions, saved across runs); a success resets it. The panel keeps showing the normal chance.
+  const legend = isLegendChamber(), chance = chamberChance(), pk = legend ? "legend" : "myth", fp = save.fusePity || (save.fusePity = { myth: 0, legend: 0 });
+  const success = training || Math.random() * 100 < chance + (fp[pk] || 0) * FUSE_PITY_STEP;
+  if (!training) { fp[pk] = success ? 0 : (fp[pk] || 0) + 1; writeSave(); }
   const pool = legend ? cards.filter(c => c.rarity === MYTH) : cards;
   const center = slotPos("chamber", 2);
   const parts = [];
@@ -9485,7 +9490,7 @@ function drawChamber() {
     text(`Myth +${LEGEND_PER_MYTH}% each   Epic +${LEGEND_PER_EPIC}% each   (max ${LEGEND_MAX}%)`, W / 2, 462, 22, PARCH, { outline: 6 });
     text("Needs 3+ cards. Success creates one Legend card.", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
   } else {
-    text("3 cards: 36%   4 cards: 48%   5 cards: 60%", W / 2, 462, 24, PARCH, { outline: 6 });
+    text(`3 cards: ${CHAMBER_CHANCE[3]}%   4 cards: ${CHAMBER_CHANCE[4]}%   5 cards: ${CHAMBER_CHANCE[5]}%`, W / 2, 462, 24, PARCH, { outline: 6 });
     text("Success creates one Myth card. Add a Myth for a Legend!", W / 2, 498, 20, hexA(PARCH, 0.8), { outline: 5 });
   }
 }
