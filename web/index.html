@@ -9767,7 +9767,9 @@ function bookLines() {
     "Epic cards have one form (no V1-V3).", "Fuse 3-5 Epic cards in the Chamber for", "a chance at a Myth card (fail = cards lost).",
     "Add Myth cards to make it a Legend Chamber:", `Myth +${LEGEND_PER_MYTH}%, Epic +${LEGEND_PER_EPIC}% each, max ${LEGEND_MAX}% Legend.`])
     L.push({ segs: [[s, INK, 22]] });
-  L.push({ segs: RARITY_NAMES.flatMap((n, i) => [[n, shade(RARITY_COLORS[i], -0.3), 22, FONT, 700], [i < 5 ? " > " : "", INK, 22]]) });
+  // tier order on two lines so it fits the page: Common ... Legend, then Divine (top tier) and Special (its own kind)
+  L.push({ segs: [0, 1, 2, 3, 4, 5].flatMap(i => [[RARITY_NAMES[i], shade(RARITY_COLORS[i], -0.3), 22, FONT, 700], [i < 5 ? " > " : " >", INK, 22]]) });
+  L.push({ segs: [[RARITY_NAMES[DIVINE], shade(RARITY_COLORS[DIVINE], -0.35), 22, FONT, 700], ["   |   ", INK, 22], [RARITY_NAMES[SPECIAL], shade(RARITY_COLORS[SPECIAL], -0.3), 22, FONT, 700]] });
   L.push({ gap: 16 });
   L.push({ segs: [["Main Elements", INK, 28, DISPLAY, 900]] });
   L.push({ segs: [["Sold in the shop. Same + same: V1 > V2 > V3.", "#6b5a48", 18, FONT, 500]] });
