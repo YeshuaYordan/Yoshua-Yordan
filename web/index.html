@@ -11603,30 +11603,73 @@ function openLeaderboard() {
   if (g) g.show();
   else shopToast = { text: "Android app only", color: "#ffd77a", t: 0 };
 }
+// Lobby Leaderboard button: golden trophy on a 1-2-3 podium, turning light rays, shine sweep, laurels, sparkles
 function drawLeaderboardIcon(b) {
-  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = 46 * sp, p = 0.5 + 0.5 * Math.sin(lobbyT * 2.4 + 1);
-  ctx.save(); ctx.shadowColor = `rgba(255,215,110,${0.45 + 0.4 * p})`; ctx.shadowBlur = settings.lite ? 0 : 16;
-  rrect(cx - r, cy - r, r * 2, r * 2, 22); const g = ctx.createLinearGradient(0, cy - r, 0, cy + r); g.addColorStop(0, "#3a5aa8"); g.addColorStop(1, "#141e44"); ctx.fillStyle = g; ctx.fill(); ctx.restore();
-  rrect(cx - r, cy - r, r * 2, r * 2, 22); ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 4; ctx.stroke();
-  const LN = "#1a0b12", u = r * 0.6, by = cy + u * 0.95;
-  // podium: 2nd, 1st, 3rd
-  for (const [dx, h, c, n] of [[-0.62, 0.5, "#c9d3e6", "2"], [0, 0.78, "#f2c14e", "1"], [0.62, 0.34, "#d08a4a", "3"]]) {
-    const x0 = cx + (dx - 0.3) * u, w = 0.6 * u, y0 = by - h * u;
-    ctx.fillStyle = c; ctx.fillRect(x0, y0, w, h * u); ctx.strokeStyle = LN; ctx.lineWidth = 2; ctx.strokeRect(x0, y0, w, h * u);
-    text(n, x0 + w / 2, y0 + h * u / 2 + 1, u * 0.36, LN, { weight: 900, baseline: "middle" });
-  }
-  // little crown over 1st place
-  const ky = by - 0.78 * u - u * 0.22, bob = Math.sin(lobbyT * 3) * 2;
-  poly([[cx - u * 0.3, ky + bob], [cx - u * 0.34, ky - u * 0.34 + bob], [cx - u * 0.14, ky - u * 0.16 + bob], [cx, ky - u * 0.42 + bob], [cx + u * 0.14, ky - u * 0.16 + bob], [cx + u * 0.34, ky - u * 0.34 + bob], [cx + u * 0.3, ky + bob]], "#ffe27a", LN, 1.8);
-  text("Leaderboard", cx, b.y + b.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 4, t = lobbyT, lite = settings.lite, p = 0.5 + 0.5 * Math.sin(t * 2.4);
+  ctx.save(); ctx.translate(cx, cy - 13 + Math.sin(t * 2 + 1) * 2); ctx.scale(sp * 1.18, sp * 1.18);
+  { const g = ctx.createRadialGradient(0, 0, 10, 0, 0, 56); g.addColorStop(0, "rgba(16,8,20,0.55)"); g.addColorStop(1, "rgba(16,8,20,0)"); ctx.fillStyle = g; ctx.fillRect(-58, -58, 116, 116); }
+  // rays behind the trophy
+  if (!lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.translate(0, -18); ctx.rotate(t * 0.4);
+    for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6, R = 54; const g = ctx.createLinearGradient(0, 0, Math.cos(a) * R, Math.sin(a) * R); g.addColorStop(0, `rgba(255,220,110,${0.35 + 0.15 * p})`); g.addColorStop(1, "rgba(255,200,80,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a - 0.12) * R, Math.sin(a - 0.12) * R); ctx.lineTo(Math.cos(a + 0.12) * R, Math.sin(a + 0.12) * R); ctx.fill(); }
+    ctx.restore(); }
+  // podium: 2nd (left), 1st (middle), 3rd (right)
+  for (const [x0, w, h, c1, c2, n] of [[-44, 28, 22, "#eef2fa", "#9aa6bc", "2"], [-16, 32, 32, "#ffe27a", "#c8962a", "1"], [16, 28, 16, "#f0a868", "#9a5a2a", "3"]]) {
+    const y0 = 44 - h, g = ctx.createLinearGradient(x0, 0, x0 + w, 0); g.addColorStop(0, c1); g.addColorStop(1, c2);
+    poly([[x0, y0], [x0 + w, y0], [x0 + w, 44], [x0, 44]], g, INK, 2.5); ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(x0 + 2, y0 + 2, w - 4, 3);
+    text(n, x0 + w / 2, y0 + h / 2 + 3, 13, INK, { weight: 900, baseline: "middle" }); }
+  // trophy standing on the 1st place step
+  const ty = 12;
+  poly([[-9, ty], [9, ty], [7, ty - 5], [-7, ty - 5]], "#8a5a1a", INK, 2);
+  poly([[-3, ty - 5], [3, ty - 5], [3, ty - 13], [-3, ty - 13]], "#c8962a", INK, 2);
+  ctx.lineWidth = 4; ctx.strokeStyle = INK; ctx.beginPath(); ctx.arc(-17, -32, 8, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke(); ctx.beginPath(); ctx.arc(17, -32, 8, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
+  ctx.lineWidth = 2.2; ctx.strokeStyle = "#ffd84a"; ctx.beginPath(); ctx.arc(-17, -32, 8, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke(); ctx.beginPath(); ctx.arc(17, -32, 8, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-18, -44); ctx.lineTo(18, -44); ctx.quadraticCurveTo(18, -14, 0, -12); ctx.quadraticCurveTo(-18, -14, -18, -44); ctx.closePath();
+  const cg = ctx.createLinearGradient(-18, 0, 18, 0); cg.addColorStop(0, "#fff2a8"); cg.addColorStop(0.45, "#ffcf3a"); cg.addColorStop(1, "#b07a10"); ctx.fillStyle = cg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.save(); ctx.clip(); const sx = ((t * 0.6) % 1.6) * 60 - 40; ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.beginPath(); ctx.moveTo(sx, -46); ctx.lineTo(sx + 8, -46); ctx.lineTo(sx - 4, -10); ctx.lineTo(sx - 12, -10); ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.ellipse(0, -44, 18, 3.5, 0, 0, Math.PI * 2); ctx.fillStyle = "#8a5a1a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+  // star emblem
+  const st = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 2.6 : 6; st.push([Math.cos(a) * r, -29 + Math.sin(a) * r]); } poly(st, "#fff6c8", INK, 1.5);
+  // laurel sprigs
+  for (const sd of [-1, 1]) for (let i = 0; i < 4; i++) { const a = Math.PI / 2 + sd * (0.5 + i * 0.32), x = Math.cos(a) * 30 * -1 * -1, lx = sd * (26 + i * 2.5), ly = -10 - i * 9;
+    ctx.save(); ctx.translate(lx, ly); ctx.rotate(sd * (0.6 + i * 0.15)); ctx.beginPath(); ctx.ellipse(0, 0, 3, 6, 0, 0, Math.PI * 2); ctx.fillStyle = "#5ab84a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.stroke(); ctx.restore(); }
+  if (!lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; for (let i = 0; i < 4; i++) { const ph = (t * 0.9 + i * 0.27) % 1, x = [-30, 34, -8, 22][i], y = [-48, -40, -58, -6][i], s2 = 5 * Math.sin(ph * Math.PI);
+      ctx.strokeStyle = `rgba(255,245,200,${Math.sin(ph * Math.PI)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - s2, y); ctx.lineTo(x + s2, y); ctx.moveTo(x, y - s2); ctx.lineTo(x, y + s2); ctx.stroke(); } ctx.restore(); }
+  ctx.restore();
+  text("Leaderboard", b.x + b.w / 2, b.y + b.h + 8, 20, PARCH, { weight: 800, outline: 6 });
 }
+// Lobby Challenge button: crossed swords behind a round battle shield with a flame crest, swords clash with sparks, "!" while today's challenge is unplayed
 function drawChallengeIcon(b) {
-  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2, r = 46 * sp, p = 0.5 + 0.5 * Math.sin(lobbyT * 3);
-  ctx.save(); ctx.shadowColor = `rgba(156,255,156,${0.5 + 0.4 * p})`; ctx.shadowBlur = settings.lite ? 0 : 16;
-  rrect(cx - r, cy - r, r * 2, r * 2, 22); const g = ctx.createLinearGradient(0, cy - r, 0, cy + r); g.addColorStop(0, "#3a8a4a"); g.addColorStop(1, "#14381c"); ctx.fillStyle = g; ctx.fill(); ctx.restore();
-  rrect(cx - r, cy - r, r * 2, r * 2, 22); ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 4; ctx.stroke();
-  drawQuestIcon("swords", cx, cy - 4, r * 0.62, "#9cff9c");
-  const c = chalToday(); if (!c.played) { circle(cx + r - 6, cy - r + 6, 12, "#e0533f"); ring(cx + r - 6, cy - r + 6, 12, INK, 2.5); text("!", cx + r - 6, cy - r + 7, 17, "#fff", { weight: 900, baseline: "middle" }); }
+  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 2, t = lobbyT, lite = settings.lite, p = 0.5 + 0.5 * Math.sin(t * 3);
+  const clash = Math.max(0, Math.sin(t * 2.2)) ** 6;
+  ctx.save(); ctx.translate(cx, cy - 2 + Math.sin(t * 2 + 2) * 2); ctx.scale(sp * 1.18, sp * 1.18);
+  { const g = ctx.createRadialGradient(0, 0, 10, 0, 0, 56); g.addColorStop(0, "rgba(16,8,20,0.55)"); g.addColorStop(1, "rgba(16,8,20,0)"); ctx.fillStyle = g; ctx.fillRect(-58, -58, 116, 116); }
+  if (!lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(0, 0, 8, 0, 0, 58); g.addColorStop(0, `rgba(255,140,60,${0.3 + 0.2 * p})`); g.addColorStop(1, "rgba(255,90,40,0)"); ctx.fillStyle = g; ctx.fillRect(-60, -60, 120, 120); ctx.restore(); }
+  // crossed swords
+  for (const sd of [-1, 1]) { ctx.save(); ctx.rotate(sd * (0.72 - clash * 0.12));
+    const bg = ctx.createLinearGradient(-4, 0, 4, 0); bg.addColorStop(0, "#ffffff"); bg.addColorStop(0.5, "#c8d0e0"); bg.addColorStop(1, "#7a849a");
+    poly([[-4, 26], [-4, -40], [0, -50], [4, -40], [4, 26]], bg, INK, 2.2);
+    ctx.save(); ctx.beginPath(); ctx.rect(-4, -50, 8, 76); ctx.clip(); const gy = 30 - ((t * 0.7 + (sd > 0 ? 0.5 : 0)) % 1.4) * 80; ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.fillRect(-4, gy, 8, 6); ctx.restore();
+    poly([[-13, 26], [13, 26], [13, 31], [-13, 31]], "#f2c14e", INK, 2);
+    poly([[-3, 31], [3, 31], [3, 46], [-3, 46]], "#6a3a1a", INK, 2); circle(0, 49, 4, "#f2c14e"); ring(0, 49, 4, INK, 1.8);
+    ctx.restore(); }
+  // clash sparks at the tips
+  if (clash > 0.2 && !lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; for (let i = 0; i < 7; i++) { const a = i * 0.9 + t * 4, r = 6 + 12 * clash; ctx.strokeStyle = `rgba(255,230,140,${clash})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 3, -40 + Math.sin(a) * 3); ctx.lineTo(Math.cos(a) * r, -40 + Math.sin(a) * r); ctx.stroke(); } circle(0, -40, 5 * clash, "rgba(255,255,220,0.9)"); ctx.restore(); }
+  // shield
+  const sg = ctx.createRadialGradient(-8, -6, 4, 0, 4, 30); sg.addColorStop(0, "#ff6a5a"); sg.addColorStop(1, "#8a1420");
+  circle(0, 6, 27, "#c8962a"); ring(0, 6, 27, INK, 2.5); circle(0, 6, 22, sg); ring(0, 6, 22, INK, 2);
+  for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; circle(Math.cos(a) * 24.5, 6 + Math.sin(a) * 24.5, 1.6, "#fff1c8"); }
+  // flame crest
+  const fl = 1 + 0.08 * Math.sin(t * 9);
+  ctx.save(); ctx.translate(0, 14); ctx.scale(1, fl);
+  ctx.beginPath(); ctx.moveTo(0, -24); ctx.quadraticCurveTo(12, -12, 9, -2); ctx.quadraticCurveTo(6, 6, 0, 6); ctx.quadraticCurveTo(-6, 6, -9, -2); ctx.quadraticCurveTo(-12, -12, -3, -16); ctx.quadraticCurveTo(-2, -8, 0, -24); ctx.closePath();
+  ctx.fillStyle = "#ffb03a"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -12); ctx.quadraticCurveTo(6, -4, 4, 1); ctx.quadraticCurveTo(2, 4, 0, 4); ctx.quadraticCurveTo(-4, 4, -4, 0); ctx.quadraticCurveTo(-4, -6, 0, -12); ctx.fillStyle = "#fff1a0"; ctx.fill();
+  ctx.restore();
+  // embers
+  if (!lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; for (let i = 0; i < 5; i++) { const u = (t * 0.7 + i * 0.21) % 1; circle(Math.sin(i * 2.3 + t) * 16, -6 - u * 40, 2 * (1 - u) + 0.5, `rgba(255,170,70,${1 - u})`); } ctx.restore(); }
+  ctx.restore();
+  const c = chalToday(); if (!c.played) { const r = 46; circle(cx + r - 6, cy - r + 4, 12, "#e0533f"); ring(cx + r - 6, cy - r + 4, 12, INK, 2.5); text("!", cx + r - 6, cy - r + 5, 17, "#fff", { weight: 900, baseline: "middle" }); }
   text("Challenge", cx, b.y + b.h + 8, 20, PARCH, { weight: 800, outline: 6 });
 }
 const todayKey = () => { const d = new Date(gameNow()); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
