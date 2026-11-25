@@ -60,6 +60,22 @@ canvas {
 <div id="stage"><canvas id="game" width="720" height="1280" aria-label="Arcane Fusion game"></canvas></div>
 
 <script>
+// ---- Self-healing assets: a picture that fails to load is retried (growing waits), a watchdog reloads any that are still
+// missing or broken, and cached drawings are rebuilt when the app comes back from the background (phones can wipe them) ----
+const ALL_IMGS = [], CACHE_REDO = [];
+(() => { const NI = window.Image;
+  function RImage(w, h) { const img = w === undefined ? new NI() : new NI(w, h); img.__tries = 0; ALL_IMGS.push(new WeakRef(img)); img.addEventListener("error", () => retryImg(img)); return img; }
+  RImage.prototype = NI.prototype; window.Image = RImage; })();
+function retryImg(img) {
+  const u = img.getAttribute("src"); if (!u || img.__tries >= 8 || img.__retrying) return;
+  img.__tries++; img.__retrying = true; img.__retryAt = performance.now();
+  setTimeout(() => { img.__retrying = false; img.removeAttribute("src"); img.src = u; }, Math.min(8000, 300 * 2 ** img.__tries));
+}
+setInterval(() => {
+  const n = performance.now();
+  for (let i = ALL_IMGS.length - 1; i >= 0; i--) { const img = ALL_IMGS[i].deref(); if (!img) { ALL_IMGS.splice(i, 1); continue; }
+    if (img.getAttribute("src") && img.complete && !img.naturalWidth && n - (img.__retryAt || 0) > 6000) { img.__tries = Math.min(img.__tries, 5); retryImg(img); } }
+}, 5000);
 "use strict";
 const LOAD = { total: 0, done: 0, t0: performance.now(), finished: false, fade: 0 };
 { const NativeImage = window.Image;
@@ -913,10 +929,11 @@ function frameArt(svg, vb, body) {
   const sx = CARD_W / body.w, sy = CARD_H / body.h;
   const slot = { ready: false, canvas: null, dx: (vb.x - body.cx) * sx, dy: (vb.y - body.cy) * sy, dw: vb.w * sx, dh: vb.h * sy };
   const img = new Image();
-  img.onload = () => {
+  const build = () => {
     const c = document.createElement("canvas"); c.width = Math.round(slot.dw * 2); c.height = Math.round(slot.dh * 2);
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); slot.canvas = c; slot.ready = true;
   };
+  img.onload = () => { build(); CACHE_REDO.push(build); };
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   return slot;
 }
@@ -931,12 +948,13 @@ const CARD_ART_LEGEND = frameArt(LEGEND_CARD_SVG, { x: -30, y: -110, w: 420, h: 
 const CARD_ART = RARITY_ART.map((_, r) => {
   const slot = { ready: false, canvas: null };
   const img = new Image();
-  img.onload = () => {
+  const build = () => {
     const k = 2 * 112 / ART_W, c = document.createElement("canvas");
     c.width = Math.round(ART_W * k); c.height = Math.round((ART_H + ART_PAD * 2) * k);
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
     slot.canvas = c; slot.ready = true;
   };
+  img.onload = () => { build(); CACHE_REDO.push(build); };
   img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(cardSvg(r));
   return slot;
 });
@@ -1064,10 +1082,14 @@ const SAMPLES = {};
 const AUDIO_PACKS = {};
 function loadAudioBytes(uri) {
   if (uri.startsWith("pack:")) { const [file, rng] = uri.slice(5).split("#"), [o, n] = rng.split(",").map(Number);
-    return (AUDIO_PACKS[file] = AUDIO_PACKS[file] || loadAudioBytes(file)).then(ab => ab.slice(o, o + n)); }
+    return (AUDIO_PACKS[file] = AUDIO_PACKS[file] || loadAudioBytes(file).catch(e => { delete AUDIO_PACKS[file]; throw e; })).then(ab => ab.slice(o, o + n)); }
   if (uri.startsWith("data:")) { const bin = atob(uri.slice(uri.indexOf(",") + 1)), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return Promise.resolve(bytes.buffer); }
+  return fetchBytes(uri, 0);
+}
+function fetchBytes(uri, tries) {
   return fetch(uri).then(r => { if (!r.ok) throw 0; return r.arrayBuffer(); }).catch(() => new Promise((ok, no) => {
-    const x = new XMLHttpRequest(); x.open("GET", uri); x.responseType = "arraybuffer"; x.onload = () => (x.response ? ok(x.response) : no()); x.onerror = no; x.send(); }));
+    const x = new XMLHttpRequest(); x.open("GET", uri); x.responseType = "arraybuffer"; x.onload = () => (x.response ? ok(x.response) : no()); x.onerror = no; x.send(); }))
+    .catch(e => { if (tries >= 4) throw e; return new Promise(r => setTimeout(r, 600 * 2 ** tries)).then(() => fetchBytes(uri, tries + 1)); });
 }
 const AUDIO_BYTES = {};
 function prefetchAudio() {
@@ -10497,7 +10519,7 @@ function nightCopy(img) {
 }
 for (const [k, src] of Object.entries(LOBBY_SRC)) {
   const img = new Image(), slot = { img, ready: false, night: null };
-  img.onload = () => { slot.ready = true; if (k === "room" || k === "hills" || k === "clouds") slot.night = nightCopy(img); };
+  img.onload = () => { slot.ready = true; if (k === "room" || k === "hills" || k === "clouds") { const b = () => { slot.night = nightCopy(img); }; b(); CACHE_REDO.push(b); } };
   img.src = src; LOBBY[k] = slot;
 }
 const LOBBY_CARDS = [
@@ -10680,7 +10702,7 @@ function tintRing(img, color) {
 }
 for (const [k, src] of Object.entries(GACHA_SRC)) {
   const img = new Image(), slot = { img, ready: false, tints: null };
-  img.onload = () => { slot.ready = true; if (k.startsWith("g_ring")) slot.tints = GACHA_COLORS.map(col => tintRing(img, col)); };
+  img.onload = () => { slot.ready = true; if (k.startsWith("g_ring")) { const b = () => { slot.tints = GACHA_COLORS.map(col => tintRing(img, col)); }; b(); CACHE_REDO.push(b); } };
   img.src = src; GACHA[k] = slot;
 }
 function gachaColorPhase() {
@@ -10752,6 +10774,23 @@ function drawPillarCrystal(x, y, baseY, r, t, i) {
   }
 }
 const GACHA_BG = { c: null, t: 0 };
+// Rebuild every cached drawing (they are made again from the loaded pictures)
+function rebuildCaches() {
+  SPR_CACHE.clear(); CARD_SNAP.clear(); EN_LAYERS.clear(); worldCache = null; worldCacheKey = ""; HOME_BG.c = null; GACHA_BG.c = null;
+  for (const k in CARD_ILLUS) if (CARD_ILLUS[k]) CARD_ILLUS[k].card = null;
+  for (const k in collectionCards) if (collectionCards[k]) collectionCards[k]._lib = null;
+  for (const f of CACHE_REDO) { try { f(); } catch (e) {} }
+  for (const r of ALL_IMGS) { const img = r.deref(); if (img && img.getAttribute("src") && img.complete && !img.naturalWidth) { img.__tries = 0; retryImg(img); } }
+}
+// probe: a GPU-sized canvas with a known pixel; if the phone wiped canvases, it reads back empty
+const CACHE_PROBE = Object.assign(document.createElement("canvas"), { width: 256, height: 256 });
+{ const g = CACHE_PROBE.getContext("2d"); g.fillStyle = "#ff0000"; g.fillRect(0, 0, 4, 4); }
+function probeLost() { try { return CACHE_PROBE.getContext("2d").getImageData(1, 1, 1, 1).data[3] === 0; } catch (e) { return false; } }
+function healCaches() { if (probeLost()) { const g = CACHE_PROBE.getContext("2d"); g.fillStyle = "#ff0000"; g.fillRect(0, 0, 4, 4); } rebuildCaches(); }
+let hiddenAt = 0;
+document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = performance.now(); else if (hiddenAt && performance.now() - hiddenAt > 3000) healCaches(); });
+canvas.addEventListener("contextrestored", () => healCaches());
+setInterval(() => { if (!document.hidden && probeLost()) healCaches(); }, 4000);
 function drawSummonScene() {
   const v = lobbyView(), G = GACHA, t = lobbyT, ph = gachaColorPhase();
   const col = mixHexColors(GACHA_COLORS[ph.i], GACHA_COLORS[ph.j], ph.k);
