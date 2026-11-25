@@ -609,7 +609,7 @@ function synMult(c) {
   for (const e of new Set(EL[c.element].parts || [])) if (SYN[e]) b = Math.max(b, SYN[e].bonus);
   return 1 + b;
 }
-const powerMult = c => (jackpotT > 0 ? JACKPOT.dmg : 1) * synMult(c) * modDmg(c) * heraAura(c) * starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
+const powerMult = c => (jackpotT > 0 ? JACKPOT.dmg : 1) * comboDmg() * synMult(c) * modDmg(c) * heraAura(c) * starMult(c) * (c && c.stars && hasRelic("stars") ? 1.2 : 1) * (hasRelic("drums") && (totemMult(c, "dmg") > 1 || totemMult(c, "spd") > 1) ? 1.15 : 1) * totemMult(c, "dmg") * curseDmgMult();
 const canStar = (el, r) => r === MYTH || r === LEGEND_R;
 function merge(aEl, aR, bEl, bR, aS = 0, bS = 0) {
   if (EL[aEl].totem && aEl === bEl) return { element: aEl, rarity: aR, totem: true };
@@ -2376,12 +2376,13 @@ class Enemy {
     if (this.burnT > 0) { this.burnT -= dt; this.takeDamage(this.burnDps * dt, this.burnSrc, this.burnCol); if (this.dead) return; }
     if (this.stunT > 0) { this.stunT -= dt; this.attacking = false; return; }
     this.t += dt;
+    if (this.elite) { eliteUpdate(this, dt); if (this.dead) return; }
     if (this.slowT > 0) this.slowT -= dt; else this.slowMult = 1;
     if (this.rootT > 0) this.rootT -= dt;
     const limit = FRONT_Y - this.size * 0.9;
     if (this.y < limit) {
       this.attacking = false;
-      if (this.rootT <= 0) this.y += this.speed * modSpeed() * (dragonRageT > 0 ? DRAGON_RAGE_MULT : 1) * this.slowMult * (this.isBoss ? (1 + idolTimeMult) / 2 : idolTimeMult) * FIELD_SPEED * dt;
+      if (this.rootT <= 0) this.y += this.speed * (this.rage ? ELITE.rage : 1) * modSpeed() * (dragonRageT > 0 ? DRAGON_RAGE_MULT : 1) * this.slowMult * (this.isBoss ? (1 + idolTimeMult) / 2 : idolTimeMult) * FIELD_SPEED * dt;
     } else {
       this.attacking = true; this.y = limit; damageCastle(this.dps * dt);
       if (hasRelic("thorns") && state === "wave") { this.takeDamage(this.maxHp * 0.05 * dt, "Thorn Wall", "#7a9a5a"); if (this.dead) return; }
@@ -2392,6 +2393,12 @@ class Enemy {
     if (soulShieldT > 0) { if (time - (this.immAt || -9) > 0.9) { this.immAt = time; fxs.push(new Fx("text", { x: this.x, y: this.y - 30, text: "IMMUNE", color: "#9ec4ff", size: 18, duration: 0.6 })); } return; }
     if (this.isBoss && hasRelic("bossbane")) a *= 1.3;
     if (this.curseT > 0) a *= 1 + this.curseAmt;
+    if (this.shieldHp > 0) { // Shielded elite: the bubble soaks damage first
+      const ab = Math.min(a, this.shieldHp); this.shieldHp -= ab; a -= ab; this.shieldHit = 1;
+      if (this.shieldHp <= 0) { addPart({ add: true, kind: "ring", x: this.x, y: this.y, rgb: "127,208,255", size: this.size, grow: 70, w: 4, sq: 0.8, life: 0.35 });
+        fxs.push(new Fx("text", { x: this.x, y: this.y - this.size - 26, text: "SHIELD BROKEN", color: "#7fd0ff", size: 16, duration: 0.8 })); if (time - (eliteSfxAt.pop || -9) > 0.3) { eliteSfxAt.pop = time; playSample("summon_implode", 0.3, 1.8); } }
+      noteDamage(src, ab, false, color); if (a <= 0) return;
+    }
     const dealt = Math.min(a, Math.max(0, this.hp));
     this.hp -= a; if (a >= 1) this.flash = 1;
     if (this.rush) {
@@ -2430,6 +2437,7 @@ class Enemy {
     ctx.save(); ctx.translate(this.x, this.y);
     const lite = liteBattle() || ENEMY_CROWD;
     if (this.isBoss) { if (lite) this.layer("aura", () => this.drawBossAura(s, 0.5)); else this.drawBossAura(s, t); }
+    if (this.elite) this.drawEliteAura(s, lite ? 0.5 : t);
     ellipse(0, s * 0.85, s * 0.95, s * 0.28, "rgba(0,0,0,0.32)");
     if (this.attacking) ctx.translate(0, Math.max(0, Math.sin(t * 9)) * s * 0.12);
     const hit = this.flash; ctx.scale(1 + hit * 0.12, 1 - hit * 0.1);
@@ -2487,12 +2495,26 @@ class Enemy {
       ctx.moveTo(-s * 0.8, cy - s * 0.5); ctx.lineTo(-s * 0.4, cy - s * 0.9); ctx.moveTo(s * 0.5, cy + s * 0.3); ctx.lineTo(s * 0.8, cy - s * 0.1); ctx.stroke();
     }
     if (this.flash > 0) circle(0, cy, s * 1.05, `rgba(255,255,255,${this.flash * 0.45})`);
-    if (this.hp < this.maxHp) {
+    if (this.shieldHp > 0) { const k = this.shieldHp / this.shieldMax, h = this.shieldHit || 0; this.shieldHit = Math.max(0, h - 0.1);
+      circle(0, cy, s * 1.3, `rgba(127,208,255,${0.12 + 0.1 * k + 0.2 * h})`); ring(0, cy, s * 1.3, `rgba(190,235,255,${0.5 + 0.4 * k})`, 2.5);
+      ctx.save(); ctx.globalAlpha = 0.6; ring(0, cy, s * 1.3, "#ffffff", 2, -2.4 + Math.sin(t) * 0.2, -1.6 + Math.sin(t) * 0.2); ctx.restore(); }
+    if (this.hp < this.maxHp || this.elite) {
       const bw = Math.max(34, s * 2), by = cy - s * 1.55 - (this.king ? 18 : 0);
       ctx.fillStyle = INK; ctx.fillRect(-bw / 2 - 2, by - 2, bw + 4, 9);
-      ctx.fillStyle = "#e0533f"; ctx.fillRect(-bw / 2, by, bw * clamp(this.hp / this.maxHp, 0, 1), 5);
+      ctx.fillStyle = this.elite ? ELITE_TRAITS[this.elite].col : "#e0533f"; ctx.fillRect(-bw / 2, by, bw * clamp(this.hp / this.maxHp, 0, 1), 5);
+      if (this.shieldHp > 0) { ctx.fillStyle = "#d8f4ff"; ctx.fillRect(-bw / 2, by - 5, bw * this.shieldHp / this.shieldMax, 3); }
+      if (this.elite) drawEliteBadge(this.elite, -bw / 2 - 12, by + 2.5, 9);
     }
     ctx.restore();
+  }
+  drawEliteAura(s, t) {
+    const c = ELITE_TRAITS[this.elite].col, p = 0.5 + 0.5 * Math.sin(t * 4 + this.x), rg = this.rage;
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(0, 0, s * 0.3, 0, 0, s * 1.6); g.addColorStop(0, hexA(c, 0.28 + 0.14 * p + (rg ? 0.2 : 0))); g.addColorStop(1, hexA(c, 0)); ctx.fillStyle = g; ctx.fillRect(-s * 1.7, -s * 1.7, s * 3.4, s * 3.4);
+    ctx.restore();
+    ctx.save(); ctx.translate(0, s * 0.85); ctx.scale(1, 0.32); ctx.rotate(t * (rg ? 4 : 1.2)); ring(0, 0, s * 1.15, hexA(c, 0.75), 3);
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; circle(Math.cos(a) * s * 1.15, Math.sin(a) * s * 1.15, 3.5, c); } ctx.restore();
+    if (rg && !settings.lite) for (let i = 0; i < 3; i++) { const u = (t * 1.6 + i / 3) % 1; circle((i - 1) * s * 0.5, -s * 0.9 - u * s * 0.8, 4 * (1 - u) + 1, `rgba(255,90,58,${1 - u})`); }
   }
   drawBossAura(s, t) {
     ctx.save(); ctx.translate(0, s * 0.85); ctx.scale(1, 0.35);
@@ -5723,7 +5745,7 @@ function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; altarMode = false; recipeOpen = false; altarIntro = null; fusion = null;
   dragon = null; bossIntro = null; bossCharges = []; bossSlowT = 0; bossFlash = 0; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
-  spellCd = 0; enemies = []; projectiles = []; blackholes = []; jackpotT = 0; slotFlash = null; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
+  spellCd = 0; enemies = []; projectiles = []; blackholes = []; jackpotT = 0; slotFlash = null; combo = 0; comboT = 0; comboEnd = null; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
   pause: { name: "Pause", desc: "The whole battlefield stops for 15 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 15 },
@@ -6517,9 +6539,92 @@ function pickKind(wave) {
   for (const p of pool) { pick -= p[1]; if (pick <= 0) return p[0]; }
   return pool[0][0];
 }
+// Elite enemies: from wave 8 some normal enemies spawn as elites with one trait (not in training or Boss Break Out)
+const ELITE = { from: 8, hp: 2.5, gold: 3, size: 1.18, chance: w => Math.min(0.10, 0.03 + 0.002 * (w - 8)),
+  shield: 0.5, healEvery: 3, healR: 130, heal: 0.08, blinkEvery: 4, blink: 80, rageAt: 0.5, rage: 1.8, split: 3, splitHp: 0.35 };
+const ELITE_TRAITS = { shield: { name: "Shielded", col: "#7fd0ff" }, split: { name: "Splitter", col: "#c08aff" }, heal: { name: "Healer", col: "#7aff8a" },
+  blink: { name: "Blinker", col: "#ff7ad8" }, berserk: { name: "Berserk", col: "#ff5a3a" } };
+function makeElite(e, trait) {
+  e.elite = trait; e.hp *= ELITE.hp; e.maxHp = e.hp; e.size = Math.round(e.size * ELITE.size); e.gold = Math.round(e.gold * ELITE.gold);
+  if (trait === "shield") e.shieldHp = e.shieldMax = e.maxHp * ELITE.shield;
+  e.eliteT = Math.random();
+  fxs.push(new Fx("text", { x: e.x, y: e.y + 30, text: ELITE_TRAITS[trait].name.toUpperCase(), color: ELITE_TRAITS[trait].col, size: 20, duration: 1.4 }));
+  if (!(save.tut && save.tut.elite)) { save.tut = save.tut || {}; save.tut.elite = true; writeSave(); showInfo("An ELITE enemy! Elites glow, have 2.5x HP, drop 3x gold and have a trait: Shielded, Splitter, Healer, Blinker or Berserk. Focus them down!"); }
+}
 function spawnEnemy(kind, wave) {
   const e = new Enemy(kind, wave, rand(80, W - 80), HUD_H + 20);
-  e.wave = wave; enemies.push(e);
+  e.wave = wave;
+  if (!e.isBoss && !training && !bossMode && wave >= ELITE.from && Math.random() < ELITE.chance(wave)) makeElite(e, pickOne(Object.keys(ELITE_TRAITS)));
+  enemies.push(e);
+}
+function eliteUpdate(e, dt) {
+  e.eliteT += dt;
+  if (e.elite === "heal" && e.eliteT >= ELITE.healEvery) {
+    e.eliteT = 0; let n = 0;
+    for (const o of enemies) { if (o.dead || o.hp >= o.maxHp || Math.hypot(o.x - e.x, o.y - e.y) > ELITE.healR) continue; o.hp = Math.min(o.maxHp, o.hp + o.maxHp * (o === e ? ELITE.heal / 2 : ELITE.heal)); n++;
+      if (o !== e) addPart({ add: true, kind: "glow", x: o.x, y: o.y - o.size, vy: -40, life: 0.6, size: 10, rgb: "120,255,140", a: 0.9 }); }
+    addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "120,255,140", size: 12, grow: ELITE.healR * 1.6, w: 4, sq: 0.55, life: 0.5 });
+    if (n > 1) fxs.push(new Fx("text", { x: e.x, y: e.y - e.size - 30, text: "HEAL", color: "#7aff8a", size: 16, duration: 0.7 }));
+  } else if (e.elite === "blink" && e.eliteT >= ELITE.blinkEvery && e.rootT <= 0 && e.stunT <= 0) {
+    const lim = FRONT_Y - e.size * 0.9 - 40; if (e.y >= lim) return;
+    e.eliteT = 0; const y0 = e.y; e.y = Math.min(lim, e.y + ELITE.blink);
+    for (const yy of [y0, e.y]) { addPart({ add: true, kind: "ring", x: e.x, y: yy, rgb: "255,122,216", size: 6, grow: 80, w: 3, sq: 0.6, life: 0.35 });
+      if (!settings.lite) for (let i = 0; i < 8; i++) addPart({ add: true, kind: "glow", x: e.x + rand(-12, 12), y: yy + rand(-12, 12), vx: rand(-80, 80), vy: rand(-80, 80), drag: 3, life: 0.4, size: 4, rgb: "255,150,230", a: 1 }); }
+    if (time - (eliteSfxAt.blink || -9) > 0.4) { eliteSfxAt.blink = time; playSample("summon_zap", 0.25, 1.7); }
+  } else if (e.elite === "berserk" && !e.rage && e.hp < e.maxHp * ELITE.rageAt) {
+    e.rage = true; fxs.push(new Fx("text", { x: e.x, y: e.y - e.size - 30, text: "ENRAGED!", color: "#ff5a3a", size: 20, duration: 1 }));
+    addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "255,90,58", size: 8, grow: 90, w: 4, sq: 0.6, life: 0.4 });
+  }
+}
+const eliteSfxAt = {};
+function eliteSplit(e) {
+  for (let i = 0; i < ELITE.split; i++) {
+    const c = new Enemy(e.kind, e.wave || wave, clamp(e.x + (i - 1) * 30, 40, W - 40), e.y + rand(-10, 10)); c.wave = e.wave || wave;
+    c.hp = c.maxHp = c.maxHp * ELITE.splitHp; c.size = Math.round(c.size * 0.72); c.gold = Math.max(1, Math.round(c.gold * 0.3)); c.speed *= 1.15; enemies.push(c);
+  }
+  addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "192,138,255", size: 10, grow: 90, w: 4, sq: 0.6, life: 0.4 });
+  fxs.push(new Fx("text", { x: e.x, y: e.y - e.size - 20, text: "SPLIT!", color: "#c08aff", size: 20, duration: 0.8 }));
+}
+// Combo meter: kills within COMBO.window s of each other chain up; tiers give bonus kill gold and card damage (not in training)
+const COMBO = { window: 2.5, tiers: [[10, 0.1, 0, "Nice!"], [25, 0.25, 0.05, "Great!"], [50, 0.5, 0.1, "Awesome!"], [100, 1, 0.15, "Unstoppable!"]] };
+const COMBO_COL = ["#e9d3a6", "#9cff9c", "#7fd0ff", "#ffd84a", "#ff7ad8"];
+let combo = 0, comboT = 0, comboPop = 0, comboEnd = null, comboBest = 0;
+const comboTier = () => { let k = 0; for (const t of COMBO.tiers) if (combo >= t[0]) k++; return k; };
+const comboGold = () => { const k = comboTier(); return k ? 1 + COMBO.tiers[k - 1][1] : 1; };
+const comboDmg = () => { const k = comboTier(); return k ? 1 + COMBO.tiers[k - 1][2] : 1; };
+function comboKill(e) {
+  if (training || state !== "wave") return;
+  const k0 = comboTier(); combo++; comboT = COMBO.window; comboPop = 1; comboEnd = null; comboBest = Math.max(comboBest, combo);
+  const k1 = comboTier();
+  if (k1 > k0) { const tr = COMBO.tiers[k1 - 1]; playSample("summon_flip_rare", 0.55, 0.9 + k1 * 0.12);
+    fxs.push(new Fx("text", { x: W - 90, y: COMBO_Y + 92, text: tr[3], color: COMBO_COL[k1], size: 30, duration: 1.2 }));
+    if (!(save.tut && save.tut.combo)) { save.tut = save.tut || {}; save.tut.combo = true; writeSave(); showInfo("COMBO! Kill enemies quickly one after another to keep the combo going. x10, x25, x50 and x100 give bonus gold and damage."); } }
+}
+function updateCombo(dt) {
+  comboPop = Math.max(0, comboPop - dt * 5);
+  if (comboEnd) { comboEnd.t += dt; if (comboEnd.t > 1.2) comboEnd = null; }
+  if (combo > 0 && state === "wave") { comboT -= dt; if (comboT <= 0) { if (combo >= 5) comboEnd = { n: combo, t: 0, k: comboTier() }; combo = 0; } }
+}
+const COMBO_Y = HUD_H + 222; // below Quests and the tester TEST button
+function drawCombo() {
+  if (training) return;
+  const x = W - 16, y = COMBO_Y;
+  if (combo >= 3) {
+    const k = comboTier(), col = COMBO_COL[k], sc = 1 + comboPop * 0.25, f = clamp(comboT / COMBO.window, 0, 1);
+    text("COMBO", x, y, 15, col, { align: "right", weight: 900, outline: 5 });
+    ctx.save(); ctx.translate(x - 40, y + 30); ctx.scale(sc, sc);
+    if (k >= 2 && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 44); g.addColorStop(0, hexA(col, 0.45)); g.addColorStop(1, hexA(col, 0)); ctx.fillStyle = g; ctx.fillRect(-46, -46, 92, 92); ctx.restore(); }
+    text(`x${combo}`, 40, 0, 36, col, { align: "right", weight: 900, outline: 7, baseline: "middle" }); ctx.restore();
+    rrect(x - 110, y + 52, 110, 9, 4.5); ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fill();
+    rrect(x - 110, y + 52, Math.max(9, 110 * f), 9, 4.5); ctx.fillStyle = f < 0.3 ? "#ff6a5a" : col; ctx.fill();
+    if (k) { const tr = COMBO.tiers[k - 1]; text(`+${Math.round(tr[1] * 100)}% gold` + (tr[2] ? `  +${Math.round(tr[2] * 100)}% dmg` : ""), x, y + 74, 13, col, { align: "right", weight: 800, outline: 4 }); }
+    else text(`next: x${COMBO.tiers[0][0]}`, x, y + 74, 13, hexA(PARCH, 0.8), { align: "right", weight: 700, outline: 4 });
+  } else if (comboEnd) {
+    const a = 1 - comboEnd.t / 1.2; ctx.save(); ctx.globalAlpha = a;
+    text("COMBO ENDED", x, y, 14, "#cfc2a8", { align: "right", weight: 900, outline: 5 });
+    text(`x${comboEnd.n}`, x, y + 30, 30, COMBO_COL[comboEnd.k], { align: "right", weight: 900, outline: 6, baseline: "middle" });
+    ctx.restore();
+  }
 }
 function damageCastle(a) {
   if (state !== "wave") return;
@@ -6598,6 +6703,8 @@ function deathFx(e) {
 }
 function onEnemyKilled(e) {
   enemies = enemies.filter(x => x !== e);
+  if (e.elite === "split") eliteSplit(e);
+  comboKill(e);
   if (state === "wave" && e.isBoss && !bossMode) addCurse();
   if (state === "wave" && !e.noGold) {
     if (e.isBoss) dropWild(pickOne(Object.keys(WILD)), e.x, e.y);
@@ -6620,7 +6727,7 @@ function onEnemyKilled(e) {
     fxs.push(new Fx("text", { x: e.x, y: e.y - 40, text: `+${BOSS_GEMS} gems`, color: "#7fe6ff", size: 30, duration: 1.2 }));
   } else if (e.noGold) fxs.push(new Fx("text", { x: e.x, y: e.y - 20, text: "0", color: "#9a9590", size: 20, duration: 0.8 }));
   else {
-    const mid = e.lastCard ? idolNext(e.lastCard, "gold") : 0, g = Math.round((e.gold + (hasRelic("bounty") ? 1 : 0)) * modKillGold(e.isBoss)) + mid; gold += g; if (mid) playSpecial("sp_midas", 0.5, 0.15);
+    const mid = e.lastCard ? idolNext(e.lastCard, "gold") : 0, g = Math.round((e.gold + (hasRelic("bounty") ? 1 : 0)) * modKillGold(e.isBoss) * comboGold()) + mid; gold += g; if (mid) playSpecial("sp_midas", 0.5, 0.15);
     if (mid) addPart({ add: true, kind: "glow", x: e.x, y: e.y - 20, life: 0.3, size: 26, grow: 0.5, rgb: "255,210,80", a: 0.9 });
     const hl = idolRow("heal"); if (hl && state === "wave" && castleHp < castleMax) { castleHp = Math.min(castleMax, castleHp + IDOL_VAL.heal(hl)); chaliceGlow = 1; playSpecial("sp_chalice", 0.45, 0.6); }
     if (hasRelic("vamp") && state === "wave") castleHp = Math.min(castleMax, castleHp + 0.3);
@@ -9336,7 +9443,7 @@ function update(dt) {
   updateDragon(dt);
   for (const z of zones) z.update(dt);
   for (const p of projectiles) p.update(dt);
-  updateBlackHoles(dt); laserLocks(dt); if (jackpotT > 0 && state === "wave") jackpotT = Math.max(0, jackpotT - dt);
+  updateBlackHoles(dt); laserLocks(dt); updateCombo(dt); if (jackpotT > 0 && state === "wave") jackpotT = Math.max(0, jackpotT - dt);
   updateParts(dt);
   updateMeteors(dt); updateDoom(doomDt);
   for (const f of fxs) f.update(dt);
@@ -9658,7 +9765,7 @@ function drawWorld() {
   if (curses.has("smoke")) drawCurseSmoke();
   drawCurseBurns();
   drawCurseFx();
-  if (state === "wave" || state === "break") { drawCurseBadges(); drawWeakTag(); drawModTags(); }
+  if (state === "wave" || state === "break") { drawCurseBadges(); drawWeakTag(); drawModTags(); drawCombo(); }
   if (timeStopT > 0) drawTimeStop();
   if (!chamberOpen && !spell) drawWildFan();
 }
@@ -11602,6 +11709,17 @@ function openLeaderboard() {
   const g = gamesApi();
   if (g) g.show();
   else shopToast = { text: "Android app only", color: "#ffd77a", t: 0 };
+}
+// Elite trait badge: dark coin with a trait icon
+function drawEliteBadge(tr, x, y, r) {
+  const c = ELITE_TRAITS[tr].col; circle(x, y, r, "#1a0b12"); ring(x, y, r, c, 2);
+  ctx.save(); ctx.translate(x, y); ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.lineCap = "round";
+  if (tr === "shield") { ctx.beginPath(); ctx.moveTo(-r * 0.5, -r * 0.5); ctx.lineTo(r * 0.5, -r * 0.5); ctx.lineTo(r * 0.5, 0); ctx.quadraticCurveTo(0, r * 0.7, 0, r * 0.7); ctx.quadraticCurveTo(-r * 0.5, r * 0.3, -r * 0.5, 0); ctx.closePath(); ctx.fill(); }
+  else if (tr === "split") { for (const [dx, dy] of [[0, -0.35], [-0.38, 0.28], [0.38, 0.28]]) circle(dx * r, dy * r, r * 0.24, c); }
+  else if (tr === "heal") { ctx.fillRect(-r * 0.15, -r * 0.55, r * 0.3, r * 1.1); ctx.fillRect(-r * 0.55, -r * 0.15, r * 1.1, r * 0.3); }
+  else if (tr === "blink") { ctx.beginPath(); for (const oy of [-0.35, 0.1]) { ctx.moveTo(-r * 0.45, oy * r); ctx.lineTo(0, (oy + 0.35) * r); ctx.lineTo(r * 0.45, oy * r); } ctx.stroke(); }
+  else { ctx.beginPath(); ctx.moveTo(0, -r * 0.6); ctx.quadraticCurveTo(r * 0.55, -r * 0.1, r * 0.3, r * 0.45); ctx.quadraticCurveTo(0, r * 0.65, -r * 0.3, r * 0.45); ctx.quadraticCurveTo(-r * 0.55, -r * 0.1, 0, -r * 0.6); ctx.fill(); }
+  ctx.restore();
 }
 // Lobby Leaderboard button: golden trophy on a 1-2-3 podium, turning light rays, shine sweep, laurels, sparkles
 function drawLeaderboardIcon(b) {
