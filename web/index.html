@@ -8810,9 +8810,9 @@ function castDoom() {
   const rock = Array.from({ length: 16 }, (_, i) => 0.84 + Math.random() * 0.2);
   doom = {
     t: 0, hit: false, done: false, px: W * 0.72, py: HUD_H + 120, tx: W / 2, ty: mid + 40, rock, rot: 0,
-    fire: [], debris: [], embers: [], smoke: [], victims: [], cracks: Array.from({ length: 11 }, (_, i) => ({ a: i / 11 * Math.PI * 2 + Math.random() * 0.3, l: 0.6 + Math.random() * 0.6 })),
+    fire: [], debris: [], embers: [], smoke: [], victims: [], bolts: [], souls: [], lflash: 0, boltT: 0.3, glyphs: Array.from({ length: 12 }, () => Array.from({ length: 3 }, () => [rand(-1, 1), rand(-1, 1), rand(-1, 1), rand(-1, 1)])), cracks: Array.from({ length: 11 }, (_, i) => ({ a: i / 11 * Math.PI * 2 + Math.random() * 0.3, l: 0.6 + Math.random() * 0.6 })),
   };
-  playSfx("earth", "atk"); playSfx("phoenix", "atk");
+  playSfx("earth", "atk"); playSfx("phoenix", "atk"); playSample("summon_implode", 0.7, 0.6); playSample("dragon_roar", 0.45, 0.7);
 }
 function doomMeteorAt(k) {
   const e = Math.pow(k, 1.7);
@@ -8821,7 +8821,12 @@ function doomMeteorAt(k) {
 function updateDoom(dt) {
   shakeT = Math.max(0, shakeT - dt);
   if (!doom) return;
-  const d = doom; d.t += dt; d.rot += dt * 1.6;
+  const d = doom; d.t += dt; d.rot += dt * 1.6; d.lflash = Math.max(0, d.lflash - dt * 5);
+  // red lightning cracks the sky while the meteor comes
+  if (!d.hit) { d.boltT -= dt; if (d.boltT <= 0) { d.boltT = rand(0.12, 0.32); const x0 = rand(40, W - 40), pts = [[x0, HUD_H]]; let x = x0, y = HUD_H; const yEnd = rand(FRONT_Y - 260, FRONT_Y - 40);
+      while (y < yEnd) { y += rand(30, 60); x += rand(-38, 38); pts.push([x, Math.min(y, yEnd)]); } d.bolts.push({ pts, life: 0, max: 0.22 }); d.lflash = 0.6; if (Math.random() < 0.5) playSfx("lightning", "hit"); } }
+  for (const b of d.bolts) b.life += dt; d.bolts = d.bolts.filter(b => b.life < b.max);
+  for (const so of d.souls) { so.life += dt; so.y -= 70 * dt; so.x += Math.sin(so.life * 4 + so.ph) * 20 * dt; } d.souls = d.souls.filter(so => so.life < 1.6);
   const k = clamp((d.t - DOOM_OPEN) / (DOOM_HIT - DOOM_OPEN), 0, 1);
   if (!d.hit && d.t > DOOM_OPEN) {
     const m = doomMeteorAt(k), dx = d.tx - d.px, dy = d.ty - d.py, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len;
@@ -8839,7 +8844,7 @@ function updateDoom(dt) {
     for (let i = 0; i < 160; i++) d.embers.push({ x: d.tx + rand(-120, 120), y: d.ty + rand(-40, 40), vx: rand(-180, 180), vy: rand(-520, -120), life: 0, max: rand(1.2, 2.8), size: rand(1.5, 4) });
     for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2; d.smoke.push({ x: d.tx, y: d.ty, vx: Math.cos(a) * rand(260, 420), vy: Math.sin(a) * rand(110, 180), life: 0, max: rand(1.6, 2.4), size: rand(40, 70), ground: true }); }
     for (let i = 0; i < 14; i++) d.smoke.push({ x: d.tx + rand(-60, 60), y: d.ty - 40, vx: rand(-30, 30), vy: rand(-260, -140), life: 0, max: rand(2, 3), size: rand(60, 100), column: true });
-    playSfx("lava", "hit"); playSfx("earth", "hit"); playSfx("phoenix", "hit");
+    playSfx("lava", "hit"); playSfx("earth", "hit"); playSfx("phoenix", "hit"); playSample("nyx_boom", 1, 0.7); playSample("dragon_die", 0.5, 0.8);
   }
   if (d.hit) {
     const u = d.t - DOOM_HIT, radius = Math.max(0, u - DOOM_STOP) * 1500;
@@ -8847,6 +8852,7 @@ function updateDoom(dt) {
       e.noGold = true;
       e.takeDamage(e.hp + 1, "Doom", "#ff3d2e");
       fxs.push(new Fx("burst", { x: e.x, y: e.y, color: "#ff6a2a", radius: e.size * 3, duration: 0.5 }));
+      if (d.souls.length < 40) d.souls.push({ x: e.x, y: e.y - e.size, life: 0, ph: rand(0, 6), r: Math.max(7, e.size * 0.38) });
     }
   }
   const step = (arr, grav, drag) => {
@@ -8895,6 +8901,91 @@ function drawDoomMeteor(m, rot) {
   ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, m.r * 1.02, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
+// ---- Doom extras ----
+function doomSky(d, t, k, top, fh) {
+  const lite = settings.lite, pre = clamp(t / 0.6, 0, 1), fo = d.hit ? clamp(1 - (t - DOOM_HIT) / 1.5, 0, 1) : 1;
+  if (fo <= 0) return;
+  // blood sky from the top
+  const g = ctx.createLinearGradient(0, top, 0, top + fh * 0.75); g.addColorStop(0, `rgba(120,0,10,${0.6 * pre * fo})`); g.addColorStop(1, "rgba(60,0,10,0)"); ctx.fillStyle = g; ctx.fillRect(0, top, W, fh);
+  // storm vortex of dark clouds around the portal
+  if (!lite && !d.hit) for (let ring = 0; ring < 3; ring++) for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 + t * (0.9 - ring * 0.25) * (ring % 2 ? -1 : 1), R = 90 + ring * 55;
+    ctx.globalAlpha = 0.35 * pre; circle(d.px + Math.cos(a) * R, d.py + Math.sin(a) * R * 0.55, 26 + ring * 8, ring === 0 ? "#3a0610" : "#22060c"); }
+  ctx.globalAlpha = 1;
+  // lightning
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const b of d.bolts) { const a = 1 - b.life / b.max;
+    for (const [lw, c] of [[10, `rgba(255,40,40,${0.35 * a})`], [4, `rgba(255,140,120,${0.9 * a})`], [1.5, `rgba(255,255,240,${a})`]]) { ctx.strokeStyle = c; ctx.lineWidth = lw; ctx.beginPath(); b.pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); }
+    const [ex, ey] = b.pts[b.pts.length - 1]; circle(ex, ey, 18 * a, `rgba(255,120,90,${0.5 * a})`); }
+  ctx.restore();
+}
+function doomTarget(d, t, k) {
+  const lite = settings.lite;
+  // converging rings pulling into the target
+  if (k > 0.2) { ctx.save(); ctx.globalCompositeOperation = "lighter"; for (let i = 0; i < 3; i++) { const u = ((t * 1.6 + i / 3) % 1), R = (1 - u) * 300 + 20; ctx.globalAlpha = u * 0.8 * k; ctx.strokeStyle = "#ff4a2e"; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(d.tx, d.ty, R, R * 0.42, 0, 0, Math.PI * 2); ctx.stroke(); } ctx.restore(); }
+  // orbiting rune glyphs round the target circle
+  const R = 150 + 60 * k, al = Math.min(1, t / 0.8);
+  ctx.save(); ctx.strokeStyle = "#ff6a4a"; ctx.lineWidth = 2.5; ctx.lineCap = "round"; if (!lite) { ctx.shadowColor = "#ff2a1a"; ctx.shadowBlur = 12; }
+  d.glyphs.forEach((gl, i) => { const a = i / d.glyphs.length * Math.PI * 2 + t * 0.6, x = d.tx + Math.cos(a) * (R + 26), y = d.ty + Math.sin(a) * (R + 26) * 0.42, s2 = 9;
+    ctx.globalAlpha = al * (0.55 + 0.45 * Math.sin(t * 6 + i)); ctx.beginPath(); for (const [a1, b1, a2, b2] of gl) { ctx.moveTo(x + a1 * s2, y + b1 * s2); ctx.lineTo(x + a2 * s2, y + b2 * s2); } ctx.stroke(); });
+  ctx.restore();
+  // light pillars from the star points as impact nears
+  if (k > 0.5) { const pk = (k - 0.5) / 0.5; ctx.save(); ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 5 - t * 0.8, x = d.tx + Math.cos(a) * R * 0.84, y = d.ty + Math.sin(a) * R * 0.84 * 0.42, h = 320 * pk;
+      const g = ctx.createLinearGradient(0, y, 0, y - h); g.addColorStop(0, `rgba(255,80,50,${0.75 * pk})`); g.addColorStop(1, "rgba(255,40,30,0)"); ctx.fillStyle = g; ctx.fillRect(x - 7 - 4 * pk, y - h, 14 + 8 * pk, h);
+      circle(x, y, 10 + 6 * pk, `rgba(255,200,150,${0.6 * pk})`); }
+    ctx.restore(); }
+  // doom marks over every enemy
+  if (k > 0.25) { const mk = Math.min(1, (k - 0.25) / 0.2);
+    for (const e of enemies) { if (e.dead) continue; const y = e.y - e.size - 20, r = 12 + 3 * Math.sin(t * 10 + e.x);
+      ctx.save(); ctx.globalAlpha = mk; ctx.translate(e.x, e.y); ctx.rotate(t * 3); ctx.strokeStyle = "#ff3d2e"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(0, 0, e.size + 8, 0, Math.PI * 2); ctx.stroke();
+      for (let q = 0; q < 4; q++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.moveTo(e.size + 2, 0); ctx.lineTo(e.size + 14, 0); ctx.stroke(); } ctx.restore();
+      drawSkullIcon(e.x, y - 6, r * 0.6, mk, 0.9); }
+  }
+}
+function doomTail(d, m, k) {
+  const dx = d.tx - d.px, dy = d.ty - d.py, len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len, L = m.r * (2.5 + 2.5 * k), nx = -uy, ny = ux;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createLinearGradient(m.x, m.y, m.x - ux * L, m.y - uy * L); g.addColorStop(0, "rgba(255,245,200,0.85)"); g.addColorStop(0.3, "rgba(255,150,50,0.6)"); g.addColorStop(1, "rgba(200,20,20,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(m.x + nx * m.r * 0.95, m.y + ny * m.r * 0.95); ctx.quadraticCurveTo(m.x - ux * L * 0.5 + nx * m.r * 0.6, m.y - uy * L * 0.5 + ny * m.r * 0.6, m.x - ux * L, m.y - uy * L);
+  ctx.quadraticCurveTo(m.x - ux * L * 0.5 - nx * m.r * 0.6, m.y - uy * L * 0.5 - ny * m.r * 0.6, m.x - nx * m.r * 0.95, m.y - ny * m.r * 0.95); ctx.closePath(); ctx.fill();
+  // bow shock in front
+  if (k > 0.3) { const a0 = Math.atan2(uy, ux); ctx.strokeStyle = `rgba(255,250,230,${0.6 * k})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 1.25, a0 - 1.1, a0 + 1.1); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,170,90,${0.4 * k})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 1.45, a0 - 0.9, a0 + 0.9); ctx.stroke(); }
+  ctx.restore();
+}
+function doomOrbit(d, m, t) {
+  for (let i = 0; i < 4; i++) { const a = t * 3 + i * Math.PI / 2, x = m.x + Math.cos(a) * m.r * 1.5, y = m.y + Math.sin(a) * m.r * 0.6, r = m.r * 0.14 * (1 + 0.3 * Math.sin(i));
+    if (!settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(x, y, r * 2.2, "rgba(255,120,40,0.35)"); ctx.restore(); }
+    circle(x, y, r, "#3a1a0e"); ring(x, y, r, "#ff8a3a", 2); }
+}
+function doomAfter(d, t, u, fadeOut) {
+  const lite = settings.lite;
+  // molten crater
+  const cr = Math.min(1, u / 0.3); ctx.save(); ctx.globalAlpha = fadeOut;
+  const mg = ctx.createRadialGradient(d.tx, d.ty, 5, d.tx, d.ty, 110 * cr); mg.addColorStop(0, `rgba(255,${200 + 40 * Math.sin(t * 6)},120,0.95)`); mg.addColorStop(0.5, "rgba(255,110,30,0.85)"); mg.addColorStop(1, "rgba(120,20,10,0)");
+  ctx.save(); ctx.translate(d.tx, d.ty); ctx.scale(1, 0.4); ctx.translate(-d.tx, -d.ty); ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(d.tx, d.ty, 110 * cr, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  if (!lite) for (let i = 0; i < 6; i++) { const ph = (t * 1.3 + i * 0.37) % 1, x = d.tx + Math.cos(i * 2.1) * 70 * cr, y = d.ty + Math.sin(i * 2.1) * 24 * cr; circle(x, y - ph * 8, 4 * Math.sin(ph * Math.PI) + 1, `rgba(255,230,150,${Math.sin(ph * Math.PI)})`); }
+  ctx.restore();
+  // god rays from the impact
+  if (u > DOOM_STOP && u < 1.6 && !lite) { const ra = clamp(1 - (u - DOOM_STOP) / 1.4, 0, 1); ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.translate(d.tx, d.ty - 30); ctx.rotate(u * 0.4);
+    for (let i = 0; i < 14; i++) { const a = i * Math.PI / 7, L = 520; const g = ctx.createLinearGradient(0, 0, Math.cos(a) * L, Math.sin(a) * L); g.addColorStop(0, `rgba(255,220,150,${0.45 * ra})`); g.addColorStop(1, "rgba(255,120,60,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a - 0.06) * L, Math.sin(a - 0.06) * L); ctx.lineTo(Math.cos(a + 0.06) * L, Math.sin(a + 0.06) * L); ctx.fill(); }
+    ctx.restore(); }
+  // mushroom fireball: stem + rising cap that cools into smoke
+  if (u > DOOM_STOP) { const v = u - DOOM_STOP, e = 1 - Math.pow(1 - Math.min(1, v / 2.2), 2.5), heat = clamp(1 - v / 2.6, 0, 1), a = clamp((DOOM_END - t) / 1.2, 0, 1);
+    const cy = d.ty - 40 - 230 * e, R = 50 + 95 * e;
+    ctx.save(); ctx.globalAlpha = a;
+    const sg = ctx.createLinearGradient(0, d.ty, 0, cy); sg.addColorStop(0, `rgba(${80 + 175 * heat},${40 + 90 * heat},${30},0.75)`); sg.addColorStop(1, `rgba(${60 + 160 * heat},${30 + 60 * heat},20,0.55)`);
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.moveTo(d.tx - 30 - 10 * e, d.ty); ctx.quadraticCurveTo(d.tx - 18, (d.ty + cy) / 2, d.tx - R * 0.35, cy + R * 0.4); ctx.lineTo(d.tx + R * 0.35, cy + R * 0.4); ctx.quadraticCurveTo(d.tx + 18, (d.ty + cy) / 2, d.tx + 30 + 10 * e, d.ty); ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 7; i++) { const a2 = i / 7 * Math.PI * 2 + v * 0.8, x = d.tx + Math.cos(a2) * R * 0.75, y = cy + Math.sin(a2) * R * 0.35; circle(x, y, R * 0.5, `rgba(${50 + 60 * heat},${35 + 30 * heat},${30},0.8)`); }
+    const cg = ctx.createRadialGradient(d.tx, cy + R * 0.15, 5, d.tx, cy, R); cg.addColorStop(0, `rgba(255,${230 * heat + 60},${160 * heat + 40},${0.95})`); cg.addColorStop(0.55, `rgba(${255 * heat + 70},${110 * heat + 40},${30},0.9)`); cg.addColorStop(1, "rgba(40,20,20,0)");
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(d.tx, cy, R, 0, Math.PI * 2); ctx.fill();
+    ctx.restore(); }
+  // souls of the fallen rising
+  for (const so of d.souls) { const a = so.life < 0.2 ? so.life / 0.2 : 1 - (so.life - 0.2) / 1.4;
+    if (!lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(so.x, so.y, so.r * 1.8, `rgba(255,70,50,${0.35 * a})`); ctx.restore(); }
+    drawSkullIcon(so.x, so.y, so.r, Math.max(0, a) * 0.85, 0.9); }
+}
 function drawDoom() {
   if (!doom) return;
   const d = doom, t = d.t, top = HUD_H, bot = FRONT_Y, fh = bot - top;
@@ -8903,6 +8994,7 @@ function drawDoom() {
   const after = d.hit ? t - DOOM_HIT : -1, fadeOut = d.hit ? clamp((DOOM_END - t) / 1.2, 0, 1) : 1;
   ctx.fillStyle = `rgba(25,0,8,${(d.hit ? 0.55 * fadeOut : 0.62 * pre)})`; ctx.fillRect(0, top, W, fh);
   if (!d.hit) { ctx.fillStyle = `rgba(255,30,20,${0.08 + 0.08 * Math.sin(t * 12) * k})`; ctx.fillRect(0, top, W, fh); }
+  doomSky(d, t, k, top, fh);
   if (!d.hit) {
     drawPentagram(d.tx, d.ty, 150 + 60 * k, 0.42, -t * 0.8, "#ff3d2e", Math.min(1, t / 0.8) * (0.6 + 0.4 * Math.sin(t * 10)), 5);
     ctx.save(); ctx.globalAlpha = 0.55 * k; ellipse(d.tx, d.ty + 10, 220 * k + 20, 80 * k + 8, "#000"); ctx.restore();
@@ -8928,7 +9020,8 @@ function drawDoom() {
     ctx.fillStyle = `rgba(${col},${0.55 * (1 - u)})`; ctx.beginPath(); ctx.arc(p.x, p.y, s, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
-  if (!d.hit && t > DOOM_OPEN) drawDoomMeteor(doomMeteorAt(k), d.rot);
+  if (!d.hit) doomTarget(d, t, k);
+  if (!d.hit && t > DOOM_OPEN) { const m = doomMeteorAt(k); doomTail(d, m, k); drawDoomMeteor(m, d.rot); doomOrbit(d, m, t); }
   if (d.hit) {
     const u = after;
     const cr = Math.min(1, u / 0.3);
@@ -8963,6 +9056,7 @@ function drawDoom() {
       ctx.fillStyle = "#ff8a3a"; ctx.fillRect(-p.size / 2, -p.size / 2, p.size * 0.4, p.size * 0.3); ctx.restore();
     }
   }
+  if (d.hit) doomAfter(d, t, after, fadeOut);
   const bars = d.hit ? clamp(1 - (t - DOOM_HIT - 0.6) / 0.5, 0, 1) : pre;
   if (bars > 0) { ctx.fillStyle = "#000"; ctx.fillRect(0, top, W, 46 * bars); ctx.fillRect(0, bot - 46 * bars, W, 46 * bars); }
   ctx.restore();
@@ -8970,7 +9064,15 @@ function drawDoom() {
     const u = after;
     if (u < DOOM_STOP) { ctx.fillStyle = "#fffaf0"; ctx.fillRect(0, -TOP, W, H + TOP); }
     else if (u < 0.7) { ctx.fillStyle = `rgba(255,236,200,${0.85 * (1 - (u - DOOM_STOP) / (0.7 - DOOM_STOP))})`; ctx.fillRect(0, -TOP, W, H + TOP); }
+    // "DOOM" title slams down, cracks, then fades
+    if (u > DOOM_STOP && u < 2.2) { const v = u - DOOM_STOP, sc = v < 0.18 ? 3 - 2 * (v / 0.18) : 1 + 0.03 * Math.sin(v * 20) * Math.max(0, 1 - v), a = v < 0.18 ? v / 0.18 : clamp((2.2 - u) / 0.6, 0, 1);
+      ctx.save(); ctx.globalAlpha = a; ctx.translate(W / 2, HUD_H + 150); ctx.scale(sc, sc);
+      if (!settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(0, -10, 10, 0, -10, 200); g.addColorStop(0, "rgba(255,60,30,0.55)"); g.addColorStop(1, "rgba(255,40,20,0)"); ctx.fillStyle = g; ctx.fillRect(-220, -200, 440, 380); ctx.restore(); }
+      text("DOOM", 0, 30, 96, "#ff3d2e", { font: DISPLAY, weight: 900, outline: 14, outlineColor: "#1a0004" });
+      ctx.strokeStyle = "rgba(255,230,160,0.9)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-120, -20); ctx.lineTo(-60, 0); ctx.lineTo(-70, 18); ctx.lineTo(-10, 30); ctx.moveTo(40, -30); ctx.lineTo(70, -2); ctx.lineTo(110, 6); ctx.stroke();
+      ctx.restore(); }
   }
+  if (d.lflash > 0 && !d.hit) { ctx.fillStyle = `rgba(255,120,110,${0.22 * d.lflash})`; ctx.fillRect(0, -TOP, W, H + TOP); }
 }
 const SPEED_MULT = 2.5, SPEED_TIME = 8;
 let speedT = 0;
