@@ -12546,38 +12546,48 @@ function drawCardsScene() {
 // Card library performance: each card is drawn into its own cached picture that is redrawn ~10x a second
 // (staggered, at most LIB_BUDGET cards per frame), and not at all while the list scrolls or the page slides.
 const LIB_FPS = 10, LIB_BUDGET = 2, LIB_RES = 0.72 /* = the card's on-screen scale on the 720-wide canvas: pixel for pixel */, LIB_PAD = { x: 110, top: 130, bot: 90 };
-let libScrollPrev = 0, libStillT = 0, libBudget = 0;
+let libScrollPrev = 0, libStillT = 0, libBudget = 0, libSpent = 0, libFrameEma = 16, libFrameAt = 0, libLastRe = 0;
+const LIB_MS = 3, LIB_MIN_FPS = 45; // redraw time budget per frame; no redraws while the page runs under 45 FPS (except one every 250 ms)
 function drawLibCard(c) {
-  const d = EL[c.element]; if (!(d.myth || d.legendCard || d.divine || c.rarity >= MYTH)) return c.draw(); // light cards are cheaper to draw directly
   const now = performance.now(), L = c._lib, moving = libStillT > 0;
-  const due = !L || (!moving && now - L.at > 1000 / LIB_FPS && libBudget > 0);
+  const slow = libFrameEma > 1000 / LIB_MIN_FPS, may = libBudget > 0 && (slow ? now - libLastRe > 250 : libSpent < LIB_MS);
+  const due = !L || (!moving && now - L.at > 1000 / LIB_FPS && may);
   if (due) {
-    if (L) libBudget--;
+    const t0 = performance.now();
+    if (L) { libBudget--; libLastRe = now; }
     const w = CARD_W + LIB_PAD.x * 2, h = CARD_H + LIB_PAD.top + LIB_PAD.bot;
     const cv = (L && L.c) || document.createElement("canvas"); if (!L) { cv.width = Math.ceil(w * LIB_RES); cv.height = Math.ceil(h * LIB_RES); }
     const g = cv.getContext("2d"); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); g.scale(LIB_RES, LIB_RES);
     const main = ctx, keep = [c.x, c.y, c.scale];
     ctx = g; try { c.x = LIB_PAD.x + CARD_W / 2; c.y = LIB_PAD.top + CARD_H / 2; c.scale = 1; c.draw(); } finally { ctx = main; [c.x, c.y, c.scale] = keep; }
-    c._lib = { c: cv, w, h, at: L ? Math.max(L.at + 1000 / LIB_FPS, now - 50) : now - Math.random() * 1000 / LIB_FPS };
+    // first render: measure where the card's pixels really are, so each frame only copies that area (+12 px for moving auras)
+    let bb = L && L.bb;
+    if (!bb) { const N = cv.width, M = cv.height, px = g.getImageData(0, 0, N, M).data; let x0 = N, y0 = M, x1 = -1, y1 = -1;
+      for (let y = 0; y < M; y += 2) for (let x = 0; x < N; x += 2) if (px[(y * N + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      const m = 12 * LIB_RES; bb = x1 < 0 ? [0, 0, N, M] : [Math.max(0, x0 - m), Math.max(0, y0 - m), Math.min(N, x1 + m) - Math.max(0, x0 - m), Math.min(M, y1 + m) - Math.max(0, y0 - m)]; }
+    c._lib = { c: cv, w, h, bb, at: L ? now : now - Math.random() * 1000 / LIB_FPS };
+    libSpent += performance.now() - t0;
   }
-  const S = c._lib, sc = c.scale;
-  ctx.drawImage(S.c, c.x - (LIB_PAD.x + CARD_W / 2) * sc, c.y - (LIB_PAD.top + CARD_H / 2) * sc, S.w * sc, S.h * sc);
+  const S = c._lib, sc = c.scale, k = sc / LIB_RES, [bx, by, bw, bh] = S.bb;
+  ctx.drawImage(S.c, bx, by, bw, bh, c.x - (LIB_PAD.x + CARD_W / 2) * sc + bx * k, c.y - (LIB_PAD.top + CARD_H / 2) * sc + by * k, bw * k, bh * k);
 }
+// draw fn (in local coords, origin = top-left of the box) once into a cached picture and reuse it; key must change when the content does
+function libCache(key, x, y, w, h, fn) { const sp = cachedSprite("lib|" + key, w, h, () => { ctx.translate(-w / 2, -h / 2); fn(); }, 1); ctx.drawImage(sp.c, Math.round(x), Math.round(y), w, h); }
 function drawCardsUi(dt) {
   cardsScroll = clamp(cardsScroll, 0, cardsMaxScroll());
-  libBudget = LIB_BUDGET;
+  libBudget = LIB_BUDGET; libSpent = 0;
+  { const n = performance.now(); if (libFrameAt) libFrameEma += (Math.min(100, n - libFrameAt) - libFrameEma) * 0.15; libFrameAt = n; }
   if (Math.abs(cardsScroll - libScrollPrev) > 0.5 || Math.abs(lobbyPos - lobbyPage) > 0.01) libStillT = 0.15; else libStillT = Math.max(0, libStillT - dt);
   libScrollPrev = cardsScroll;
   for (const cell of cardCells()) {
     if (cell.el) upgradeBtns[cell.el].y = -999;
     if (cell.y > H || cell.y < CARDS_TOP - 200) { if (cell.el && collectionCards[cell.el]) collectionCards[cell.el]._lib = null; continue; }
-    if (cell.title) { text(cell.title, 24, cell.y + 4, 24, "#e9d3a6", { align: "left", weight: 700, outline: 6 }); continue; }
+    if (cell.title) { libCache("t|" + cell.title, 10, cell.y - 26, 340, 40, () => text(cell.title, 14, 30, 24, "#e9d3a6", { align: "left", weight: 700, outline: 6 })); continue; }
     const el = cell.el, d = EL[el], cx = cell.x, top = cell.y + 4;
     if (!cardKnown(el)) {
       if (!drawShadowCard(el, cx, top + 49) && LOBBY.card_back.ready) { ctx.save(); ctx.globalAlpha = 0.9; ctx.drawImage(LOBBY.card_back.img, cx - 40, top, 80, 98); ctx.restore(); }
-      text("???", cx, top + 122, 19, PARCH, { weight: 700, outline: 5 });
       const hint = d.divine ? "Ascend at the Altar" : d.special ? "Summon to unlock" : copiesOf(el) ? `${copiesOf(el)} cop${copiesOf(el) > 1 ? "ies" : "y"} saved` : d.myth ? "Fuse in Chamber" : "Fuse to discover";
-      text(hint, cx, top + 144, 15, hexA(PARCH, 0.75), { outline: 4 });
+      libCache("q|" + hint, cx - 90, top + 100, 180, 56, () => { text("???", 90, 22, 19, PARCH, { weight: 700, outline: 5 }); text(hint, 90, 44, 15, hexA(PARCH, 0.75), { outline: 4 }); });
       continue;
     }
     const c = collectionCards[el]; c.t += dt; c.evolveAt = -1; c.x = c.hx = cx; c.y = c.hy = top + 49; c.scale = 0.72; drawLibCard(c);
@@ -12586,22 +12596,23 @@ function drawCardsUi(dt) {
       ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(cx, top + 49, 70 * (1 - k * 0.4), `rgba(160,255,160,${0.5 * k})`); ctx.restore();
       text(`Lv ${levelOf(el)}!`, cx, top + 20 - (1 - k) * 30, 30, "#9cff9c", { weight: 800, outline: 7 });
     }
-    if (d.divine) { text("Divine", cx, top + 122, 19, "#c8f6ff", { weight: 800, outline: 5 }); text("Made at the Altar", cx, top + 144, 15, hexA(PARCH, 0.75), { outline: 4 }); continue; }
-    const lvl = levelOf(el), need = levelNeed(el), b = upgradeBtns[el];
-    text(`Lv ${lvl}` + (lvl > 1 ? `  +${Math.round((lvl - 1) * LEVEL_BONUS * 100)}%` : ""), cx, top + 122, 19, lvl > 1 ? "#9cff9c" : PARCH, { weight: 700, outline: 5 });
-    if (canUpgrade(el)) { b.x = cx - 65; b.y = top + 132; drawBtn(b); }
-    else {
-      const bw = 120, bx = cx - bw / 2, by = top + 136, k = need ? Math.min(1, copiesOf(el) / need) : 1;
-      rrect(bx, by, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
-      if (k > 0) { rrect(bx, by, Math.max(16, bw * k), 16, 8); ctx.fillStyle = need ? "#c9a6ff" : GOLD; ctx.fill(); }
-      text(need ? `${copiesOf(el)} / ${need}` : "MAX", cx, by + 34, 16, hexA(PARCH, 0.85), { weight: 600, outline: 4 });
-    }
+    if (d.divine) { libCache("d", cx - 90, top + 100, 180, 56, () => { text("Divine", 90, 22, 19, "#c8f6ff", { weight: 800, outline: 5 }); text("Made at the Altar", 90, 44, 15, hexA(PARCH, 0.75), { outline: 4 }); }); continue; }
+    const lvl = levelOf(el), need = levelNeed(el), b = upgradeBtns[el], up = canUpgrade(el), cp = copiesOf(el);
+    // labels are cached per card state (level, copies); only the Upgrade button is drawn live
+    libCache(`l|${lvl}|${up ? "u" : cp + "/" + need}`, cx - 90, top + 100, 180, 82, () => {
+      text(`Lv ${lvl}` + (lvl > 1 ? `  +${Math.round((lvl - 1) * LEVEL_BONUS * 100)}%` : ""), 90, 22, 19, lvl > 1 ? "#9cff9c" : PARCH, { weight: 700, outline: 5 });
+      if (!up) { const bw = 120, bx = 90 - bw / 2, by = 36, k = need ? Math.min(1, cp / need) : 1;
+        rrect(bx, by, bw, 16, 8); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fill();
+        if (k > 0) { rrect(bx, by, Math.max(16, bw * k), 16, 8); ctx.fillStyle = need ? "#c9a6ff" : GOLD; ctx.fill(); }
+        text(need ? `${cp} / ${need}` : "MAX", 90, by + 34, 16, hexA(PARCH, 0.85), { weight: 600, outline: 4 }); } });
+    if (up) { b.x = cx - 65; b.y = top + 132; drawBtn(b); }
   }
-  const g = ctx.createLinearGradient(0, 0, 0, CARDS_TOP + 26);
-  g.addColorStop(0, "#3a2418"); g.addColorStop(0.85, "#33201a"); g.addColorStop(1, "rgba(51,32,26,0)");
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, CARDS_TOP + 26);
-  text("CARDS", W / 2, 172, 70, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
-  text("Upgrades add +20% damage per level", W / 2, 218, 24, PARCH, { outline: 7 });
+  libCache("head", 0, 0, W, CARDS_TOP + 26, () => {
+    const g = ctx.createLinearGradient(0, 0, 0, CARDS_TOP + 26);
+    g.addColorStop(0, "#3a2418"); g.addColorStop(0.85, "#33201a"); g.addColorStop(1, "rgba(51,32,26,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, CARDS_TOP + 26);
+    text("CARDS", W / 2, 172, 70, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
+    text("Upgrades add +20% damage per level", W / 2, 218, 24, PARCH, { outline: 7 }); });
   { const b = btn.mergeGuide, sp = b.down ? 0.92 : 1, slot = GUIDE_ICON[save.guide ? "merge_guide" : "merge_guide_notify"];
     if (slot && slot.ready) { const sz = b.w * sp; ctx.drawImage(slot.img, (Math.floor(lobbyT * 7) % 12) * 128, 0, 128, 128, b.x + (b.w - sz) / 2, b.y + (b.h - sz) / 2, sz, sz); }
     text("Merge Guide", b.x + b.w / 2, b.y + b.h + 6, 16, PARCH, { weight: 800, outline: 5 }); }
