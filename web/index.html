@@ -1504,7 +1504,7 @@ class Card {
     ctx.restore();
   }
   drawBattle() {
-    if (!settings.lite || this.evolveAt >= 0 || this.burnAway !== undefined || (this.ssjFlare || 0) > 0.01) return this.draw();
+    if (!LOWFX() || this.evolveAt >= 0 || this.burnAway !== undefined || (this.ssjFlare || 0) > 0.01) return this.draw();
     const d = EL[this.element];
     if (d.art && !(CARD_ILLUS[d.art] && CARD_ILLUS[d.art].ready)) return this.draw();
     const maxed = (this.stars || 0) >= MAX_STARS, big = maxed || this.rarity >= MYTH || d.art || d.special;
@@ -1692,7 +1692,7 @@ class Card {
     if (d.fx === "tychor") return this.drawTychorCard(hw, hh, t, d);
     // art window in full-size frame px (card area starts at 180,160); each Divine card can have its own frame (d.frame, d.win)
     const K = 0.25, win = d.win || [247, 230, 315, 407], WX = -hw + (win[0] - 180) * K, WY = -hh + (win[1] - 160) * K, WW = win[2] * K, WH = win[3] * K;
-    if (!settings.lite) { if (d.fx === "elyndor") elyBack(hw, hh, t); else if (d.fx === "tychor") tyBack(hw, hh, t); else { const p = 0.5 + 0.5 * Math.sin(t * 2.2); const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(150,110,255,${0.28 + 0.12 * p})`); g.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260); divineBack(hw, hh, t); } }
+    if (!LOWFX()) { if (d.fx === "elyndor") elyBack(hw, hh, t); else if (d.fx === "tychor") tyBack(hw, hh, t); else { const p = 0.5 + 0.5 * Math.sin(t * 2.2); const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(150,110,255,${0.28 + 0.12 * p})`); g.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260); divineBack(hw, hh, t); } }
     rrect(-hw + 3, -hh + 5, CARD_W, CARD_H, 10); ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.fill();
     rrect(-hw + 4, -hh + 4, CARD_W - 8, CARD_H - 8, 8); ctx.fillStyle = "#120a26"; ctx.fill();
     const art = CARD_ILLUS[d.art];
@@ -1707,13 +1707,13 @@ class Card {
     ctx.restore();
     const fr = loadSheet(`assets/img/${d.frame || "divine_frame"}.webp`);
     if (fr.ready) ctx.drawImage(fr.img, -hw - 180 * K, -hh - 160 * K, 808 * K, 864 * K);
-    if (!settings.lite) { if (d.fx === "elyndor") elyFront(hw, hh, t, K); else if (d.fx === "tychor") tyFront(hw, hh, t); else divineFront(hw, hh, t, K, !d.frame); }
+    if (!LOWFX()) { if (d.fx === "elyndor") elyFront(hw, hh, t, K); else if (d.fx === "tychor") tyFront(hw, hh, t); else divineFront(hw, hh, t, K, !d.frame); }
     if (!this.noLabel) text("DIVINE", 0, WY + 9, 9, "#c8f6ff", { weight: 800, outline: 4, outlineColor: "#140a28" });
     text(d.name, 0, WY + WH - 9, 14, "#e6dcff", { font: DISPLAY, weight: 900, outline: 4, outlineColor: "#140a28", baseline: "middle" });
   }
   // Tychor: the card IS an arcade slot machine (no frame art); its reels are this card's live slot state
   drawTychorCard(hw, hh, t, d) {
-    const lite = settings.lite, s0 = this.slot || { phase: "idle", digits: [7, 7, 7], kind: "none", t: 0, pt: 0 };
+    const lite = LOWFX(), s0 = this.slot || { phase: "idle", digits: [7, 7, 7], kind: "none", t: 0, pt: 0 };
     if (!lite) tyBack(hw, hh, t, s0);
     const L = -hw + 3, R = hw - 9, T = -hh + 2, B = hh - 2, bw = R - L;
     rrect(L + 2, T + 6, bw, B - T, 10); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill();
@@ -2531,7 +2531,7 @@ class Enemy {
     ctx.restore();
     ctx.save(); ctx.translate(0, s * 0.85); ctx.scale(1, 0.32); ctx.rotate(t * (rg ? 4 : 1.2)); ring(0, 0, s * 1.15, hexA(c, 0.75), 3);
     for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2; circle(Math.cos(a) * s * 1.15, Math.sin(a) * s * 1.15, 3.5, c); } ctx.restore();
-    if (rg && !settings.lite) for (let i = 0; i < 3; i++) { const u = (t * 1.6 + i / 3) % 1; circle((i - 1) * s * 0.5, -s * 0.9 - u * s * 0.8, 4 * (1 - u) + 1, `rgba(255,90,58,${1 - u})`); }
+    if (rg && !LOWFX()) for (let i = 0; i < 3; i++) { const u = (t * 1.6 + i / 3) % 1; circle((i - 1) * s * 0.5, -s * 0.9 - u * s * 0.8, 4 * (1 - u) + 1, `rgba(255,90,58,${1 - u})`); }
   }
   drawBossAura(s, t) {
     ctx.save(); ctx.translate(0, s * 0.85); ctx.scale(1, 0.35);
@@ -3948,7 +3948,7 @@ const LAVA_COLS = [[255, 220, 120], [255, 120, 40], [200, 50, 20], [80, 20, 10]]
 let parts = [];
 const MAX_PARTS = 1500;
 let PART_SOFT = 500, PART_HARD = 900;
-const liteBattle = () => settings.lite || perfLevel >= 2;
+const liteBattle = () => LOWFX() || perfLevel >= 2;
 let perfLevel = 0, perfAvg = 16.7, perfHold = 0;
 function perfWatch(ms) {
   if (ms > 100) return;
@@ -3959,7 +3959,7 @@ function perfWatch(ms) {
 }
 function addPart(p) {
   if (parts.length > PART_SOFT && Math.random() < (parts.length - PART_SOFT) / (PART_HARD - PART_SOFT)) return;
-  if (parts.length >= (settings.lite ? 160 : MAX_PARTS)) return;
+  if (parts.length >= (LOWFX() ? 160 : MAX_PARTS)) return;
   parts.push(Object.assign({ t: 0, life: 0.5, vx: 0, vy: 0, g: 0, drag: 0, size: 4, rot: 0, vr: 0, grow: 0, a: 1, kind: "glow" }, p));
 }
 function updateParts(dt) {
@@ -5455,7 +5455,7 @@ function updateDragon(dt) {
   if (dragon) dragon.recoil = Math.max(0, (dragon.recoil || 0) - dt * 4);
   for (const c of bossCharges) {
     c.t += dt;
-    if (c.t < c.dur && !settings.lite) for (let i = 0; i < 3; i++) { const a = rand(0, Math.PI * 2), r = rand(90, 170); c.parts.push({ x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r, t: 0, life: rand(0.25, 0.45) }); }
+    if (c.t < c.dur && !LOWFX()) for (let i = 0; i < 3; i++) { const a = rand(0, Math.PI * 2), r = rand(90, 170); c.parts.push({ x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r, t: 0, life: rand(0.25, 0.45) }); }
     for (const q of c.parts) { q.t += dt; const k = Math.min(1, dt / Math.max(0.05, q.life - q.t + dt)); q.x += (c.x - q.x) * k; q.y += (c.y - q.y) * k; }
     c.parts = c.parts.filter(q => q.t < q.life);
   }
@@ -5508,7 +5508,7 @@ function drawDragon() {
   const sh = ctx.createRadialGradient(0, 0, 0, 0, 0, 1), sy = by + bh * 0.84, sk = 1 - 0.04 * breathe;
   sh.addColorStop(0, "rgba(0,0,0,0.5)"); sh.addColorStop(0.6, "rgba(0,0,0,0.22)"); sh.addColorStop(1, "rgba(0,0,0,0)");
   ctx.save(); ctx.globalAlpha *= aK; ctx.translate(W / 2, sy); ctx.scale(w * 0.4 * sk, bh * 0.09 * sk); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  if (d.anim.ready() && !settings.lite) {
+  if (d.anim.ready() && !LOWFX()) {
     const pr = 0.5 + 0.5 * Math.sin(time * 1.7), cx = W / 2, cy = by + bh * 0.42;
     ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= aK * (d.dying ? 0.5 : 1);
     ctx.translate(cx, cy); ctx.rotate(time * 0.12);
@@ -5524,7 +5524,7 @@ function drawDragon() {
     dRadial(0, 0, R1 * 1.1, [[0, `rgba(${bc.glow},0.28)`], [1, `rgba(${bc.glow},0)`]]);
     ctx.restore();
   }
-  if (d.anim.ready() && !settings.lite) {
+  if (d.anim.ready() && !LOWFX()) {
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.4), roarK = Math.min(1, Math.max(0, dragonRoarT - (DRAGON_ROAR_TIME - 2)) / 2);
     ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= aK;
     ctx.save(); ctx.translate(W / 2, by + bh * 0.45); ctx.scale(1, 0.55); dRadial(0, 0, w * (0.48 + 0.05 * pulse + 0.1 * roarK), [[0, `rgba(${bc.glow},${0.32 + 0.12 * pulse + 0.25 * roarK})`], [0.55, `rgba(${bc.glow2},${0.14 + 0.06 * pulse})`], [1, `rgba(${bc.glow2},0)`]]); ctx.restore();
@@ -5533,11 +5533,11 @@ function drawDragon() {
     for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(R * 0.9, -9); ctx.lineTo(R * 1.04, 0); ctx.lineTo(R * 0.9, 9); ctx.closePath(); ctx.fillStyle = bc.tip; ctx.fill(); ctx.restore(); }
     ctx.restore();
   }
-  const drawn = d.anim.draw(bx, by, bw, bh, !settings.lite);
-  if (drawn && !d.dying && d.phase !== "enter" && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= 0.1 + 0.12 * (0.5 + 0.5 * Math.sin(time * 3)) + 0.2 * Math.min(1, Math.max(0, dragonRoarT - (DRAGON_ROAR_TIME - 2)) / 2); d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
+  const drawn = d.anim.draw(bx, by, bw, bh, !LOWFX());
+  if (drawn && !d.dying && d.phase !== "enter" && !LOWFX()) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= 0.1 + 0.12 * (0.5 + 0.5 * Math.sin(time * 3)) + 0.2 * Math.min(1, Math.max(0, dragonRoarT - (DRAGON_ROAR_TIME - 2)) / 2); d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
   if (drawn && (d.hitT > 0 || d.dying)) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha *= d.dying ? (hd ? aK * 0.4 : 1) * (0.5 + 0.4 * Math.sin(d.dieT * 30)) : d.hitT * 0.6; d.anim.draw(bx, by, bw, bh, false); ctx.restore(); }
   ctx.save(); ctx.globalCompositeOperation = "lighter";
-  if (!settings.lite) for (const q of dragonAura) { const k = q.t / q.life; ctx.globalAlpha = (k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8) * fade;
+  if (!LOWFX()) for (const q of dragonAura) { const k = q.t / q.life; ctx.globalAlpha = (k < 0.2 ? k / 0.2 : 1 - (k - 0.2) / 0.8) * fade;
     if (kr) { circle(q.x, q.y, q.r * 3, "rgba(40,160,255,0.25)"); ring(q.x + Math.sin(q.t * 5 + q.ph) * 3, q.y, q.r * 1.8, "rgba(170,240,255,0.9)", 1.5); circle(q.x - q.r * 0.6, q.y - q.r * 0.6, q.r * 0.45, "rgba(255,255,255,0.9)"); }
     else { circle(q.x, q.y, q.r * 3, `rgba(${bc.ember},0.35)`); circle(q.x, q.y, q.r, d.kind === "soul" ? `rgb(${bc.spark})` : `rgb(255,${180 + 60 * (1 - k)},90)`); } }
   for (const wv of dragonWaves) { if (wv.t <= 0) continue; const k = wv.t / 1.2, e = 1 - Math.pow(1 - k, 2), r = (wv.kind === "ink" ? 20 : 40) + ({ die: 700, kdie: 700, sdie: 700, ink: 220 }[wv.kind] || 520) * e;
@@ -5702,7 +5702,7 @@ function drawDanger(dt) {
 }
 function drawBossFx() {
   const bc = dragon ? bossCol() : BOSS_COL.dragon;
-  if (bossCharges.length && !settings.lite) {
+  if (bossCharges.length && !LOWFX()) {
     ctx.save(); ctx.globalCompositeOperation = "lighter";
     for (const c of bossCharges) {
       const k = Math.min(1, c.t / c.dur), fade = c.t > c.dur ? Math.max(0, 1 - (c.t - c.dur) / 0.3) : 1, r = 18 + 46 * k;
@@ -6401,7 +6401,7 @@ function wrapLines(str, size, maxW, weight = 600) {
 }
 // Lobby Castle button: animated keep with two towers, waving banners, glowing windows, a magic ward and a gold upgrade arrow
 function drawCastleBtn(t) {
-  const lite = settings.lite, p = 0.5 + 0.5 * Math.sin(t * 2.4);
+  const lite = LOWFX(), p = 0.5 + 0.5 * Math.sin(t * 2.4);
   ctx.save();
   // magic ward dome behind
   if (!lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(0, -6, 10, 0, -6, 62); g.addColorStop(0, `rgba(120,200,255,${0.18 + 0.1 * p})`); g.addColorStop(0.75, `rgba(90,160,255,${0.12 + 0.08 * p})`); g.addColorStop(1, "rgba(90,160,255,0)"); ctx.fillStyle = g; ctx.fillRect(-64, -70, 128, 128);
@@ -6592,7 +6592,7 @@ function eliteUpdate(e, dt) {
     const lim = FRONT_Y - e.size * 0.9 - 40; if (e.y >= lim) return;
     e.eliteT = 0; const y0 = e.y; e.y = Math.min(lim, e.y + ELITE.blink);
     for (const yy of [y0, e.y]) { addPart({ add: true, kind: "ring", x: e.x, y: yy, rgb: "255,122,216", size: 6, grow: 80, w: 3, sq: 0.6, life: 0.35 });
-      if (!settings.lite) for (let i = 0; i < 8; i++) addPart({ add: true, kind: "glow", x: e.x + rand(-12, 12), y: yy + rand(-12, 12), vx: rand(-80, 80), vy: rand(-80, 80), drag: 3, life: 0.4, size: 4, rgb: "255,150,230", a: 1 }); }
+      if (!LOWFX()) for (let i = 0; i < 8; i++) addPart({ add: true, kind: "glow", x: e.x + rand(-12, 12), y: yy + rand(-12, 12), vx: rand(-80, 80), vy: rand(-80, 80), drag: 3, life: 0.4, size: 4, rgb: "255,150,230", a: 1 }); }
     if (time - (eliteSfxAt.blink || -9) > 0.4) { eliteSfxAt.blink = time; playSample("summon_zap", 0.25, 1.7); }
   } else if (e.elite === "berserk" && !e.rage && e.hp < e.maxHp * ELITE.rageAt) {
     e.rage = true; fxs.push(new Fx("text", { x: e.x, y: e.y - e.size - 30, text: "ENRAGED!", color: "#ff5a3a", size: 20, duration: 1 }));
@@ -6636,7 +6636,7 @@ function drawCombo() {
     const k = comboTier(), col = COMBO_COL[k], sc = 1 + comboPop * 0.25, f = clamp(comboT / COMBO.window, 0, 1);
     text("COMBO", x, y, 15, col, { align: "right", weight: 900, outline: 5 });
     ctx.save(); ctx.translate(x - 40, y + 30); ctx.scale(sc, sc);
-    if (k >= 2 && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 44); g.addColorStop(0, hexA(col, 0.45)); g.addColorStop(1, hexA(col, 0)); ctx.fillStyle = g; ctx.fillRect(-46, -46, 92, 92); ctx.restore(); }
+    if (k >= 2 && !LOWFX()) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 44); g.addColorStop(0, hexA(col, 0.45)); g.addColorStop(1, hexA(col, 0)); ctx.fillStyle = g; ctx.fillRect(-46, -46, 92, 92); ctx.restore(); }
     text(`x${combo}`, 40, 0, 36, col, { align: "right", weight: 900, outline: 7, baseline: "middle" }); ctx.restore();
     rrect(x - 110, y + 52, 110, 9, 4.5); ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fill();
     rrect(x - 110, y + 52, Math.max(9, 110 * f), 9, 4.5); ctx.fillStyle = f < 0.3 ? "#ff6a5a" : col; ctx.fill();
@@ -6789,7 +6789,7 @@ MYTHFX.mx_nyx = {
   },
   head(pr, R, t, glow) {
     ctx.restore(); ctx.save();
-    const lite = settings.lite, h = mxHist(pr, 18);
+    const lite = LOWFX(), h = mxHist(pr, 18);
     // twin helix of dark-blue / purple fire wrapped around a black core streak
     if (h.length > 3) {
       ctx.fillStyle = "rgba(8,3,20,0.55)"; mxRibbon(h, (i, f) => R * 1.1 * (1 - f), "rgba(8,3,20,0.55)");
@@ -6830,8 +6830,8 @@ MYTHFX.mx_nyx = {
       if (k < 0.4) circle(fx.x, fx.y, R * 0.35 * (1 - k / 0.4), "#05020c");
       ctx.restore();
     });
-    burst(settings.lite ? 8 : 20, (cx, cy) => { const v = rand(90, 260); addPart({ add: true, kind: "glow", x, y, vx: cx * v, vy: cy * v * 0.7, drag: 3, life: rand(0.35, 0.6), size: rand(3, 7), grow: 0.2, cols: NYX_COLS, a: 0.9 }); });
-    burst(settings.lite ? 3 : 8, (cx, cy) => addPart({ kind: "smoke", x: x + cx * 8, y: y + cy * 8, vx: cx * 40, vy: cy * 30 - 20, life: rand(0.5, 0.8), size: rand(6, 11), grow: 1, col: "#120822", a: 0.5 }));
+    burst(LOWFX() ? 8 : 20, (cx, cy) => { const v = rand(90, 260); addPart({ add: true, kind: "glow", x, y, vx: cx * v, vy: cy * v * 0.7, drag: 3, life: rand(0.35, 0.6), size: rand(3, 7), grow: 0.2, cols: NYX_COLS, a: 0.9 }); });
+    burst(LOWFX() ? 3 : 8, (cx, cy) => addPart({ kind: "smoke", x: x + cx * 8, y: y + cy * 8, vx: cx * 40, vy: cy * 30 - 20, life: rand(0.5, 0.8), size: rand(6, 11), grow: 1, col: "#120822", a: 0.5 }));
     ringFx("170,120,255", 10 * P, 60 * P + A, 4, 0.55, true, 0.4);
   },
 };
@@ -6856,10 +6856,10 @@ function nyxExplode(b) {
   hitSrc = null;
   shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 10); buzz(90);
   playSample("nyx_boom", 1, 1);
-  const n = settings.lite ? 40 : 110;
+  const n = LOWFX() ? 40 : 110;
   for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, v = rand(120, 520); addPart({ add: true, kind: "glow", x: b.x, y: b.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.7, drag: 2.5, life: rand(0.4, 0.9), size: rand(5, 12), grow: 0.2, cols: NYX_COLS, a: 0.9 }); }
-  for (let i = 0; i < (settings.lite ? 6 : 16); i++) { const a = Math.random() * 6.28, v = rand(200, 420); addPart({ kind: "chunk", x: b.x, y: b.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, g: 600, drag: 0.5, vr: rand(-10, 10), life: rand(0.6, 1), size: rand(4, 8), col: "#2a1450" }); }
-  for (let i = 0; i < (settings.lite ? 5 : 12); i++) { const a = i / 12 * 6.28; addPart({ kind: "smoke", x: b.x + Math.cos(a) * 40, y: b.y + Math.sin(a) * 18, vx: Math.cos(a) * 90, vy: Math.sin(a) * 40, drag: 1.5, life: rand(0.9, 1.4), size: rand(16, 26), grow: 1.4, col: "#140a26", a: 0.55 }); }
+  for (let i = 0; i < (LOWFX() ? 6 : 16); i++) { const a = Math.random() * 6.28, v = rand(200, 420); addPart({ kind: "chunk", x: b.x, y: b.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, g: 600, drag: 0.5, vr: rand(-10, 10), life: rand(0.6, 1), size: rand(4, 8), col: "#2a1450" }); }
+  for (let i = 0; i < (LOWFX() ? 5 : 12); i++) { const a = i / 12 * 6.28; addPart({ kind: "smoke", x: b.x + Math.cos(a) * 40, y: b.y + Math.sin(a) * 18, vx: Math.cos(a) * 90, vy: Math.sin(a) * 40, drag: 1.5, life: rand(0.9, 1.4), size: rand(16, 26), grow: 1.4, col: "#140a26", a: 0.55 }); }
   const BR = NYX_BH.boomR;
   mxFx(b.x, b.y, 1.1, (fx, k) => {
     ctx.save(); ctx.globalCompositeOperation = "lighter";
@@ -6869,7 +6869,7 @@ function nyxExplode(b) {
     const r = BR * (0.25 + 0.95 * e), g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,250,255,${0.95 * (1 - k)})`); g.addColorStop(0.3, `rgba(180,130,255,${0.7 * (1 - k)})`); g.addColorStop(0.7, `rgba(90,70,240,${0.35 * (1 - k)})`); g.addColorStop(1, "rgba(40,20,160,0)");
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     // spinning god rays
-    if (!settings.lite) { ctx.save(); ctx.translate(x, y); ctx.rotate(k * 1.2); for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); const L = BR * 1.5 * e, gr = ctx.createLinearGradient(0, 0, 0, -L); gr.addColorStop(0, `rgba(230,215,255,${0.45 * (1 - k)})`); gr.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(i % 2 ? 16 : 26, -L); ctx.lineTo(i % 2 ? -16 : -26, -L); ctx.fill(); } ctx.restore(); }
+    if (!LOWFX()) { ctx.save(); ctx.translate(x, y); ctx.rotate(k * 1.2); for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); const L = BR * 1.5 * e, gr = ctx.createLinearGradient(0, 0, 0, -L); gr.addColorStop(0, `rgba(230,215,255,${0.45 * (1 - k)})`); gr.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.lineTo(i % 2 ? 16 : 26, -L); ctx.lineTo(i % 2 ? -16 : -26, -L); ctx.fill(); } ctx.restore(); }
     // ground shockwaves
     for (let i = 0; i < 3; i++) { const u = clamp(k * 1.3 - i * 0.12, 0, 1); if (u <= 0 || u >= 1) continue; ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.5); ring(0, 0, BR * 1.4 * u, `rgba(${["240,220,255", "160,120,255", "110,140,255"][i]},${1 - u})`, 10 * (1 - u) + 1); ctx.restore(); }
     // a pillar of light shooting up
@@ -6894,7 +6894,7 @@ function updateBlackHoles(dt) {
       if (e.dead) continue; const ex = b.x - e.x, ey = b.y - e.y, d = Math.hypot(ex, ey);
       if (d < NYX_BH.pullR && d > 3) { const pl = NYX_BH.pull * (e.isBoss ? 0 : e.heavy ? 0.5 : 1) * dt * Math.min(1, d / 25); e.x += ex / d * pl; e.y += ey / d * pl; }
     }
-    if (Math.random() < dt * (settings.lite ? 12 : 40)) b.motes.push({ a: Math.random() * 6.28, r: NYX_BH.pullR * rand(0.7, 1), t: 0 });
+    if (Math.random() < dt * (LOWFX() ? 12 : 40)) b.motes.push({ a: Math.random() * 6.28, r: NYX_BH.pullR * rand(0.7, 1), t: 0 });
     for (const m of b.motes) { m.t += dt; m.a += dt * (2 + 120 / Math.max(10, m.r)); m.r -= dt * 110; }
     b.motes = b.motes.filter(m => m.r > 8);
   }
@@ -6902,7 +6902,7 @@ function updateBlackHoles(dt) {
 }
 function drawBlackHoles() {
   for (const b of blackholes) {
-    const t = b.t, lite = settings.lite, grow = Math.min(1, t * 2.5), R = (24 + 3 * Math.sin(t * 7) + 6 * Math.min(1, t)) * (0.3 + 0.7 * grow), PR = NYX_BH.pullR;
+    const t = b.t, lite = LOWFX(), grow = Math.min(1, t * 2.5), R = (24 + 3 * Math.sin(t * 7) + 6 * Math.min(1, t)) * (0.3 + 0.7 * grow), PR = NYX_BH.pullR;
     ctx.save(); ctx.translate(b.x, b.y);
     // shadow warp on the ground + darkening of space around it
     ctx.save(); ctx.scale(1, 0.4); const sh = ctx.createRadialGradient(0, R * 2.5, 0, 0, R * 2.5, PR); sh.addColorStop(0, "rgba(10,0,30,0.45)"); sh.addColorStop(1, "rgba(10,0,30,0)"); ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(0, R * 2.5, PR, 0, Math.PI * 2); ctx.fill(); ctx.restore();
@@ -6954,9 +6954,9 @@ function updateLaser(c, dt) {
   if (prev < ELY.merge1 - 0.2 && t >= ELY.merge1 - 0.2) playSample("ely_fuse", 1, 1); // its impact (0.2 s in) lands on the slam
   if (prev < ELY.charge && t >= ELY.charge) playSample("ely_charge", 0.9, 1);
   if (prev < ELY.merge1 && t >= ELY.merge1) { const ox = c.x, oy = c.y - CARD_H / 2 - 36; shakeT = Math.max(shakeT, 0.15); shakeAmp = Math.max(shakeAmp, 3);
-    for (let i = 0; i < (settings.lite ? 10 : 28); i++) { const a = Math.random() * 6.28, v = rand(80, 260); addPart({ add: true, kind: "glow", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6, drag: 3, life: rand(0.3, 0.6), size: rand(2, 5), rgb: i % 3 === 0 ? "255,90,60" : i % 3 === 1 ? "80,140,255" : "210,150,255", a: 1 }); } }
+    for (let i = 0; i < (LOWFX() ? 10 : 28); i++) { const a = Math.random() * 6.28, v = rand(80, 260); addPart({ add: true, kind: "glow", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.6, drag: 3, life: rand(0.3, 0.6), size: rand(2, 5), rgb: i % 3 === 0 ? "255,90,60" : i % 3 === 1 ? "80,140,255" : "210,150,255", a: 1 }); } }
   if (prev < ELY.fire && t >= ELY.fire) { const ox = c.x, oy = c.y - CARD_H / 2 - 36;
-    for (let i = 0; i < (settings.lite ? 12 : 36); i++) { const a = Math.random() * 6.28, v = rand(120, 380); addPart({ add: true, kind: "glow", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.5, drag: 2.5, life: rand(0.35, 0.7), size: rand(3, 7), rgb: i % 2 ? "160,255,200" : "210,150,255", a: 1 }); }
+    for (let i = 0; i < (LOWFX() ? 12 : 36); i++) { const a = Math.random() * 6.28, v = rand(120, 380); addPart({ add: true, kind: "glow", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.5, drag: 2.5, life: rand(0.35, 0.7), size: rand(3, 7), rgb: i % 2 ? "160,255,200" : "210,150,255", a: 1 }); }
     addPart({ add: true, kind: "ring", x: ox, y: oy, rgb: "220,255,230", size: 20, grow: 160, w: 6, sq: 0.35, life: 0.45 });
     c.lzHit = new Set(); playSample("ely_laser", 1, 1); shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 7); c.kick = 1; }
   if (t >= ELY.fire && t < ELY.end) {
@@ -6978,7 +6978,7 @@ function laserLocks(dt) {
 }
 const cardLocked = c => !!c && EL[c.element].laser && c.lockT > 0 && rows.active.includes(c);
 function drawLasers() {
-  const lite = settings.lite;
+  const lite = LOWFX();
   for (const c of rows.active) {
     if (!c || !EL[c.element].laser || c.dragging) continue;
     const t = c.lzT || 0, ox = c.x, oy = c.y - CARD_H / 2 - 36, T = time;
@@ -7100,7 +7100,7 @@ function slotPayout(c, res) {
   if (res.kind === "triple") {
     const amt = Math.round((100 + Math.random() * 900) / 10) * 10; gold += amt; flyReward("gold", amt, ox, oy); playUi("ui_sell"); playSample("summon_flip_rare", 0.8, 1);
     fxs.push(new Fx("text", { x: ox, y: oy - 40, text: `+${amt} gold!`, color: GOLD, size: 32, duration: 1.4 }));
-    for (let i = 0; i < (settings.lite ? 20 : 50); i++) { const a = -Math.PI / 2 + rand(-1, 1), v = rand(180, 420); addPart({ kind: "chunk", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 700, drag: 0.4, vr: rand(-12, 12), life: rand(0.7, 1.2), size: rand(4, 7), col: "#ffcf4a" }); }
+    for (let i = 0; i < (LOWFX() ? 20 : 50); i++) { const a = -Math.PI / 2 + rand(-1, 1), v = rand(180, 420); addPart({ kind: "chunk", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 700, drag: 0.4, vr: rand(-12, 12), life: rand(0.7, 1.2), size: rand(4, 7), col: "#ffcf4a" }); }
   } else if (res.kind === "nines") {
     playSample("nyx_boom", 0.9, 1.25); shakeT = Math.max(shakeT, 0.7); shakeAmp = Math.max(shakeAmp, 12); buzz(150);
     showBanner("999: JUDGEMENT!", "#ff7ad8"); slotFlash = { t: 0, col: "255,120,220" };
@@ -7112,13 +7112,13 @@ function slotPayout(c, res) {
   } else if (res.kind === "sevens") {
     jackpotT = JACKPOT.time; playSample("divine_result", 0.9, 1.1); shakeT = Math.max(shakeT, 0.5); shakeAmp = Math.max(shakeAmp, 8);
     showBanner("JACKPOT!", GOLD); slotFlash = { t: 0, col: "255,220,90" };
-    for (let i = 0; i < (settings.lite ? 40 : 120); i++) addPart({ kind: "chunk", x: rand(30, W - 30), y: HUD_H + rand(-20, 40), vx: rand(-60, 60), vy: rand(40, 200), g: 300, drag: 0.3, vr: rand(-10, 10), life: rand(1.2, 2.2), size: rand(4, 7), col: pickOne(["#ffcf4a", "#ff6a8a", "#6af0ff", "#9cff9c", "#ffffff"]) });
+    for (let i = 0; i < (LOWFX() ? 40 : 120); i++) addPart({ kind: "chunk", x: rand(30, W - 30), y: HUD_H + rand(-20, 40), vx: rand(-60, 60), vy: rand(40, 200), g: 300, drag: 0.3, vr: rand(-10, 10), life: rand(1.2, 2.2), size: rand(4, 7), col: pickOne(["#ffcf4a", "#ff6a8a", "#6af0ff", "#9cff9c", "#ffffff"]) });
   } else { fxs.push(new Fx("text", { x: ox, y: oy - 36, text: "...", color: "#cfc2a8", size: 26, duration: 0.8 })); }
 }
 let slotFlash = null;
 let slotDrawLast = 0;
 function drawSlots() {
-  const lite = settings.lite, now = performance.now(), dt = Math.min(0.05, (now - (slotDrawLast || now)) / 1000); slotDrawLast = now;
+  const lite = LOWFX(), now = performance.now(), dt = Math.min(0.05, (now - (slotDrawLast || now)) / 1000); slotDrawLast = now;
   if (slotFlash) { slotFlash.t += dt; const a = Math.max(0, 0.55 - slotFlash.t * 1.2); if (a <= 0) slotFlash = null; else { ctx.fillStyle = `rgba(${slotFlash.col},${a})`; ctx.fillRect(0, -TOP, W, H + TOP); } }
   // jackpot: golden aura on every attacking card + a timer
   if (jackpotT > 0) {
@@ -7181,7 +7181,7 @@ MYTHFX.mx_tychor = {
     ctx.restore();
   },
   hit(x, y, P, A, burst, ringFx) {
-    burst(settings.lite ? 5 : 12, (cx, cy) => { const v = rand(80, 220); addPart({ kind: "chunk", x, y, vx: cx * v, vy: cy * v - 60, g: 600, drag: 0.5, vr: rand(-10, 10), life: rand(0.4, 0.7), size: rand(3, 5), col: "#ffcf4a" }); });
+    burst(LOWFX() ? 5 : 12, (cx, cy) => { const v = rand(80, 220); addPart({ kind: "chunk", x, y, vx: cx * v, vy: cy * v - 60, g: 600, drag: 0.5, vr: rand(-10, 10), life: rand(0.4, 0.7), size: rand(3, 5), col: "#ffcf4a" }); });
     ringFx("255,215,90", 8 * P, 46 * P + A, 3, 0.55, true, 0.3);
   },
 };
@@ -7978,7 +7978,7 @@ function drawLances() {
     ctx.globalCompositeOperation = "lighter";
     let g = ctx.createLinearGradient(0, -w * 1.6, 0, w * 1.6);
     g.addColorStop(0, "rgba(30,120,255,0)"); g.addColorStop(0.5, `rgba(60,170,255,${0.35 * on})`); g.addColorStop(1, "rgba(30,120,255,0)");
-    if (!settings.lite) { ctx.fillStyle = g; ctx.fillRect(0, -w * 1.6, L, w * 3.2); }
+    if (!LOWFX()) { ctx.fillStyle = g; ctx.fillRect(0, -w * 1.6, L, w * 3.2); }
     ctx.globalCompositeOperation = "source-over";
     const helix = (front) => {
       ctx.lineCap = "round"; ctx.lineJoin = "round";
@@ -8002,7 +8002,7 @@ function drawLances() {
     ctx.fillStyle = g; ctx.fill();
     ctx.save(); ctx.clip();
     ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
-    for (let i = 0; i < (settings.lite ? 0 : 9); i++) {
+    for (let i = 0; i < (LOWFX() ? 0 : 9); i++) {
       const lane = ((i * 37) % 11) / 10 - 0.5, sp = 380 + (i % 4) * 90, len = 40 + (i % 5) * 18;
       const x = ((t * sp + i * 97) % (L + len)) - len;
       ctx.strokeStyle = `rgba(220,250,255,${0.45 * on})`; ctx.lineWidth = 2 + (i % 3);
@@ -8366,7 +8366,7 @@ function divCardPos(f, k, t) {
   return { x: sx + (tx - sx) * blend, y: sy + (ty - sy) * blend, sc: c.sc * 1.15 * (1 - 0.85 * e), rot: ang * 0.5 * blend, a: 1 - clamp((u - 0.7) / 0.3, 0, 1) };
 }
 function updateDivineFusion(dt) {
-  const f = fusion, prev = f.t; f.t += dt; const t = f.t, gx = W / 2, gy = altarGlobeY(), lite = settings.lite;
+  const f = fusion, prev = f.t; f.t += dt; const t = f.t, gx = W / 2, gy = altarGlobeY(), lite = LOWFX();
   // the ring spins two full turns and lands back on the same front slot
   altarRot = f.rot0 + easeIO(clamp(t / DIV.implode, 0, 1)) * Math.PI * 4; altarRotTo = f.rot0 + Math.PI * 4;
   f.cards.forEach((c, k) => {
@@ -8413,7 +8413,7 @@ function drawCardBack(x, y, sc, t) {
   ctx.restore();
 }
 function drawDivineFusion() {
-  const f = fusion, t = f.t, gx = W / 2, gy = altarGlobeY(), lite = settings.lite;
+  const f = fusion, t = f.t, gx = W / 2, gy = altarGlobeY(), lite = LOWFX();
   ctx.save(); ctx.beginPath(); ctx.rect(0, -TOP, W, H + TOP); ctx.clip();
   // darkness falls during the implosion and lifts after the burst
   const dark = t < DIV.spiral ? 0.25 * clamp((t - DIV.gather) / 1.2, 0, 1) : t < DIV.burst ? 0.25 + 0.6 * clamp((t - DIV.spiral) / (DIV.implode - DIV.spiral), 0, 1) : 0.85 * Math.max(0, 1 - (t - DIV.burst) / 0.9) + (f.success ? 0.35 : 0.2) * clamp((t - DIV.burst) / 0.9, 0, 1);
@@ -8920,7 +8920,7 @@ function drawDoomMeteor(m, rot) {
 }
 // ---- Doom extras ----
 function doomSky(d, t, k, top, fh) {
-  const lite = settings.lite, pre = clamp(t / 0.6, 0, 1), fo = d.hit ? clamp(1 - (t - DOOM_HIT) / 1.5, 0, 1) : 1;
+  const lite = LOWFX(), pre = clamp(t / 0.6, 0, 1), fo = d.hit ? clamp(1 - (t - DOOM_HIT) / 1.5, 0, 1) : 1;
   if (fo <= 0) return;
   // blood sky from the top
   const g = ctx.createLinearGradient(0, top, 0, top + fh * 0.75); g.addColorStop(0, `rgba(120,0,10,${0.6 * pre * fo})`); g.addColorStop(1, "rgba(60,0,10,0)"); ctx.fillStyle = g; ctx.fillRect(0, top, W, fh);
@@ -8936,7 +8936,7 @@ function doomSky(d, t, k, top, fh) {
   ctx.restore();
 }
 function doomTarget(d, t, k) {
-  const lite = settings.lite;
+  const lite = LOWFX();
   // converging rings pulling into the target
   if (k > 0.2) { ctx.save(); ctx.globalCompositeOperation = "lighter"; for (let i = 0; i < 3; i++) { const u = ((t * 1.6 + i / 3) % 1), R = (1 - u) * 300 + 20; ctx.globalAlpha = u * 0.8 * k; ctx.strokeStyle = "#ff4a2e"; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(d.tx, d.ty, R, R * 0.42, 0, 0, Math.PI * 2); ctx.stroke(); } ctx.restore(); }
   // orbiting rune glyphs round the target circle
@@ -8972,11 +8972,11 @@ function doomTail(d, m, k) {
 }
 function doomOrbit(d, m, t) {
   for (let i = 0; i < 4; i++) { const a = t * 3 + i * Math.PI / 2, x = m.x + Math.cos(a) * m.r * 1.5, y = m.y + Math.sin(a) * m.r * 0.6, r = m.r * 0.14 * (1 + 0.3 * Math.sin(i));
-    if (!settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(x, y, r * 2.2, "rgba(255,120,40,0.35)"); ctx.restore(); }
+    if (!LOWFX()) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(x, y, r * 2.2, "rgba(255,120,40,0.35)"); ctx.restore(); }
     circle(x, y, r, "#3a1a0e"); ring(x, y, r, "#ff8a3a", 2); }
 }
 function doomAfter(d, t, u, fadeOut) {
-  const lite = settings.lite;
+  const lite = LOWFX();
   // molten crater
   const cr = Math.min(1, u / 0.3); ctx.save(); ctx.globalAlpha = fadeOut;
   const mg = ctx.createRadialGradient(d.tx, d.ty, 5, d.tx, d.ty, 110 * cr); mg.addColorStop(0, `rgba(255,${200 + 40 * Math.sin(t * 6)},120,0.95)`); mg.addColorStop(0.5, "rgba(255,110,30,0.85)"); mg.addColorStop(1, "rgba(120,20,10,0)");
@@ -9084,7 +9084,7 @@ function drawDoom() {
     // "DOOM" title slams down, cracks, then fades
     if (u > DOOM_STOP && u < 2.2) { const v = u - DOOM_STOP, sc = v < 0.18 ? 3 - 2 * (v / 0.18) : 1 + 0.03 * Math.sin(v * 20) * Math.max(0, 1 - v), a = v < 0.18 ? v / 0.18 : clamp((2.2 - u) / 0.6, 0, 1);
       ctx.save(); ctx.globalAlpha = a; ctx.translate(W / 2, HUD_H + 150); ctx.scale(sc, sc);
-      if (!settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(0, -10, 10, 0, -10, 200); g.addColorStop(0, "rgba(255,60,30,0.55)"); g.addColorStop(1, "rgba(255,40,20,0)"); ctx.fillStyle = g; ctx.fillRect(-220, -200, 440, 380); ctx.restore(); }
+      if (!LOWFX()) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(0, -10, 10, 0, -10, 200); g.addColorStop(0, "rgba(255,60,30,0.55)"); g.addColorStop(1, "rgba(255,40,20,0)"); ctx.fillStyle = g; ctx.fillRect(-220, -200, 440, 380); ctx.restore(); }
       text("DOOM", 0, 30, 96, "#ff3d2e", { font: DISPLAY, weight: 900, outline: 14, outlineColor: "#1a0004" });
       ctx.strokeStyle = "rgba(255,230,160,0.9)"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-120, -20); ctx.lineTo(-60, 0); ctx.lineTo(-70, 18); ctx.lineTo(-10, 30); ctx.moveTo(40, -30); ctx.lineTo(70, -2); ctx.lineTo(110, 6); ctx.stroke();
       ctx.restore(); }
@@ -9853,7 +9853,7 @@ function drawWorld() {
   }
 
   for (const z of zones) z.draw();
-  EN_DETAIL = !settings.lite && enemies.length <= [18, 10, 0][perfLevel];
+  EN_DETAIL = !LOWFX() && enemies.length <= [18, 10, 0][perfLevel];
   // below 40 FPS (smoothed frame time over 25 ms) enemies freeze; they animate again once it is back above ~50 FPS (20 ms), so it doesn't flicker
   if (perfAvg > 1000 / CROWD_FREEZE_FPS) fpsFreeze = true; else if (perfAvg < 20) fpsFreeze = false;
   ENEMY_CROWD = enemies.length > CROWD_FREEZE || fpsFreeze;
@@ -9923,7 +9923,7 @@ function drawHud() {
   const hb = { x: 186, y: 22, w: 252, h: 28 }, f = clamp(castleHp / castleMax, 0, 1), low = f < 0.3 && state === "wave";
   hpTrail = hpTrail === null || hpTrail < f ? f : Math.max(f, hpTrail - 0.35 * lastHudDt());
   const beat = 1 + (low ? 0.16 : 0.06) * Math.max(0, Math.sin(time * (low ? 9 : 3.2))) ** 4;
-  if (low && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const p = 0.5 + 0.5 * Math.sin(time * 8); rrect(hb.x - 8, hb.y - 8, hb.w + 16, hb.h + 16, 18); ctx.fillStyle = `rgba(255,60,50,${0.18 + 0.2 * p})`; ctx.fill(); ctx.restore(); }
+  if (low && !LOWFX()) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const p = 0.5 + 0.5 * Math.sin(time * 8); rrect(hb.x - 8, hb.y - 8, hb.w + 16, hb.h + 16, 18); ctx.fillStyle = `rgba(255,60,50,${0.18 + 0.2 * p})`; ctx.fill(); ctx.restore(); }
   rrect(hb.x - 3, hb.y - 3, hb.w + 6, hb.h + 6, 16); ctx.fillStyle = wallFlash > 0 ? mixHex("#2a1a12", "#e0533f", wallFlash) : "#140a1a"; ctx.fill(); ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 2; ctx.stroke();
   ctx.save(); rrect(hb.x, hb.y, hb.w, hb.h, 13); ctx.clip();
   ctx.fillStyle = "#3a1e28"; ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
@@ -9948,7 +9948,7 @@ function drawHud() {
     rrect(gx - 22, gy - 21, gw, 42, 21); const gg = ctx.createLinearGradient(0, gy - 21, 0, gy + 21); gg.addColorStop(0, "rgba(58,36,20,0.92)"); gg.addColorStop(1, "rgba(26,14,8,0.92)"); ctx.fillStyle = gg; ctx.fill();
     ctx.strokeStyle = goldPulse > 0.05 ? "#fff1a8" : "#c8962a"; ctx.lineWidth = 2.5; ctx.stroke(); }
   { const sc = 1 + goldPulse * 0.22; ctx.save(); ctx.translate(gx, gy); ctx.scale(sc, sc); circle(0, 0, 15, GOLD); ring(0, 0, 15, INK, 3); ring(0, 0, 9, hexA(INK, 0.5), 2); ctx.restore();
-    if (goldPulse > 0 && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(gx, gy, 24 * goldPulse + 8, `rgba(255,210,90,${0.4 * goldPulse})`); ctx.restore(); }
+    if (goldPulse > 0 && !LOWFX()) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(gx, gy, 24 * goldPulse + 8, `rgba(255,210,90,${0.4 * goldPulse})`); ctx.restore(); }
     text(String(Math.round(goldShown ?? gold)), gx + 24, gy + 11, 30, goldPulse > 0.05 ? "#fff1a8" : GOLD, { align: "left", outline: 8 }); }
   if (state === "gameover") return;
   btn.reroll.label = `Reroll\n${rerollPrice()} gold`;
@@ -10048,7 +10048,7 @@ function altarBurst(x, y, col) {
 }
 function updateAltarFx(dt) {
   const F = altarFx, vel = (altarRot - F.lastRot) / Math.max(dt, 1e-3); F.lastRot = altarRot;
-  if (!settings.lite) {
+  if (!LOWFX()) {
     if (Math.random() < dt * 14) { const q = altarSlot(altarFront()); F.motes.push({ x: q.x + rand(-50, 50), y: q.y + 60, vy: -rand(30, 80), life: rand(1.2, 2.4), t: 0, col: Math.random() < 0.5 ? "#c8f6ff" : "#b9a0ff" }); }
     const sp = Math.min(40, Math.abs(vel) * 6);
     for (let i = 0; i < sp * dt * 10; i++) { const k = Math.floor(Math.random() * ALTAR_N), q = altarSlot(k); if (q.depth < 0) continue;
@@ -10066,7 +10066,7 @@ function zigzag(x1, y1, x2, y2, n, amp) {
   ctx.lineTo(x2, y2); ctx.stroke();
 }
 function drawAltar() {
-  const lite = settings.lite, pulse = 0.5 + 0.5 * Math.sin(time * 2), n = altarCards().length, energy = n / ALTAR_N;
+  const lite = LOWFX(), pulse = 0.5 + 0.5 * Math.sin(time * 2), n = altarCards().length, energy = n / ALTAR_N;
   const fu = fusion && fusion.divine ? fusion : null, charge = fu ? clamp(fu.t / DIV.spiral, 0, 1) * (fu.t < DIV.burst ? 1 : 0) : 0, flash = 0;
   ctx.fillStyle = "rgba(6,4,20,0.72)"; ctx.fillRect(0, HUD_H, W, FRONT_Y - HUD_H);
   ctx.fillStyle = "rgba(6,4,20,0.8)"; ctx.fillRect(0, SHOP_TOP, W, H - SHOP_TOP);
@@ -10286,7 +10286,7 @@ function drawFly() {
     if (f.t < 0) continue;
     const u = clamp(f.t / f.dur, 0, 1), e = u * u * (3 - 2 * u), [tx, ty] = flyTarget(f.kind);
     const x = (1 - e) * (1 - e) * f.x0 + 2 * e * (1 - e) * f.cx + e * e * tx, y = (1 - e) * (1 - e) * f.y0 + 2 * e * (1 - e) * f.cy + e * e * ty, sz = (f.kind === "gem" ? 13 : 12) * (0.7 + 0.6 * Math.sin(Math.min(1, u * 1.3) * Math.PI * 0.9) * (1 - u * 0.4));
-    if (!settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(x, y, sz * 1.8, f.kind === "gem" ? "rgba(127,230,255,0.25)" : "rgba(255,210,90,0.25)"); ctx.restore(); }
+    if (!LOWFX()) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(x, y, sz * 1.8, f.kind === "gem" ? "rgba(127,230,255,0.25)" : "rgba(255,210,90,0.25)"); ctx.restore(); }
     if (f.kind === "gem") drawGem(x, y, sz);
     else { const sx = Math.max(0.25, Math.abs(Math.cos(f.spin + f.t * 12))); ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); circle(0, 0, sz, GOLD); ring(0, 0, sz, INK, 2.5); ring(0, 0, sz * 0.6, hexA(INK, 0.5), 1.5); ctx.restore(); }
   }
@@ -10316,7 +10316,7 @@ function drawWaveBanner() {
   const lg = ctx.createLinearGradient(0, 0, W, 0); lg.addColorStop(0, "rgba(242,193,78,0)"); lg.addColorStop(0.5, b.boss ? "#ff6a5a" : "#f2c14e"); lg.addColorStop(1, "rgba(242,193,78,0)");
   ctx.fillStyle = lg; ctx.fillRect(off * 0.7, cy - bh / 2, W, 3); ctx.fillRect(-off * 0.7, cy + bh / 2 - 3, W, 3);
   // light sweep
-  if (!settings.lite) { const sx = ((b.t * 0.9) % 1.4) * W * 1.2 - W * 0.2; ctx.save(); ctx.globalCompositeOperation = "lighter"; const sg = ctx.createLinearGradient(sx - 60, 0, sx + 60, 0); sg.addColorStop(0, "rgba(255,240,200,0)"); sg.addColorStop(0.5, "rgba(255,240,200,0.18)"); sg.addColorStop(1, "rgba(255,240,200,0)"); ctx.fillStyle = sg; ctx.fillRect(sx - 60, cy - bh / 2, 120, bh); ctx.restore(); }
+  if (!LOWFX()) { const sx = ((b.t * 0.9) % 1.4) * W * 1.2 - W * 0.2; ctx.save(); ctx.globalCompositeOperation = "lighter"; const sg = ctx.createLinearGradient(sx - 60, 0, sx + 60, 0); sg.addColorStop(0, "rgba(255,240,200,0)"); sg.addColorStop(0.5, "rgba(255,240,200,0.18)"); sg.addColorStop(1, "rgba(255,240,200,0)"); ctx.fillStyle = sg; ctx.fillRect(sx - 60, cy - bh / 2, 120, bh); ctx.restore(); }
   const tx = W / 2 + off, pulse = b.boss ? 1 + 0.04 * Math.sin(b.t * 14) : 1;
   ctx.save(); ctx.translate(tx, cy - 6); ctx.scale(pulse, pulse);
   text(b.title, 0, 8, 54, b.col, { font: DISPLAY, weight: 900, outline: 9, outlineColor: "#140a20" }); ctx.restore();
@@ -10329,7 +10329,7 @@ function drawIris(k) {
   const cx = W / 2, cy = H / 2, R = Math.hypot(W, H + TOP) / 2 + 30, r = Math.pow(1 - k, 1.4) * R;
   ctx.save(); ctx.beginPath(); ctx.rect(0, -TOP, W, H + TOP); ctx.arc(cx, cy, Math.max(0.1, r), 0, Math.PI * 2, true); ctx.fillStyle = "#0a050f"; ctx.fill("evenodd");
   if (r > 2) { ctx.globalCompositeOperation = "lighter"; ring(cx, cy, r, `rgba(242,193,78,${0.85 * k})`, 5); ring(cx, cy, r + 8, `rgba(190,140,255,${0.45 * k})`, 3);
-    if (!settings.lite) for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 + (1 - k) * 3; circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3 + 2 * k, `rgba(255,240,190,${k})`); } }
+    if (!LOWFX()) for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 + (1 - k) * 3; circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3 + 2 * k, `rgba(255,240,190,${k})`); } }
   ctx.restore();
 }
 function drawOverlays() {
@@ -10501,7 +10501,7 @@ document.addEventListener("visibilitychange", () => setAway(document.hidden));
 window.addEventListener("pagehide", () => setAway(true));
 window.addEventListener("pageshow", () => { if (!document.hidden) setAway(false); });
 function drawFilm() {
-  if (!settings.lite) ctx.drawImage(vignette, 0, 0);
+  if (!LOWFX()) ctx.drawImage(vignette, 0, 0);
 }
 
 const LOBBY_SRC = {"sky_day": "assets/img/sky_day.webp", "sky_sunset": "assets/img/sky_sunset.webp", "sky_dusk": "assets/img/sky_dusk.webp", "sky_night": "assets/img/sky_night.webp", "sky_dawn": "assets/img/sky_dawn.webp", "sun": "assets/img/sun.webp", "moon": "assets/img/moon.webp", "clouds": "assets/img/clouds.webp", "hills": "assets/img/hills.webp", "room": "assets/img/room.webp", "candle": "assets/img/candle.webp", "card_c_fire": "assets/img/card_c_fire.webp", "card_u_wind": "assets/img/card_u_wind.webp", "card_r_water": "assets/img/card_r_water.webp", "card_e_earth": "assets/img/card_e_earth.webp", "card_m_fire": "assets/img/card_m_fire.webp", "card_l_water": "assets/img/card_l_water.webp", "card_u_earth": "assets/img/card_u_earth.webp", "card_back": "assets/img/card_back.webp", "badge_fire": "assets/img/badge_fire.webp", "badge_water": "assets/img/badge_water.webp", "badge_earth": "assets/img/badge_earth.webp", "badge_wind": "assets/img/badge_wind.webp"};
@@ -10597,7 +10597,7 @@ function drawHomeScene() {
   layer(L.room, 0, 0);
   if (bk > 0.005) { ctx.fillStyle = `rgba(30,6,30,${0.35 * bk})`; ctx.fillRect(0, 0, 1080, 1920); }
   };
-  if (settings.lite) {
+  if (LOWFX()) {
     if (!HOME_BG.c || HOME_BG.c.height !== Math.round((H + TOP) / 2) || lobbyT - HOME_BG.t > 0.1 || lobbyT < HOME_BG.t) {
       const c = HOME_BG.c && HOME_BG.c.height === Math.round((H + TOP) / 2) ? HOME_BG.c : Object.assign(document.createElement("canvas"), { width: W / 2, height: Math.round((H + TOP) / 2) });
       const g = c.getContext("2d"), main = ctx; g.setTransform(0.5, 0, 0, 0.5, 0, TOP / 2); g.fillStyle = "#3a2c48"; g.fillRect(0, -TOP, W, H + TOP); g.translate(v.ox, v.oy); g.scale(v.s, v.s);
@@ -10809,7 +10809,7 @@ function drawSummonScene() {
   ctx.fillStyle = g; ctx.fillRect(-500, -500, 1000, 1000); ctx.restore();
   ctx.restore();
   };
-  if (settings.lite) {
+  if (LOWFX()) {
     if (!GACHA_BG.c || GACHA_BG.c.height !== Math.round((H + TOP) / 2) || t - GACHA_BG.t > 0.1 || t < GACHA_BG.t) {
       const c = GACHA_BG.c && GACHA_BG.c.height === Math.round((H + TOP) / 2) ? GACHA_BG.c : Object.assign(document.createElement("canvas"), { width: W / 2, height: Math.round((H + TOP) / 2) });
       const gc = c.getContext("2d"), main = ctx; gc.setTransform(0.5, 0, 0, 0.5, 0, TOP / 2); gc.fillStyle = "#151022"; gc.fillRect(0, -TOP, W, H + TOP); gc.translate(v.ox, v.oy); gc.scale(v.s, v.s);
@@ -10842,7 +10842,7 @@ function drawSummonScene() {
   ctx.restore();
   if (LOBBY.card_back.ready && !summonReveal) {
     ctx.save(); ctx.translate(540, cardY); ctx.rotate(Math.sin(t * 1.1) * 0.05);
-    if (!settings.lite) { ctx.shadowColor = col; ctx.shadowBlur = 60 + Math.sin(t * 3) * 18; }
+    if (!LOWFX()) { ctx.shadowColor = col; ctx.shadowBlur = 60 + Math.sin(t * 3) * 18; }
     ctx.drawImage(LOBBY.card_back.img, -150, -232, 300, 464); ctx.restore();
   }
   ctx.restore();
@@ -11366,6 +11366,8 @@ function drawBio() {
 }
 
 const settings = { vol: 1, sfx: 0.5, vibrate: true, dmgNums: true, lite: false, fps: false };
+// Low settings only apply to battles: the lobby (and its menus) always keep the full look
+function LOWFX() { return settings.lite && state !== "title"; }
 try { Object.assign(settings, JSON.parse(localStorage.getItem("arcane-fusion-settings") || "{}")); } catch (e) {}
 delete settings.recAudio;
 if (Sfx.muted && settings.vol > 0 && localStorage.getItem("arcane-fusion-settings") === null) settings.vol = 0;
@@ -11387,7 +11389,7 @@ const settingRows = [
   { key: "sfx", label: "Attack sounds", kind: "vol" },
   { key: "vibrate", label: "Vibration", kind: "bool", note: "Buzz when the castle is hit and when bosses fall" },
   { key: "dmgNums", label: "Damage numbers", kind: "bool", note: "Numbers above enemies when they are hit" },
-  { key: "lite", label: "Low settings", kind: "bool", note: "For slow phones: simpler effects, smoother play" },
+  { key: "lite", label: "Low settings", kind: "bool", note: "For slow phones: simpler battle effects, smoother play" },
   { key: "fps", label: "FPS counter", kind: "bool", note: "Show frames per second in the corner" },
 ];
 function drawSettings() {
@@ -11996,7 +11998,7 @@ function drawEliteBadge(tr, x, y, r) {
 }
 // Lobby Leaderboard button: golden trophy on a 1-2-3 podium, turning light rays, shine sweep, laurels, sparkles
 function drawLeaderboardIcon(b) {
-  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 4, t = lobbyT, lite = settings.lite, p = 0.5 + 0.5 * Math.sin(t * 2.4);
+  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 4, t = lobbyT, lite = LOWFX(), p = 0.5 + 0.5 * Math.sin(t * 2.4);
   ctx.save(); ctx.translate(cx, cy - 13 + Math.sin(t * 2 + 1) * 2); ctx.scale(sp * 1.18, sp * 1.18);
   { const g = ctx.createRadialGradient(0, 0, 10, 0, 0, 56); g.addColorStop(0, "rgba(16,8,20,0.55)"); g.addColorStop(1, "rgba(16,8,20,0)"); ctx.fillStyle = g; ctx.fillRect(-58, -58, 116, 116); }
   // rays behind the trophy
@@ -12031,7 +12033,7 @@ function drawLeaderboardIcon(b) {
 }
 // Lobby Challenge button: crossed swords behind a round battle shield with a flame crest, swords clash with sparks, "!" while today's challenge is unplayed
 function drawChallengeIcon(b) {
-  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 2, t = lobbyT, lite = settings.lite, p = 0.5 + 0.5 * Math.sin(t * 3);
+  const sp = b.down ? 0.92 : 1, cx = b.x + b.w / 2, cy = b.y + b.h / 2 + 2, t = lobbyT, lite = LOWFX(), p = 0.5 + 0.5 * Math.sin(t * 3);
   const clash = Math.max(0, Math.sin(t * 2.2)) ** 6;
   ctx.save(); ctx.translate(cx, cy - 2 + Math.sin(t * 2 + 2) * 2); ctx.scale(sp * 1.18, sp * 1.18);
   { const g = ctx.createRadialGradient(0, 0, 10, 0, 0, 56); g.addColorStop(0, "rgba(16,8,20,0.55)"); g.addColorStop(1, "rgba(16,8,20,0)"); ctx.fillStyle = g; ctx.fillRect(-58, -58, 116, 116); }
@@ -12677,7 +12679,7 @@ function drawLobbyUi() {
   btn.gemPill.x = gx0; btn.gemPill.w = pw;
   rrect(gx0, 18, pw, 50, 25); ctx.fillStyle = "rgba(20,10,30,0.7)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
   { const sc = 1 + gemPulse * 0.18; ctx.save(); ctx.translate(gx0 + 26, 43); ctx.scale(sc, sc); drawGem(0, 0, 14); ctx.restore();
-    if (gemPulse > 0 && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(gx0 + 26, 43, 22 * gemPulse + 8, `rgba(127,230,255,${0.4 * gemPulse})`); ctx.restore(); }
+    if (gemPulse > 0 && !LOWFX()) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(gx0 + 26, 43, 22 * gemPulse + 8, `rgba(127,230,255,${0.4 * gemPulse})`); ctx.restore(); }
     text(fmtNum(Math.round(gemsShown ?? save.gems)), gx0 + 46, 53, 28, gemPulse > 0.05 ? "#bff4ff" : PARCH, { align: "left", weight: 700, outline: 5 }); }
   const plx = gx0 + pw - 26;
   circle(plx, 43, 15, btn.gemPill.down ? "#4fa84d" : "#6cc56a"); ring(plx, 43, 15, INK, 2.5);
@@ -12710,7 +12712,7 @@ function drawPlaySlider() {
   const b = btn.play; b.x = W / 2 - 150; b.y = H - 140; b.w = 300; b.h = 96;
   const pos = clamp(playModeT - playDrag, 0, 1); lobbyBossK = pos;
   const press = b.down ? 3 : 0, wait = bossReadyIn(), pul = 0.5 + 0.5 * Math.sin(lobbyT * 4);
-  if (pos > 0.01) { ctx.save(); ctx.globalAlpha = pos; ctx.shadowColor = `rgba(255,60,30,${0.5 + 0.4 * pul})`; ctx.shadowBlur = settings.lite ? 0 : 20 + 12 * pul; rrect(b.x, b.y + press, b.w, b.h, 16); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.restore(); }
+  if (pos > 0.01) { ctx.save(); ctx.globalAlpha = pos; ctx.shadowColor = `rgba(255,60,30,${0.5 + 0.4 * pul})`; ctx.shadowBlur = LOWFX() ? 0 : 20 + 12 * pul; rrect(b.x, b.y + press, b.w, b.h, 16); ctx.fillStyle = "#c0392b"; ctx.fill(); ctx.restore(); }
   { const lipCol = pos > 0.5 ? "#7a1a12" : "#a8761e", R = 24;
     rrect(b.x + 2, b.y + 9, b.w - 4, b.h, R); ctx.fillStyle = "rgba(20,10,20,0.28)"; ctx.fill();
     rrect(b.x, b.y + 6, b.w, b.h, R); ctx.fillStyle = lipCol; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke(); }
@@ -13192,7 +13194,7 @@ function drawSynergy() {
   for (const e of ks) {
     const sy = SYN[e], label = `${EL[e].name} x${sy.n}  +${Math.round(sy.bonus * 100)}%`;
     ctx.font = `900 15px ${FONT}`; const w = ctx.measureText(label).width + 40;
-    ctx.save(); ctx.shadowColor = hexA(EL[e].color, 0.6 + 0.3 * p); ctx.shadowBlur = settings.lite ? 0 : 10;
+    ctx.save(); ctx.shadowColor = hexA(EL[e].color, 0.6 + 0.3 * p); ctx.shadowBlur = LOWFX() ? 0 : 10;
     rrect(x, y, w, 26, 13); ctx.fillStyle = "rgba(14,8,24,0.78)"; ctx.fill(); ctx.restore();
     rrect(x, y, w, 26, 13); ctx.strokeStyle = EL[e].color; ctx.lineWidth = 2; ctx.stroke();
     poly(radialPoly(x + 15, y + 13, 8, EL[e].shape, 0, 1), EL[e].color, INK, 1.5);
@@ -13420,7 +13422,7 @@ function frame(now) {
   }
   if (state === "wave" || state === "break") perfWatch(now - last);
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
-  if (settings.lite && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }
+  if (LOWFX() && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }
   update(dt); updateCounters(dt); panelPopFrame(dt);
   ctx.setTransform(1, 0, 0, 1, 0, TOP); ctx.clearRect(0, -TOP, W, H + TOP);
   if (state === "title") drawLobby(dt);
