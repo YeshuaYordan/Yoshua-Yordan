@@ -12543,11 +12543,34 @@ function drawCardsScene() {
   ctx.strokeStyle = "rgba(255,220,170,0.05)"; ctx.lineWidth = 2;
   for (let y = 40; y < H; y += 46) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y + 8); ctx.stroke(); }
 }
+// Card library performance: each card is drawn into its own cached picture that is redrawn ~10x a second
+// (staggered, at most LIB_BUDGET cards per frame), and not at all while the list scrolls or the page slides.
+const LIB_FPS = 10, LIB_BUDGET = 2, LIB_RES = 0.72 /* = the card's on-screen scale on the 720-wide canvas: pixel for pixel */, LIB_PAD = { x: 110, top: 130, bot: 90 };
+let libScrollPrev = 0, libStillT = 0, libBudget = 0;
+function drawLibCard(c) {
+  const d = EL[c.element]; if (!(d.myth || d.legendCard || d.divine || c.rarity >= MYTH)) return c.draw(); // light cards are cheaper to draw directly
+  const now = performance.now(), L = c._lib, moving = libStillT > 0;
+  const due = !L || (!moving && now - L.at > 1000 / LIB_FPS && libBudget > 0);
+  if (due) {
+    if (L) libBudget--;
+    const w = CARD_W + LIB_PAD.x * 2, h = CARD_H + LIB_PAD.top + LIB_PAD.bot;
+    const cv = (L && L.c) || document.createElement("canvas"); if (!L) { cv.width = Math.ceil(w * LIB_RES); cv.height = Math.ceil(h * LIB_RES); }
+    const g = cv.getContext("2d"); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); g.scale(LIB_RES, LIB_RES);
+    const main = ctx, keep = [c.x, c.y, c.scale];
+    ctx = g; try { c.x = LIB_PAD.x + CARD_W / 2; c.y = LIB_PAD.top + CARD_H / 2; c.scale = 1; c.draw(); } finally { ctx = main; [c.x, c.y, c.scale] = keep; }
+    c._lib = { c: cv, w, h, at: L ? Math.max(L.at + 1000 / LIB_FPS, now - 50) : now - Math.random() * 1000 / LIB_FPS };
+  }
+  const S = c._lib, sc = c.scale;
+  ctx.drawImage(S.c, c.x - (LIB_PAD.x + CARD_W / 2) * sc, c.y - (LIB_PAD.top + CARD_H / 2) * sc, S.w * sc, S.h * sc);
+}
 function drawCardsUi(dt) {
   cardsScroll = clamp(cardsScroll, 0, cardsMaxScroll());
+  libBudget = LIB_BUDGET;
+  if (Math.abs(cardsScroll - libScrollPrev) > 0.5 || Math.abs(lobbyPos - lobbyPage) > 0.01) libStillT = 0.15; else libStillT = Math.max(0, libStillT - dt);
+  libScrollPrev = cardsScroll;
   for (const cell of cardCells()) {
     if (cell.el) upgradeBtns[cell.el].y = -999;
-    if (cell.y > H || cell.y < CARDS_TOP - 200) continue;
+    if (cell.y > H || cell.y < CARDS_TOP - 200) { if (cell.el && collectionCards[cell.el]) collectionCards[cell.el]._lib = null; continue; }
     if (cell.title) { text(cell.title, 24, cell.y + 4, 24, "#e9d3a6", { align: "left", weight: 700, outline: 6 }); continue; }
     const el = cell.el, d = EL[el], cx = cell.x, top = cell.y + 4;
     if (!cardKnown(el)) {
@@ -12557,7 +12580,7 @@ function drawCardsUi(dt) {
       text(hint, cx, top + 144, 15, hexA(PARCH, 0.75), { outline: 4 });
       continue;
     }
-    const c = collectionCards[el]; c.t += dt; c.evolveAt = -1; c.x = c.hx = cx; c.y = c.hy = top + 49; c.scale = 0.72; c.draw();
+    const c = collectionCards[el]; c.t += dt; c.evolveAt = -1; c.x = c.hx = cx; c.y = c.hy = top + 49; c.scale = 0.72; drawLibCard(c);
     if (upgradeFx && upgradeFx.el === el) {
       const k = 1 - upgradeFx.t / 0.9;
       ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(cx, top + 49, 70 * (1 - k * 0.4), `rgba(160,255,160,${0.5 * k})`); ctx.restore();
