@@ -8957,7 +8957,7 @@ function drawSpell() {
 function makeBtn(label, x, y, w, h, onTap, size = 26) { return { label, x, y, w, h, onTap, size, down: false }; }
 let castleOpen = false, castleTab = 0, castleRowBtns = [];
 const btn = {
-  castleUp: makeBtn("", 14, 500, 112, 112, () => { castleOpen = true; castleTab = 0; playUi("ui_pick"); }),
+  castleUp: makeBtn("", 14, 232, 112, 112, () => { castleOpen = true; castleTab = 0; playUi("ui_pick"); }),
   cuClose: makeBtn("Close", 0, 0, 220, 70, () => { castleOpen = false; playUi("ui_pick"); }, 26),
   cuTabCastle: makeBtn("Castle", 0, 0, 200, 60, () => { castleTab = 0; playUi("ui_pick"); }, 24),
   cuTabSpells: makeBtn("Spells", 0, 0, 200, 60, () => { castleTab = 1; playUi("ui_pick"); }, 24),
@@ -8985,7 +8985,7 @@ const btn = {
   bossRun: Object.assign(makeBtn("BOSS BREAK OUT", 0, 0, 340, 72, () => startBossRun(), 26), { fill: "#c0392b", fillDown: "#8e2a20", font: DISPLAY, weight: 900, color: "#fff2d0", outline: 6 }),
   bossAd: Object.assign(makeBtn("\u25B6 Ad", 0, 0, 104, 72, () => watchAdForBoss(), 22), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   play: Object.assign(makeBtn("PLAY", 210, 1140, 300, 96, () => tapPlay(), 40), { fill: GOLD, fillDown: "#d9a838", font: DISPLAY, weight: 900 }),
-  titleBook: makeBtn("", 14, 232, 112, 112, () => openBook()),
+  titleBook: makeBtn("", W - 126, 500, 112, 112, () => openBook()),
   summon: Object.assign(makeBtn("x1", 184, 1130, 170, 92, () => doSummon(1), 40), { fill: "#c9a6ff", fillDown: "#a982e8", font: DISPLAY, weight: 900 }),
   summon10: Object.assign(makeBtn("x10", 366, 1130, 170, 92, () => doSummon(10), 40), { fill: "#ffcd50", fillDown: "#e0a830", font: DISPLAY, weight: 900 }),
   rates: makeBtn("Rates", 16, 1150, 150, 60, () => { ratesOpen = true; }, 24),
@@ -8993,12 +8993,12 @@ const btn = {
   storPrev: makeBtn("", 0, 0, 30, 68, () => setStoragePage(storagePage - 1)),
   tutNext: Object.assign(makeBtn("Next", 0, 0, 200, 64, () => tutNext(), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   tutSkip: makeBtn("Skip tutorial", 0, 0, 220, 64, () => tutSkipAll(), 22),
-  daily: makeBtn("", W - 126, 372, 112, 112, () => openDaily()),
+  daily: makeBtn("", 14, 500, 112, 112, () => openDaily()),
   guideNext: Object.assign(makeBtn("Next", 0, 0, 200, 72, () => guideNext(), 28), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   guideBack: makeBtn("Back", 0, 0, 160, 72, () => guideBack(), 26),
   guideClose: makeBtn("Close", 0, 0, 160, 72, () => { guide = null; }, 26),
-  mergeGuide: makeBtn("", W - 126, 620, 112, 112, () => openGuide(false)),
-  help: makeBtn("", W - 126, 496, 112, 112, () => { save.tut = {}; save.trained = false; writeSave(); tutStart("lobby"); }),
+  mergeGuide: makeBtn("", W - 114, 104, 100, 100, () => openGuide(false)),
+  help: makeBtn("", W - 126, 634, 112, 112, () => { save.tut = {}; save.trained = false; writeSave(); tutStart("lobby"); }),
   dailyClaim: Object.assign(makeBtn("Claim", 50, 0, 230, 84, async () => { if (await timeOk()) claimDaily(1); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   dailyAd: Object.assign(makeBtn("Watch ad", 296, 0, 374, 84, () => watchAdForDaily(), 22), { fill: "#ffcd50", fillDown: "#e0a830" }),
   dailyClose: makeBtn("Close", W / 2 - 110, 0, 220, 70, () => { dailyOpen = false; }, 26),
@@ -9015,11 +9015,11 @@ const btn = {
   volUp: makeBtn("+", 0, 0, 66, 56, () => changeVolume(0.2), 32),
   sfxDown: makeBtn("-", 0, 0, 66, 56, () => changeSfx(-0.1), 32),
   sfxUp: makeBtn("+", 0, 0, 66, 56, () => changeSfx(0.1), 32),
-  challenge: makeBtn("", W - 126, 760, 112, 112, () => { chalOpen = true; playUi("ui_pick"); }),
-  leaderboard: makeBtn("", 14, 640, 112, 112, () => openLeaderboard()),
+  challenge: makeBtn("", W - 126, 768, 112, 112, () => { chalOpen = true; playUi("ui_pick"); }),
+  leaderboard: makeBtn("", W - 126, 232, 112, 112, () => openLeaderboard()),
   chalPlay: Object.assign(makeBtn("Play", 0, 0, 260, 84, () => startChallenge(), 28), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   chalClose: makeBtn("Close", 0, 0, 200, 76, () => { chalOpen = false; playUi("ui_pick"); }, 24),
-  missions: makeBtn("", W - 126, 248, 112, 112, () => { missionsOpen = true; missionsTab = 0; achScroll = 0; playUi("ui_pick"); }),
+  missions: makeBtn("", W - 126, 366, 112, 112, () => { missionsOpen = true; missionsTab = 0; achScroll = 0; playUi("ui_pick"); }),
   missionsClose: makeBtn("Close", W / 2 - 110, 0, 220, 64, () => { missionsOpen = false; }, 24),
   tabDaily: makeBtn("Daily Missions", 0, 0, 300, 60, () => { missionsTab = 0; }, 22),
   tabAch: makeBtn("Achievements", 0, 0, 300, 60, () => { missionsTab = 1; achScroll = 0; }, 22),
@@ -9033,8 +9033,8 @@ const btn = {
   speedBuy: Object.assign(makeBtn("Buy", 0, 0, 260, 84, () => { if (!shopBusy) buyProduct(SPEED_PRODUCT).then(() => { if (save.speed2x) { speedOffer = false; gameSpeed = 2; save.speedOn = true; writeSave(); } }); }, 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   speedNo: makeBtn("Not now", 0, 0, 200, 84, () => { speedOffer = false; }, 24),
   gemPill: makeBtn("", W / 2 - 66, 18, 132, 50, () => openShop()),
-  getGems: makeBtn("", 14, 372, 112, 112, () => openShop()),
-  starter: makeBtn("", 14, 800, 112, 112, () => openStarter()),
+  getGems: makeBtn("", 14, 366, 112, 112, () => openShop()),
+  starter: makeBtn("", 14, 650, 112, 112, () => openStarter()),
   starterBuy: Object.assign(makeBtn("Buy now $1.00", 0, 0, 380, 84, () => buyStarter(), 32), { fill: "#6cc56a", fillDown: "#4fa84d" }),
   starterClose: makeBtn("Not now", 0, 0, 220, 64, () => { starterOpen = false; playUi("ui_pick"); }, 22),
   shopClose: makeBtn("Close", 240, 1000, 240, 72, () => { shopOpen = false; shopConfirm = null; }, 26),
@@ -9132,9 +9132,9 @@ function baseButtons() {
     if (ratesOpen) return [btn.closeRates];
     if (!lobbySettled()) return [];
     const top = [btn.bio, btn.settingsBtn, btn.gemPill];
-    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.challenge, btn.leaderboard, btn.daily, btn.help, btn.mergeGuide, btn.getGems, btn.titleBook, btn.missions, btn.castleUp, ...(starterAvailable() ? [btn.starter] : []), ...top];
+    if (lobbyPage === 0) return [...(playMode === 1 && bossAdAvailable() ? [btn.bossAd] : []), btn.play, btn.challenge, btn.leaderboard, btn.daily, btn.help, btn.getGems, btn.titleBook, btn.missions, btn.castleUp, ...(starterAvailable() ? [btn.starter] : []), ...top];
     if (lobbyPage === 1) return [btn.summon, btn.summon10, btn.rates, ...top];
-    return [...visibleUpgradeBtns(), ...top];
+    return [...visibleUpgradeBtns(), btn.mergeGuide, ...top];
   }
   if (state === "gameover") return bossModeOver ? [btn.title] : [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, ...(bossMode ? [] : [btn.restart]), btn.quit, btn.sound];
@@ -12179,6 +12179,9 @@ function drawCardsUi(dt) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, CARDS_TOP + 26);
   text("CARDS", W / 2, 172, 70, GOLD, { font: DISPLAY, weight: 900, outline: 14 });
   text("Upgrades add +20% damage per level", W / 2, 218, 24, PARCH, { outline: 7 });
+  { const b = btn.mergeGuide, sp = b.down ? 0.92 : 1, slot = GUIDE_ICON[save.guide ? "merge_guide" : "merge_guide_notify"];
+    if (slot && slot.ready) { const sz = b.w * sp; ctx.drawImage(slot.img, (Math.floor(lobbyT * 7) % 12) * 128, 0, 128, 128, b.x + (b.w - sz) / 2, b.y + (b.h - sz) / 2, sz, sz); }
+    text("Merge Guide", b.x + b.w / 2, b.y + b.h + 6, 16, PARCH, { weight: 800, outline: 5 }); }
   const max = cardsMaxScroll();
   if (max > 0) {
     const trackH = H - CARDS_TOP - 130, barH = Math.max(50, trackH * (H - CARDS_TOP) / (H - CARDS_TOP + max));
@@ -12303,7 +12306,6 @@ function drawHomeUi() {
   });
   drawPlaySlider();
   drawIconBtn(GUIDE_ICON[save.tut && save.tut.lobby ? "tutorial" : "tutorial_notify"], btn.help, "Tutorial");
-  drawIconBtn(GUIDE_ICON[save.guide ? "merge_guide" : "merge_guide_notify"], btn.mergeGuide, "Merge Guide", 7);
   drawChallengeIcon(btn.challenge);
   drawLeaderboardIcon(btn.leaderboard);
   const mi = MISSION_ICON[missionsClaimable() ? "mission_notify" : "mission"], mb = btn.missions, mp = mb.down ? 0.92 : 1;
@@ -12504,7 +12506,7 @@ const TUT = {
     { t: "Summon", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe left to open Summon (the dots up here show which page you are on). One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
     { t: "Your cards", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
     { t: "Daily reward", hl: () => ({ x: btn.daily.x - 4, y: btn.daily.y - 4, w: btn.daily.w + 8, h: btn.daily.h + 26 }), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. If you like, watch an ad to double it (always optional). The calendar shows a red ! when your reward is waiting." },
-    { t: "Tutorial", hl: () => ({ x: btn.help.x - 4, y: btn.help.y - 4, w: btn.help.w + 8, h: btn.help.h + 26 }), b: "Tap the owl any time to replay this tour and the playable training. The icon below it opens the Merge & Fusion guide." },
+    { t: "Tutorial", hl: () => ({ x: btn.help.x - 4, y: btn.help.y - 4, w: btn.help.w + 8, h: btn.help.h + 26 }), b: "Tap the owl any time to replay this tour and the playable training. The Merge & Fusion guide is at the top of your card library (swipe right)." },
     { t: "Spellbook", hl: () => ({ x: btn.titleBook.x - 4, y: btn.titleBook.y - 4, w: btn.titleBook.w + 8, h: btn.titleBook.h + 26 }), b: "Every fusion recipe and every spell rune is written in the Spellbook. A red ! means you discovered something new. You can open it any time, even in the middle of a run." },
     { t: "Ready?", hl: () => btnRect(btn.play), b: () => save.trained ? "Tap PLAY to start your first real run. Good luck, defender!" : "Tap PLAY! You will start with a short playable training where you try every move yourself." },
   ],
