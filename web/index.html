@@ -1232,18 +1232,43 @@ function trailStyles(key, SEG, fn) { let v = TRAIL_STYLES.get(key); if (!v) { v 
 // Elyndor's own frame effects (sun / tide / purple union), built around its frame art:
 // left sun crescent + left orb at art px (213,395), right wave + orb at (595,395), purple orb on top at (404,150).
 // Tychor's own frame effects: a spinning ring of gold coins behind, casino bulbs chasing round the border, sparkles and falling coins.
-function tyBack(hw, hh, t) {
+// Tychor's aura (behind the machine): turning wheel of fortune, jackpot sunburst, card suits + dice + lucky 7s drifting round the edge, rising coins.
+// Hotter while the reels spin, blazing on a win / during the jackpot. s0 = the card's slot state.
+function tyBack(hw, hh, t, s0) {
+  const spin = s0 && s0.phase === "spin", win = (s0 && s0.phase === "show" && s0.kind !== "none") || jackpotT > 0, heat = win ? 1 : spin ? 0.6 : 0.25;
   ctx.save(); ctx.globalCompositeOperation = "lighter";
-  const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(255,190,60,${0.32 + 0.1 * Math.sin(t * 2.5)})`); g.addColorStop(1, "rgba(255,150,40,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260);
+  // warm glow
+  const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 115); g.addColorStop(0, `rgba(255,190,60,${0.3 + 0.2 * heat + 0.08 * Math.sin(t * 2.5)})`); g.addColorStop(0.6, `rgba(255,90,60,${0.1 + 0.1 * heat})`); g.addColorStop(1, "rgba(255,150,40,0)"); ctx.fillStyle = g; ctx.fillRect(-125, -135, 250, 270);
+  // jackpot sunburst: 16 alternating gold rays turning slowly (faster when hot)
+  ctx.save(); ctx.rotate(t * (0.25 + heat * 0.9));
+  for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8, w = 0.11, R2 = hh + 24 + (i % 2) * 8;
+    const rg = ctx.createLinearGradient(0, 0, Math.cos(a) * R2, Math.sin(a) * R2); rg.addColorStop(0.3, `rgba(255,${i % 2 ? 210 : 120},${i % 2 ? 90 : 70},${0.35 * (0.5 + heat)})`); rg.addColorStop(1, "rgba(255,200,80,0)");
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a - w) * R2, Math.sin(a - w) * R2); ctx.lineTo(Math.cos(a + w) * R2, Math.sin(a + w) * R2); ctx.closePath(); ctx.fill(); }
   ctx.restore();
-  for (let i = 0; i < 10; i++) { const a = t * 0.8 + i * Math.PI / 5, z = Math.sin(a); if (z > 0) continue; const x = Math.cos(a) * (hw + 16), y = z * 10 + hh * 0.62, sx = Math.max(0.2, Math.abs(Math.cos(t * 4 + i)));
-    ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); circle(0, 0, 5, "#d8a030"); ring(0, 0, 5, "#7a4a10", 1); ctx.restore(); }
+  ctx.restore();
+  // wheel of fortune behind the card: red/gold segments, gold rim with bulbs, peeking out round the machine
+  const WR = hh + 6, ws = t * (0.35 + heat * 2.2);
+  ctx.save(); ctx.scale((hw + 14) / WR, 1);
+  for (let i = 0; i < 12; i++) { const a0 = ws + i * Math.PI / 6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, WR, a0, a0 + Math.PI / 6); ctx.closePath(); ctx.fillStyle = i % 3 === 0 ? "#2a0a3a" : i % 2 ? "#8a1020" : "#c8962a"; ctx.globalAlpha = 0.85; ctx.fill(); }
+  ctx.globalAlpha = 1; ring(0, 0, WR, "#ffcf4a", 3); ring(0, 0, WR + 2.5, "#7a4a10", 1.2);
+  for (let i = 0; i < 24; i++) { const a = -ws * 0.5 + i * Math.PI / 12, on = (Math.floor(t * (4 + heat * 14)) + i) % 4 === 0; circle(Math.cos(a) * WR, Math.sin(a) * WR, on ? 2.6 : 1.8, on ? "#fff6c8" : "#a07020"); }
+  ctx.restore();
+  // suits, dice and lucky 7s drifting round the edge (behind the machine, so they show only outside it)
+  const SYM = ["\u2660", "\u2665", "7", "\u2666", "\u2663", "die", "\u2665", "7", "\u2660", "die", "\u2666", "\u2663"];
+  for (let i = 0; i < SYM.length; i++) { const a = -t * (0.3 + heat * 0.6) + i * Math.PI * 2 / SYM.length, x = Math.cos(a) * (hw + 20), y = Math.sin(a) * (hh + 14), bob = Math.sin(t * 3 + i) * 2, sy = SYM[i];
+    ctx.save(); ctx.translate(x, y + bob); ctx.rotate(Math.sin(t * 1.5 + i) * 0.3);
+    if (sy === "die") { rrect(-6, -6, 12, 12, 3); ctx.fillStyle = "#fffaf0"; ctx.fill(); ctx.strokeStyle = "#7a1a1a"; ctx.lineWidth = 1; ctx.stroke(); const f = (Math.floor(t * 0.7 + i) % 3) + 1; [[0, 0], [-3, -3], [3, 3], [-3, 3], [3, -3]].slice(0, f === 1 ? 1 : f === 2 ? 3 : 5).forEach(([px, py], k) => { if (f === 2 && k === 0) return; circle(px, py, 1.3, "#c0202a"); }); }
+    else { const red = sy === "\u2665" || sy === "\u2666" || sy === "7"; text(sy, 0, 5, sy === "7" ? 15 : 14, red ? "#ff3a4a" : "#1a0a20", { weight: 900, outline: 3, outlineColor: sy === "7" ? "#ffd84a" : "#fff1c8" }); }
+    ctx.restore(); }
+  // coins rising behind the machine, more when hot
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const nc = 5 + Math.round(heat * 7);
+  for (let i = 0; i < nc; i++) { const u = (t * (0.35 + heat * 0.5) + i * 0.618) % 1, x = Math.sin(i * 2.7) * (hw + 10) + Math.sin(t * 2 + i) * 4, y = hh + 10 - u * (2 * hh + 40), sx = Math.max(0.2, Math.abs(Math.cos(t * 5 + i)));
+    ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); circle(0, 0, 3.6, `rgba(255,210,90,${Math.sin(u * Math.PI)})`); ctx.restore(); }
+  ctx.restore();
 }
 function tyFront(hw, hh, t) {
   ctx.save();
-  // coins in front half of the ring
-  for (let i = 0; i < 10; i++) { const a = t * 0.8 + i * Math.PI / 5, z = Math.sin(a); if (z <= 0) continue; const x = Math.cos(a) * (hw + 16), y = z * 10 + hh * 0.62, sx = Math.max(0.2, Math.abs(Math.cos(t * 4 + i)));
-    ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); const g = ctx.createRadialGradient(-1.5, -1.5, 0, 0, 0, 6); g.addColorStop(0, "#fff6c8"); g.addColorStop(1, "#d8a030"); circle(0, 0, 6, g); ring(0, 0, 6, "#7a4a10", 1.2); ctx.restore(); }
   // sparkles
   ctx.globalCompositeOperation = "lighter";
   for (let i = 0; i < 6; i++) { const ph = (t * 0.9 + i * 0.37) % 1, x = Math.sin(i * 3.7) * (hw - 8), y = Math.cos(i * 2.3) * (hh - 10), s2 = 5 * Math.sin(ph * Math.PI);
@@ -1672,7 +1697,7 @@ class Card {
   // Tychor: the card IS an arcade slot machine (no frame art); its reels are this card's live slot state
   drawTychorCard(hw, hh, t, d) {
     const lite = settings.lite, s0 = this.slot || { phase: "idle", digits: [7, 7, 7], kind: "none", t: 0, pt: 0 };
-    if (!lite) tyBack(hw, hh, t);
+    if (!lite) tyBack(hw, hh, t, s0);
     const L = -hw + 3, R = hw - 9, T = -hh + 2, B = hh - 2, bw = R - L;
     rrect(L + 2, T + 6, bw, B - T, 10); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill();
     // lever (behind the body, right side): pulled down when a spin starts
