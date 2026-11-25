@@ -12581,7 +12581,8 @@ function drawCardsUi(dt) {
   libScrollPrev = cardsScroll;
   for (const cell of cardCells()) {
     if (cell.el) upgradeBtns[cell.el].y = -999;
-    if (cell.y > H - 20 || cell.y < CARDS_TOP - 176) { // fully hidden (below the screen, or behind the header): not drawn, picture freed if (cell.el && collectionCards[cell.el]) collectionCards[cell.el]._lib = null; continue; }
+    // fully hidden (below the screen, or behind the header): not drawn, picture freed
+    if (cell.y > H - 20 || cell.y < CARDS_TOP - 176) { if (cell.el && collectionCards[cell.el]) collectionCards[cell.el]._lib = null; continue; }
     if (cell.title) { libCache("t|" + cell.title, 10, cell.y - 26, 340, 40, () => text(cell.title, 14, 30, 24, "#e9d3a6", { align: "left", weight: 700, outline: 6 })); continue; }
     const el = cell.el, d = EL[el], cx = cell.x, top = cell.y + 4;
     if (!cardKnown(el)) {
