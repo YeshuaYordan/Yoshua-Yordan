@@ -12120,30 +12120,48 @@ const SHOP_GEMS = [
   { id: "gems_100000", gems: 80000, bonus: 20000, price: "$99.99", name: "Dragon Hoard" },
 ];
 const SHOP_SPECIAL_PRICE = "$2.99";
-const STARTER_DEAL = { id: "starter_deal", starter: true, price: "$1.00", name: "Beginner Deal", gemsAmt: 2000, cards: ["totem", "flight", "chalice"] };
-const STARTER_TIME = 24 * 3600 * 1000;
+// Limited deals, one after another: the Beginner Deal (24 h), then after a 1 day break the Hex Deal (24 h).
+const STARTER_DEAL = { id: "starter_deal", starter: true, deal: "starter", price: "$1.00", was: "$15.00", off: 93, name: "Beginner Deal", sub: "For new wizards only",
+  gemsAmt: 2000, cards: ["totem", "flight", "chalice"], unlock: "Fight, Flight and Chalice are unlocked for good.", note: "Worth over $15 in the shop. This deal never comes back." };
+const HEX_DEAL = { id: "hex_deal", starter: true, deal: "hex", price: "$3.00", was: "$15.00", off: 80, name: "Hex Deal", sub: "A dark bargain for brave wizards",
+  gemsAmt: 5000, cards: ["hex"], unlock: "Hex is unlocked for good: cursed foes take more damage.", note: "Worth $15 in the shop. Gone when the timer ends." };
+const STARTER_TIME = 24 * 3600 * 1000, DEAL_GAP = 24 * 3600 * 1000;
 let starterOpen = false;
-function starterLeft() { return save.starterAt ? Math.max(0, save.starterAt + STARTER_TIME - Date.now()) : STARTER_TIME; }
-const starterAvailable = () => !save.starterBought && starterLeft() > 0;
+// the deal on offer right now (or null) and how long it has left
+function activeDeal() {
+  const now = Date.now();
+  if (!save.starterAt) return null;
+  if (save.starterBought && !save.starterBoughtAt) { save.starterBoughtAt = now; writeSave(); }
+  const end1 = save.starterBought ? save.starterBoughtAt : save.starterAt + STARTER_TIME;
+  if (now < end1) return { deal: STARTER_DEAL, left: end1 - now };
+  if (!save.hexDealAt) { save.hexDealAt = Math.max(end1 + DEAL_GAP, now); writeSave(); } // players whose first deal ended long ago get it now
+  if (!save.hexDealBought && now >= save.hexDealAt && now < save.hexDealAt + STARTER_TIME) return { deal: HEX_DEAL, left: save.hexDealAt + STARTER_TIME - now };
+  return null;
+}
+function starterLeft() { const a = activeDeal(); return a ? a.left : 0; }
+const starterAvailable = () => !!activeDeal();
+const curDeal = () => (activeDeal() || { deal: STARTER_DEAL }).deal;
 function fmtClock(ms) { const t = Math.ceil(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, sec = t % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`; }
 function openStarter() { starterOpen = true; playUi("ui_pick"); }
 async function buyStarter() {
   if (shopBusy || !starterAvailable()) return;
   shopBusy = true; let ok = false;
-  try { ok = storeIsTest() ? true : await window.nativePurchase(STARTER_DEAL.id); } catch (e) { ok = false; }
+  const D = curDeal();
+  try { ok = storeIsTest() ? true : await window.nativePurchase(D.id); } catch (e) { ok = false; }
   shopBusy = false;
-  if (ok) { grantProduct(STARTER_DEAL); starterOpen = false; }
+  if (ok) { grantProduct(D); starterOpen = false; }
   else shopToast = { text: "Purchase cancelled", color: "#ff9a8a", t: 0 };
 }
-const starterCards = STARTER_DEAL.cards.map(el => { const c = new Card(el, SPECIAL); c.noLabel = true; return c; });
+const dealCards = {};
+for (const D of [STARTER_DEAL, HEX_DEAL]) dealCards[D.deal] = D.cards.map(el => { const c = new Card(el, SPECIAL); c.noLabel = true; return c; });
 function drawStarterIcon(b) {
   if (OFFER_ICON.ready) {
     const sz = b.w * 1.18 * (b.down ? 0.92 : 1);
     ctx.drawImage(OFFER_ICON.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, b.x + (b.w - sz) / 2, b.y + (b.h - sz) / 2, sz, sz);
   } else drawStarterGift(b);
   rrect(b.x - 4, b.y - 12, 66, 26, 13); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
-  text(`-${STARTER_OFF}%`, b.x + 29, b.y + 1, 16, "#fff", { weight: 900, baseline: "middle" });
-  lobbyLabel("Beginner Deal", b.x + b.w / 2, b.y + b.h + 8, 19);
+  text(`-${curDeal().off}%`, b.x + 29, b.y + 1, 16, "#fff", { weight: 900, baseline: "middle" });
+  lobbyLabel(curDeal().name, b.x + b.w / 2, b.y + b.h + 8, 19);
   text(fmtClock(starterLeft()), b.x + b.w / 2, b.y + b.h + 32, 18, "#ffd75a", { weight: 800, outline: 5 });
 }
 function drawStarterGift(b) {
@@ -12167,12 +12185,12 @@ function drawDealSticker(cx, cy, r, t) {
   ctx.fillStyle = "#e0301e"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
   ctx.rotate(-t * 0.4);
   circle(0, 0, r * 0.72, "#ff5a3a"); ring(0, 0, r * 0.72, "#ffd75a", 2.5);
-  text(`-${STARTER_OFF}%`, 0, -r * 0.12, r * 0.52, "#ffffff", { weight: 900, baseline: "middle", outline: 4, outlineColor: "#6a0a04" });
+  text(`-${curDeal().off}%`, 0, -r * 0.12, r * 0.52, "#ffffff", { weight: 900, baseline: "middle", outline: 4, outlineColor: "#6a0a04" });
   text("OFF", 0, r * 0.36, r * 0.32, "#ffe38a", { weight: 900, baseline: "middle", outline: 3, outlineColor: "#6a0a04" });
   ctx.restore();
 }
-const STARTER_WAS = "$15.00", STARTER_OFF = 93;
 function drawStarter(dt) {
+  const D = curDeal(), starterCards = dealCards[D.deal];
   const w = W - 80, h = 860, x = 40, y = Math.max(96, H / 2 - h / 2), t = lobbyT, left = starterLeft(), hurry = left < 3600 * 1000;
   dim(0.8);
   const pg = ctx.createRadialGradient(W / 2, y + h / 2, 100, W / 2, y + h / 2, 520); pg.addColorStop(0, `rgba(255,210,90,${0.22 + 0.08 * Math.sin(t * 3)})`); pg.addColorStop(1, "rgba(255,210,90,0)");
@@ -12181,12 +12199,12 @@ function drawStarter(dt) {
   rrect(x + 8, y + 8, w - 16, h - 16, 18); ctx.strokeStyle = "rgba(216,154,24,0.6)"; ctx.lineWidth = 2; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -t * 20; ctx.stroke(); ctx.setLineDash([]);
   rrect(x + w / 2 - 160, y - 22, 320, 44, 22); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
   text("ONE TIME ONLY", W / 2, y + 1, 22, "#fff", { weight: 900, baseline: "middle" });
-  text("Beginner Deal", W / 2, y + 78, 46, INK, { font: DISPLAY, weight: 900 });
-  text("For new wizards only", W / 2, y + 112, 18, "#7a3fb0", { weight: 800 });
+  text(D.name, W / 2, y + 78, 46, INK, { font: DISPLAY, weight: 900 });
+  text(D.sub, W / 2, y + 112, 18, "#7a3fb0", { weight: 800 });
   const ts = hurry ? 30 + 3 * Math.sin(t * 8) : 26;
   text(`⏰ Ends in ${fmtClock(left)}`, W / 2, y + 150, ts, "#c0392b", { weight: 900 });
   if (storeIsTest()) text("TEST MODE: purchases are free (no real money)", W / 2, y + 178, 15, "#c0392b", { weight: 700 });
-  const items = [["2,000", "Gems"], ...STARTER_DEAL.cards.map(el => ["1x", EL[el].idol ? EL[el].name : `${EL[el].name} Totem`])];
+  const items = [[fmtNum(D.gemsAmt), "Gems"], ...D.cards.map(el => ["1x", EL[el].idol ? EL[el].name : `${EL[el].name} Totem`])];
   const gapI = 12, tw = (w - 40 - gapI * (items.length - 1)) / items.length, th = 300, ty = y + 196;
   items.forEach(([a, b], i) => {
     const tx = x + 20 + i * (tw + gapI);
@@ -12195,25 +12213,25 @@ function drawStarter(dt) {
     else { const c = starterCards[i - 1]; c.t += dt; c.x = c.hx = tx + tw / 2; c.y = c.hy = ty + 110; c.scale = 0.92; c.draw(); }
     text(a, tx + tw / 2, ty + th - 66, 30, i ? GOLD : INK, { weight: 900, outline: i ? 5 : 0 });
     text(b, tx + tw / 2, ty + th - 32, 19, i ? PARCH : "#6b3a22", { weight: 800, outline: i ? 4 : 0 });
-    if (i && save.specials[STARTER_DEAL.cards[i - 1]]) text("(already owned)", tx + tw / 2, ty + th - 10, 13, "#c9b8ff", { weight: 700 });
+    if (i && save.specials[D.cards[i - 1]]) text("(already owned)", tx + tw / 2, ty + th - 10, 13, "#c9b8ff", { weight: 700 });
   });
   for (let i = 1; i < items.length; i++) {
     const px = x + 20 + i * (tw + gapI) - gapI / 2;
     circle(px, ty + th / 2, 13, INK); circle(px, ty + th / 2, 11, GOLD); text("+", px, ty + th / 2 + 1, 20, INK, { weight: 900, baseline: "middle" });
   }
-  text("Fight, Flight and Chalice are unlocked for good.", W / 2, ty + th + 30, 18, "#6b3a22", { weight: 600 });
+  text(D.unlock, W / 2, ty + th + 30, 18, "#6b3a22", { weight: 600 });
   const py = ty + th + 92;
-  ctx.font = `800 34px ${FONT}`; const ow = ctx.measureText(STARTER_WAS).width;
+  ctx.font = `800 34px ${FONT}`; const ow = ctx.measureText(D.was).width;
   const ox = W / 2 - 120;
-  text(STARTER_WAS, ox, py, 34, "#8a6a5a", { weight: 800, baseline: "middle" });
+  text(D.was, ox, py, 34, "#8a6a5a", { weight: 800, baseline: "middle" });
   ctx.strokeStyle = "#e0301e"; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(ox - ow / 2 - 6, py + 8); ctx.lineTo(ox + ow / 2 + 6, py - 8); ctx.stroke();
   text("→", W / 2 - 20, py, 34, INK, { weight: 900, baseline: "middle" });
   const pk = 1 + 0.05 * Math.sin(t * 4);
   ctx.save(); ctx.translate(W / 2 + 90, py); ctx.scale(pk, pk);
-  text(STARTER_DEAL.price, 0, 0, 56, "#2f9a3a", { weight: 900, baseline: "middle", outline: 6, outlineColor: "#fff6e0" });
+  text(D.price, 0, 0, 56, "#2f9a3a", { weight: 900, baseline: "middle", outline: 6, outlineColor: "#fff6e0" });
   ctx.restore();
-  text("Worth over $15 in the shop. This deal never comes back.", W / 2, py + 50, 17, "#c0392b", { weight: 800 });
-  const b = btn.starterBuy; b.label = shopBusy ? "..." : `Buy now ${STARTER_DEAL.price}`;
+  text(D.note, W / 2, py + 50, 17, "#c0392b", { weight: 800 });
+  const b = btn.starterBuy; b.label = shopBusy ? "..." : `Buy now ${D.price}`;
   b.x = W / 2 - b.w / 2; b.y = y + h - 176;
   ctx.save(); ctx.shadowColor = `rgba(110,230,110,${0.6 + 0.35 * Math.sin(t * 5)})`; ctx.shadowBlur = 26; rrect(b.x, b.y, b.w, b.h, 24); ctx.fillStyle = "rgba(108,197,106,0.01)"; ctx.fill(); ctx.restore();
   drawBtn(b);
@@ -12231,8 +12249,10 @@ function grantProduct(pr) {
   if (pr.noads) { save.noAds = true; writeSave(); playUi("ui_sell"); showBanner("No more ads!", GOLD); shopToast = { text: "No Ads: rewards are instant!", color: GOLD, t: 0 }; return; }
   if (pr.speed) { save.speed2x = true; writeSave(); playUi("ui_sell"); showBanner("2x Speed unlocked!", GOLD); shopToast = { text: "2x Speed unlocked!", color: GOLD, t: 0 }; return; }
   if (pr.starter) {
-    save.gems += pr.gemsAmt; for (const el of pr.cards) save.specials[el] = true; save.starterBought = true;
-    shopToast = { text: `+${fmtNum(pr.gemsAmt)} gems + 3 cards!`, color: GOLD, t: 0 };
+    save.gems += pr.gemsAmt; for (const el of pr.cards) save.specials[el] = true;
+    if (pr.deal === "hex") save.hexDealBought = true; else { save.starterBought = true; save.starterBoughtAt = Date.now(); }
+    flyReward("gem", pr.gemsAmt, W / 2, H / 2);
+    shopToast = { text: `+${fmtNum(pr.gemsAmt)} gems + ${pr.cards.length} card${pr.cards.length > 1 ? "s" : ""}!`, color: GOLD, t: 0 };
   } else if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; }
   else {
     const el = pr.special;
@@ -12263,6 +12283,7 @@ if (window.AndroidBilling) {
 }
 function productById(id) {
   if (id === STARTER_DEAL.id) return STARTER_DEAL;
+  if (id === HEX_DEAL.id) return HEX_DEAL;
   if (id === SPEED_PRODUCT.id) return SPEED_PRODUCT;
   if (id === NOADS_PRODUCT.id) return NOADS_PRODUCT;
   if (id.startsWith("special_") && EL[id.slice(8)]) return { id, special: id.slice(8), price: SHOP_SPECIAL_PRICE, name: EL[id.slice(8)].name };
@@ -12270,7 +12291,7 @@ function productById(id) {
 }
 window.__grantOwned = id => {
   const pr = productById(id); if (!pr) return false;
-  if ((pr.noads && save.noAds) || (pr.speed && save.speed2x) || (pr.starter && save.starterBought) || (pr.special && save.specials[pr.special])) return true;
+  if ((pr.noads && save.noAds) || (pr.speed && save.speed2x) || (pr.starter && (pr.deal === "hex" ? save.hexDealBought : save.starterBought)) || (pr.special && save.specials[pr.special])) return true;
   grantProduct(pr); return true;
 };
 function shopPanel() { const h = 1160; return { x: 24, y: Math.max(96, H / 2 - h / 2), w: W - 48, h }; }
