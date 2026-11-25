@@ -5,8 +5,15 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import com.google.android.gms.games.PlayGames;
 import com.google.android.gms.games.PlayGamesSdk;
+import com.google.android.gms.games.SnapshotsClient;
+import com.google.android.gms.games.snapshot.Snapshot;
+import com.google.android.gms.games.snapshot.SnapshotMetadataChange;
 
-/** Google Play Games leaderboards, exposed to the game as window.AndroidGames. */
+import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
+
+/** Google Play Games leaderboards and cloud save (Saved Games), exposed to the game as window.AndroidGames. */
 public class PlayGamesBridge {
     private static final int RC_BOARDS = 9004;
     private final Activity act;
@@ -73,5 +80,44 @@ public class PlayGamesBridge {
         PlayGames.getLeaderboardsClient(act).getAllLeaderboardsIntent()
                 .addOnSuccessListener(i -> act.startActivityForResult(i, RC_BOARDS))
                 .addOnFailureListener(e -> web.evaluateJavascript("window.onGamesFail&&onGamesFail()", null));
+    }
+
+    private static final String SAVE_NAME = "arcane_fusion_save";
+
+    /** Uploads the game's save (JSON) to the player's Play Games account. */
+    @JavascriptInterface
+    public void cloudSave(final String json) {
+        if (!configured() || !signedIn || json == null) return;
+        act.runOnUiThread(() -> {
+            SnapshotsClient sc = PlayGames.getSnapshotsClient(act);
+            sc.open(SAVE_NAME, true, SnapshotsClient.RESOLUTION_POLICY_MOST_RECENTLY_MODIFIED).addOnSuccessListener(r -> {
+                Snapshot snap = r.getData();
+                if (snap == null) return;
+                snap.getSnapshotContents().writeBytes(json.getBytes(StandardCharsets.UTF_8));
+                sc.commitAndClose(snap, new SnapshotMetadataChange.Builder().setDescription("Arcane Fusion progress").build());
+            });
+        });
+    }
+
+    /** Loads the cloud save and hands it to the game as onCloudLoaded(json) ("" when there is none or it fails). */
+    @JavascriptInterface
+    public void cloudLoad() {
+        if (!configured() || !signedIn) { reply(""); return; }
+        act.runOnUiThread(() -> {
+            SnapshotsClient sc = PlayGames.getSnapshotsClient(act);
+            sc.open(SAVE_NAME, true, SnapshotsClient.RESOLUTION_POLICY_MOST_RECENTLY_MODIFIED).addOnCompleteListener(t -> {
+                String json = "";
+                try {
+                    Snapshot snap = t.isSuccessful() ? t.getResult().getData() : null;
+                    if (snap != null) { byte[] b = snap.getSnapshotContents().readFully(); if (b != null) json = new String(b, StandardCharsets.UTF_8); sc.discardAndClose(snap); }
+                } catch (Exception e) { json = ""; }
+                reply(json);
+            });
+        });
+    }
+
+    private void reply(String json) {
+        final String js = "window.onCloudLoaded&&onCloudLoaded(" + JSONObject.quote(json) + ")";
+        act.runOnUiThread(() -> web.evaluateJavascript(js, null));
     }
 }

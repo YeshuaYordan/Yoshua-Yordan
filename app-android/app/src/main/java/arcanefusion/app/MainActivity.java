@@ -17,6 +17,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private PlayBilling billing;
     private PlayGamesBridge games;
+    private AdsBridge ads;
     private float safeTop = 0;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -52,6 +53,11 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(billing, "AndroidBilling");
         games = new PlayGamesBridge(this, web);
         web.addJavascriptInterface(games, "AndroidGames");
+        ads = new AdsBridge(this, web);
+        web.addJavascriptInterface(ads, "AndroidAds");
+        // Android 13+ back gesture (predictive back is on by default when targeting Android 16): send the game to the background
+        if (android.os.Build.VERSION.SDK_INT >= 33)
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, () -> moveTaskToBack(true));
         web.setOnApplyWindowInsetsListener((v, insets) -> {
             int top = 0;
             if (android.os.Build.VERSION.SDK_INT >= 28 && insets.getDisplayCutout() != null) top = insets.getDisplayCutout().getSafeInsetTop();

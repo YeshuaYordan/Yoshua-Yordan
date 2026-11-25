@@ -6,11 +6,11 @@ if (ksFile.exists()) ksFile.withInputStream { ks.load(it) }
 
 android {
     namespace 'arcanefusion.app'
-    compileSdk 35
+    compileSdk 36
     defaultConfig {
         applicationId 'arcanefusion.app'
         minSdk 24
-        targetSdk 35
+        targetSdk 36
         versionCode 3
         versionName '1.1.0'
     }
@@ -47,4 +47,6 @@ dependencies {
     implementation 'androidx.webkit:webkit:1.12.1'
     implementation 'com.android.billingclient:billing:7.1.1'
     implementation 'com.google.android.gms:play-services-games-v2:21.0.0'
+    implementation 'com.google.android.gms:play-services-ads:24.4.0'
+    implementation 'com.google.android.ump:user-messaging-platform:3.2.0'
 }

@@ -8,6 +8,9 @@
         android:hardwareAccelerated="true"
         android:theme="@style/GameTheme">
         <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="@string/admob_app_id" />
+        <meta-data
             android:name="com.google.android.gms.games.APP_ID"
             android:value="@string/game_services_project_id" />
         <activity

@@ -4,4 +4,7 @@
     <string name="game_services_project_id" translatable="false"></string>
     <string name="leaderboard_best_wave" translatable="false"></string>
     <string name="leaderboard_boss_break_out" translatable="false"></string>
+    <!-- AdMob: these are GOOGLE'S TEST IDs (show test ads). Replace both with your own from admob.google.com before release. -->
+    <string name="admob_app_id" translatable="false">ca-app-pub-3940256099942544~3347511713</string>
+    <string name="admob_rewarded_id" translatable="false">ca-app-pub-3940256099942544/5224354917</string>
 </resources>

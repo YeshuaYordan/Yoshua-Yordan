@@ -723,7 +723,7 @@ async function timeOk() {
 }
 syncTime().then(() => { if (!clockWentBack()) noteTime(); });
 setInterval(() => { if (!clockWentBack()) { noteTime(); writeSave(); } }, 30000);
-function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} }
+function writeSave() { save.savedAt = Date.now(); try { localStorage.setItem("arcane-fusion-save", JSON.stringify(save)); } catch (e) {} try { cloudPush(false); } catch (e) {} }
 const STAGE_LEN = 10;
 const GEMS_PER_STAGE = 20;
 const PULL_COST = 100;
@@ -9262,6 +9262,9 @@ const btn = {
   reviveNo: makeBtn("No thanks", W / 2 - 120, 0, 240, 64, () => { reviveOffer = null; gameOver(); }, 24),
   settingsBtn: makeBtn("Settings", 516, 14, 190, 58, () => { settingsOpen = true; playUi("ui_pick"); }, 24),
   settingsClose: makeBtn("Close", W / 2 - 110, 0, 220, 72, () => { settingsOpen = false; }, 26),
+  adPrivacy: makeBtn("Ad privacy choices", 0, 0, 300, 50, () => { try { window.AndroidAds.showPrivacy(); } catch (e) {} }, 20),
+  cloudUse: Object.assign(makeBtn("Use cloud save", 0, 0, 300, 76, () => applyCloud(), 26), { fill: "#6cc56a", fillDown: "#4fa84d" }),
+  cloudKeep: makeBtn("Keep this phone's save", 0, 0, 360, 64, () => { cloudOffer = null; cloudChecked = true; cloudPush(true); playUi("ui_pick"); }, 22),
   volDown: makeBtn("-", 0, 0, 66, 56, () => changeVolume(-0.2), 32),
   volUp: makeBtn("+", 0, 0, 66, 56, () => changeVolume(0.2), 32),
   sfxDown: makeBtn("-", 0, 0, 66, 56, () => changeSfx(-0.1), 32),
@@ -9374,6 +9377,7 @@ function baseButtons() {
   if (state === "title") {
     if (castleOpen) return castleButtons();
     if (shopOpen) return shopButtons();
+    if (cloudOffer) return [btn.cloudUse, btn.cloudKeep];
     if (starterOpen) return shopBusy ? [] : [btn.starterBuy, btn.starterClose, ...(curDeal().pick ? pickTiles : [])];
     if (adSim || adBusy) return [];
     if (bioOpen) return [btn.bioAvatar, btn.bioName, btn.bioClose, ...(TESTER_RESET ? [btn.resetAll] : [])];
@@ -11207,7 +11211,7 @@ function drawRates() {
 
 const AVATARS = ["fire", "water", "earth", "wind", "lava", "steam", "lightning", "plant", "dust", "ice"];
 let bioOpen = false;
-const TESTER_RESET = true;
+const TESTER_RESET = !window.AndroidBilling; // tester tools (TEST card picker, reset) only outside the Android app
 let resetArmed = 0;
 let testPick = null, testBtns = [], testDrag = null;
 const TEST_GROUPS = () => [["Main", BASE], ["Next", NEXT_ELS], ["Epic", EPIC_ELS], ["Myth", MYTH_ELS], ["Legend", LEGEND_ALL], ["Divine", DIVINE_ELS], ["Special", SPECIALS]];
@@ -11266,6 +11270,7 @@ function resetAllProgress() {
 }
 function profile() {
   const pr = (save.profile = save.profile || { name: "Player", avatar: "fire", waves: 0 });
+  if (!pr.avatar || !EL[pr.avatar]) pr.avatar = "fire"; if (typeof pr.name !== "string" || !pr.name) pr.name = "Player"; // repair incomplete saves (e.g. an old cloud copy)
   if (!pr.seeded) { pr.waves = Math.max(pr.waves || 0, save.best || 0); pr.seeded = true; }
   if (pr.named === undefined) pr.named = pr.name !== "Player";
   return pr;
@@ -11428,10 +11433,12 @@ function drawSettings() {
     }
   });
   btn.settingsClose.y = y + h - 100; drawBtn(btn.settingsClose);
+  if (adPrivacyNeeded()) { btn.adPrivacy.x = W / 2 - btn.adPrivacy.w / 2; btn.adPrivacy.y = y + h - 160; drawBtn(btn.adPrivacy); }
 }
 const settingToggles = {};
 for (const r of settingRows) if (r.kind === "bool") settingToggles[r.key] = makeBtn("On", 0, 0, 120, 60, () => { settings[r.key] = !settings[r.key]; saveSettings(); playUi("ui_pick"); }, 24);
-const settingsButtons = () => [btn.settingsClose, btn.volDown, btn.volUp, btn.sfxDown, btn.sfxUp, ...Object.values(settingToggles)];
+const adPrivacyNeeded = () => { try { return !!(window.AndroidAds && window.AndroidAds.privacyRequired()); } catch (e) { return false; } };
+const settingsButtons = () => [...(adPrivacyNeeded() ? [btn.adPrivacy] : []), btn.settingsClose, btn.volDown, btn.volUp, btn.sfxDown, btn.sfxUp, ...Object.values(settingToggles)];
 function changeSfx(d) { settings.sfx = clamp(Math.round((settings.sfx + d) * 10) / 10, 0, 1); saveSettings(); playSfx("fire", "atk"); }
 function changeVolume(d) { settings.vol = clamp(Math.round((settings.vol + d) * 5) / 5, 0, 1); saveSettings(); if (settings.vol > 0) playUi("ui_pick"); }
 
@@ -11983,7 +11990,41 @@ function drawChallengePanel() {
 // Leaderboards: Google Play Games in the Android app (window.AndroidGames). Boards: "wave" = best wave in a normal run, "boss" = Boss Break Out kills.
 const gamesApi = () => (window.AndroidGames && window.AndroidGames.available()) ? window.AndroidGames : null;
 function submitScore(key, score) { const g = gamesApi(); if (g && score > 0) try { g.submit(key, score); } catch (e) {} }
-window.onGamesReady = ok => { if (ok) { submitScore("wave", save.best || 0); submitScore("boss", save.bossBest || 0); } };
+// ---- Cloud save (Android: Google Play Games Saved Games) ----
+// On sign-in the cloud copy is loaded once. If it holds more progress than this phone (a new or reset phone), the player is asked
+// whether to use it (or it is used straight away when this phone has no progress). Otherwise this phone's save is uploaded.
+// Uploads are skipped until that first check is done, then happen at most once a minute and whenever the app goes to the background.
+let cloudOffer = null, cloudChecked = false, cloudDirty = false, cloudLastPush = 0, gamesSignedIn = false;
+const cloudApi = () => (gamesSignedIn && window.AndroidGames && typeof window.AndroidGames.cloudSave === "function") ? window.AndroidGames : null;
+const saveScore = o => !o ? 0 : (o.best || 0) + ((o.profile && o.profile.waves) || 0) + Object.keys(o.discovered || {}).length + 10 * Object.values(o.specials || {}).filter(Boolean).length + Object.values(o.levels || {}).reduce((a, v) => a + (v || 0), 0);
+function cloudPush(force) {
+  const g = cloudApi(); if (!g || !cloudChecked) { cloudDirty = true; return; }
+  const now = Date.now(); if (!force && now - cloudLastPush < 60000) { cloudDirty = true; return; }
+  cloudLastPush = now; cloudDirty = false; try { g.cloudSave(JSON.stringify(save)); } catch (e) {}
+}
+setInterval(() => { if (cloudDirty) cloudPush(false); }, 30000);
+document.addEventListener("visibilitychange", () => { if (document.hidden && cloudDirty) cloudPush(true); });
+window.onCloudLoaded = raw => {
+  let c = null; try { c = raw ? JSON.parse(raw) : null; } catch (e) {}
+  if (!c || saveScore(c) <= saveScore(save)) { cloudChecked = true; cloudPush(true); return; }
+  if (saveScore(save) === 0 || (!(save.best > 0) && !((save.profile && save.profile.waves) > 0))) { cloudOffer = { c, raw }; applyCloud(); return; }
+  cloudOffer = { c, raw };
+};
+function applyCloud() { if (!cloudOffer) return; try { localStorage.setItem("arcane-fusion-save", cloudOffer.raw); } catch (e) {} location.reload(); }
+function cloudSummary(o) { const w = (o.profile && o.profile.waves) || 0; let lvl = 1, need = 50, left = w * XP_PER_WAVE; while (left >= need) { left -= need; lvl++; need += 50; }
+  return `Lv ${lvl}  ·  Best wave ${o.best || 0}  ·  ${fmtNum(o.gems || 0)} gems  ·  ${Object.values(o.specials || {}).filter(Boolean).length} Specials`; }
+function drawCloudOffer() {
+  dim(0.8); const x = 50, w = W - 100, h = 560, y = H / 2 - h / 2;
+  questFrame(x, y, w, h, 24);
+  text("Cloud Save Found", W / 2, y + 70, 40, GOLD, { font: DISPLAY, weight: 900, outline: 8, outlineColor: "#140a20" });
+  text("Your Google Play Games account has a saved game", W / 2, y + 112, 19, "#e9d3a6", { weight: 700 });
+  text("with more progress than this phone.", W / 2, y + 138, 19, "#e9d3a6", { weight: 700 });
+  text("CLOUD", W / 2, y + 190, 16, "#9cff9c", { weight: 900 }); text(cloudSummary(cloudOffer.c), W / 2, y + 220, 18, "#ffffff", { weight: 800 });
+  text("THIS PHONE", W / 2, y + 266, 16, "#ffb87a", { weight: 900 }); text(cloudSummary(save), W / 2, y + 296, 18, "#ffffff", { weight: 800 });
+  const u = btn.cloudUse, k = btn.cloudKeep; u.x = W / 2 - u.w / 2; u.y = y + 340; k.x = W / 2 - k.w / 2; k.y = y + 434; drawBtn(u); drawBtn(k);
+  text("Keeping this phone's save replaces the cloud copy.", W / 2, y + h - 22, 15, "#c9b8a8", { weight: 600 });
+}
+window.onGamesReady = ok => { gamesSignedIn = !!ok; if (ok) { submitScore("wave", save.best || 0); submitScore("boss", save.bossBest || 0); if (!cloudChecked) { try { window.AndroidGames.cloudLoad(); } catch (e) { cloudChecked = true; } } } };
 window.onGamesFail = () => { shopToast = { text: "Play Games failed", color: "#ff9a8a", t: 0 }; };
 function openLeaderboard() {
   playUi("ui_pick");
@@ -12322,6 +12363,12 @@ const specialTiles = SPECIALS.map(el => {
   const card = new Card(el, SPECIAL); card.noLabel = true;
   return { ...makeBtn("", 0, 0, 0, 0, () => { shopConfirm = pr; playUi("ui_pick"); }), pr, card };
 });
+// AdMob rewarded ads (Android app): AdsBridge.java shows the ad and reports back through __adDone
+if (window.AndroidAds) {
+  const adWait = {}; let adSeq = 0;
+  window.nativeShowRewardedAd = () => new Promise(res => { const k = "a" + (++adSeq); adWait[k] = res; try { window.AndroidAds.show(k); } catch (e) { delete adWait[k]; res(false); } });
+  window.__adDone = (k, ok) => { const r = adWait[k]; delete adWait[k]; if (r) r(!!ok); };
+}
 if (window.AndroidBilling) {
   const waiting = {}; let seq = 0;
   window.nativePurchase = id => new Promise(res => { const k = "p" + (++seq); waiting[k] = res; try { window.AndroidBilling.buy(id, k); } catch (e) { delete waiting[k]; res(false); } });
@@ -13521,6 +13568,7 @@ function frame(now) {
   if (altarIntro && (state === "wave" || state === "break")) drawAltarIntro(dt);
   if (testPick && state !== "title") drawTestPicker(dt);
   if (settingsOpen) drawSettings();
+  if (cloudOffer && state === "title") drawCloudOffer();
   if (shopToast && state !== "title") drawShopToast(dt);
   if (state !== "title") { updateAdSim(dt); if (adSim) drawAdSim(); }
   panelPopEnd(); drawFly();
