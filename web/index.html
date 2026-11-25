@@ -9362,7 +9362,7 @@ function baseButtons() {
   if (state === "title") {
     if (castleOpen) return castleButtons();
     if (shopOpen) return shopButtons();
-    if (starterOpen) return shopBusy ? [] : [btn.starterBuy, btn.starterClose];
+    if (starterOpen) return shopBusy ? [] : [btn.starterBuy, btn.starterClose, ...(curDeal().pick ? pickTiles : [])];
     if (adSim || adBusy) return [];
     if (bioOpen) return [btn.bioAvatar, btn.bioName, btn.bioClose, ...(TESTER_RESET ? [btn.resetAll] : [])];
     if (dailyOpen) return dailyReady() ? [btn.dailyClaim, btn.dailyAd, btn.dailyClose] : [btn.dailyClose];
@@ -12125,6 +12125,9 @@ const STARTER_DEAL = { id: "starter_deal", starter: true, deal: "starter", price
   gemsAmt: 2000, cards: ["totem", "flight", "chalice"], unlock: "Fight, Flight and Chalice are unlocked for good.", note: "Worth over $15 in the shop. This deal never comes back." };
 const HEX_DEAL = { id: "hex_deal", starter: true, deal: "hex", price: "$3.00", was: "$15.00", off: 80, name: "Hex Deal", sub: "A dark bargain for brave wizards",
   gemsAmt: 5000, cards: ["hex"], unlock: "Hex is unlocked for good: cursed foes take more damage.", note: "Worth $15 in the shop. Gone when the timer ends." };
+const PICK_DEAL = { id: "pick2_deal", starter: true, deal: "pick", pick: 2, price: "$3.00", was: "$5.98", off: 50, name: "Pick 2 Deal", sub: "Choose any 2 Specials you don't own yet",
+  gemsAmt: 0, cards: [], unlock: "Your 2 picks are unlocked for good.", note: "Gone when the timer ends." };
+let dealPicks = [], pickDeny = null;
 const STARTER_TIME = 24 * 3600 * 1000, DEAL_GAP = 24 * 3600 * 1000;
 let starterOpen = false;
 // the deal on offer right now (or null) and how long it has left
@@ -12135,7 +12138,13 @@ function activeDeal() {
   const end1 = save.starterBought ? save.starterBoughtAt : save.starterAt + STARTER_TIME;
   if (now < end1) return { deal: STARTER_DEAL, left: end1 - now };
   if (!save.hexDealAt) { save.hexDealAt = Math.max(end1 + DEAL_GAP, now); writeSave(); } // players whose first deal ended long ago get it now
-  if (!save.hexDealBought && now >= save.hexDealAt && now < save.hexDealAt + STARTER_TIME) return { deal: HEX_DEAL, left: save.hexDealAt + STARTER_TIME - now };
+  if (now < save.hexDealAt) return null;
+  if (save.hexDealBought && !save.hexDealBoughtAt) { save.hexDealBoughtAt = now; writeSave(); }
+  const end2 = save.hexDealBought ? save.hexDealBoughtAt : save.hexDealAt + STARTER_TIME;
+  if (now < end2) return { deal: HEX_DEAL, left: end2 - now };
+  // third: after another 1 day break, pick any 2 unowned Specials (only offered while at least 2 are missing)
+  if (!save.pickDealAt) { save.pickDealAt = Math.max(end2 + DEAL_GAP, now); writeSave(); }
+  if (!save.pickDealBought && now >= save.pickDealAt && now < save.pickDealAt + STARTER_TIME && SPECIALS.filter(e => !save.specials[e]).length >= 2) return { deal: PICK_DEAL, left: save.pickDealAt + STARTER_TIME - now };
   return null;
 }
 function starterLeft() { const a = activeDeal(); return a ? a.left : 0; }
@@ -12147,12 +12156,18 @@ async function buyStarter() {
   if (shopBusy || !starterAvailable()) return;
   shopBusy = true; let ok = false;
   const D = curDeal();
+  if (D.pick) { dealPicks = dealPicks.filter(e => !save.specials[e]); if (dealPicks.length < 2) { shopBusy = false; pickDeny = { el: null, t: lobbyT }; return; } save.pickDealChoice = dealPicks.slice(); writeSave(); }
   try { ok = storeIsTest() ? true : await window.nativePurchase(D.id); } catch (e) { ok = false; }
   shopBusy = false;
   if (ok) { grantProduct(D); starterOpen = false; }
   else shopToast = { text: "Purchase cancelled", color: "#ff9a8a", t: 0 };
 }
-const dealCards = {};
+const dealCards = { pick: [] };
+const pickTiles = SPECIALS.map(el => Object.assign(makeBtn("", 0, -999, 104, 150, () => {
+  if (save.specials[el]) { pickDeny = { el, t: lobbyT }; playUi("ui_pick"); return; }
+  const i = dealPicks.indexOf(el); if (i >= 0) dealPicks.splice(i, 1); else { if (dealPicks.length >= 2) dealPicks.shift(); dealPicks.push(el); } playUi("ui_pick");
+}), { el }));
+const pickCards = Object.fromEntries(SPECIALS.map(el => { const c = new Card(el, SPECIAL); c.noLabel = true; return [el, c]; }));
 for (const D of [STARTER_DEAL, HEX_DEAL]) dealCards[D.deal] = D.cards.map(el => { const c = new Card(el, SPECIAL); c.noLabel = true; return c; });
 function drawStarterIcon(b) {
   if (OFFER_ICON.ready) {
@@ -12204,8 +12219,23 @@ function drawStarter(dt) {
   const ts = hurry ? 30 + 3 * Math.sin(t * 8) : 26;
   text(`⏰ Ends in ${fmtClock(left)}`, W / 2, y + 150, ts, "#c0392b", { weight: 900 });
   if (storeIsTest()) text("TEST MODE: purchases are free (no real money)", W / 2, y + 178, 15, "#c0392b", { weight: 700 });
+  const th = 300, ty = y + 196;
+  if (D.pick) { // 5 x 2 grid of every Special: tap to pick 2 (owned ones are greyed out)
+    dealPicks = dealPicks.filter(e => !save.specials[e]);
+    const cw = (w - 40) / 5, ch = 140;
+    pickTiles.forEach((b, i) => { const el = b.el, owned = !!save.specials[el], on = dealPicks.includes(el), tx = x + 20 + (i % 5) * cw, tyy = ty + 6 + Math.floor(i / 5) * (ch + 8);
+      b.x = tx + 2; b.y = tyy; b.w = cw - 4; b.h = ch;
+      const deny = pickDeny && pickDeny.el === el && lobbyT - pickDeny.t < 0.5, shake = deny ? Math.sin((lobbyT - pickDeny.t) * 60) * 4 * (1 - (lobbyT - pickDeny.t) / 0.5) : 0; b.x += shake;
+      rrect(b.x, b.y, b.w, b.h, 12); ctx.fillStyle = deny ? "#5a1420" : on ? "#4a3a12" : "#2a1d40"; ctx.fill(); ctx.strokeStyle = deny ? "#ff6a5a" : on ? GOLD : INK; ctx.lineWidth = on || deny ? 4 : 2.5; ctx.stroke();
+      const c = pickCards[el]; c.t += dt; c.x = c.hx = b.x + b.w / 2; c.y = c.hy = b.y + 58; c.scale = 0.62 * (on ? 1.06 : 1) * (b.down ? 0.94 : 1);
+      if (owned) { ctx.save(); ctx.globalAlpha = 0.35; c.draw(); ctx.restore(); } else c.draw();
+      text(owned ? "Owned" : EL[el].name, b.x + b.w / 2, b.y + b.h - 10, 14, owned ? "#9a8ab8" : on ? GOLD : PARCH, { weight: 800, outline: 3 });
+      if (on) { circle(b.x + b.w - 14, b.y + 14, 12, "#6cc56a"); ring(b.x + b.w - 14, b.y + 14, 12, INK, 2.5); ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(b.x + b.w - 20, b.y + 14); ctx.lineTo(b.x + b.w - 15, b.y + 19); ctx.lineTo(b.x + b.w - 8, b.y + 9); ctx.stroke(); } });
+    const nudge = pickDeny && !pickDeny.el && lobbyT - pickDeny.t < 0.6;
+    text(nudge ? "Pick 2 cards first!" : `Picked ${dealPicks.length} / 2` + (dealPicks.length ? `: ${dealPicks.map(e => EL[e].name).join(" + ")}` : ""), W / 2, ty + th + 22, nudge ? 20 : 18, nudge ? "#c0392b" : dealPicks.length === 2 ? "#2f9a3a" : "#7a3fb0", { weight: 900 });
+  } else {
   const items = [[fmtNum(D.gemsAmt), "Gems"], ...D.cards.map(el => ["1x", EL[el].idol ? EL[el].name : `${EL[el].name} Totem`])];
-  const gapI = 12, tw = (w - 40 - gapI * (items.length - 1)) / items.length, th = 300, ty = y + 196;
+  const gapI = 12, tw = (w - 40 - gapI * (items.length - 1)) / items.length;
   items.forEach(([a, b], i) => {
     const tx = x + 20 + i * (tw + gapI);
     rrect(tx, ty, tw, th, 16); ctx.fillStyle = i ? "#2a1d40" : "#fff6e0"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
@@ -12219,7 +12249,8 @@ function drawStarter(dt) {
     const px = x + 20 + i * (tw + gapI) - gapI / 2;
     circle(px, ty + th / 2, 13, INK); circle(px, ty + th / 2, 11, GOLD); text("+", px, ty + th / 2 + 1, 20, INK, { weight: 900, baseline: "middle" });
   }
-  text(D.unlock, W / 2, ty + th + 30, 18, "#6b3a22", { weight: 600 });
+  }
+  text(D.unlock, W / 2, ty + th + (D.pick ? 48 : 30), 18, "#6b3a22", { weight: 600 });
   const py = ty + th + 92;
   ctx.font = `800 34px ${FONT}`; const ow = ctx.measureText(D.was).width;
   const ox = W / 2 - 120;
@@ -12249,10 +12280,13 @@ function grantProduct(pr) {
   if (pr.noads) { save.noAds = true; writeSave(); playUi("ui_sell"); showBanner("No more ads!", GOLD); shopToast = { text: "No Ads: rewards are instant!", color: GOLD, t: 0 }; return; }
   if (pr.speed) { save.speed2x = true; writeSave(); playUi("ui_sell"); showBanner("2x Speed unlocked!", GOLD); shopToast = { text: "2x Speed unlocked!", color: GOLD, t: 0 }; return; }
   if (pr.starter) {
-    save.gems += pr.gemsAmt; for (const el of pr.cards) save.specials[el] = true;
-    if (pr.deal === "hex") save.hexDealBought = true; else { save.starterBought = true; save.starterBoughtAt = Date.now(); }
+    const cards = pr.deal === "pick" ? (save.pickDealChoice || []) : pr.cards;
+    save.gems += pr.gemsAmt; for (const el of cards) save.specials[el] = true;
+    if (pr.deal === "hex") { save.hexDealBought = true; save.hexDealBoughtAt = Date.now(); }
+    else if (pr.deal === "pick") { save.pickDealBought = true; dealPicks = []; }
+    else { save.starterBought = true; save.starterBoughtAt = Date.now(); }
     flyReward("gem", pr.gemsAmt, W / 2, H / 2);
-    shopToast = { text: `+${fmtNum(pr.gemsAmt)} gems + ${pr.cards.length} card${pr.cards.length > 1 ? "s" : ""}!`, color: GOLD, t: 0 };
+    shopToast = { text: pr.deal === "pick" ? `${cards.map(e => EL[e].name).join(" + ")} unlocked!` : `+${fmtNum(pr.gemsAmt)} gems + ${cards.length} card${cards.length > 1 ? "s" : ""}!`, color: GOLD, t: 0 };
   } else if (pr.gems) { const n = pr.gems + pr.bonus; save.gems += n; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; }
   else {
     const el = pr.special;
@@ -12284,6 +12318,7 @@ if (window.AndroidBilling) {
 function productById(id) {
   if (id === STARTER_DEAL.id) return STARTER_DEAL;
   if (id === HEX_DEAL.id) return HEX_DEAL;
+  if (id === PICK_DEAL.id) return PICK_DEAL;
   if (id === SPEED_PRODUCT.id) return SPEED_PRODUCT;
   if (id === NOADS_PRODUCT.id) return NOADS_PRODUCT;
   if (id.startsWith("special_") && EL[id.slice(8)]) return { id, special: id.slice(8), price: SHOP_SPECIAL_PRICE, name: EL[id.slice(8)].name };
@@ -12291,7 +12326,7 @@ function productById(id) {
 }
 window.__grantOwned = id => {
   const pr = productById(id); if (!pr) return false;
-  if ((pr.noads && save.noAds) || (pr.speed && save.speed2x) || (pr.starter && (pr.deal === "hex" ? save.hexDealBought : save.starterBought)) || (pr.special && save.specials[pr.special])) return true;
+  if ((pr.noads && save.noAds) || (pr.speed && save.speed2x) || (pr.starter && (pr.deal === "hex" ? save.hexDealBought : pr.deal === "pick" ? save.pickDealBought : save.starterBought)) || (pr.special && save.specials[pr.special])) return true;
   grantProduct(pr); return true;
 };
 function shopPanel() { const h = 1160; return { x: 24, y: Math.max(96, H / 2 - h / 2), w: W - 48, h }; }
