@@ -1476,15 +1476,9 @@ class Card {
     } else if (d.art && this.drawArtMedallion(cx, cy, t, d)) {
     } else if (this.drawEvolve(cx, cy, t) || drawSprite(this.element, cx, cy, this.spriteSize(), t + this.seed, this.rarity)) {
     } else {
-    circle(cx, cy, r * 1.2, hexA(d.color, 0.18));
-    poly(radialPoly(cx, cy, r, d.shape, t, this.seed), d.color, INK, 3);
-    this.accents(cx, cy, r, d);
-    circle(cx - r * 0.45, cy - r * 0.5, r * 0.18, "rgba(255,255,255,0.45)");
-    const blink = ((t + this.seed) % 3.7) < 0.12;
-    const lx = Math.sin(t * 0.7 + this.seed) * 0.6, ly = -0.4;
-    pieEye(cx - r * 0.36, cy - r * 0.05, r * 0.27, lx, ly, blink);
-    pieEye(cx + r * 0.36, cy - r * 0.05, r * 0.27, lx, ly, blink);
-    ring(cx, cy + r * 0.28, r * 0.22, INK, 2.5, 0.25, Math.PI - 0.25);
+    // icon picture not loaded yet: a plain pulsing orb in the element colour (the old face design is gone)
+    const pu = 0.85 + 0.15 * Math.sin(t * 3 + this.seed);
+    circle(cx, cy, r * 1.15 * pu, hexA(d.color, 0.22)); circle(cx, cy, r * 0.7 * pu, hexA(d.color, 0.55)); circle(cx - r * 0.2, cy - r * 0.22, r * 0.18, "rgba(255,255,255,0.5)");
     }
     if (this.rarity >= 3) {
       for (let i = 0; i < this.rarity - 1; i++) {
