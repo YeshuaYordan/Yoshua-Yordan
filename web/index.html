@@ -8209,6 +8209,7 @@ function firstFree() {
   return null;
 }
 function setStoragePage(pg) {
+  if (training) { storagePage = 0; return; } // training: storage stays on page 1 so the guided cards never slide out of view
   if (pg !== storagePage) { storagePage = pg; playDoorSlide(); }
 }
 function updateStorage(dt) {
@@ -9257,7 +9258,7 @@ function baseButtons() {
   }
   if (state === "gameover") return bossModeOver ? [btn.title] : [btn.again, btn.title];
   if (paused) return [btn.resume, btn.pauseBook, ...(bossMode ? [] : [btn.restart]), btn.quit, btn.sound];
-  const list = [btn.chamber, btn.pause, btn.reroll, btn.storNext, btn.storPrev];
+  const list = [btn.chamber, btn.pause, btn.reroll, ...(training ? [] : [btn.storNext, btn.storPrev])];
   if (!drag) list.push(btn.next, btn.runes, btn.spell, btn.speed, ...(training ? [] : [btn.altar]), ...(bossMode ? [] : [btn.quests]), ...(TESTER_RESET ? [btn.testCards] : []));
   return list;
 }
@@ -13036,6 +13037,7 @@ function drawWeakTag() {
   text(label, x + 32, y + 16, 17, "#fff", { align: "left", weight: 800, baseline: "middle" });
 }
 function drawStorageNav() {
+  if (training) return;
   const hot = storageEdgeT > 0;
   for (const [b, d, ch] of [[btn.storNext, 1, "\u203a"], [btn.storPrev, -1, "\u2039"]]) {
     b.y = STORAGE_Y - 34;
