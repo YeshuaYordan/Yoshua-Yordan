@@ -12579,12 +12579,12 @@ function drawCardsScene() {
 }
 // Card library performance: each card is drawn into its own cached picture that is redrawn ~10x a second
 // (staggered, at most LIB_BUDGET cards per frame), and not at all while the list scrolls or the page slides.
-const LIB_FPS = 10, LIB_BUDGET = 2, LIB_RES = 0.72 /* = the card's on-screen scale on the 720-wide canvas: pixel for pixel */, LIB_PAD = { x: 110, top: 130, bot: 90 };
+const LIB_FPS = 30, LIB_BUDGET = 6, LIB_RES = 0.72 /* = the card's on-screen scale on the 720-wide canvas: pixel for pixel */, LIB_PAD = { x: 119, top: 132, bot: 90 }; // pads chosen so the card centre lands on a whole pixel (175 x 0.72 = 126, 200 x 0.72 = 144)
 let libScrollPrev = 0, libStillT = 0, libBudget = 0, libSpent = 0, libFrameEma = 16, libFrameAt = 0, libLastRe = 0;
-const LIB_MS = 3, LIB_MIN_FPS = 45; // redraw time budget per frame; no redraws while the page runs under 45 FPS (except one every 250 ms)
+const LIB_MS = 5, LIB_MS_SLOW = 1.5, LIB_MIN_FPS = 45; // redraw time budget per frame; smaller budget while the page runs under 45 FPS
 function drawLibCard(c) {
   const now = performance.now(), L = c._lib, moving = libStillT > 0;
-  const slow = libFrameEma > 1000 / LIB_MIN_FPS, may = libBudget > 0 && (slow ? now - libLastRe > 250 : libSpent < LIB_MS);
+  const slow = libFrameEma > 1000 / LIB_MIN_FPS, may = libBudget > 0 && (slow ? now - libLastRe > 90 : libSpent < (libFrameEma < 18 ? LIB_MS : LIB_MS_SLOW * 2)); // fast device: smooth; under 45 FPS: about 11 redraws a second shared by all cards
   const due = !L || (!moving && now - L.at > 1000 / LIB_FPS && may);
   if (due) {
     const t0 = performance.now();
@@ -12598,12 +12598,14 @@ function drawLibCard(c) {
     let bb = L && L.bb;
     if (!bb) { const N = cv.width, M = cv.height, px = g.getImageData(0, 0, N, M).data; let x0 = N, y0 = M, x1 = -1, y1 = -1;
       for (let y = 0; y < M; y += 2) for (let x = 0; x < N; x += 2) if (px[(y * N + x) * 4 + 3] > 8) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-      const m = 12 * LIB_RES; bb = x1 < 0 ? [0, 0, N, M] : [Math.max(0, x0 - m), Math.max(0, y0 - m), Math.min(N, x1 + m) - Math.max(0, x0 - m), Math.min(M, y1 + m) - Math.max(0, y0 - m)]; }
+      const m = Math.ceil(12 * LIB_RES); bb = x1 < 0 ? [0, 0, N, M] : [Math.max(0, x0 - m), Math.max(0, y0 - m), Math.min(N, x1 + m) - Math.max(0, x0 - m), Math.min(M, y1 + m) - Math.max(0, y0 - m)]; }
     c._lib = { c: cv, w, h, bb, at: L ? now : now - Math.random() * 1000 / LIB_FPS };
     libSpent += performance.now() - t0;
   }
   const S = c._lib, sc = c.scale, k = sc / LIB_RES, [bx, by, bw, bh] = S.bb;
-  ctx.drawImage(S.c, bx, by, bw, bh, c.x - (LIB_PAD.x + CARD_W / 2) * sc + bx * k, c.y - (LIB_PAD.top + CARD_H / 2) * sc + by * k, bw * k, bh * k);
+  if (sc === LIB_RES) { // exact 1:1 copy on whole pixels: as sharp as drawing the card directly
+    ctx.drawImage(S.c, bx, by, bw, bh, Math.round(c.x) - Math.round((LIB_PAD.x + CARD_W / 2) * LIB_RES) + bx, Math.round(c.y) - Math.round((LIB_PAD.top + CARD_H / 2) * LIB_RES) + by, bw, bh);
+  } else ctx.drawImage(S.c, bx, by, bw, bh, c.x - (LIB_PAD.x + CARD_W / 2) * sc + bx * k, c.y - (LIB_PAD.top + CARD_H / 2) * sc + by * k, bw * k, bh * k);
 }
 // draw fn (in local coords, origin = top-left of the box) once into a cached picture and reuse it; key must change when the content does
 function libCache(key, x, y, w, h, fn) { const sp = cachedSprite("lib|" + key, w, h, () => { ctx.translate(-w / 2, -h / 2); fn(); }, 1); ctx.drawImage(sp.c, Math.round(x), Math.round(y), w, h); }
