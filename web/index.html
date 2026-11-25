@@ -6183,7 +6183,7 @@ function startBossRun() {
   if (bossReadyIn() > 0) return;
   startRun(); bossMode = true; bossKills = 0; bossSeq = 0; runStats.best0 = save.bossBest || 0;
   save.bossReadyAt = gameNow() + BOSS_CD_LONG; writeSave();
-  fadeIn = 0.5;
+  fadeIn = 0.6;
   showBanner("BOSS BREAK OUT!", "#e0533f");
   showInfo(`Only bosses! Every boss killed = ${BOSS_GEMS} gems. Hurting a boss gives gold. Buy cards, then tap Next Wave.`);
 }
@@ -6283,7 +6283,7 @@ function beginWave(fromTimer = false) {
   if (callCd > 0 && !fromTimer) { showInfo(`Next wave ready in ${Math.ceil(callCd)}s.`); return; }
   if (!fromTimer && state === "wave" && !bossMode && !training) {
     if (quickT > 0) {
-      quickStreak++; const bonus = quickBonus(wave, quickStreak); gold += bonus; track("quick");
+      quickStreak++; const bonus = quickBonus(wave, quickStreak); gold += bonus; track("quick"); flyReward("gold", bonus, btn.next.x + btn.next.w / 2, btn.next.y + btn.next.h);
       const b = btn.next; fxs.push(new Fx("text", { x: b.x + b.w / 2 + 40, y: b.y + b.h + 46, text: `Quick call${quickStreak > 1 ? " x" + quickStreak : ""}! +${bonus} gold`, color: GOLD, size: 24, duration: 1.3 }));
       playUi("ui_sell");
     } else quickStreak = 0;
@@ -6303,9 +6303,10 @@ function beginWave(fromTimer = false) {
   if (dragonWave(wave) && !dragon) startSpecialBoss(); else dragonPreload();
   const stacked = spawners.length > 1 ? `  (${spawners.length} waves at once!)` : "";
   const st = stageOf(wave);
-  if (wave % STAGE_LEN === 0) showBanner(`Wave ${waveLabel(wave)}: ${bossCount(wave) > 1 ? bossCount(wave) + " " : ""}${KINDS[st.boss].name.toUpperCase()}${bossCount(wave) > 1 ? "S" : ""}!${stacked}`, "#e0533f");
-  else if (waveInStage(wave) === 1) showBanner(`Stage ${stageNum(wave)}: ${st.name}${stacked}`, GOLD);
-  else showBanner(`Wave ${waveLabel(wave)}${stacked}`, PARCH);
+  const note = spawners.length > 1 ? `${spawners.length} waves at once!` : "";
+  if (wave % STAGE_LEN === 0) startWaveBanner(`WAVE ${waveLabel(wave)}`, `BOSS WAVE: ${bossCount(wave) > 1 ? bossCount(wave) + "x " : ""}${KINDS[st.boss].name.toUpperCase()}`, "#ff6a5a", true, note);
+  else if (waveInStage(wave) === 1) startWaveBanner(`STAGE ${stageNum(wave)}`, `${st.name}  ·  Wave ${waveLabel(wave)}`, GOLD, false, note);
+  else startWaveBanner(`WAVE ${waveLabel(wave)}`, st.name, "#fff1d8", false, note);
 }
 function offerRelics() {
   const left = Object.keys(RELICS).filter(id => !relics.has(id)); if (!left.length) return;
@@ -6478,7 +6479,7 @@ function drawCastlePanel() {
 }
 let castleRowBtnsPrev = [], castleMsg = null;
 function waveCleared(w) {
-  const bonus = Math.round((4 + w) * modWaveGold()); gold += bonus; wavesCleared++;
+  const bonus = Math.round((4 + w) * modWaveGold()); gold += bonus; wavesCleared++; flyReward("gold", bonus, W / 2, HUD_H + 220);
   if (bossMode) {
     profile().waves = (profile().waves || 0) + 1; track("wave");
     showBanner(`Boss wave ${w} cleared!  +${bonus} gold`, "#ff8a6a"); writeSave(); return;
@@ -6494,7 +6495,7 @@ function waveCleared(w) {
   if (lvlNow > lvlBefore) fxs.push(new Fx("text", { x: W / 2, y: HUD_H + 200, text: `LEVEL UP!  Lv ${lvlNow}`, color: GOLD, size: 36, duration: 2 }));
   if (w % STAGE_LEN === 0) {
     profile().stages = (profile().stages || 0) + 1;
-    save.gems += GEMS_PER_STAGE; runGems += GEMS_PER_STAGE;
+    save.gems += GEMS_PER_STAGE; runGems += GEMS_PER_STAGE; flyReward("gem", GEMS_PER_STAGE, W / 2, HUD_H + 220);
     showBanner(`Stage ${stageNum(w)} cleared!  +${bonus} gold  +${GEMS_PER_STAGE} gems`, "#7fe6ff");
     if (!challenge && !training) modPending = true;
     offerRelics(); if (!relicOffer && modPending) offerMods();
@@ -7070,7 +7071,7 @@ function updateSlots(c, dt) {
 function slotPayout(c, res) {
   const ox = c.x, oy = c.y - 10;
   if (res.kind === "triple") {
-    const amt = Math.round((100 + Math.random() * 900) / 10) * 10; gold += amt; playUi("ui_sell"); playSample("summon_flip_rare", 0.8, 1);
+    const amt = Math.round((100 + Math.random() * 900) / 10) * 10; gold += amt; flyReward("gold", amt, ox, oy); playUi("ui_sell"); playSample("summon_flip_rare", 0.8, 1);
     fxs.push(new Fx("text", { x: ox, y: oy - 40, text: `+${amt} gold!`, color: GOLD, size: 32, duration: 1.4 }));
     for (let i = 0; i < (settings.lite ? 20 : 50); i++) { const a = -Math.PI / 2 + rand(-1, 1), v = rand(180, 420); addPart({ kind: "chunk", x: ox, y: oy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 700, drag: 0.4, vr: rand(-12, 12), life: rand(0.7, 1.2), size: rand(4, 7), col: "#ffcf4a" }); }
   } else if (res.kind === "nines") {
@@ -9792,8 +9793,9 @@ function drawHud() {
     text(`${+(castleArmor * 100).toFixed(1)}%`, sx - 14, sy + 6, 16, "#cfe6ff", { align: "right", weight: 800, outline: 4 });
   }
   const gx = btn.reroll.x + 16, gy = btn.reroll.y + btn.reroll.h + 34;
-  circle(gx, gy, 15, GOLD); ring(gx, gy, 15, INK, 3); ring(gx, gy, 9, hexA(INK, 0.5), 2);
-  text(String(gold), gx + 24, gy + 11, 30, GOLD, { align: "left", outline: 8 });
+  { const sc = 1 + goldPulse * 0.22; ctx.save(); ctx.translate(gx, gy); ctx.scale(sc, sc); circle(0, 0, 15, GOLD); ring(0, 0, 15, INK, 3); ring(0, 0, 9, hexA(INK, 0.5), 2); ctx.restore();
+    if (goldPulse > 0 && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(gx, gy, 24 * goldPulse + 8, `rgba(255,210,90,${0.4 * goldPulse})`); ctx.restore(); }
+    text(String(Math.round(goldShown ?? gold)), gx + 24, gy + 11, 30, goldPulse > 0.05 ? "#fff1a8" : GOLD, { align: "left", outline: 8 }); }
   if (state === "gameover") return;
   btn.reroll.label = `Reroll\n${rerollPrice()} gold`;
   btn.next.label = state === "break" && breakTimer > 0 && callCd <= 0 ? `Next Wave (${Math.ceil(breakTimer)})` : "Next Wave";
@@ -10088,7 +10090,94 @@ function wrapText(s, x, y, maxW, size, lh) {
   lines.forEach((ln, i) => text(ln, x, y + (i - (lines.length - 1)) * lh, size, PARCH, { outline: 6 }));
 }
 
-function dim(a) { ctx.fillStyle = `rgba(15,8,20,${a})`; ctx.fillRect(0, -TOP, W, H + TOP); }
+function dim(a) { ctx.fillStyle = `rgba(15,8,20,${a})`; ctx.fillRect(0, -TOP, W, H + TOP); panelPopApply(); }
+// ---- Panel pop: when a panel opens, everything drawn after its dim() scales in with a small bounce (reset at frame end) ----
+const POP = { t: 9, n: 0, applied: false, dur: 0.24 };
+const openPanels = () => [shopOpen, castleOpen, missionsOpen, settingsOpen, dailyOpen, questsOpen, paused, chamberOpen, bookOpen, chalOpen, bioOpen, starterOpen, ratesOpen, cardInfo, relicOffer, speedOffer, reviveOffer, altarIntro, bringPick, testPick].filter(Boolean).length;
+function panelPopFrame(dt) { const n = openPanels(); if (n > POP.n) POP.t = 0; POP.n = n; POP.t += dt; POP.applied = false; }
+function panelPopApply() {
+  if (POP.applied || POP.t >= POP.dur) return; POP.applied = true;
+  const u = clamp(POP.t / POP.dur, 0, 1), c1 = 1.70158, e = 1 + (c1 + 1) * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2), sc = 0.88 + 0.12 * e;
+  ctx.translate(W / 2, H / 2); ctx.scale(sc, sc); ctx.translate(-W / 2, -H / 2); ctx.globalAlpha = clamp(u / 0.45, 0, 1);
+}
+function panelPopEnd() { if (POP.applied) { ctx.setTransform(1, 0, 0, 1, 0, TOP); ctx.globalAlpha = 1; } }
+// ---- Rolling counters + flying rewards ----
+let gemsShown = null, goldShown = null, gemPend = 0, goldPend = 0, gemPulse = 0, goldPulse = 0, gemBadgeT = 0, flySfxAt = 0;
+const FLY = [];
+function flyTarget(kind) {
+  if (kind === "gold") return [btn.reroll.x + 16, btn.reroll.y + btn.reroll.h + 34];
+  return state === "title" ? [btn.gemPill.x + 26, 43] : [W / 2 - 40, HUD_H + 30];
+}
+function flyReward(kind, n, x, y) {
+  if (!(n > 0)) return;
+  const k = Math.min(10, Math.max(3, Math.round(Math.sqrt(n) * 0.8))), per = n / k;
+  if (kind === "gem") gemPend += n; else goldPend += n;
+  for (let i = 0; i < k; i++) FLY.push({ kind, x0: x + rand(-24, 24), y0: y + rand(-18, 18), cx: x + rand(-140, 140), cy: y - rand(80, 200), t: -i * 0.055, dur: rand(0.6, 0.8), amt: per, spin: rand(0, 6) });
+}
+function updateCounters(dt) {
+  const gT = save.gems - gemPend; if (gemsShown === null || state === "loading") gemsShown = gT;
+  if (gT > gemsShown + 0.5) gemPulse = Math.max(gemPulse, 0.5);
+  gemsShown += (gT - gemsShown) * Math.min(1, dt * 9); if (Math.abs(gT - gemsShown) < 0.5) gemsShown = gT;
+  const oT = gold - goldPend; if (goldShown === null) goldShown = oT;
+  if (oT > goldShown + 0.5) goldPulse = Math.max(goldPulse, 0.5);
+  goldShown += (oT - goldShown) * Math.min(1, dt * 10); if (Math.abs(oT - goldShown) < 0.5) goldShown = oT;
+  gemPulse = Math.max(0, gemPulse - dt * 3); goldPulse = Math.max(0, goldPulse - dt * 3); gemBadgeT = Math.max(0, gemBadgeT - dt);
+  for (let i = FLY.length - 1; i >= 0; i--) { const f = FLY[i]; f.t += dt;
+    if (f.t >= f.dur) { FLY.splice(i, 1); if (f.kind === "gem") { gemPend = Math.max(0, gemPend - f.amt); gemPulse = 1; if (state !== "title") gemBadgeT = 1.4; } else { goldPend = Math.max(0, goldPend - f.amt); goldPulse = 1; }
+      if (time - flySfxAt > 0.06) { flySfxAt = time; playUi("ui_place"); } } }
+  if (!FLY.some(f => f.kind === "gem")) gemPend = 0; if (!FLY.some(f => f.kind === "gold")) goldPend = 0;
+}
+function drawFly() {
+  for (const f of FLY) {
+    if (f.t < 0) continue;
+    const u = clamp(f.t / f.dur, 0, 1), e = u * u * (3 - 2 * u), [tx, ty] = flyTarget(f.kind);
+    const x = (1 - e) * (1 - e) * f.x0 + 2 * e * (1 - e) * f.cx + e * e * tx, y = (1 - e) * (1 - e) * f.y0 + 2 * e * (1 - e) * f.cy + e * e * ty, sz = (f.kind === "gem" ? 13 : 12) * (0.7 + 0.6 * Math.sin(Math.min(1, u * 1.3) * Math.PI * 0.9) * (1 - u * 0.4));
+    if (!settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(x, y, sz * 1.8, f.kind === "gem" ? "rgba(127,230,255,0.25)" : "rgba(255,210,90,0.25)"); ctx.restore(); }
+    if (f.kind === "gem") drawGem(x, y, sz);
+    else { const sx = Math.max(0.25, Math.abs(Math.cos(f.spin + f.t * 12))); ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); circle(0, 0, sz, GOLD); ring(0, 0, sz, INK, 2.5); ring(0, 0, sz * 0.6, hexA(INK, 0.5), 1.5); ctx.restore(); }
+  }
+  // battle: a small gem badge appears at the top while gems arrive
+  if (state !== "title" && (gemBadgeT > 0 || FLY.some(f => f.kind === "gem"))) {
+    const a = Math.min(1, gemBadgeT > 0 ? gemBadgeT / 0.4 : 1), [tx, ty] = flyTarget("gem"), sc = 1 + gemPulse * 0.15;
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(tx + 40, ty); ctx.scale(sc, sc);
+    rrect(-66, -22, 132, 44, 22); ctx.fillStyle = "rgba(20,10,30,0.85)"; ctx.fill(); ctx.strokeStyle = "#7fe6ff"; ctx.lineWidth = 2.5; ctx.stroke();
+    drawGem(-40, 0, 12); text(fmtNum(Math.round(gemsShown)), -22, 9, 24, PARCH, { align: "left", weight: 800, outline: 5 });
+    ctx.restore();
+  }
+}
+// ---- Wave start banner: slides in, holds, slides out ----
+let waveBanner = null, waveBannerLast = 0;
+function startWaveBanner(title, sub, col, boss, note) { waveBanner = { title, sub, col, boss, note, t: 0 }; }
+function drawWaveBanner() {
+  const now = performance.now(), dt = Math.min(0.05, (now - (waveBannerLast || now)) / 1000); waveBannerLast = now;
+  if (!waveBanner) return; const b = waveBanner; if (!paused) b.t += dt;
+  const T_IN = 0.35, HOLD = 1.5, T_OUT = 0.35, end = T_IN + HOLD + T_OUT; if (b.t >= end) { waveBanner = null; return; }
+  const ein = t => 1 - Math.pow(1 - t, 3), k = b.t < T_IN ? ein(b.t / T_IN) : b.t < T_IN + HOLD ? 1 : 1 + ein((b.t - T_IN - HOLD) / T_OUT);
+  const off = (1 - k) * W, cy = 480, bh = 104, a = b.t < T_IN ? b.t / T_IN : b.t > T_IN + HOLD ? 1 - (b.t - T_IN - HOLD) / T_OUT : 1;
+  ctx.save(); ctx.globalAlpha = clamp(a, 0, 1);
+  // band
+  const g = ctx.createLinearGradient(0, 0, W, 0); const bc = b.boss ? "90,10,20" : "20,10,34";
+  g.addColorStop(0, `rgba(${bc},0)`); g.addColorStop(0.18, `rgba(${bc},0.88)`); g.addColorStop(0.82, `rgba(${bc},0.88)`); g.addColorStop(1, `rgba(${bc},0)`);
+  ctx.fillStyle = g; ctx.fillRect(off * 0.5, cy - bh / 2, W, bh);
+  const lg = ctx.createLinearGradient(0, 0, W, 0); lg.addColorStop(0, "rgba(242,193,78,0)"); lg.addColorStop(0.5, b.boss ? "#ff6a5a" : "#f2c14e"); lg.addColorStop(1, "rgba(242,193,78,0)");
+  ctx.fillStyle = lg; ctx.fillRect(off * 0.7, cy - bh / 2, W, 3); ctx.fillRect(-off * 0.7, cy + bh / 2 - 3, W, 3);
+  // light sweep
+  if (!settings.lite) { const sx = ((b.t * 0.9) % 1.4) * W * 1.2 - W * 0.2; ctx.save(); ctx.globalCompositeOperation = "lighter"; const sg = ctx.createLinearGradient(sx - 60, 0, sx + 60, 0); sg.addColorStop(0, "rgba(255,240,200,0)"); sg.addColorStop(0.5, "rgba(255,240,200,0.18)"); sg.addColorStop(1, "rgba(255,240,200,0)"); ctx.fillStyle = sg; ctx.fillRect(sx - 60, cy - bh / 2, 120, bh); ctx.restore(); }
+  const tx = W / 2 + off, pulse = b.boss ? 1 + 0.04 * Math.sin(b.t * 14) : 1;
+  ctx.save(); ctx.translate(tx, cy - 6); ctx.scale(pulse, pulse);
+  text(b.title, 0, 8, 54, b.col, { font: DISPLAY, weight: 900, outline: 9, outlineColor: "#140a20" }); ctx.restore();
+  text(b.sub, W / 2 - off * 0.6, cy + 36, 21, b.boss ? "#ffd0c8" : "#e9d3a6", { weight: 800, outline: 5, outlineColor: "#140a20" });
+  if (b.note) text(b.note, W / 2 - off * 0.6, cy + bh / 2 + 24, 18, "#ffb87a", { weight: 800, outline: 5 });
+  ctx.restore();
+}
+// ---- Screen transition: an iris opens from the centre with a glowing gold rim ----
+function drawIris(k) {
+  const cx = W / 2, cy = H / 2, R = Math.hypot(W, H + TOP) / 2 + 30, r = Math.pow(1 - k, 1.4) * R;
+  ctx.save(); ctx.beginPath(); ctx.rect(0, -TOP, W, H + TOP); ctx.arc(cx, cy, Math.max(0.1, r), 0, Math.PI * 2, true); ctx.fillStyle = "#0a050f"; ctx.fill("evenodd");
+  if (r > 2) { ctx.globalCompositeOperation = "lighter"; ring(cx, cy, r, `rgba(242,193,78,${0.85 * k})`, 5); ring(cx, cy, r + 8, `rgba(190,140,255,${0.45 * k})`, 3);
+    if (!settings.lite) for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8 + (1 - k) * 3; circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3 + 2 * k, `rgba(255,240,190,${k})`); } }
+  ctx.restore();
+}
 function drawOverlays() {
   if (state === "title") {
     if (!bookOpen) drawLobbyUi();
@@ -10286,7 +10375,7 @@ let lobbyT = 0, lobbyUiDt = 0, fadeIn = 0;
 const sweepCanvas = document.createElement("canvas"); sweepCanvas.width = 200; sweepCanvas.height = 310;
 const sweepCtx = sweepCanvas.getContext("2d");
 function lobbyView() { const FH = H + TOP, s = Math.max(W / 1080, FH / 1920); return { s, ox: (W - 1080 * s) / 2, oy: (FH - 1920 * s) / 2 - TOP }; }
-function goToLobby() { if (training || (tut && tut.ch === "train")) { training = false; tut = null; } endBossRun(); paused = false; questsOpen = false; bringPick = null; state = "title"; clearBoard(); fadeIn = 0.5; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
+function goToLobby() { if (training || (tut && tut.ch === "train")) { training = false; tut = null; } endBossRun(); paused = false; questsOpen = false; bringPick = null; state = "title"; clearBoard(); fadeIn = 0.6; lobbyPage = 0; lobbyPos = 0; summonReveal = null; ratesOpen = false; cardInfo = null; shopOpen = false; shopConfirm = null; dailyOpen = false; bioOpen = false; missionsOpen = false; settingsOpen = false; speedOffer = false; gameSpeed = 1; }
 
 function drawLobbyCard(i, dy) {
   const [key, rarity, x, cy, deg] = LOBBY_CARDS[i], slot = key && LOBBY["card_" + key], back = !key;
@@ -11253,7 +11342,7 @@ function missionsClaimable() {
   const m = dailyMissions();
   return m.list.some(it => !it.claimed && it.prog >= MISSION_POOL.find(d => d.id === it.id).n) || (!m.bonus && m.list.every(it => it.claimed)) || ACHIEVEMENTS.some(a => achDone(a) && !achClaimed(a));
 }
-function giveGems(n, label) { save.gems += n; writeSave(); shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; playUi("ui_sell"); }
+function giveGems(n, label) { save.gems += n; writeSave(); flyReward("gem", n, pointer.x, pointer.y); shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; playUi("ui_sell"); }
 let missionsOpen = false, missionsTab = 0, achScroll = 0, missionBtns = [];
 function drawMissions(dt) {
   dim(0.75);
@@ -11677,7 +11766,7 @@ const chalToday = () => { const d = todayKey(); return save.chal && save.chal.da
 let chalOpen = false, chalMsg = "";
 function startChallenge() {
   const day = todayKey(); chalOpen = false;
-  startRun(); challenge = { day, mods: dailyChallengeMods(day) }; fadeIn = 0.5;
+  startRun(); challenge = { day, mods: dailyChallengeMods(day) }; fadeIn = 0.6;
   const c = chalToday(); c.played = true; save.chal = c; writeSave();
   showBanner(`Daily Challenge: ${challenge.mods.map(k => MODS[k].name).join(" + ")}`, "#9cff9c");
 }
@@ -11809,7 +11898,7 @@ const dailyReady = () => dailyData().last !== todayKey();
 function openDaily() { dailyOpen = true; playUi("ui_pick"); }
 function claimDaily(mult = 1) {
   const d = dailyData(); if (!dailyReady()) return;
-  const n = DAILY_GEMS[d.day] * mult; save.gems += n; d.last = todayKey(); d.day = (d.day + 1) % DAILY_GEMS.length; writeSave();
+  const n = DAILY_GEMS[d.day] * mult; save.gems += n; flyReward("gem", n, pointer.x || W / 2, pointer.y || H / 2); d.last = todayKey(); d.day = (d.day + 1) % DAILY_GEMS.length; writeSave();
   dailyFx = 1; shopToast = { text: `+${fmtNum(n)} gems!`, color: "#7fe6ff", t: 0 }; playUi("ui_sell");
 }
 function drawDaily(dt) {
@@ -12379,7 +12468,9 @@ function drawLobbyUi() {
   const gTxt = fmtNum(save.gems), pw = Math.min(240, Math.max(132, ctx.measureText(gTxt).width + 100)), gx0 = Math.max(btn.bio.x + btn.bio.w + 10, W / 2 - pw / 2 + 20);
   btn.gemPill.x = gx0; btn.gemPill.w = pw;
   rrect(gx0, 18, pw, 50, 25); ctx.fillStyle = "rgba(20,10,30,0.7)"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke();
-  drawGem(gx0 + 26, 43, 14); text(gTxt, gx0 + 46, 53, 28, PARCH, { align: "left", weight: 700, outline: 5 });
+  { const sc = 1 + gemPulse * 0.18; ctx.save(); ctx.translate(gx0 + 26, 43); ctx.scale(sc, sc); drawGem(0, 0, 14); ctx.restore();
+    if (gemPulse > 0 && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(gx0 + 26, 43, 22 * gemPulse + 8, `rgba(127,230,255,${0.4 * gemPulse})`); ctx.restore(); }
+    text(fmtNum(Math.round(gemsShown ?? save.gems)), gx0 + 46, 53, 28, gemPulse > 0.05 ? "#bff4ff" : PARCH, { align: "left", weight: 700, outline: 5 }); }
   const plx = gx0 + pw - 26;
   circle(plx, 43, 15, btn.gemPill.down ? "#4fa84d" : "#6cc56a"); ring(plx, 43, 15, INK, 2.5);
   ctx.fillStyle = INK; ctx.fillRect(plx - 7, 41, 14, 4); ctx.fillRect(plx - 2, 36, 4, 14);
@@ -12400,7 +12491,7 @@ function drawLobbyUi() {
 
 let playMode = 0, playModeT = 0, playDrag = 0, lobbyBossK = 0, playSliderLast = 0;
 async function tapPlay() {
-  if (playMode === 0) { if (!save.trained && !(save.tut && save.tut.run1)) startTraining(); else startRun(); fadeIn = 0.5; return; }
+  if (playMode === 0) { if (!save.trained && !(save.tut && save.tut.run1)) startTraining(); else startRun(); fadeIn = 0.6; return; }
   if (!(await timeOk())) return;
   if (bossReadyIn() > 0) { btn.play.shake = 1; shopToast = { text: `Boss Break Out is resting: ${fmtTime(bossReadyIn())}`, color: "#ff9a7a", t: 0 }; return; }
   startBossRun();
@@ -12816,7 +12907,7 @@ function tutCheck() {
   const seen = k => save.tut[k];
   if (state === "title") {
     const calm = lobbyPage === 0 && lobbySettled() && fadeIn <= 0 && !bookOpen && !shopOpen && !summonReveal && !ratesOpen && !cardInfo && !dailyOpen && !bioOpen && !missionsOpen && !settingsOpen && !starterOpen;
-    if (calm && !nameOpen && !save.trained && !seen("lobby") && !seen("run1")) { startTraining(); fadeIn = 0.5; return; }
+    if (calm && !nameOpen && !save.trained && !seen("lobby") && !seen("run1")) { startTraining(); fadeIn = 0.6; return; }
     if (calm && !nameOpen && !profile().named) { openNameBox(true); return; }
     if (!save.starterAt && profile().named) { save.starterAt = Date.now(); writeSave(); }
     if (!seen("lobby") && calm && !nameOpen) tutStart("lobby");
@@ -13114,13 +13205,13 @@ function frame(now) {
     if (filesIn && !WARM.started) warmStart();
     if (filesIn && WARM.fontsOk && !WARM.done) warmStep(10);
     if (!LOAD.ready && ((filesIn && WARM.done && now - LOAD.t0 > 1200) || now - LOAD.t0 > 30000)) LOAD.ready = true;
-    if (LOAD.go && now - LOAD.go > 450) { LOAD.finished = true; fadeIn = 0.5; last = now; }
+    if (LOAD.go && now - LOAD.go > 450) { LOAD.finished = true; fadeIn = 0.6; last = now; }
     else { last = now; ctx.setTransform(1, 0, 0, 1, 0, TOP); drawLoading(now); requestAnimationFrame(frame); return; }
   }
   if (state === "wave" || state === "break") perfWatch(now - last);
   const dt = clamp((now - last) / 1000, 0, 0.05); last = now;
   if (settings.lite && now < 20000 && now - snapClearT > 2500) { CARD_SNAP.clear(); snapClearT = now; }
-  update(dt);
+  update(dt); updateCounters(dt); panelPopFrame(dt);
   ctx.setTransform(1, 0, 0, 1, 0, TOP); ctx.clearRect(0, -TOP, W, H + TOP);
   if (state === "title") drawLobby(dt);
   else {
@@ -13130,7 +13221,7 @@ function frame(now) {
       ctx.translate(rand(-1, 1) * s, rand(-1, 1) * s);
       if (doom && doom.hit) { const z = 1 + 0.06 * Math.max(0, 1 - (doom.t - DOOM_HIT) / 0.5); ctx.translate(W / 2, (HUD_H + FRONT_Y) / 2); ctx.scale(z, z); ctx.translate(-W / 2, -(HUD_H + FRONT_Y) / 2); }
     }
-    drawWorld(); drawDragonFireballs(); drawDanger(paused ? 0 : dt); drawRoarTint(); drawSynergy(); drawBossFx(); drawDoom(); drawHud(); drawSpell(); ctx.restore();
+    drawWorld(); drawDragonFireballs(); drawDanger(paused ? 0 : dt); drawRoarTint(); drawSynergy(); drawBossFx(); drawDoom(); drawHud(); drawSpell(); drawWaveBanner(); ctx.restore();
   }
   if (drag) {
     drag.card.drawBattle();
@@ -13152,7 +13243,8 @@ function frame(now) {
   if (settingsOpen) drawSettings();
   if (shopToast && state !== "title") drawShopToast(dt);
   if (state !== "title") { updateAdSim(dt); if (adSim) drawAdSim(); }
-  if (fadeIn > 0) { ctx.fillStyle = `rgba(10,5,15,${fadeIn / 0.5})`; ctx.fillRect(0, -TOP, W, H + TOP); fadeIn = Math.max(0, fadeIn - dt); }
+  panelPopEnd(); drawFly();
+  if (fadeIn > 0) { drawIris(Math.min(1, fadeIn / 0.6)); fadeIn = Math.max(0, fadeIn - dt); }
   try { syncCollectLoops(); } catch (e) {}
   try { syncSpikeLoops(); } catch (e) {}
   try { syncBeamLoops(); } catch (e) {}
