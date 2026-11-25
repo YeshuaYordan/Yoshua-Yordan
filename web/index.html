@@ -4737,7 +4737,8 @@ function drawWhirlpool(z) {
 }
 class Fx {
   constructor(mode, opt) { Object.assign(this, { mode, t: 0, dead: false, duration: 0.4, color: "#ffffff", radius: 40, x: 0, y: 0 }, opt); }
-  update(dt) { this.t += dt; if (this.t >= this.duration) this.dead = true; if (this.mode === "text") this.y -= 45 * dt; }
+  update(dt) { this.t += dt; if (this.t >= this.duration) this.dead = true; if (this.mode === "text") this.y -= 45 * dt;
+    else if (this.mode === "dmg") { this.x += this.vx * dt; this.y += this.vy * dt; this.vy += 520 * dt; } }
   draw() {
     const k = this.t / this.duration;
     if (this.mode === "burst") {
@@ -4824,6 +4825,10 @@ class Fx {
       ctx.globalAlpha = 1 - k * k;
       text(this.text, this.x, this.y, this.size || 22, this.color, { weight: 700, outline: 5 });
       ctx.globalAlpha = 1;
+    } else if (this.mode === "dmg") {
+      const pop = 1 + (this.big ? 0.9 : 0.55) * Math.max(0, 1 - this.t / 0.13);
+      ctx.save(); ctx.globalAlpha = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4; ctx.translate(this.x, this.y); ctx.scale(pop, pop); if (this.big) ctx.rotate(Math.sin(this.t * 30) * 0.04 * (1 - k));
+      text(this.text, 0, 0, this.size || 18, this.color, { weight: 900, outline: this.big ? 6 : 4.5 }); ctx.restore();
     }
   }
 }
@@ -5745,7 +5750,7 @@ function clearBoard() {
   storagePage = 0; storageX = 0; specialShopCd = 0;
   for (const r in rows) rows[r].fill(null); chamberOpen = false; altarMode = false; recipeOpen = false; altarIntro = null; fusion = null;
   dragon = null; bossIntro = null; bossCharges = []; bossSlowT = 0; bossFlash = 0; krakenInks = []; krakenSplats = []; krakenGrip = null; soulShieldT = 0; soulRises = []; dragonFireballs = []; dragonBlasts = []; dragonRoarT = 0; dragonRageT = 0; dragonAura = []; dragonWaves = [];
-  spellCd = 0; enemies = []; projectiles = []; blackholes = []; jackpotT = 0; slotFlash = null; combo = 0; comboT = 0; comboEnd = null; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
+  spellCd = 0; hitStopT = 0; hitFlash = 0; enemies = []; projectiles = []; blackholes = []; jackpotT = 0; slotFlash = null; combo = 0; comboT = 0; comboEnd = null; zones = []; fxs = []; parts = []; meteors = []; spell = null; speedT = 0; doom = null; shakeT = 0; drag = null; spawners = []; callCd = 0;
 }
 const WILD = {
   pause: { name: "Pause", desc: "The whole battlefield stops for 15 seconds: enemies, shots, everything. You can still move cards, shop and cast 1 spell.", time: 15 },
@@ -6702,8 +6707,13 @@ function deathFx(e) {
   addPart({ add: true, kind: "glow", x: e.x, y: e.y - s * 0.3, vy: -70, life: 1, size: s * 0.45 * (e.isBoss ? 1.6 : 1), grow: -0.5, rgb: "235,245,255", a: 0.6 });
   if (e.isBoss) { shakeT = Math.max(shakeT, 0.5); shakeAmp = 12; addPart({ add: true, kind: "ring", x: e.x, y: e.y, rgb: "255,200,120", size: 20, grow: 260, w: 10, sq: 0.6, life: 0.6 }); }
 }
+const fmtShort = n => { n = Math.round(n); return n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + "K" : String(n); };
+// Hit feel: a split-second freeze + white flash on big kills
+let hitStopT = 0, hitStopCd = 0, hitFlash = 0;
+function hitStop(sec, flash) { if (hitStopCd > 0 && sec < 0.1) return; hitStopT = Math.max(hitStopT, sec); hitFlash = Math.max(hitFlash, flash); hitStopCd = 0.45; }
 function onEnemyKilled(e) {
   enemies = enemies.filter(x => x !== e);
+  if (state === "wave" && !training) { if (e.isBoss && !e.rush) { hitStop(0.14, 0.55); shakeT = Math.max(shakeT, 0.4); shakeAmp = Math.max(shakeAmp, 9); } else if (e.elite) hitStop(0.05, 0.18); }
   if (e.elite === "split") eliteSplit(e);
   comboKill(e);
   if (state === "wave" && e.isBoss && !bossMode) addCurse();
@@ -8117,7 +8127,8 @@ function hitEnemy(e, el, r, dmg, sm = 1) {
   if (sc && !e.dead) { const L = idolNext(sc, "hex"); if (L) { const a = IDOL_VAL.hex(L); e.curseAmt = e.curseT > 0 ? Math.max(e.curseAmt, a) : a; e.curseT = Math.max(e.curseT, 3); playSpecial("sp_hex", 0.4, 0.6); } }
   if (crit) addPart({ add: true, kind: "ring", x, y, rgb: "200,140,255", size: 10, grow: 70, w: 4, sq: 0.7, life: 0.3 });
   const col = crit ? "#e0a0ff" : mult > 1.01 ? "#ffe34a" : mult < 0.99 ? "#a89878" : PARCH;
-  if ((settings.dmgNums || crit) && soulShieldT <= 0) fxs.push(new Fx("text", { x: x + rand(-14, 14), y: y - 30, text: crit ? `${Math.round(amount)}!` : String(Math.round(amount)), color: col, size: crit ? 24 : 18, duration: 0.8 }));
+  if ((settings.dmgNums || crit) && soulShieldT <= 0) { const big = crit || amount >= e.maxHp * 0.33;
+    fxs.push(new Fx("dmg", { x: x + rand(-10, 10), y: y - 26, vx: rand(-60, 60), vy: rand(-230, -170), text: crit ? `${fmtShort(amount)}!` : fmtShort(amount), color: big && !crit && col === PARCH ? "#ffd84a" : col, size: crit ? 26 : big ? 23 : 18, big, duration: 0.75 })); }
 }
 
 const SPECIAL_SHOP_CD = 90;
@@ -9382,6 +9393,8 @@ function update(dt) {
   const spellSlow = spell && !(dragon && !dragon.dying);
   if (spellSlow) dt *= SPELL_SLOWMO;
   if (bossSlowT > 0) { bossSlowT = Math.max(0, bossSlowT - realDt); dt *= 0.3 + 0.7 * (1 - bossSlowT / 1.4); }
+  hitFlash = Math.max(0, hitFlash - realDt * 3.5); hitStopCd = Math.max(0, hitStopCd - realDt);
+  if (hitStopT > 0) { hitStopT = Math.max(0, hitStopT - realDt); dt *= 0.06; }
   if (gameSpeed === 2 && !spellSlow && !reviveOffer && !speedOffer && !relicOffer && (state === "wave" || state === "break")) dt *= 2;
   const doomDt = dt;
   if (doom && !doom.hit) dt *= 0.3;
@@ -9771,28 +9784,49 @@ function drawWorld() {
   if (!chamberOpen && !spell) drawWildFan();
 }
 
+let hpTrail = null, hudLast = 0;
+function lastHudDt() { const n = performance.now(), d = Math.min(0.05, (n - (hudLast || n)) / 1000); hudLast = n; return d; }
 function drawHud() {
-  ctx.fillStyle = "rgba(26,16,34,0.92)"; ctx.fillRect(0, 0, W, HUD_H); if (TOP > 0) { ctx.fillStyle = "#1a1022"; ctx.fillRect(0, -TOP, W, TOP); }
-  ctx.strokeStyle = shade(GOLD, -0.3); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, HUD_H); ctx.lineTo(W, HUD_H); ctx.stroke();
+  // bar background: deep purple gradient with a gold trim
+  const bg = ctx.createLinearGradient(0, 0, 0, HUD_H); bg.addColorStop(0, "#2a1838"); bg.addColorStop(1, "#160c20"); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, HUD_H);
+  if (TOP > 0) { ctx.fillStyle = "#1a1022"; ctx.fillRect(0, -TOP, W, TOP); }
+  const tg = ctx.createLinearGradient(0, 0, W, 0); tg.addColorStop(0, "#7a5a1e"); tg.addColorStop(0.5, "#f2c14e"); tg.addColorStop(1, "#7a5a1e");
+  ctx.fillStyle = tg; ctx.fillRect(0, HUD_H - 3, W, 3); ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fillRect(0, HUD_H, W, 3);
   if (state === "title") return;
-  if (bossMode || (state === "gameover" && bossModeOver)) text(`Boss ${state === "break" ? wave + 1 : wave}  \u2620${bossKills}`, 16, 47, 26, "#ff9a7a", { align: "left", outline: 8 });
-  else text(`Wave ${waveLabel(state === "break" ? wave + 1 : wave)}`, 16, 47, 26, PARCH, { align: "left", outline: 8 });
-  const hb = { x: 186, y: 22, w: 258, h: 28 };
-  const tx = 164, ty = 36;
-  ctx.fillStyle = "#a59588"; ctx.fillRect(tx - 11, ty - 8, 22, 20);
-  for (const mx of [-11, -3, 5]) ctx.fillRect(tx + mx, ty - 14, 6, 7);
-  ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeRect(tx - 11, ty - 8, 22, 20);
-  ctx.fillStyle = INK; ctx.fillRect(tx - 3, ty + 3, 6, 9);
-  ctx.fillStyle = wallFlash > 0 ? mixHex("#2a1a12", "#e0533f", wallFlash) : INK; ctx.fillRect(hb.x - 3, hb.y - 3, hb.w + 6, hb.h + 6);
-  ctx.fillStyle = "#4a2a2a"; ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
-  ctx.fillStyle = mixHex("#e0533f", "#6cc56a", castleHp / castleMax); ctx.fillRect(hb.x, hb.y, hb.w * castleHp / castleMax, hb.h);
-  text(`${Math.ceil(castleHp)} / ${castleMax}`, hb.x + hb.w / 2, hb.y + 21, 19, PARCH, { outline: 5 });
+  // wave badge
+  const boss = bossMode || (state === "gameover" && bossModeOver), wv = state === "break" ? wave + 1 : wave;
+  rrect(8, 12, 138, 48, 14); const wg = ctx.createLinearGradient(0, 12, 0, 60); wg.addColorStop(0, boss ? "#5a1420" : "#3a2456"); wg.addColorStop(1, boss ? "#2a0810" : "#1c1030"); ctx.fillStyle = wg; ctx.fill();
+  ctx.strokeStyle = boss ? "#ff8a6a" : "#f2c14e"; ctx.lineWidth = 2.5; ctx.stroke();
+  text(boss ? "BOSS RUN" : "WAVE", 77, 28, 11, boss ? "#ffb8a8" : "#cdb9ff", { weight: 900 });
+  text(boss ? `${wv}  \u2620${bossKills}` : waveLabel(Math.max(1, wv)), 77, 54, 24, boss ? "#ffd0c0" : "#fff1d8", { weight: 900, outline: 5, outlineColor: "#140a20" });
+  // castle HP: heart + glossy bar + lagging damage trail + low-HP pulse
+  const hb = { x: 186, y: 22, w: 252, h: 28 }, f = clamp(castleHp / castleMax, 0, 1), low = f < 0.3 && state === "wave";
+  hpTrail = hpTrail === null || hpTrail < f ? f : Math.max(f, hpTrail - 0.35 * lastHudDt());
+  const beat = 1 + (low ? 0.16 : 0.06) * Math.max(0, Math.sin(time * (low ? 9 : 3.2))) ** 4;
+  if (low && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const p = 0.5 + 0.5 * Math.sin(time * 8); rrect(hb.x - 8, hb.y - 8, hb.w + 16, hb.h + 16, 18); ctx.fillStyle = `rgba(255,60,50,${0.18 + 0.2 * p})`; ctx.fill(); ctx.restore(); }
+  rrect(hb.x - 3, hb.y - 3, hb.w + 6, hb.h + 6, 16); ctx.fillStyle = wallFlash > 0 ? mixHex("#2a1a12", "#e0533f", wallFlash) : "#140a1a"; ctx.fill(); ctx.strokeStyle = "#f2c14e"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.save(); rrect(hb.x, hb.y, hb.w, hb.h, 13); ctx.clip();
+  ctx.fillStyle = "#3a1e28"; ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
+  if (hpTrail > f) { ctx.fillStyle = "#fff0d8"; ctx.fillRect(hb.x + hb.w * f, hb.y, hb.w * (hpTrail - f), hb.h); }
+  const c1 = mixHex("#e0533f", "#6cc56a", f), c2 = mixHex("#9a2a20", "#2f8a3a", f), hg = ctx.createLinearGradient(0, hb.y, 0, hb.y + hb.h); hg.addColorStop(0, c1); hg.addColorStop(1, c2);
+  ctx.fillStyle = hg; ctx.fillRect(hb.x, hb.y, hb.w * f, hb.h);
+  ctx.fillStyle = "rgba(255,255,255,0.28)"; ctx.fillRect(hb.x, hb.y + 3, hb.w * f, hb.h * 0.28);
+  ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1; for (let i = 1; i < 10; i++) { ctx.beginPath(); ctx.moveTo(hb.x + hb.w * i / 10, hb.y + 4); ctx.lineTo(hb.x + hb.w * i / 10, hb.y + hb.h - 4); ctx.stroke(); }
+  ctx.restore();
+  text(`${fmtShort(Math.ceil(castleHp))} / ${fmtShort(castleMax)}`, hb.x + hb.w / 2 + 8, hb.y + 21, 18, "#fff8ec", { weight: 800, outline: 5 });
+  { const hx = hb.x - 4, hy = hb.y + hb.h / 2; ctx.save(); ctx.translate(hx, hy); ctx.scale(beat, beat);
+    ctx.beginPath(); ctx.moveTo(0, 12); ctx.bezierCurveTo(-20, 0, -14, -16, 0, -7); ctx.bezierCurveTo(14, -16, 20, 0, 0, 12); ctx.closePath();
+    const rg = ctx.createRadialGradient(-5, -6, 1, 0, 0, 18); rg.addColorStop(0, "#ff9a9a"); rg.addColorStop(1, "#c0202a"); ctx.fillStyle = rg; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.beginPath(); ctx.ellipse(-6, -5, 3, 2, -0.6, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
   if (castleArmor > 0) {
     const sx = hb.x + hb.w - 14, sy = hb.y + hb.h + 10;
     poly([[sx, sy - 11], [sx + 10, sy - 7], [sx + 9, sy + 4], [sx, sy + 11], [sx - 9, sy + 4], [sx - 10, sy - 7]], "#9fc6e8", INK, 2);
     text(`${+(castleArmor * 100).toFixed(1)}%`, sx - 14, sy + 6, 16, "#cfe6ff", { align: "right", weight: 800, outline: 4 });
   }
   const gx = btn.reroll.x + 16, gy = btn.reroll.y + btn.reroll.h + 34;
+  { ctx.font = `600 30px ${FONT}`; const gw = ctx.measureText(String(Math.round(goldShown ?? gold))).width + 58;
+    rrect(gx - 22, gy - 21, gw, 42, 21); const gg = ctx.createLinearGradient(0, gy - 21, 0, gy + 21); gg.addColorStop(0, "rgba(58,36,20,0.92)"); gg.addColorStop(1, "rgba(26,14,8,0.92)"); ctx.fillStyle = gg; ctx.fill();
+    ctx.strokeStyle = goldPulse > 0.05 ? "#fff1a8" : "#c8962a"; ctx.lineWidth = 2.5; ctx.stroke(); }
   { const sc = 1 + goldPulse * 0.22; ctx.save(); ctx.translate(gx, gy); ctx.scale(sc, sc); circle(0, 0, 15, GOLD); ring(0, 0, 15, INK, 3); ring(0, 0, 9, hexA(INK, 0.5), 2); ctx.restore();
     if (goldPulse > 0 && !settings.lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(gx, gy, 24 * goldPulse + 8, `rgba(255,210,90,${0.4 * goldPulse})`); ctx.restore(); }
     text(String(Math.round(goldShown ?? gold)), gx + 24, gy + 11, 30, goldPulse > 0.05 ? "#fff1a8" : GOLD, { align: "left", outline: 8 }); }
@@ -13221,7 +13255,7 @@ function frame(now) {
       ctx.translate(rand(-1, 1) * s, rand(-1, 1) * s);
       if (doom && doom.hit) { const z = 1 + 0.06 * Math.max(0, 1 - (doom.t - DOOM_HIT) / 0.5); ctx.translate(W / 2, (HUD_H + FRONT_Y) / 2); ctx.scale(z, z); ctx.translate(-W / 2, -(HUD_H + FRONT_Y) / 2); }
     }
-    drawWorld(); drawDragonFireballs(); drawDanger(paused ? 0 : dt); drawRoarTint(); drawSynergy(); drawBossFx(); drawDoom(); drawHud(); drawSpell(); drawWaveBanner(); ctx.restore();
+    drawWorld(); drawDragonFireballs(); drawDanger(paused ? 0 : dt); drawRoarTint(); drawSynergy(); drawBossFx(); drawDoom(); drawHud(); drawSpell(); drawWaveBanner(); if (hitFlash > 0) { ctx.fillStyle = `rgba(255,250,235,${hitFlash * 0.5})`; ctx.fillRect(0, -TOP, W, H + TOP); } ctx.restore();
   }
   if (drag) {
     drag.card.drawBattle();
