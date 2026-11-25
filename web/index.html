@@ -727,7 +727,7 @@ function writeSave() { try { localStorage.setItem("arcane-fusion-save", JSON.str
 const STAGE_LEN = 10;
 const GEMS_PER_STAGE = 20;
 const PULL_COST = 100;
-const PITY = 100;
+const PITY = 200;
 const SPECIAL_RATE = 0.005, MAIN_RATE = 0.5, NEXT_RATE = 0.3, EPIC_RATE = 0.13, MYTH_RATE = 0.05;
 const LEVEL_NEED = [5, 10, 20, 40], LEVEL_BONUS = 0.2, MAX_LEVEL = 5;
 const TOTEM_SHOP_CHANCES = [0.10, 0.08, 0.06, 0.04, 0.025].map(c => c / 1.5);
@@ -12441,7 +12441,7 @@ function effectLines(d) {
 function howToGet(el) {
   const d = EL[el];
   if (d.divine) { const r = DIVINE_RECIPES.find(q => q.result === el); return "Ascend at the Divine Altar during a run" + (r ? ": " + r.parts.map(tokenName).join(" + ") + "." : "."); }
-  if (d.special) return "Summon (guaranteed by pull 100) or the Shop. Once unlocked it can appear in the battle shop (rare).";
+  if (d.special) return "Summon (guaranteed by pull 200) or the Shop. Once unlocked it can appear in the battle shop (rare).";
   if (d.legendCard) return "Fusion Chamber with a Myth card on an altar (Legend chance), or Summon (1.5%).";
   if (d.myth) return "Fusion Chamber: fuse 3 or more Epic cards.";
   const r = RECIPE_LIST.find(x => x[2] === el);
@@ -12976,7 +12976,7 @@ const TUT = {
     { t: "Welcome to Arcane Fusion!", b: "Monsters march toward your castle in endless waves. Buy elemental cards, merge them into stronger spirits and survive as long as you can. Between runs you collect and upgrade cards." },
     { t: "Your profile", hl: () => btnRect(btn.bio), b: "This is you! Tap it to change your name and avatar and to see your records. Every wave you clear gives 10 XP, and XP raises your level." },
     { t: "Gems", hl: () => ({ x: W / 2 - 72, y: 12, w: 144, h: 62 }), b: "Gems are used to summon cards. Every stage you clear (10 waves) gives you 20 gems, and the daily reward gives more. Tap the green + or the cart to open the Shop." },
-    { t: "Summon", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe left to open Summon (the dots up here show which page you are on). One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 100." },
+    { t: "Summon", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe left to open Summon (the dots up here show which page you are on). One pull costs 100 gems, ten pulls cost 900. Pulls give card copies, and a Special card is guaranteed by pull 200." },
     { t: "Your cards", hl: () => ({ x: W / 2 - 46, y: 74, w: 92, h: 28 }), b: "Swipe right to see your card library. Copies from Summon upgrade a card: every level adds +20% damage. Tap a card to read its stats. Cards you have not discovered yet stay hidden." },
     { t: "Daily reward", hl: () => ({ x: btn.daily.x - 4, y: btn.daily.y - 4, w: btn.daily.w + 8, h: btn.daily.h + 26 }), b: "Open the game every day for free gems: 20 on day 1, rising to 200 on day 7. If you like, watch an ad to double it (always optional). The calendar shows a red ! when your reward is waiting." },
     { t: "Tutorial", hl: () => ({ x: btn.help.x - 4, y: btn.help.y - 4, w: btn.help.w + 8, h: btn.help.h + 26 }), b: "Tap the owl any time to replay this tour and the playable training. The Merge & Fusion guide is at the top of your card library (swipe right)." },
