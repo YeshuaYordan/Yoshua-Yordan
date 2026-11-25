@@ -9156,14 +9156,14 @@ const btn = {
   revealOk: makeBtn("OK", 70, 1150, 230, 86, () => { summonReveal = null; }, 30),
   revealAgain: Object.assign(makeBtn("Again", 320, 1150, 330, 86, () => { summonReveal = null; doSummon(1); }, 26), { fill: "#c9a6ff", fillDown: "#a982e8" }),
   lobbySound: makeBtn("Sound: On", 516, 14, 190, 58, () => { setMuted(!Sfx.muted); if (!Sfx.muted) playUi("ui_pick"); }, 24),
-  resume: makeBtn("Resume", 180, 560, 360, 80, () => { paused = false; }),
-  sound: makeBtn("Settings", 180, 960, 360, 80, () => { settingsOpen = true; }),
-  pauseBook: makeBtn("Spellbook", 180, 660, 360, 80, () => openBook()),
-  restart: makeBtn("Restart", 180, 760, 360, 80, () => {
+  resume: makeBtn("Resume", 180, 540, 360, 80, () => { paused = false; }),
+  sound: makeBtn("Settings", 180, 940, 360, 80, () => { settingsOpen = true; }),
+  pauseBook: makeBtn("Spellbook", 180, 640, 360, 80, () => openBook()),
+  restart: makeBtn("Restart", 180, 740, 360, 80, () => {
     if (restartArmed > 0) { restartArmed = 0; startRun(); }
     else restartArmed = 3;
   }),
-  quit: makeBtn("Quit to Lobby", 180, 860, 360, 80, () => goToLobby()),
+  quit: makeBtn("Quit to Lobby", 180, 840, 360, 80, () => goToLobby()),
   again: makeBtn("Play Again", 180, 700, 360, 86, () => startRun()),
   title: makeBtn("Lobby", 180, 806, 360, 76, () => goToLobby()),
   closeBook: makeBtn("Close", 240, 1078, 240, 70, () => { bookOpen = false; }),
@@ -9765,7 +9765,7 @@ function drawWorld() {
   if (curses.has("smoke")) drawCurseSmoke();
   drawCurseBurns();
   drawCurseFx();
-  if (state === "wave" || state === "break") { drawCurseBadges(); drawWeakTag(); drawModTags(); drawCombo(); }
+  if ((state === "wave" || state === "break") && !chamberOpen) { drawCurseBadges(); drawWeakTag(); drawModTags(); drawCombo(); }
   if (timeStopT > 0) drawTimeStop();
   if (!chamberOpen && !spell) drawWildFan();
 }
@@ -10096,15 +10096,22 @@ function drawOverlays() {
   } else if (state === "gameover" && !bookOpen) {
     drawGameOver();
   } else if (paused && !bookOpen) {
-    dim(0.6);
-    text("Paused", W / 2, 480, 60, PARCH, { font: DISPLAY, weight: 900, outline: 12 });
-    if (relics.size) { const ids = [...relics], n = ids.length, sz = Math.min(26, 300 / n);
-      ids.forEach((id, k) => drawRelicIcon(id, W / 2 + (k - (n - 1) / 2) * (sz * 2 + 8), 400, sz));
-      text(`Relics: ${ids.map(id => RELICS[id].name).join(", ")}`, W / 2, 352, 17, "#e3d4ff", { weight: 600, outline: 5 }); }
+    dim(0.66);
+    // Quests-style panel: title ribbon, run summary, relics, then the buttons
+    const px = 120, py = relics.size ? 250 : 320, pw = W - 240, ph = relics.size ? 900 : 830;
+    questFrame(px, py, pw, ph, 24);
+    text("PAUSED", W / 2, py + 72, 54, GOLD, { font: DISPLAY, weight: 900, outline: 9, outlineColor: "#140a20" });
+    const run = [[bossMode ? "Kills" : "Wave", bossMode ? String(bossKills) : waveLabel(Math.max(1, wave))], ["Gold", fmtNum(Math.floor(gold))], ["Time", fmtTime((runStats.time || 0) * 1000).replace(/^0:/, "")]];
+    run.forEach(([k, v], i) => { const cx = px + pw * (i + 0.5) / 3, by = py + 104;
+      rrect(cx - 62, by, 124, 62, 14); ctx.fillStyle = "rgba(255,255,255,0.06)"; ctx.fill(); ctx.strokeStyle = "rgba(242,193,78,0.35)"; ctx.lineWidth = 1.5; ctx.stroke();
+      text(k.toUpperCase(), cx, by + 22, 14, "#cdb9ff", { weight: 800 }); text(v, cx, by + 50, 24, i === 1 ? GOLD : "#fff1d8", { weight: 900, outline: 4, outlineColor: "#140a20" }); });
+    if (relics.size) { const ids = [...relics], n = ids.length, sz = Math.min(22, 300 / n);
+      ids.forEach((id, k) => drawRelicIcon(id, W / 2 + (k - (n - 1) / 2) * (sz * 2 + 8), py + 212, sz));
+      text(`Relics: ${ids.map(id => RELICS[id].name).join(", ")}`, W / 2, py + 256, 16, "#e3d4ff", { weight: 600, outline: 4 }); }
     btn.restart.label = restartArmed > 0 ? "Tap again to restart" : "Restart";
     drawBtn(btn.resume); drawBtn(btn.pauseBook); if (!bossMode) drawBtn(btn.restart); drawBtn(btn.quit); drawBtn(btn.sound);
-    if (bossMode) text("Leaving ends this Boss Break Out run.", W / 2, 1075, 22, "#ff9a8a", { outline: 6 });
-    if (restartArmed > 0) text("Your current run will be lost.", W / 2, 1075, 22, "#ff9a8a", { outline: 6 });
+    if (bossMode) text("Leaving ends this Boss Break Out run.", W / 2, 1090, 20, "#ff9a8a", { outline: 6 });
+    if (restartArmed > 0) text("Your current run will be lost.", W / 2, 1090, 20, "#ff9a8a", { outline: 6 });
   }
   if (bookOpen) drawBook();
 }
@@ -11617,7 +11624,7 @@ for (const [k, u] of Object.entries({"merge_guide_notify": "assets/img/merge_gui
 function drawIconBtn(slot, b, label, fps = 12) {
   const sp = b.down ? 0.92 : 1;
   if (slot && slot.ready) { const sz = b.w * sp; ctx.drawImage(slot.img, (Math.floor(lobbyT * fps) % 12) * 128, 0, 128, 128, b.x + (b.w - sz) / 2, b.y + (b.h - sz) / 2, sz, sz); }
-  text(label, b.x + b.w / 2, b.y + b.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel(label, b.x + b.w / 2, b.y + b.h + 8, 20);
 }
 const MISSION_ICON = {};
 for (const [k, u] of Object.entries({"mission_notify": "assets/img/mission_notify.webp", "mission": "assets/img/mission.webp"})) { const img = new Image(), slot = { img, ready: false }; img.onload = () => { slot.ready = true; }; img.src = u; MISSION_ICON[k] = slot; }
@@ -11710,6 +11717,12 @@ function openLeaderboard() {
   if (g) g.show();
   else shopToast = { text: "Android app only", color: "#ffd77a", t: 0 };
 }
+// Lobby icon label on a dark pill so it reads over the room art
+function lobbyLabel(s, x, y, size = 20) {
+  ctx.font = `800 ${size}px ${FONT}`; const w = ctx.measureText(s).width + 20;
+  rrect(x - w / 2, y - size + 1, w, size + 9, (size + 9) / 2); ctx.fillStyle = "rgba(26,12,24,0.62)"; ctx.fill(); ctx.strokeStyle = "rgba(242,193,78,0.5)"; ctx.lineWidth = 1.5; ctx.stroke();
+  text(s, x, y, size, PARCH, { weight: 800, outline: 5 });
+}
 // Elite trait badge: dark coin with a trait icon
 function drawEliteBadge(tr, x, y, r) {
   const c = ELITE_TRAITS[tr].col; circle(x, y, r, "#1a0b12"); ring(x, y, r, c, 2);
@@ -11754,7 +11767,7 @@ function drawLeaderboardIcon(b) {
   if (!lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; for (let i = 0; i < 4; i++) { const ph = (t * 0.9 + i * 0.27) % 1, x = [-30, 34, -8, 22][i], y = [-48, -40, -58, -6][i], s2 = 5 * Math.sin(ph * Math.PI);
       ctx.strokeStyle = `rgba(255,245,200,${Math.sin(ph * Math.PI)})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - s2, y); ctx.lineTo(x + s2, y); ctx.moveTo(x, y - s2); ctx.lineTo(x, y + s2); ctx.stroke(); } ctx.restore(); }
   ctx.restore();
-  text("Leaderboard", b.x + b.w / 2, b.y + b.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel("Leaderboard", b.x + b.w / 2, b.y + b.h + 8, 20);
 }
 // Lobby Challenge button: crossed swords behind a round battle shield with a flame crest, swords clash with sparks, "!" while today's challenge is unplayed
 function drawChallengeIcon(b) {
@@ -11788,7 +11801,7 @@ function drawChallengeIcon(b) {
   if (!lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; for (let i = 0; i < 5; i++) { const u = (t * 0.7 + i * 0.21) % 1; circle(Math.sin(i * 2.3 + t) * 16, -6 - u * 40, 2 * (1 - u) + 0.5, `rgba(255,170,70,${1 - u})`); } ctx.restore(); }
   ctx.restore();
   const c = chalToday(); if (!c.played) { const r = 46; circle(cx + r - 6, cy - r + 4, 12, "#e0533f"); ring(cx + r - 6, cy - r + 4, 12, INK, 2.5); text("!", cx + r - 6, cy - r + 5, 17, "#fff", { weight: 900, baseline: "middle" }); }
-  text("Challenge", cx, b.y + b.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel("Challenge", cx, b.y + b.h + 8, 20);
 }
 const todayKey = () => { const d = new Date(gameNow()); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
 const dailyData = () => (save.daily = save.daily || { last: "", day: 0 });
@@ -11868,7 +11881,7 @@ function drawStarterIcon(b) {
   } else drawStarterGift(b);
   rrect(b.x - 4, b.y - 12, 66, 26, 13); ctx.fillStyle = "#e0533f"; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.stroke();
   text(`-${STARTER_OFF}%`, b.x + 29, b.y + 1, 16, "#fff", { weight: 900, baseline: "middle" });
-  text("Beginner Deal", b.x + b.w / 2, b.y + b.h + 8, 19, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel("Beginner Deal", b.x + b.w / 2, b.y + b.h + 8, 19);
   text(fmtClock(starterLeft()), b.x + b.w / 2, b.y + b.h + 32, 18, "#ffd75a", { weight: 800, outline: 5 });
 }
 function drawStarterGift(b) {
@@ -12471,23 +12484,23 @@ function drawHomeUi() {
   drawLeaderboardIcon(btn.leaderboard);
   const mi = MISSION_ICON[missionsClaimable() ? "mission_notify" : "mission"], mb = btn.missions, mp = mb.down ? 0.92 : 1;
   if (mi && mi.ready) { const sz = mb.w * mp; ctx.drawImage(mi.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, mb.x + (mb.w - sz) / 2, mb.y + (mb.h - sz) / 2, sz, sz); }
-  text("Missions", mb.x + mb.w / 2, mb.y + mb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel("Missions", mb.x + mb.w / 2, mb.y + mb.h + 8, 20);
   const bk = BOOK_ICON[bookHasNew() ? "spellbook_notify" : "spellbook"], bb = btn.titleBook, bp = bb.down ? 0.92 : 1;
   if (bk && bk.ready) { const sz = bb.w * bp; ctx.drawImage(bk.img, (Math.floor(lobbyT * 7) % 12) * 128, 0, 128, 128, bb.x + (bb.w - sz) / 2, bb.y + (bb.h - sz) / 2, sz, sz); }
-  text("Spellbook", bb.x + bb.w / 2, bb.y + bb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel("Spellbook", bb.x + bb.w / 2, bb.y + bb.h + 8, 20);
   const sb = btn.getGems, sp = sb.down ? 0.92 : 1;
   if (CART_ICON.ready) { const sz = sb.w * sp; ctx.drawImage(CART_ICON.img, (Math.floor(lobbyT * 12) % 12) * 128, 0, 128, 128, sb.x + (sb.w - sz) / 2, sb.y + (sb.h - sz) / 2, sz, sz); }
-  text("Shop", sb.x + sb.w / 2, sb.y + sb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel("Shop", sb.x + sb.w / 2, sb.y + sb.h + 8, 20);
   const cb = btn.castleUp, cp = cb.down ? 0.92 : 1;
   ctx.save(); ctx.translate(cb.x + cb.w / 2, cb.y + cb.h / 2 + 4 + Math.sin(lobbyT * 2) * 2); ctx.scale(cp * 1.1, cp * 1.1); drawCastleBtn(lobbyT); ctx.restore();
-  text("Castle", cb.x + cb.w / 2, cb.y + cb.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel("Castle", cb.x + cb.w / 2, cb.y + cb.h + 8, 20);
   if (starterAvailable()) drawStarterIcon(btn.starter);
   const cal = CAL_ICON[dailyReady() ? "calendar_notify" : "calendar"], db = btn.daily, press = db.down ? 0.92 : 1;
   if (cal && cal.ready) {
     const sz = db.w * press, f = Math.floor(lobbyT * 12) % 12;
     ctx.drawImage(cal.img, f * 128, 0, 128, 128, db.x + (db.w - sz) / 2, db.y + (db.h - sz) / 2, sz, sz);
   }
-  text("Daily", db.x + db.w / 2, db.y + db.h + 8, 20, PARCH, { weight: 800, outline: 6 });
+  lobbyLabel("Daily", db.x + db.w / 2, db.y + db.h + 8, 20);
   const found = RECIPE_LIST.filter(r => save.discovered[r[2]]).length;
   const stats = (save.best > 0 ? `Best: Wave ${waveLabel(save.best)}   ·   ` : "") + `${found}/${RECIPE_LIST.length} fusions found`;
   text(stats, W / 2, H - 20, 20, PARCH, { outline: 6 });
@@ -13085,7 +13098,7 @@ function drawLoading(now) {
   text("TIP", 102, by + 98, 18, "#ffd75a", { weight: 900, baseline: "middle" });
   text(LOAD_TIPS[ti], W / 2 + 26, by + 98, LOAD_TIPS[ti].length > 46 ? 16 : 18, "#f3e3c3", { weight: 600, baseline: "middle" });
   ctx.restore();
-  text("v1.0", W - 20, H - 18, 15, "rgba(243,227,195,0.45)", { align: "right", weight: 600 });
+  text("v1.1.0", W - 20, H - 18, 15, "rgba(243,227,195,0.45)", { align: "right", weight: 600 });
   if (LOAD.go) {
     const f = clamp((now - LOAD.go) / 450, 0, 1);
     ctx.save(); ctx.globalCompositeOperation = "lighter";
