@@ -80,7 +80,8 @@ setInterval(() => {
 const LOAD = { total: 0, done: 0, t0: performance.now(), finished: false, fade: 0 };
 { const NativeImage = window.Image;
   window.Image = function (w, h) { const img = new NativeImage(w, h); LOAD.total++; let counted = false;
-    const fin = () => { if (!counted) { counted = true; LOAD.done++; } }; img.addEventListener("load", fin); img.addEventListener("error", fin); return img; }; }
+    // a picture only counts as loaded when it really loaded (failed ones are retried), or after every retry has failed
+    const fin = () => { if (!counted) { counted = true; LOAD.done++; } }; img.addEventListener("load", fin); img.addEventListener("error", () => { if (img.__tries >= 8) fin(); }); return img; }; }
 const W = 720, BASE_H = 1280;
 let H = BASE_H;
 const HUD_H = 72, WALL_H = 44;
@@ -13369,7 +13370,8 @@ function drawLoading(now) {
   ctx.restore();
   const by = H * 0.8, bw = W - 150, bx = 75, bh = 34;
   if (!LOAD.ready || k < 1) {
-    text(LOAD_STEPS[Math.min(LOAD_STEPS.length - 1, Math.floor(k * LOAD_STEPS.length))], W / 2, by - 22, 22, "#e6d4ff", { weight: 700, outline: 5, outlineColor: "#10061e" });
+    const retrying = ALL_IMGS.some(r => { const i = r.deref(); return i && i.__tries > 0 && i.getAttribute("src") && !(i.complete && i.naturalWidth); });
+    text(retrying ? "Slow connection, retrying..." : LOAD_STEPS[Math.min(LOAD_STEPS.length - 1, Math.floor(k * LOAD_STEPS.length))], W / 2, by - 22, 22, retrying ? "#ffd27a" : "#e6d4ff", { weight: 700, outline: 5, outlineColor: "#10061e" });
     rrect(bx - 6, by - 6, bw + 12, bh + 12, (bh + 12) / 2); ctx.fillStyle = imMetal(0, by - 6, 0, by + bh + 6, ["#fff2b0", "#d89a18", "#7a4a08", "#e0a830"]); ctx.fill(); ctx.strokeStyle = "#1a0a06"; ctx.lineWidth = 3; ctx.stroke();
     rrect(bx, by, bw, bh, bh / 2); ctx.fillStyle = "#12061e"; ctx.fill();
     const fw = Math.max(bh, bw * k);
@@ -13416,7 +13418,7 @@ function frame(now) {
     const filesIn = LOAD.total > 0 && LOAD.done >= LOAD.total;
     if (filesIn && !WARM.started) warmStart();
     if (filesIn && WARM.fontsOk && !WARM.done) warmStep(10);
-    if (!LOAD.ready && ((filesIn && WARM.done && now - LOAD.t0 > 1200) || now - LOAD.t0 > 30000)) LOAD.ready = true;
+    if (!LOAD.ready && ((filesIn && WARM.done && now - LOAD.t0 > 1200) || now - LOAD.t0 > 120000)) LOAD.ready = true; // 2 min safety net only
     if (LOAD.go && now - LOAD.go > 450) { LOAD.finished = true; fadeIn = 0.6; last = now; }
     else { last = now; ctx.setTransform(1, 0, 0, 1, 0, TOP); drawLoading(now); requestAnimationFrame(frame); return; }
   }

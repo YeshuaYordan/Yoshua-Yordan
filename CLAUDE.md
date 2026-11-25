@@ -49,7 +49,7 @@ The game is live and in active development (the old "wait for go" rule no longer
   - Tested with every asset refused on its first request: all 397 recovered.
 - Player name: first-launch panel, change once per 7 days (`openNameBox`, `NAME_COOLDOWN`).
 - Front camera: the canvas fills the screen; everything is drawn `TOP` units lower (`setSafeTop` from MainActivity's cutout inset, or `env(safe-area-inset-top)`). Canvas height is `H + TOP`; full-screen fills/clips use `(0, -TOP, W, H + TOP)`; `lobbyView` covers the strip; `toLogical` subtracts `TOP`.
-- Loading screen: `drawLoading`, warm-up pre-draws every card (`WARM`), then "TAP TO START".
+- Loading screen: `drawLoading`, warm-up pre-draws every card (`WARM`), then "TAP TO START". A picture only counts as loaded when it really loads (a failed one counts only after all 8 retries fail), so TAP TO START waits for every file; the old 30 s force-start is now a 2 min safety net. While any picture is retrying, the step text says "Slow connection, retrying..." (2026-11-25).
 - `TESTER_RESET` is TRUE again (user is testing, 2026-11-19). Set it back to false before any release build.
 - Play Console in-app products (all one-time "in-app" products): consumable gem packs gems_250, gems_1500, gems_4000, gems_10000, gems_35000, gems_100000; one-time (never consumed) speed_2x, starter_deal, no_ads, special_totem, special_flight, special_midas, special_mirror, special_hourglass, special_bulwark, special_seer, special_chainlink, special_chalice, special_hex.
 
