@@ -839,11 +839,23 @@ const panelText = c => { if (typeof c !== "string") return c; const m = PANEL_TE
     if (PANEL_DARK > 0 && typeof v === "string") { const m = PANEL_FILL[v.toLowerCase()]; if (m) v = m; else if (v.startsWith("rgba(42,26,18,")) v = "rgba(255,255,255," + (parseFloat(v.slice(14)) * 0.5).toFixed(3) + ")"; }
     d.set.call(this, v); } }); }
 const lightTheme = fn => { const k = PANEL_DARK; PANEL_DARK = 0; try { return fn(); } finally { PANEL_DARK = k; } };
+const TEXT_EDGE = 6;
 function text(s, x, y, size, color, opt = {}) {
   if (PANEL_DARK > 0) { if (opt.font === DISPLAY && (color === INK || color === "#6b3a22")) { color = GOLD; opt = { ...opt, outline: opt.outline || 7, outlineColor: "#140a20" }; } else color = panelText(color); }
   ctx.font = `${opt.weight || 600} ${size}px ${opt.font || FONT}`;
   ctx.textAlign = opt.align || "center";
   ctx.textBaseline = opt.baseline || "alphabetic";
+  // keep every text on screen: shrink lines wider than the screen, nudge lines that hang past the left/right edge back in
+  if (ctx.canvas === canvas && s && s.length > 1) {
+    const m = ctx.getTransform();
+    if (Math.abs(m.b) < 1e-4 && Math.abs(m.c) < 1e-4 && m.a > 0) {
+      const pad = TEXT_EDGE + (opt.outline || 0) / 2, al = ctx.textAlign;
+      let w = ctx.measureText(s).width, sw = w * m.a;
+      if (sw > W - pad * 2) { size *= (W - pad * 2) / sw; ctx.font = `${opt.weight || 600} ${size}px ${opt.font || FONT}`; w = ctx.measureText(s).width; sw = w * m.a; }
+      const left = (al === "left" || al === "start" ? x : al === "right" || al === "end" ? x - w : x - w / 2) * m.a + m.e, mid = left + sw / 2;
+      if (mid > 0 && mid < W) { if (left < pad) x += (pad - left) / m.a; else if (left + sw > W - pad) x -= (left + sw - (W - pad)) / m.a; } // texts of another lobby page (centre off screen) are left alone
+    }
+  }
   if (opt.outline) { ctx.lineWidth = opt.outline; ctx.strokeStyle = opt.outlineColor || INK; ctx.lineJoin = "round"; ctx.strokeText(s, x, y); }
   const k = PANEL_DARK; PANEL_DARK = 0; ctx.fillStyle = color; PANEL_DARK = k;
   ctx.fillText(s, x, y);
