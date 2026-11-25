@@ -1236,16 +1236,13 @@ function tyBack(hw, hh, t) {
   ctx.save(); ctx.globalCompositeOperation = "lighter";
   const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(255,190,60,${0.32 + 0.1 * Math.sin(t * 2.5)})`); g.addColorStop(1, "rgba(255,150,40,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260);
   ctx.restore();
-  for (let i = 0; i < 10; i++) { const a = t * 0.8 + i * Math.PI / 5, z = Math.sin(a); if (z > 0) continue; const x = Math.cos(a) * (hw + 16), y = z * 14 - 6, sx = Math.max(0.2, Math.abs(Math.cos(t * 4 + i)));
+  for (let i = 0; i < 10; i++) { const a = t * 0.8 + i * Math.PI / 5, z = Math.sin(a); if (z > 0) continue; const x = Math.cos(a) * (hw + 16), y = z * 10 + hh * 0.62, sx = Math.max(0.2, Math.abs(Math.cos(t * 4 + i)));
     ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); circle(0, 0, 5, "#d8a030"); ring(0, 0, 5, "#7a4a10", 1); ctx.restore(); }
 }
 function tyFront(hw, hh, t) {
   ctx.save();
-  // chasing casino bulbs round the border
-  const per = 2 * (CARD_W + CARD_H), nb = 22, at = d => { d = ((d % per) + per) % per; if (d < CARD_W) return [-hw + d, -hh]; d -= CARD_W; if (d < CARD_H) return [hw, -hh + d]; d -= CARD_H; if (d < CARD_W) return [hw - d, hh]; d -= CARD_W; return [-hw, hh - d]; };
-  for (let i = 0; i < nb; i++) { const [x, y] = at(i * per / nb), on = (Math.floor(t * 6) + i) % 3 === 0; if (on) { ctx.globalCompositeOperation = "lighter"; circle(x, y, 6, "rgba(255,220,120,0.35)"); ctx.globalCompositeOperation = "source-over"; } circle(x, y, 2.6, on ? "#fff6c8" : "#8a5a10"); }
   // coins in front half of the ring
-  for (let i = 0; i < 10; i++) { const a = t * 0.8 + i * Math.PI / 5, z = Math.sin(a); if (z <= 0) continue; const x = Math.cos(a) * (hw + 16), y = z * 14 - 6, sx = Math.max(0.2, Math.abs(Math.cos(t * 4 + i)));
+  for (let i = 0; i < 10; i++) { const a = t * 0.8 + i * Math.PI / 5, z = Math.sin(a); if (z <= 0) continue; const x = Math.cos(a) * (hw + 16), y = z * 10 + hh * 0.62, sx = Math.max(0.2, Math.abs(Math.cos(t * 4 + i)));
     ctx.save(); ctx.translate(x, y); ctx.scale(sx, 1); const g = ctx.createRadialGradient(-1.5, -1.5, 0, 0, 0, 6); g.addColorStop(0, "#fff6c8"); g.addColorStop(1, "#d8a030"); circle(0, 0, 6, g); ring(0, 0, 6, "#7a4a10", 1.2); ctx.restore(); }
   // sparkles
   ctx.globalCompositeOperation = "lighter";
@@ -1650,6 +1647,7 @@ class Card {
   // (Divine frame extras live in divineBack / divineFront below the class)
   // Divine frame: the user's static 808x864 frame picture, stored at half size (404x432); card area 448x544 at (180,160), art window (247,230) 315x407.
   drawDivineCard(hw, hh, t, d) {
+    if (d.fx === "tychor") return this.drawTychorCard(hw, hh, t, d);
     // art window in full-size frame px (card area starts at 180,160); each Divine card can have its own frame (d.frame, d.win)
     const K = 0.25, win = d.win || [247, 230, 315, 407], WX = -hw + (win[0] - 180) * K, WY = -hh + (win[1] - 160) * K, WW = win[2] * K, WH = win[3] * K;
     if (!settings.lite) { if (d.fx === "elyndor") elyBack(hw, hh, t); else if (d.fx === "tychor") tyBack(hw, hh, t); else { const p = 0.5 + 0.5 * Math.sin(t * 2.2); const g = ctx.createRadialGradient(0, 0, 20, 0, 0, 110); g.addColorStop(0, `rgba(150,110,255,${0.28 + 0.12 * p})`); g.addColorStop(1, "rgba(150,110,255,0)"); ctx.fillStyle = g; ctx.fillRect(-120, -130, 240, 260); divineBack(hw, hh, t); } }
@@ -1670,6 +1668,54 @@ class Card {
     if (!settings.lite) { if (d.fx === "elyndor") elyFront(hw, hh, t, K); else if (d.fx === "tychor") tyFront(hw, hh, t); else divineFront(hw, hh, t, K, !d.frame); }
     if (!this.noLabel) text("DIVINE", 0, WY + 9, 9, "#c8f6ff", { weight: 800, outline: 4, outlineColor: "#140a28" });
     text(d.name, 0, WY + WH - 9, 14, "#e6dcff", { font: DISPLAY, weight: 900, outline: 4, outlineColor: "#140a28", baseline: "middle" });
+  }
+  // Tychor: the card IS an arcade slot machine (no frame art); its reels are this card's live slot state
+  drawTychorCard(hw, hh, t, d) {
+    const lite = settings.lite, s0 = this.slot || { phase: "idle", digits: [7, 7, 7], kind: "none", t: 0, pt: 0 };
+    if (!lite) tyBack(hw, hh, t);
+    const L = -hw + 3, R = hw - 9, T = -hh + 2, B = hh - 2, bw = R - L;
+    rrect(L + 2, T + 6, bw, B - T, 10); ctx.fillStyle = "rgba(0,0,0,0.45)"; ctx.fill();
+    // lever (behind the body, right side): pulled down when a spin starts
+    const pull = s0.phase === "spin" ? Math.max(0, 1 - Math.abs(s0.pt - 0.18) / 0.3) : 0, la = 0.3 + pull * 1.5, lx = R + 3, ly = 4;
+    ctx.save(); ctx.translate(lx, ly); ctx.rotate(la);
+    ctx.fillStyle = "#b8b8c8"; ctx.fillRect(-2, -34, 4, 34); ctx.fillStyle = "#e8e8f4"; ctx.fillRect(-1, -34, 1.5, 34);
+    const kg = ctx.createRadialGradient(-2, -38, 0, 0, -36, 7); kg.addColorStop(0, "#ffb0b0"); kg.addColorStop(0.5, "#e02030"); kg.addColorStop(1, "#6a0a12"); circle(0, -36, 6.5, kg);
+    ctx.restore();
+    rrect(R - 3, ly - 6, 9, 14, 3); ctx.fillStyle = "#c8962a"; ctx.fill();
+    // body
+    ctx.save(); ctx.beginPath(); ctx.moveTo(L, T + 30); ctx.quadraticCurveTo(L, T, L + bw / 2, T); ctx.quadraticCurveTo(R, T, R, T + 30); ctx.lineTo(R, B - 6); ctx.quadraticCurveTo(R, B, R - 6, B); ctx.lineTo(L + 6, B); ctx.quadraticCurveTo(L, B, L, B - 6); ctx.closePath();
+    const bg = ctx.createLinearGradient(L, 0, R, 0); bg.addColorStop(0, "#5a0814"); bg.addColorStop(0.3, "#b0182c"); bg.addColorStop(0.55, "#d8283c"); bg.addColorStop(1, "#4a0610"); ctx.fillStyle = bg; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = "#ffcf4a"; ctx.stroke(); ctx.lineWidth = 1; ctx.strokeStyle = "#7a4a10"; ctx.stroke(); ctx.clip();
+    ctx.fillStyle = "rgba(255,207,74,0.25)"; ctx.fillRect(L + 5, T + 30, 2, B - T - 36); ctx.fillRect(R - 7, T + 30, 2, B - T - 36);
+    const cx = (L + R) / 2;
+    ctx.beginPath(); ctx.moveTo(L + 6, T + 31); ctx.quadraticCurveTo(L + 6, T + 6, cx, T + 6); ctx.quadraticCurveTo(R - 6, T + 6, R - 6, T + 31); ctx.closePath();
+    const mg = ctx.createLinearGradient(0, T + 6, 0, T + 31); mg.addColorStop(0, "#2a0a3a"); mg.addColorStop(1, "#5a1a6a"); ctx.fillStyle = mg; ctx.fill(); ctx.strokeStyle = "#ffcf4a"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.restore();
+    // bulbs along the dome
+    const spin = s0.phase === "spin", win = s0.phase === "show" && s0.kind !== "none", tense = spin && s0.tease && s0.stopped === 2, rate = tense ? 26 : spin ? 14 : win ? 10 : 4;
+    for (let i = 0; i <= 10; i++) { const u = i / 10, y0 = T + 31, x = (1 - u) * (1 - u) * (L + 3) + 2 * u * (1 - u) * cx + u * u * (R - 3), y = (1 - u) * (1 - u) * y0 + 2 * u * (1 - u) * (T - 2) + u * u * y0, on = (Math.floor(t * rate) + i) % 3 === 0 || (win && Math.sin(t * 18) > 0);
+      if (on && !lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; circle(x, y, 5, "rgba(255,220,120,0.4)"); ctx.restore(); } circle(x, y, 2.2, on ? "#fff6c8" : "#8a5a10"); }
+    text(d.name.toUpperCase(), cx, T + 22, 12, "#ffd84a", { font: DISPLAY, weight: 900, outline: 3, outlineColor: "#2a0a10" });
+    if (!this.noLabel) text("DIVINE", cx, T + 38, 7, "#c8f6ff", { weight: 800, outline: 3, outlineColor: "#2a0a10" });
+    // reel window: chrome bezel + dark glass
+    const rw = 24, rh = 34, gap = 3, tw = rw * 3 + gap * 2, wy = T + 62;
+    rrect(cx - tw / 2 - 5, wy - rh / 2 - 5, tw + 10, rh + 10, 6); const cg = ctx.createLinearGradient(0, wy - rh / 2 - 5, 0, wy + rh / 2 + 5); cg.addColorStop(0, "#f4f4ff"); cg.addColorStop(0.5, "#8a8aa0"); cg.addColorStop(1, "#d8d8e8"); ctx.fillStyle = cg; ctx.fill();
+    rrect(cx - tw / 2 - 2, wy - rh / 2 - 2, tw + 4, rh + 4, 4); ctx.fillStyle = "#1a0a10"; ctx.fill();
+    if ((win || tense) && !lite) { ctx.save(); ctx.globalCompositeOperation = "lighter"; const wc = s0.kind === "nines" ? "255,122,216" : "255,216,74"; rrect(cx - tw / 2 - 7, wy - rh / 2 - 7, tw + 14, rh + 14, 8); ctx.strokeStyle = `rgba(${wc},${0.5 + 0.5 * Math.sin(t * 18)})`; ctx.lineWidth = 3; ctx.stroke(); ctx.restore(); }
+    drawReelSet(s0, cx, wy, rw, rh, gap, 25, t);
+    // payline + glass shine
+    ctx.fillStyle = "rgba(255,40,60,0.75)"; ctx.fillRect(cx - tw / 2 - 2, wy - 0.5, tw + 4, 1.2);
+    ctx.beginPath(); ctx.moveTo(cx - tw / 2 - 6, wy - 4); ctx.lineTo(cx - tw / 2 - 1, wy); ctx.lineTo(cx - tw / 2 - 6, wy + 4); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx + tw / 2 + 6, wy - 4); ctx.lineTo(cx + tw / 2 + 1, wy); ctx.lineTo(cx + tw / 2 + 6, wy + 4); ctx.fill();
+    ctx.save(); ctx.globalAlpha = 0.18; ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(cx - tw / 2, wy - rh / 2); ctx.lineTo(cx - tw / 2 + 22, wy - rh / 2); ctx.lineTo(cx - tw / 2 + 6, wy + rh / 2); ctx.lineTo(cx - tw / 2 - 2, wy + rh / 2); ctx.fill(); ctx.restore();
+    // buttons + coin slot
+    const by = wy + rh / 2 + 13;
+    [["#ff4a5a", "#7a0a14"], ["#ffd84a", "#7a5a0a"], ["#5aff8a", "#0a5a2a"]].forEach(([c1, c2], i) => { const x = cx - 20 + i * 14, lit = (Math.floor(t * 3) % 3) === i || win; const g = ctx.createRadialGradient(x - 1, by - 1, 0, x, by, 5); g.addColorStop(0, lit ? "#ffffff" : c1); g.addColorStop(1, c2); circle(x, by, 4.5, g); ring(x, by, 4.5, "#2a0a10", 1); });
+    rrect(cx + 20, by - 5, 5, 10, 2); ctx.fillStyle = "#1a0a10"; ctx.fill(); ctx.strokeStyle = "#ffcf4a"; ctx.lineWidth = 1; ctx.stroke();
+    // coin tray with a heap of coins
+    const ty = B - 12; rrect(cx - 34, ty - 6, 68, 14, 4); ctx.fillStyle = "#2a0a10"; ctx.fill(); ctx.strokeStyle = "#c8962a"; ctx.lineWidth = 1.5; ctx.stroke();
+    for (let i = 0; i < 9; i++) { const x = cx - 26 + i * 6.5, y = ty + 2 - (i % 2) * 2 - (i > 2 && i < 6 ? 2 : 0); const g = ctx.createRadialGradient(x - 1, y - 1, 0, x, y, 4); g.addColorStop(0, "#fff6c8"); g.addColorStop(1, "#c8962a"); ctx.save(); ctx.translate(x, y); ctx.scale(1, 0.55); circle(0, 0, 4, g); ring(0, 0, 4, "#7a4a10", 1); ctx.restore(); }
+    if (!lite) tyFront(hw, hh, t);
   }
   drawIllustrated(hw, hh, t, d) {
     if (!GOD_BACK_OFF && LEGEND_BACK[this.element]) drawGodBack(this.element, hw, hh, t);
@@ -6844,7 +6890,7 @@ function updateSlots(c, dt) {
   if (s0.phase === "show" && s0.pt >= SLOT.show) { s0.phase = "idle"; s0.pt = 0; }
 }
 function slotPayout(c, res) {
-  const ox = c.x, oy = c.y - CARD_H / 2 - 40;
+  const ox = c.x, oy = c.y - 10;
   if (res.kind === "triple") {
     const amt = Math.round((100 + Math.random() * 900) / 10) * 10; gold += amt; playUi("ui_sell"); playSample("summon_flip_rare", 0.8, 1);
     fxs.push(new Fx("text", { x: ox, y: oy - 40, text: `+${amt} gold!`, color: GOLD, size: 32, duration: 1.4 }));
@@ -6884,44 +6930,33 @@ function drawSlots() {
     text(`JACKPOT!  x${JACKPOT.spd} speed  x${JACKPOT.dmg} damage  ${Math.ceil(jackpotT)}s`, W / 2, HUD_H + 150, 24, GOLD, { weight: 900, outline: 7, outlineColor: "#3a1a00" });
   }
   for (const c of rows.active) {
-    if (!c || !EL[c.element].slots || c.dragging) continue;
-    const s0 = c.slot || { phase: "idle", digits: [7, 7, 7], kind: "none", t: 0, pt: 0 }, bx = c.x, by = c.y - CARD_H / 2 - 40, rw = 30, rh = 40, gap = 4, tw = rw * 3 + gap * 2;
-    // only visible while rolling: fades in just before a spin and out after the result
-    const vis = s0.phase === "spin" ? 1 : s0.phase === "show" ? clamp((SLOT.show - s0.pt) / 0.5, 0, 1) : clamp((s0.t - (SLOT.every - SLOT.fadeIn)) / SLOT.fadeIn, 0, 1);
-    if (vis <= 0) continue;
-    const tense = s0.phase === "spin" && s0.tease && s0.stopped === 2;
-    ctx.save(); ctx.globalAlpha = vis; ctx.translate(bx, by); const pop = 0.8 + 0.2 * vis + (tense ? 0.04 * Math.sin(time * 30) : 0); ctx.scale(pop, pop); ctx.translate(-bx, -by);
-    const win = s0.phase === "show" && s0.kind !== "none", wc = s0.kind === "nines" ? "#ff7ad8" : s0.kind === "sevens" ? "#ffd84a" : "#ffe9a0", flick = 0.5 + 0.5 * Math.sin(time * 18);
-    // cabinet
-    ctx.save();
-    if ((win || tense) && !lite) { ctx.shadowColor = tense ? "#ffe27a" : wc; ctx.shadowBlur = 18 + 10 * flick; }
-    rrect(bx - tw / 2 - 8, by - rh / 2 - 8, tw + 16, rh + 16, 10); ctx.fillStyle = "#5a0f1c"; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = win ? wc : "#ffcf4a"; ctx.stroke();
+    if (!c || !EL[c.element].slots || c.dragging || !c.slot) continue;
+    const s0 = c.slot, win = s0.phase === "show" && s0.kind !== "none", tense = s0.phase === "spin" && s0.tease && s0.stopped === 2;
+    const wc = s0.kind === "nines" ? "#ff7ad8" : s0.kind === "sevens" ? "#ffd84a" : "#ffe9a0", a = win ? clamp((SLOT.show - s0.pt) / 0.5, 0, 1) : 1, ty = c.y - CARD_H / 2 - 18 - (win ? 6 * Math.min(1, s0.pt * 4) : 0);
+    ctx.save(); ctx.globalAlpha = a;
+    if (win) text(s0.kind === "sevens" ? "JACKPOT!" : s0.kind === "nines" ? "999!" : "WIN!", c.x, ty, 22, wc, { weight: 900, outline: 5, outlineColor: "#2a0a10" });
+    else if (tense) text("...!", c.x, ty, 22, "#ffe27a", { weight: 900, outline: 5, outlineColor: "#2a0a10" });
     ctx.restore();
-    // chasing bulbs around the cabinet
-    const nb = 14, per = 2 * (tw + 16 + rh + 16);
-    for (let i = 0; i < nb; i++) { let d = (i / nb) * per, x, y; const W2 = tw + 16, H2 = rh + 16, x0 = bx - W2 / 2, y0 = by - H2 / 2;
-      if (d < W2) { x = x0 + d; y = y0; } else if ((d -= W2) < H2) { x = x0 + W2; y = y0 + d; } else if ((d -= H2) < W2) { x = x0 + W2 - d; y = y0 + H2; } else { d -= W2; x = x0; y = y0 + H2 - d; }
-      const on = (Math.floor(time * (tense ? 26 : s0.phase === "spin" ? 14 : 5)) + i) % 3 === 0 || win && flick > 0.5; circle(x, y, 2.4, on ? "#fff6c8" : "#7a4a10"); }
-    // reels
-    for (let k = 0; k < 3; k++) {
-      const rx = bx - tw / 2 + k * (rw + gap);
-      ctx.save(); rrect(rx, by - rh / 2, rw, rh, 5); ctx.fillStyle = "#fffaf0"; ctx.fill(); ctx.clip();
-      const spinning = s0.phase === "spin" && k >= (s0.stopped || 0);
-      if (spinning && k === 2) { // last reel: drawn from its own roll position so it can visibly slow down
-        const r3 = s0.roll3 || 0, base = Math.floor(r3), frac = r3 - base;
-        for (let j = -1; j <= 1; j++) { const dg = ((base - j) % 10 + 10) % 10; text(String(dg), rx + rw / 2, by + 11 + (j + frac) * rh, 30, tense && s0.pt > s0.stops[1] + (s0.stops[2] - s0.stops[1]) * 0.6 ? "#d0202a" : "#7a1a1a", { weight: 900 }); }
-        if (!tense || (s0.stops[2] - s0.pt) > (s0.stops[2] - s0.stops[1]) * 0.5) { const g = ctx.createLinearGradient(0, by - rh / 2, 0, by + rh / 2); g.addColorStop(0, "rgba(0,0,0,0.35)"); g.addColorStop(0.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)"); ctx.fillStyle = g; ctx.fillRect(rx, by - rh / 2, rw, rh); } }
-      else if (spinning) { const off = (time * 900 + k * 37) % rh; for (let j = -1; j <= 1; j++) { const dg = Math.floor((time * 30 + k * 3 + j * 7) % 10); text(String(dg), rx + rw / 2, by + 11 + j * rh + off - rh / 2, 30, "#7a1a1a", { weight: 900 }); }
-        const g = ctx.createLinearGradient(0, by - rh / 2, 0, by + rh / 2); g.addColorStop(0, "rgba(0,0,0,0.35)"); g.addColorStop(0.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)"); ctx.fillStyle = g; ctx.fillRect(rx, by - rh / 2, rw, rh); }
-      else { const dg = s0.digits[k], col = dg === 7 ? "#d0202a" : dg === 9 ? "#8a1aa8" : "#2a1a12";
-        const land = s0.phase === "spin" || (s0.phase === "show" && s0.pt < 0.2) ? 1 + 0.15 * Math.max(0, 1 - s0.pt * 5) : 1;
-        ctx.save(); ctx.translate(rx + rw / 2, by + 11); ctx.scale(land, land); text(String(dg), 0, 0, 30, col, { weight: 900 }); ctx.restore(); }
-      ctx.restore();
-      rrect(rx, by - rh / 2, rw, rh, 5); ctx.strokeStyle = "#2a0a0a"; ctx.lineWidth = 2; ctx.stroke();
-    }
-    if (win) text(s0.kind === "sevens" ? "JACKPOT!" : s0.kind === "nines" ? "999!" : "WIN!", bx, by - rh / 2 - 16, 20, wc, { weight: 900, outline: 5, outlineColor: "#2a0a10" });
-    else if (tense) text("...!", bx, by - rh / 2 - 16, 20, "#ffe27a", { weight: 900, outline: 5, outlineColor: "#2a0a10" });
+  }
+}
+// Tychor's 3 reels (drawn inside the card): s0 = the card's slot state, (bx, by) = centre of the reel strip
+function drawReelSet(s0, bx, by, rw, rh, gap, fs, time) {
+  const tw = rw * 3 + gap * 2, tense = s0.phase === "spin" && s0.tease && s0.stopped === 2, dy = fs * 0.36;
+  for (let k = 0; k < 3; k++) {
+    const rx = bx - tw / 2 + k * (rw + gap);
+    ctx.save(); rrect(rx, by - rh / 2, rw, rh, 5); ctx.fillStyle = "#fffaf0"; ctx.fill(); ctx.clip();
+    const spinning = s0.phase === "spin" && k >= (s0.stopped || 0);
+    if (spinning && k === 2) { // last reel: drawn from its own roll position so it can visibly slow down
+      const r3 = s0.roll3 || 0, base = Math.floor(r3), frac = r3 - base;
+      for (let j = -1; j <= 1; j++) { const dg = ((base - j) % 10 + 10) % 10; text(String(dg), rx + rw / 2, by + dy + (j + frac) * rh, fs, tense && s0.pt > s0.stops[1] + (s0.stops[2] - s0.stops[1]) * 0.6 ? "#d0202a" : "#7a1a1a", { weight: 900 }); }
+      if (!tense || (s0.stops[2] - s0.pt) > (s0.stops[2] - s0.stops[1]) * 0.5) { const g = ctx.createLinearGradient(0, by - rh / 2, 0, by + rh / 2); g.addColorStop(0, "rgba(0,0,0,0.35)"); g.addColorStop(0.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)"); ctx.fillStyle = g; ctx.fillRect(rx, by - rh / 2, rw, rh); } }
+    else if (spinning) { const off = (time * 900 + k * 37) % rh; for (let j = -1; j <= 1; j++) { const dg = Math.floor((time * 30 + k * 3 + j * 7) % 10); text(String(dg), rx + rw / 2, by + dy + j * rh + off - rh / 2, fs, "#7a1a1a", { weight: 900 }); }
+      const g = ctx.createLinearGradient(0, by - rh / 2, 0, by + rh / 2); g.addColorStop(0, "rgba(0,0,0,0.35)"); g.addColorStop(0.5, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,0.35)"); ctx.fillStyle = g; ctx.fillRect(rx, by - rh / 2, rw, rh); }
+    else { const dg = s0.digits[k], col = dg === 7 ? "#d0202a" : dg === 9 ? "#8a1aa8" : "#2a1a12";
+      const land = s0.phase === "spin" || (s0.phase === "show" && s0.pt < 0.2) ? 1 + 0.15 * Math.max(0, 1 - s0.pt * 5) : 1;
+      ctx.save(); ctx.translate(rx + rw / 2, by + dy); ctx.scale(land, land); text(String(dg), 0, 0, fs, col, { weight: 900 }); ctx.restore(); }
     ctx.restore();
+    rrect(rx, by - rh / 2, rw, rh, 5); ctx.strokeStyle = "#2a0a0a"; ctx.lineWidth = 2; ctx.stroke();
   }
 }
 // gold coin shot
